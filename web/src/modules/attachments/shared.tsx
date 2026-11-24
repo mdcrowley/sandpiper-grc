@@ -5,6 +5,8 @@ import {
 } from '@tabler/icons-react';
 import type { ComponentType } from 'react';
 import { api, formatDate, type ColorName } from '../../core';
+import { daysBetween } from '../../../../shared/dates.ts';
+export { daysBetween }; // one copy for every module (E40-12)
 
 export interface Attachment {
   id: string;
@@ -86,8 +88,6 @@ export function FileTypeIcon({ group }: { group: string }) {
   );
 }
 
-const DAY = 86_400_000;
-export const daysBetween = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY);
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 /** Color and wording for an expiry date, relative to the organization's "today". */

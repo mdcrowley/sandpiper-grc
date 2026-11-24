@@ -179,3 +179,19 @@ describe('XLSX round trip', () => {
   });
 });
 
+
+// W19: the import template's header row goes through the same formula guard as every export.
+describe('import template', () => {
+  it('prefixes a field label a spreadsheet program could read as a formula, and still maps it back', async () => {
+    const cf = await t.api.post('/api/admin/custom-fields', { record_type: 'gizmo', label: '=HYPERLINK("x")', type: 'text' });
+    expect(cf.status).toBe(201);
+    const res = await t.api.get('/api/import/gizmo/template');
+    expect(res.status).toBe(200);
+    const header = res.text.replace(/^﻿/, '').trim();
+    expect(header).toContain(`"'=HYPERLINK(""x"")"`);
+    expect(header).not.toMatch(/(^|,)\s*=/);
+    // The guarded label still matches its field when the filled-in template is read back.
+    const read = await t.api.post('/api/import/gizmo/read', csvFile(`Name,"'=HYPERLINK(""x"")"\nA,b\n`));
+    expect(Object.values(read.body.suggested)).toEqual(expect.arrayContaining(['name', expect.stringMatching(/^cf_/)]));
+  });
+});

@@ -101,7 +101,7 @@ Open the **Coverage** tab. It lists every covered record you may see, worst firs
 - **Partly effective**: a control's newest reviewed test found exceptions.
 - **Effective**: every control it relies on is effective and up to date.
 
-Select the boxes at the top to show only records in those states, and **Kinds of record** to show only risks, hazards and so on. Retired controls are left out.
+Select the boxes at the top to show only records in those states, and **Kinds of record** to show only risks, hazards and so on. Retired controls are left out. The boxes count every covered record you may see; the list shows 200 at a time, with page numbers under it when there are more.
 
 ## Reminders
 

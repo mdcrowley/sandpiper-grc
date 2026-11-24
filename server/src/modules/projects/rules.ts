@@ -1,4 +1,5 @@
 // Pure rules for tiers and portfolio scoring, and the defaults an administrator can change.
+import { MAX_SCORE, scoreProject } from '../../../../shared/project-scoring.ts';
 
 export interface TierThresholds {
   /** Budgets below this are Tier 3. */
@@ -34,8 +35,8 @@ export interface Criterion {
   description?: string;
 }
 
-/** Each criterion is scored from 0 to MAX_SCORE. */
-export const MAX_SCORE = 5;
+/** Each criterion is scored from 0 to MAX_SCORE (shared/project-scoring.ts, which the web preview uses too). */
+export { MAX_SCORE };
 
 export const DEFAULT_CRITERIA: Criterion[] = [
   { key: 'strategic_alignment', label: 'Strategic alignment', weight: 25, description: 'How directly it supports the strategic plan and the organization\'s goals.' },
@@ -52,22 +53,7 @@ export const DEFAULT_WIP_LIMIT = 3;
  * Criteria without a score count as zero; keys that are no longer criteria are ignored.
  */
 export function computeScore(scoring: Record<string, unknown> | null | undefined, criteria: Criterion[]): number | null {
-  if (!scoring || typeof scoring !== 'object') return null;
-  let totalWeight = 0;
-  let sum = 0;
-  let scored = 0;
-  for (const c of criteria) {
-    const weight = Number(c.weight) || 0;
-    if (weight <= 0) continue;
-    totalWeight += weight;
-    const raw = (scoring as Record<string, unknown>)[c.key];
-    if (raw === null || raw === undefined || raw === '') continue;
-    const s = Math.min(MAX_SCORE, Math.max(0, Number(raw) || 0));
-    scored += 1;
-    sum += weight * (s / MAX_SCORE);
-  }
-  if (!scored || !totalWeight) return null;
-  return Math.round((sum / totalWeight) * 1000) / 10;
+  return scoreProject(scoring, criteria, MAX_SCORE).result;
 }
 
 const RAG_RANK: Record<string, number> = { red: 0, amber: 1, green: 2 };

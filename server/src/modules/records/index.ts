@@ -7,7 +7,7 @@ import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
 import { registerPrivacy } from './privacy.ts';
 import { registerRequests } from './requests.ts';
 import { seedRecords } from './seed.ts';
-import { cleanDueDays, readSettings, SETTINGS } from './settings.ts';
+import { cleanDueDays, readSettings, SETTINGS, shownSettings } from './settings.ts';
 
 const MINUTES_15 = 15 * 60_000;
 const DAY = 24 * 3_600_000;
@@ -87,11 +87,12 @@ async function register(ctx: ModuleContext) {
   const privacy = await registerPrivacy(ctx);
 
   // ---------------------------------------------------------------- settings
-  ctx.app.get('/api/records/settings', { preHandler: ctx.requirePerm('records.view') }, async () => readSettings(ctx));
+  ctx.app.get('/api/records/settings', { preHandler: ctx.requirePerm('records.view') }, async () => shownSettings(await readSettings(ctx)));
   ctx.describeRoute({
     method: 'GET', path: '/api/records/settings', tag: 'Records requests', permission: 'records.view',
     summary: 'Request deadlines (days by kind, "*" for every other kind; no jurisdiction\'s deadline is built in), working days, the amber point and the privacy review reminder',
-    response: '{ dueDays: { [kind | "*"]: days }, businessDays, amberFraction, reviewReminderDays }',
+    description: 'Working days are counted on the organization\'s working calendar: the service desk\'s business-hours calendar (its open weekdays and holidays), named in `workingCalendar` with its number of `holidays`; Monday to Friday when there is none.',
+    response: '{ dueDays: { [kind | "*"]: days }, businessDays, amberFraction, reviewReminderDays, workingCalendar, holidays }',
   });
   ctx.app.put('/api/records/settings', { preHandler: ctx.requirePerm('records.administer') }, async (req) => {
     const b = (req.body ?? {}) as Row;
@@ -110,8 +111,8 @@ async function register(ctx: ModuleContext) {
     await ctx.settings.set(SETTINGS.businessDays, business, req);
     await ctx.settings.set(SETTINGS.amber, amber, req);
     await ctx.settings.set(SETTINGS.reviewReminderDays, remind, req);
-    const after = await readSettings(ctx);
-    await ctx.audit(req, { action: 'records.settings', summary: 'Records request and privacy settings changed', before, after });
+    const after = shownSettings(await readSettings(ctx));
+    await ctx.audit(req, { action: 'records.settings', summary: 'Records request and privacy settings changed', before: shownSettings(before), after });
     return after;
   });
   ctx.describeRoute({

@@ -1,5 +1,7 @@
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, ResourceDef, Row } from '../../core/module.ts';
+import { addMonths } from '../../../../shared/dates.ts';
+export { addMonths }; // one copy for every module (E40-12)
 
 /**
  * The record types a control may cover (contract C7, relation `covers`), in the order the screens
@@ -13,16 +15,6 @@ export const REVIEW_FIELDS: Record<string, string[]> = { risk: ['review_on'], ha
 
 export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/** `ymd` plus `months` calendar months, kept within the month (Jan 31 + 1 month = Feb 28). */
-export function addMonths(ymd: string, months: number): string {
-  const [y, m, d] = ymd.split('-').map(Number);
-  const total = (y * 12 + (m - 1)) + months;
-  const year = Math.floor(total / 12);
-  const month = total % 12;
-  const last = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
-  return `${String(year).padStart(4, '0')}-${String(month + 1).padStart(2, '0')}-${String(Math.min(d, last)).padStart(2, '0')}`;
-}
 
 /** A covered type's definition, when it is loaded and `req`'s person may view that module. */
 export function coverDef(ctx: ModuleContext, req: FastifyRequest | null, type: string): ResourceDef | undefined {

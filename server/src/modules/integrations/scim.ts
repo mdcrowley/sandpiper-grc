@@ -10,9 +10,12 @@
 //  - accounts are created with no local password (single sign-on only), never removed (DELETE and
 //    `active: false` deactivate: deactivateUser), and the break-glass account is never seen;
 //  - groups grant roles only through an administrator's mapping, and never a role that administers;
-//  - an account that can administer (or the break-glass account) never has its email address or
-//    active state changed, nor gets a provider link permit, by provisioning (W17-0): together they
-//    would let the token holder take the account over; an administrator does that by hand;
+//  - an account that can administer (any `*` or `admin.` grant, or the break-glass account) never has
+//    its email address changed, is never enabled again, and never gets a provider link permit, by
+//    provisioning (W17-0): together they would let the token holder take the account over; an
+//    administrator does that by hand. Provisioning may deactivate such an account only when it created
+//    the account itself (W19: a leaver given an administering role is still removed; deactivating
+//    takes access away, never gives it), and never the last active administrator;
 //  - a changed email address is told to the old address;
 //  - every change is audited as "Provisioning (<token name>)".
 import { timingSafeEqual } from 'node:crypto';
@@ -126,7 +129,7 @@ export function registerScim(ctx: ModuleContext) {
 
   const USER_SQL = `
     select u.id, u.username, u.email, u.display_name, u.status, u.created_at, u.updated_at,
-      x.external_id, x.user_name, coalesce(x.deactivated, false) as scim_deactivated,
+      x.external_id, x.user_name, coalesce(x.deactivated, false) as scim_deactivated, coalesce(x.provisioned, false) as scim_provisioned,
       coalesce((select json_agg(json_build_object('value', g.id, 'display', g.display_name) order by g.display_name)
                 from scim_group_members gm join scim_group_roles g on g.id = gm.group_id where gm.user_id = u.id), '[]'::json) as groups
     from users u
@@ -218,7 +221,8 @@ export function registerScim(ctx: ModuleContext) {
     if (await q.one('select 1 from user_identities where user_id = $1 and provider_id = $2', [userId, providerId])) return;
     await q.query(
       `insert into identity_user_settings (user_id, permit_provider_id, permit_expires_at) values ($1, $2, now() + make_interval(days => $3::int))
-       on conflict (user_id) do update set permit_provider_id = excluded.permit_provider_id, permit_expires_at = excluded.permit_expires_at, updated_at = now()
+       on conflict (user_id) do update set permit_provider_id = excluded.permit_provider_id, permit_expires_at = excluded.permit_expires_at,
+         permit_by = null, updated_at = now()
        where not identity_user_settings.break_glass`, [userId, providerId, PERMIT_DAYS]);
   }
 
@@ -252,25 +256,40 @@ export function registerScim(ctx: ModuleContext) {
     }
   }
 
-  /** Would `active` change the account? (Enabling applies only to an account provisioning disabled itself.) */
-  const activeChanges = (user: Row, active: boolean | undefined) =>
-    active !== undefined && (active ? user.status === 'disabled' && Boolean(user.scim_deactivated) : user.status !== 'disabled');
+  /** What `active` would do to the account: enable it (only one provisioning disabled itself), disable it, or nothing. */
+  const activeChange = (user: Row, active: boolean | undefined): 'enable' | 'disable' | null =>
+    active === undefined ? null
+      : active ? (user.status === 'disabled' && user.scim_deactivated ? 'enable' : null)
+      : user.status !== 'disabled' ? 'disable' : null;
 
-  /** Refuses (403, audited) to change `what` of an account that can administer or is the break-glass account (W17-0). */
-  async function guardAdminCapable(caller: Caller, user: Row, what: string | null) {
-    if (!what || !(await isAdminCapable(db, user.id))) return;
+  /**
+   * W17-0 and W19: for an account that can administer (or the break-glass account), refuses (403,
+   * audited, before anything is written) a change of email address and enabling it again; allows
+   * deactivating it only when provisioning created it (user_external_ids.provisioned).
+   */
+  async function guardAdminCapable(caller: Caller, user: Row, change: { email: boolean; active: 'enable' | 'disable' | null }) {
+    if (!change.email && !change.active) return;
+    if (!(await isAdminCapable(db, user.id))) return;
+    if (!change.email && change.active === 'disable' && user.scim_provisioned) {
+      await ctx.audit(caller.req, {
+        action: 'scim.admin_deactivate', recordType: 'user', recordId: user.id,
+        summary: `Provisioning (${caller.name}) deactivates ${user.username}, who can administer: provisioning created the account, and may only take its access away`,
+      });
+      return;
+    }
+    const what = change.email ? 'email address' : change.active === 'enable' ? 'active state (enable again)' : 'active state (not created by provisioning)';
     await ctx.audit(caller.req, {
       action: 'scim.refused', recordType: 'user', recordId: user.id,
       summary: `Provisioning (${caller.name}) may not change the ${what} of ${user.username}, who can administer`,
     });
-    scimFail(403, 'This account can administer the application, so provisioning may not change its email address or active state. An administrator does that under Administration > Users.', 'mutability');
+    scimFail(403, 'This account can administer the application, so provisioning may not change its email address or enable it again, and deactivates it only when provisioning created it. An administrator does that under Administration > Users.', 'mutability');
   }
 
   async function updateUser(caller: Caller, user: Row, f: ReturnType<typeof userFields>): Promise<void> {
     await assertUnique(db, f, user.id);
     const emailChanges = f.email !== undefined && f.email.toLowerCase() !== String(user.email).toLowerCase();
     // W17-0: checked before anything is written, so a refused request changes nothing.
-    await guardAdminCapable(caller, user, emailChanges ? 'email address' : activeChanges(user, f.active) ? 'active state' : null);
+    await guardAdminCapable(caller, user, { email: emailChanges, active: activeChange(user, f.active) });
     const sets: string[] = [];
     const params: unknown[] = [user.id];
     const changed: string[] = [];
@@ -340,6 +359,8 @@ export function registerScim(ctx: ModuleContext) {
         `insert into users (username, email, display_name, status) values ($1, $2, $3, 'active') returning id`,
         [username, f.email, f.displayName ?? f.userName]);
       await saveExternal(tx, row!.id, { userName: f.userName, externalId: f.externalId ?? null });
+      // W19: created by provisioning, so provisioning may always deactivate it (a leaver).
+      await tx.query(`update user_external_ids set provisioned = true where user_id = $1 and source = 'scim'`, [row!.id]);
       return row!.id;
     });
     // Outside the transaction: it reads a setting (the embedded database has one connection).
@@ -385,7 +406,7 @@ export function registerScim(ctx: ModuleContext) {
   app.delete(`${SCIM_BASE}/Users/:id`, { config: { public: true, ownBearer: true } }, handle(async (req, _reply, caller) => {
     const user = await findUser(idOf(req));
     // Never removed: the account is deactivated, and keeps its history.
-    await guardAdminCapable(caller, user, activeChanges(user, false) ? 'active state' : null);
+    await guardAdminCapable(caller, user, { email: false, active: activeChange(user, false) });
     await applyActive(caller, user, false);
     return undefined;
   }));

@@ -155,7 +155,8 @@ export function registerReporting(ctx: ModuleContext): Reporting {
         summary: `Notification to ${clock.party} no longer required: the rule no longer applies`,
       });
     }
-    if (matched.length) await sweep(event.id);
+    // An alert that cannot be sent now is left for the scheduled sweep; the save itself stands.
+    if (matched.length) await sweep(event.id).catch((err) => console.error(`[safety] clock alerts for ${event.id} wait for the next sweep:`, (err as Error).message));
   }
 
   // ---------- the sweep: amber and red alerts, once each ----------
@@ -169,29 +170,44 @@ export function registerReporting(ctx: ModuleContext): Reporting {
        where n.status = 'pending' and n.due_at is not null and n.alerted_red_at is null and ($1::uuid is null or e.id = $1::uuid)
        order by n.due_at`, [eventId ?? null]);
     const out = { amber: 0, red: 0 };
+    const failures: Error[] = [];
     for (const n of rows) {
       const clock = clockOf(n, n.occurred_at, now, fraction);
       const level = clock.state === 'red' ? 'red' : clock.state === 'amber' && !n.alerted_amber_at ? 'amber' : null;
       if (!level) continue;
-      // Stamp first, so a failure further on cannot repeat the alert on every run.
-      await db.query(
+      // Claimed with a conditional update, so two server processes never both send it; the stamp is
+      // taken back if the alert could not be sent, so it is sent on the next run instead of never
+      // (E40-12; it used to be stamped first and lost on any failure further on).
+      const claimed = await db.one(
         level === 'red'
-          ? `update safety_notifications set alerted_red_at = $2, alerted_amber_at = coalesce(alerted_amber_at, $2) where id = $1`
-          : `update safety_notifications set alerted_amber_at = $2 where id = $1`,
+          ? `update safety_notifications set alerted_red_at = $2, alerted_amber_at = coalesce(alerted_amber_at, $2) where id = $1 and alerted_red_at is null returning id`
+          : `update safety_notifications set alerted_amber_at = $2 where id = $1 and alerted_amber_at is null and alerted_red_at is null returning id`,
         [n.id, now.toISOString()]);
-      const due = stamp(n.due_at);
-      await addTimeline(n.event_id, level === 'red'
-        ? `Alert: the deadline to notify ${n.party} has passed (it was due ${due}).`
-        : `Alert: the deadline to notify ${n.party} is close (due ${due}, ${duration(clock.seconds_remaining)} left).`, null, now);
-      await ctx.audit(null, {
-        action: `safety_notification.alert_${level}`, recordType: 'safety_event', recordId: n.event_id,
-        summary: `Safety notification clock turned ${level}: ${n.party}`, after: { due_at: n.due_at, level },
-      });
-      await tell({ id: n.event_id, ref: n.event_ref, investigator_id: n.investigator_id },
-        level === 'red' ? `Overdue: notify ${n.party} (${n.event_ref})` : `${duration(clock.seconds_remaining)} left to notify ${n.party} (${n.event_ref})`,
-        `${n.required ? 'Required' : 'Recommended'} notification, due ${due}.`);
+      if (!claimed) continue;
+      try {
+        const due = stamp(n.due_at);
+        await addTimeline(n.event_id, level === 'red'
+          ? `Alert: the deadline to notify ${n.party} has passed (it was due ${due}).`
+          : `Alert: the deadline to notify ${n.party} is close (due ${due}, ${duration(clock.seconds_remaining)} left).`, null, now);
+        await ctx.audit(null, {
+          action: `safety_notification.alert_${level}`, recordType: 'safety_event', recordId: n.event_id,
+          summary: `Safety notification clock turned ${level}: ${n.party}`, after: { due_at: n.due_at, level },
+        });
+        await tell({ id: n.event_id, ref: n.event_ref, investigator_id: n.investigator_id },
+          level === 'red' ? `Overdue: notify ${n.party} (${n.event_ref})` : `${duration(clock.seconds_remaining)} left to notify ${n.party} (${n.event_ref})`,
+          `${n.required ? 'Required' : 'Recommended'} notification, due ${due}.`);
+      } catch (err) {
+        await db.query(
+          `update safety_notifications set alerted_red_at = $2, alerted_amber_at = $3 where id = $1`,
+          [n.id, n.alerted_red_at ?? null, level === 'red' ? n.alerted_amber_at ?? null : null]);
+        failures.push(err as Error);
+        continue;
+      }
       out[level] += 1;
     }
+    // A failed alert fails the run (Background jobs shows it, and E40-04 alerts the administrators
+    // when the check keeps failing); the stamp was taken back, so the next run sends it.
+    if (failures.length) throw new Error(`${failures.length} safety notification alert(s) could not be sent and will be tried again: ${failures[0].message}`);
     return out;
   }
 
@@ -413,5 +429,6 @@ export function registerReporting(ctx: ModuleContext): Reporting {
 }
 
 export async function scheduleClockSweep(ctx: ModuleContext, reporting: Reporting) {
-  await scheduleWork(ctx, 'safety.clocks', () => reporting.sweep(), { every: 15 * 60_000, firstRunInMs: 110_000 });
+  // Every five minutes (it was 15, E40-12): deadlines of a few hours need their amber and red alerts on time.
+  await scheduleWork(ctx, 'safety.clocks', () => reporting.sweep(), { every: 5 * 60_000, firstRunInMs: 110_000 });
 }

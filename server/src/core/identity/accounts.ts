@@ -37,9 +37,10 @@ export async function resolveSignIn(
   if (!identity.email || !identity.emailVerified) {
     return { kind: 'refused', reason: identity.email ? 'email not verified by the provider' : 'no email from the provider', noAccount: true };
   }
-  const user = await db.one<UserRow & { permit: boolean; break_glass: boolean }>(
+  const user = await db.one<UserRow & { permit: boolean; permit_provisioned: boolean; break_glass: boolean }>(
     `select u.id, u.username, u.email, u.display_name, u.status,
        coalesce(s.permit_provider_id = $2 and s.permit_expires_at > now(), false) as permit,
+       coalesce(s.permit_provider_id is not null and s.permit_by is null, false) as permit_provisioned,
        coalesce(s.break_glass, false) as break_glass
      from users u left join identity_user_settings s on s.user_id = u.id
      where u.deleted_at is null and lower(u.email) = $1`,
@@ -50,6 +51,16 @@ export async function resolveSignIn(
     if (user.status === 'disabled') return { kind: 'refused', reason: 'account disabled', userId: user.id };
     if (await db.one('select 1 from user_identities where user_id = $1 and provider_id = $2', [user.id, provider.id])) {
       return { kind: 'refused', reason: 'the account is linked to another identity at this provider', userId: user.id };
+    }
+    // W19: a permit provisioning gave is never a way in to an account that can administer, even when
+    // the account was given such a role after the permit: it is cleared, and linking needs the password.
+    if (user.permit && user.permit_provisioned && await isAdminCapable(db, user.id)) {
+      await dropAdminProvisioningPermits(db, user.id);
+      await deps.audit(req, {
+        action: 'identity.permit_ignored', recordType: 'user', recordId: user.id,
+        summary: `${provider.name} link permit from provisioning ignored and cleared: ${user.username} can administer, so linking needs the account's own password`,
+      });
+      return { kind: 'link_needed', userId: user.id };
     }
     if (user.permit) {
       await linkIdentity(deps, req, { userId: user.id, provider, identity, method: 'permit' });
@@ -140,6 +151,7 @@ export async function syncMappedRoles(
   await deps.db.tx(async (tx) => {
     for (const r of added) await tx.query('insert into user_roles (user_id, role_id) values ($1,$2) on conflict do nothing', [userId, r.id]);
     for (const r of removed) await tx.query('delete from user_roles where user_id = $1 and role_id = $2', [userId, r.id]);
+    if (added.length) await dropAdminProvisioningPermits(tx, userId);
     const admins = await tx.one<{ c: number }>(
       `select count(*)::int c from users u where u.deleted_at is null and u.status = 'active' and exists (
          select 1 from user_roles ur join roles r on r.id = ur.role_id and r.enabled
@@ -172,13 +184,42 @@ export async function syncMappedRoles(
   return { added: added.map((r) => r.key), removed: removed.map((r) => r.key) };
 }
 
-/** Permissions that can administer the application: an account holding one is never changed by provisioning (W17-0). */
+/**
+ * The one definition of "can administer" for provisioning and provider link permits (W17-0, W19): a
+ * role grant of `*` or of any `admin.` permission (`admin.*`, `admin.administer`, but also `admin.view`
+ * and the other `admin.` actions, which isValidGrant accepts). Used by the SCIM guards (isAdminCapable),
+ * by what a provisioned group may be mapped to and given (adminCapableRoleIds), and by the provider
+ * link permit rules (resolveSignIn, dropAdminProvisioningPermits). `rp` is role_permissions.
+ */
 export const ADMIN_CAPABLE_SQL = `(rp.permission = '*' or rp.permission like 'admin.%')`;
 
+/** Ids of the roles that can administer (ADMIN_CAPABLE_SQL), switched on or not. */
+export async function adminCapableRoleIds(q: Queryable): Promise<Set<string>> {
+  const rows = await q.query<{ role_id: string }>(`select distinct rp.role_id from role_permissions rp where ${ADMIN_CAPABLE_SQL}`);
+  return new Set(rows.map((r) => r.role_id));
+}
+
 /**
- * True when the account holds a permission that can administer (through any role, switched on or
- * not: a role switched off can be switched on again) or is the break-glass account. Provisioning may
- * not change such an account's email address, active state or provider link permit.
+ * Clears every provider link permit that provisioning gave (`permit_by` is null) to an account that can
+ * now administer (W19): call after giving roles or changing a role's grants. Such a permit is ignored at
+ * sign-in anyway (resolveSignIn); clearing it also takes it off the person's sign-in page. Returns the
+ * ids of the accounts whose permit was cleared.
+ */
+export async function dropAdminProvisioningPermits(q: Queryable, userId?: string): Promise<string[]> {
+  const rows = await q.query<{ user_id: string }>(
+    `update identity_user_settings s set permit_provider_id = null, permit_expires_at = null, updated_at = now()
+     where s.permit_provider_id is not null and s.permit_by is null ${userId ? 'and s.user_id = $1' : ''}
+       and exists (select 1 from user_roles ur join role_permissions rp on rp.role_id = ur.role_id
+                   where ur.user_id = s.user_id and ${ADMIN_CAPABLE_SQL})
+     returning s.user_id`, userId ? [userId] : []);
+  return rows.map((r) => r.user_id);
+}
+
+/**
+ * True when the account holds a permission that can administer (ADMIN_CAPABLE_SQL, through any role,
+ * switched on or not: a role switched off can be switched on again) or is the break-glass account.
+ * Provisioning may not change such an account's email address, enable it again or give it a provider
+ * link permit; it may only deactivate one it created itself (W19, modules/integrations/scim.ts).
  */
 export async function isAdminCapable(db: Queryable, userId: string): Promise<boolean> {
   return Boolean(await db.one(

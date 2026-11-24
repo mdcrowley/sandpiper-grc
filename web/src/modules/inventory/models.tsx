@@ -46,7 +46,9 @@ interface InheritedFields {
 }
 
 interface Change {
-  id: string; kind: 'change' | 'assign'; fields: string[]; status: 'queued' | 'running' | 'done' | 'failed';
+  id: string; kind: 'change' | 'assign'; fields: string[]; status: 'queued' | 'running' | 'done' | 'failed' | 'stopped' | 'superseded';
+  /** Why a change stopped or was superseded (W19 review). */
+  reason?: string | null;
   total: number; applied: number; kept: number; refused: { id: string; label: string; message: string }[];
   created_at: string; finished_at: string | null; created_by_name: string | null;
 }
@@ -309,6 +311,13 @@ function ChangeBanner({ kind, modelId, version }: { kind: ModelKind; modelId: st
     );
   }
   const recent = Date.now() - Date.parse(latest.created_at) < 24 * 3600 * 1000;
+  if (recent && (latest.status === 'stopped' || latest.status === 'failed')) {
+    return (
+      <Notice tone="warning" title={`The last change reached ${latest.applied} of ${plural(latest.total, kind.member, kind.members)}`}>
+        <p>{latest.reason ?? 'The change stopped before it was finished.'}</p>
+      </Notice>
+    );
+  }
   if (!recent || !latest.refused.length) return null;
   return (
     <Notice tone="warning" title={`${plural(latest.refused.length, kind.member, kind.members)} did not take the last change`}>
@@ -394,7 +403,9 @@ function ChangesTab({ kind, model }: { kind: ModelKind; model: Row }) {
             <tr key={c.id}>
               <td>{formatDateTime(c.created_at)}{c.created_by_name && <div className="muted">{c.created_by_name}</div>}</td>
               <td>{c.kind === 'assign' ? `Given to ${kind.members}${c.fields.length ? `, keeping ${c.fields.map(label).join(', ')}` : ''}` : c.fields.map(label).join(', ')}
-                {c.status !== 'done' && <div><Badge color={c.status === 'failed' ? 'red' : 'blue'}>{c.status === 'failed' ? 'Failed' : c.status === 'queued' ? 'Waiting' : 'Running'}</Badge></div>}</td>
+                {c.status !== 'done' && <div><Badge color={c.status === 'failed' ? 'red' : c.status === 'stopped' ? 'orange' : c.status === 'superseded' ? 'gray' : 'blue'}>
+                  {c.status === 'failed' ? 'Failed' : c.status === 'stopped' ? 'Stopped' : c.status === 'superseded' ? 'Replaced by a newer change' : c.status === 'queued' ? 'Waiting' : 'Running'}</Badge></div>}
+                {c.reason && (c.status === 'stopped' || c.status === 'failed') && <div className="muted">{c.reason}</div>}</td>
               <td className="num">{c.applied} of {c.total}</td>
               <td className="num">{c.kept}</td>
               <td>{c.refused.length ? (

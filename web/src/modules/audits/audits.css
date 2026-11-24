@@ -90,3 +90,6 @@
   .au-run-nav { grid-template-columns: 1fr 1fr; }
   .au-run-nav > :nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
 }
+
+/* Pages of the coverage grid (E40-09). */
+.au-pager { padding: 0.75rem 0; }

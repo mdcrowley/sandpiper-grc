@@ -3,6 +3,8 @@ import { lazy, Suspense, type ComponentType } from 'react';
 import { Tooltip } from '@mantine/core';
 import { cx, EmptyState, formatDate, Icon, Loading, StatusChip, todayInZone, useResource } from '../../core';
 import type { ColorName, Row } from '../../core';
+import { addDays } from '../../../../shared/dates.ts';
+export { addDays }; // one copy for every module (E40-12)
 
 export type ClauseStatus = 'present' | 'partial' | 'absent';
 export type ClauseKey = ClauseStatus | 'none';
@@ -162,10 +164,6 @@ export function daysPhrase(left: number): string {
 /** Whole days from today (in the organization's time zone) to a calendar date. */
 export function daysUntil(date: string, today: string = todayInZone()): number {
   return Math.round((Date.parse(`${date.slice(0, 10)}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000);
-}
-
-export function addDays(date: string, n: number): string {
-  return new Date(Date.parse(`${date.slice(0, 10)}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 }
 
 /** Expiry chip for evidence: red when expired, amber inside 90 days, green beyond, gray with no date. */

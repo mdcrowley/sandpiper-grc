@@ -9,6 +9,7 @@ import { allowedForAll, editableLifecycle } from '../../core/lifecycleMenus';
 import type { ListResult, Row } from '../../core';
 import { ActionRows, QuickAdd } from './ActionRows';
 import { ActionStatus } from './ActionStatus';
+import { addDays } from '../../../../shared/dates.ts';
 
 interface Group { value: string | null; label: string; open: number; overdue: number; owner_id?: string | null }
 export interface ActionSummary {
@@ -36,7 +37,6 @@ const GROUPS: { value: GroupKey; label: string }[] = [
 ];
 const SHOW_LABEL: Record<Show, string> = { open: 'Open', overdue: 'Overdue', week: 'Due this week', unassigned: 'Unassigned', verify: 'Awaiting verification' };
 
-const addDays = (ymd: string, n: number) => new Date(Date.parse(`${ymd}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 /** Monday of the week a date falls in. */
 const weekStart = (ymd: string) => addDays(ymd, -((new Date(`${ymd}T00:00:00Z`).getUTCDay() + 6) % 7));
 

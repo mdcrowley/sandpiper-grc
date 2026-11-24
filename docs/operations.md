@@ -1,9 +1,9 @@
 # Operations
 
-The runbook for the prototype: start and stop ([Commands](#commands)), [health](#health-check),
+The runbook for the prototype: start and stop ([Commands](#commands)), [health](#health-check) and [alerts](#alerts-when-background-work-fails),
 [logs](#logs) and [where things live](#where-things-live), [backup](#backup) (also
 [scheduled](#scheduled-backups) and [taken by the server](#backups-taken-by-the-server)),
-[restore](#restore), [upgrade](#upgrading), and [what to do when the server will not
+[restore](#restore), the [recovery runbook](#recovery-runbook), [upgrade](#upgrading), and [what to do when the server will not
 start](#the-server-will-not-start). On Windows everything goes through `grc.ps1`, run from the
 repository root in Windows PowerShell; on macOS and Linux through `grc.sh`, which has the
 same commands ([below](#macos-and-linux-grcsh)); in a container through `docker compose`
@@ -222,11 +222,23 @@ Or request `http://127.0.0.1:8080/api/health` directly; a healthy server answers
 does not touch the database, so it stays cheap for frequent checks.
 
 `/api/ready` is **readiness**: it also asks the database for one row and answers
-`{"ok":true,"database":"ok"}`, or **503** with `"database":"timeout"` (no answer within 2
+`{"ok":true,"database":"ok","jobs":"ok","mail":"ok"}`, or **503** with `"database":"timeout"` (no answer within 2
 seconds: a PostgreSQL server that is down or unreachable, or the embedded database held by
 one long piece of work) or `"database":"error"`. The cause goes to the server log
 (`[ready] the database is not ready: ...`, once per change), never into the answer. Neither
 needs sign-in, and neither is written to the log when it succeeds.
+
+It also reports background work, one word each (E40-04):
+
+| Field | Values |
+|---|---|
+| `jobs` | `ok`: this process works through the [job queue](#alerts-when-background-work-fails); `off`: its poller is off (`GRC_JOBS=off`, or a command rather than the server); `behind`: jobs have been due for 15 minutes and no process has run or finished any in that time; `stalled`: this process's poller has stopped finishing its polls |
+| `mail` | `off`: email is not set up; `ok`; `failing`: the last three messages all failed |
+
+Only `jobs: "stalled"` answers **503** besides the database (with `"ok":false,"database":"ok"`):
+that process is the problem, and restarting it helps. `behind` and `failing` are about the
+installation (no process runs jobs, the mail server refuses), so they stay 200 and are told
+to the administrators instead ([Alerts when background work fails](#alerts-when-background-work-fails)).
 
 On a server installation use the address the server listens on (`https://...` when it has
 a certificate). The container image checks `/api/ready` every 30 seconds with
@@ -235,6 +247,150 @@ shows the result, so a container whose database is gone turns **unhealthy**. Beh
 balancer, use `/api/ready` to decide where to send people and `/api/health` to decide
 whether to restart the process. During a long online backup on the embedded database,
 `/api/ready` can answer 503 for a while; that is expected and passes.
+
+## Alerts when background work fails
+
+Reminders, deadline alerts, email, webhooks, the log forwarders and backups all run as
+background jobs (Administration > Background jobs). When one of them keeps failing, every
+administrator (everyone holding `admin.administer`) is told **once**, in the application
+(the bell, kind "Other") and by email whatever they chose for the bell, with a link to the page
+that shows the problem. Nothing more is sent while the problem lasts; when it clears, that is
+recorded, and if it comes back it is told again. Each opening and clearing is in the audit log
+(`ops.alert`, `ops.alert_clear`), and the problems still open are listed at the top of
+Background jobs under **Problems being watched**. What is told names the part that is failing
+and where to look, never a person, an address or a message's content.
+
+| Problem | Found when | Clears when |
+|---|---|---|
+| A job type gave up (`job.dead:<type>`) | A run of it went to "gave up" in the last seven days and no later run of that type finished. A safety notification clock check that gave up (`safety.clocks`) says so plainly: deadline alerts may be missed | A later run finishes, or the job is tried again and works |
+| Email is not being delivered (`mail.failing`) | Email is on and the last three messages that finished (not test messages) all failed | A message is sent |
+| A webhook keeps failing (`webhook:<id>`) | Its latest finished delivery failed after every retry, or a delivery is still being retried after three attempts | A delivery succeeds, or the webhook is switched off |
+| An audit-log forwarder keeps failing (`forwarder:<id>`) | Three attempts in a row could not reach the collector | It sends again, or is switched off |
+| A server process stopped running jobs (`jobs.poller:<host>:<process>`) | Its poller has not finished a poll for ten polls and at least five minutes | It polls again; a process that has gone is cleared after ten minutes |
+| Background jobs are not running (`jobs.stalled`) | Jobs have been due for 15 minutes while no job runs and none finished in that time | A job runs |
+| PostgreSQL backups are overdue or the newest failed its check | See [PostgreSQL server backups](#postgresql-server-backups) | A good dump within the limit |
+| The audit archive cannot remove events | See [Audit log archive](#audit-log-archive) | The archive runs, or is switched off |
+
+The checks run every minute as the job `core.ops_watch`. The two about the poller itself run
+outside the queue, on a timer in every server process, because a queue that does not run
+cannot report that. When email itself is the problem, the bell still carries the alert; watch
+`/api/ready` (`"mail":"failing"`) or the metrics below from outside as well. The server's own
+backups keep their own alerts (a failed backup, none good for two days), as before.
+
+## Operational metrics
+
+`GET /api/ops/metrics` gives figures for a monitoring system in the Prometheus text format
+(version 0.0.4). It is **off** until the server is given a token of at least 24 characters:
+
+```sh
+GRC_METRICS_TOKEN=<a long random value>         # or GRC_METRICS_TOKEN_FILE=/run/secrets/metrics_token
+```
+
+The scraper sends `Authorization: Bearer <token>`; without a token set the address answers
+404, with a wrong one 401. A session or personal access token is not accepted. For example,
+in Prometheus:
+
+```yaml
+scrape_configs:
+  - job_name: sandpiper-grc
+    metrics_path: /api/ops/metrics
+    scheme: https
+    authorization: { credentials_file: /etc/prometheus/grc-metrics-token }
+    static_configs: [{ targets: ['grc.example.internal'] }]
+```
+
+What it holds is about the server only, never people or records: no paths (so no record ids),
+no names, no addresses.
+
+| Metric | Meaning |
+|---|---|
+| `grc_build_info{version,commit}` | Always 1 |
+| `grc_process_uptime_seconds`, `grc_process_resident_memory_bytes`, `grc_process_heap_used_bytes` | This process |
+| `grc_http_requests_total{method,status}` | Answers given by this process, by method and status class (`2xx` ... `5xx`) |
+| `grc_http_request_duration_seconds{method}` | A histogram of the time to answer |
+| `grc_db_pool_connections{state}`, `grc_db_pool_max`, `grc_db_pool_waiting`, `grc_db_pool_exhausted_total` | PostgreSQL server only: this process's connections, and requests answered 503 because none came free ([Database connections](#database-connections)) |
+| `grc_jobs{status}`, `grc_jobs_oldest_due_seconds`, `grc_jobs_dead_recent{type}` | The job queue (all processes): jobs by status, how long the oldest due one has waited, jobs that gave up in the last 24 hours by type |
+| `grc_jobs_poller_running`, `grc_jobs_poller_last_poll_age_seconds` | This process's poller |
+| `grc_mail_messages_recent{status}`, `grc_mail_failing` | Email in the last 24 hours by status, and 1 while it is failing |
+| `grc_webhook_deliveries_recent{status}` | Webhook deliveries in the last 24 hours by status |
+| `grc_audit_forwarders{state}` | Active audit-log forwarders, and those whose last attempt failed |
+| `grc_ops_alerts_open` | Problems being watched ([above](#alerts-when-background-work-fails)) |
+
+Counters are per process and start at zero when it starts. Useful alerting rules:
+`grc_ops_alerts_open > 0`, `grc_jobs_oldest_due_seconds > 900`,
+`rate(grc_http_requests_total{status="5xx"}[5m]) > 0` and `increase(grc_db_pool_exhausted_total[10m]) > 0`.
+
+## Database connections
+
+With a PostgreSQL server each server process keeps a pool of at most `GRC_DATABASE_POOL_MAX`
+connections (default 10). A request that finds them all busy waits up to
+`GRC_DATABASE_CONNECT_TIMEOUT` (default 10,000 ms) for one to come free. If none does, it is
+answered **503** with `Retry-After: 5` and `{"error":{"code":"busy",...}}` ("The server is busy.
+Try again in a few seconds."), not 500: browsers, the mobile app and integrations can try
+again, and nothing half-written is kept. The log says `[db] ... Answered 503` and
+`grc_db_pool_exhausted_total` counts them.
+
+Sizing advice (a starting point; measure with the [load test](#performance-and-load-testing)):
+
+| People at once | Server processes | `GRC_DATABASE_POOL_MAX` each | Application machine | Database machine |
+|---|---|---|---|---|
+| Up to 50 (a pilot) | 1 | 10 (the default) | 2 processors, 2 GB memory | 2 processors, 4 GB memory, SSD |
+| Up to 200 | 1 or 2 | 20 | 4 processors, 4 GB | 4 processors, 8 GB |
+| More | Measure first | 20 to 30 | 4+ processors | 8 processors, 16 GB or more |
+
+- The sum of every process's pool, plus the commands you run (`status`, `export-all`) and your
+  own tools, must stay below the database's `max_connections` (100 by default) with room to
+  spare; a pooler such as PgBouncer in transaction mode is not needed at these sizes.
+- Raising the pool helps only while the database machine has processors to spare: when it is
+  at its limit (the load test at scale 4 on two processors), more connections queue inside the
+  database instead. Give it processors first.
+- Lowering `GRC_DATABASE_CONNECT_TIMEOUT` (for example to 5,000) makes a busy server say so
+  sooner; long reports and exports hold a connection while they run.
+- One backup, export or archive run holds one connection for its whole length.
+
+## Core housekeeping jobs
+
+Besides each module's own work, core keeps these schedules (Administration > Background jobs):
+
+| Job | When | What it does |
+|---|---|---|
+| `core.ops_watch` | Every minute | The [alerts](#alerts-when-background-work-fails) about background work that keeps failing |
+| `core.session_cleanup` | Daily | Removes expired sessions and one-time set-up and reset links that were used or have expired (E40-07). Sessions and links are found by person and by expiry through their own indexes (migration `030`), so the users list and "sign out everywhere" no longer read every session |
+| `core.audit_archive` | Daily | The [audit log archive](#audit-log-archive); does nothing while it is off (the default) |
+| `core.retention_sweep`, `core.webhook_deliveries`, `core.request_counts`, `jobs.cleanup` | Daily, every minute, every ten minutes, daily | Retention reviews and log housekeeping, webhook deliveries, per-token request counts, finished jobs |
+
+## Audit log archive
+
+The audit log only grows: nothing removes events unless an administrator switches the
+archive on (Administration > Audit log > **Archive old events**, with a recent password
+confirmation). Then, every day (job `core.audit_archive`) or with **Archive now**:
+
+1. The events older than the chosen number of months (at least 12; the default, 84, matches
+   `retention.audit_months`) are written, oldest first, to
+   `audit-archive-<yyyyMMdd-HHmmss>.jsonl.gz` in the chosen folder, which must be outside the
+   data folder: one JSON object per line, gzip-compressed, at most 500,000 events a run (the
+   next run takes the rest).
+2. The file is read back and checked (count and a SHA-256 of every line). Beside it,
+   `<file>.json` records the cut-off, the first and last event id, the count and both
+   checksums. A file that does not check is deleted and nothing is removed.
+3. Only then are exactly those events removed from the database, 5,000 at a time. The
+   append-only trigger lets a delete through only inside these transactions (they set
+   `grc.audit_archive` for themselves; migration `030`). Updates are never allowed.
+4. The run is itself an audit event, `audit.archive`, naming the file, the count and the
+   checksum; the page lists the last ten.
+
+An interrupted run leaves a complete, checked file; events it had not removed are taken
+again by the next run, so an event can be in two files but never in none. Keep the files with
+your long-term records: once removed here they are in no backup taken afterward. Read one with
+any tool, for example `gzip -dc audit-archive-20300101-030000.jsonl.gz | head`.
+
+With a [least-privilege database role](installation.md#a-least-privilege-database-role) the
+server's account may not delete audit events at all, so the archive cannot run: the page says
+so and the administrators are told once. Archiving under the owner account is not built.
+
+The Audit page itself no longer counts the whole log on every page: it counts at most
+10,000 matching events and then says "More than 10,000 events", paging on with **Older**.
+Filters by person and by action use their own indexes (migration `030`).
 
 ## Logs
 
@@ -539,6 +695,16 @@ Each run is recorded (Administration > Backups shows the last 20) and audited
 every administrator (when the notifications module is loaded). `grc.ps1 status` shows the
 last result from `data\backup-status.json`.
 
+**Back up now** (E40-11) does not run inside the web request any more: it queues the job
+`backups.run_now` (in its own lane, `backups`, so other work goes on) and answers at once. The
+page then follows the run every two seconds, showing how far it has got (copying the
+database table by table with the rows so far, packing, writing to the destination, reading
+it back, removing old ones), and says how it went; the person may leave the page meanwhile.
+A reverse proxy's request time-out therefore no longer cuts a large backup short. One backup
+runs at a time across every server process (a second **Back up now** while one waits or runs
+is refused with 409 `busy`); the request is audited (`backup.requested`) and the run records
+who asked.
+
 Restore one with `.\grc.ps1 restore <file>` (download it from the object store first, for
 example with the provider's command-line tool). It is a logical backup, so the restore
 keeps a safety copy of the current data, empties the data folder, creates a new database
@@ -624,11 +790,35 @@ and `export-all` do work against a server. For a full copy, back up the two part
 their own tools, at the same time:
 
 ```sh
-# The database: a consistent snapshot while the application keeps running
-pg_dump --format=custom --no-owner --file=grc-$(date +%Y%m%d-%H%M%S).dump "postgres://grc@db.example.internal/grc"
+# The database: a checked pg_dump, recorded for the application to check (keeps the newest 14)
+PGHOST=db.example.internal PGUSER=grc PGDATABASE=grc PGPASSFILE=/etc/sandpiper-grc/pgpass \
+  /opt/sandpiper-grc/deploy/postgres/pg-backup.sh /srv/backups/grc 14
 # The files: the data folder (or the container volume), with the server running or stopped
 tar -czf grc-files-$(date +%Y%m%d-%H%M%S).tar.gz -C /var/lib/sandpiper data
 ```
+
+**The documented script**, `deploy/postgres/pg-backup.sh <folder> [keep]` (E40-11), runs
+`pg_dump --format=custom` into `<folder>/grc-db-<yyyyMMdd-HHmmss>.dump`, checks that
+`pg_restore --list` can read it, and only then writes `<file>.dump.json` beside it: when it
+started and finished, its size, its SHA-256, how many entries `pg_restore` listed and the
+`pg_dump` version. It deletes all but the newest `keep` dumps. A failed run exits non-zero
+and writes no `.json`, so it never counts as a backup. It takes the usual libpq variables
+(`PGHOST`, `PGUSER`, `PGDATABASE`, `PGPASSFILE`, `PGSSLMODE`) or `GRC_PG_DUMP_URL`. Schedule
+it with cron (`15 2 * * * ... pg-backup.sh /srv/backups/grc 14`) or a systemd timer; in the
+container setup, `docker compose exec -T db sh -s /backups 14 < deploy/postgres/pg-backup.sh`
+with a backup volume mounted in the `db` service.
+
+**The application checks them.** Under Administration > Backups, set **Dump folder** to the
+same folder as the server sees it (a shared mount or volume) and **Warn when the newest is
+older than** (default 26 hours, for a daily dump). Every five minutes (with the backup schedule
+check) the server reads the folder; each new dump with its record is read in full once, its
+size and SHA-256 compared with the record, and recorded (shown under **PostgreSQL dumps
+checked**, audited as `backup.pg_dump_checked` or `backup.pg_dump_failed`). Administrators
+are told once ([Alerts](#alerts-when-background-work-fails)) when the newest dump failed its
+check, or when the newest good one is older than the limit (or none was found, or the folder
+cannot be read), and again only after it has cleared. The check proves the file is the one
+`pg_dump` wrote and that `pg_restore` could read it; only a [restore test](#restore-test)
+proves the data comes back.
 
 - `pg_dump` takes a consistent copy without stopping anyone; its major version must be the
   server's or newer. Run it from cron or a systemd timer, keep several days, and copy the
@@ -771,6 +961,85 @@ The load tool's `--ops` run times a restore at volume
 ([Performance and load testing](#performance-and-load-testing)). None of these replaces your
 own test on your own machine and backups.
 
+## Recovery runbook
+
+What to do, in order, when the server, its disk or its database is lost (E40-11). Agree the
+targets below with whoever owns the service, write the names and places into your own copy of
+this page, and rehearse it with the [restore test](#restore-test) at least twice a year.
+
+### Suggested targets
+
+The **recovery point objective** (RPO) is how much recent work you can afford to lose; the
+**recovery time objective** (RTO) is how long the application may be unavailable. Suggested
+starting points, which the built-in tools can meet:
+
+| Installation | Backups | RPO (work that may be lost) | RTO (time to be working again) |
+|---|---|---|---|
+| Embedded database, one machine | The server's own daily backup to another disk or the object store (and the stop-and-copy task if you use it) | 24 hours | 4 hours on a prepared spare machine; a working day on new hardware |
+| PostgreSQL server | `pg-backup.sh` daily, checked by the application, plus the files folder copied as often | 24 hours | 2 hours |
+| PostgreSQL server with continuous archiving | The database's own WAL archiving or a managed service's point-in-time recovery, plus the files folder copied hourly | 15 minutes to 1 hour | 1 to 2 hours |
+
+A shorter RPO needs more frequent backups: the server's own backup runs once a day, but
+`pg-backup.sh` can run every few hours, and point-in-time recovery is the PostgreSQL server's
+own feature (not configured by this application). Notification deadlines run in hours: when
+the application is down, record incidents, safety events and records requests on paper (the
+offline incident kit: Cybersecurity > **Offline incident kit**) and enter them afterward with their
+real times, so their clocks are right.
+
+### Before anything goes wrong
+
+- Backups run, are checked, and alert when they fail or grow old: Administration > Backups
+  (the server's own, or the PostgreSQL dumps), `grc.ps1 status`, and the
+  [alerts](#alerts-when-background-work-fails).
+- **Keep apart from the server**: the secret key file (`<data>.secret.key`, or wherever
+  `GRC_SECRET_KEY_FILE` points), the backup encryption key or passphrase file, the database
+  passwords, the TLS certificate and key, the `GRC_*` settings the server runs with (`/etc/sandpiper-grc/env`,
+  the compose file and its `.env`), and the sign-in providers' and mail account's details.
+  Without the secret key, second factors, webhook, sign-in provider and mail secrets cannot be
+  read ([Restore](#restore)).
+- Know the installed version (`grc.ps1 version`, or Help > About): restore onto the same
+  version or newer, never older.
+- Keep a spare machine or a tested way to build one (the container image, or this repository
+  and `tools/install-node.ps1`).
+
+### Recovering
+
+1. **Decide and tell.** Name who leads the recovery. Tell people the application is down and
+   to use the paper procedures. Note the time: the RTO runs from now.
+2. **Find the newest good backup.** Embedded: `grc.ps1 backups`, the destination folder or
+   object store (Administration > Backups lists the last good one, if the page still answers).
+   PostgreSQL: the newest `grc-db-*.dump` whose `.dump.json` is present (the application
+   marked it **Checked**), and the newest files copy taken after it.
+3. **Prepare the machine.** Install the same version (or newer) of the application, without
+   running the setup wizard. Put the secret key file in place beside the data folder under the
+   data folder's name, or set `GRC_SECRET_KEY_FILE`; put the backup key file in place.
+4. **Restore the data.**
+   - Embedded database: `grc.ps1 restore <backup folder or file>` ([Restore](#restore)); it
+     checks the backup and the secret key first and keeps a safety copy of whatever was there.
+   - PostgreSQL: on an empty database owned by the application's role,
+     `pg_restore --no-owner --role=grc --dbname=grc grc-db-<time>.dump`, then put the files
+     copy back into the data folder ([PostgreSQL server backups](#postgresql-server-backups)).
+     With a least-privilege role, start once with `GRC_DATABASE_MIGRATE_URL` so the grants
+     are made.
+   - A backup from an older version is brought up to date by the migrations at the first start.
+5. **Start and check.** Start the server (`grc.ps1 start`, the service, or `docker compose up -d`).
+   `/api/ready` must answer `"ok":true`. Sign in with a second factor; open the newest
+   records you expect; open an attached file; look at Administration > Background jobs (no
+   **Problems being watched**, jobs running) and send a test email (Administration > Email).
+6. **Reconnect the outside.** Point the DNS name or load balancer at the new server; check
+   the sign-in providers, webhooks, log forwarders, calendar feeds and the mobile app (they
+   reach the same address). Re-enter any secret the restore could not read.
+7. **Catch up.** Everything recorded after the backup was taken is lost: enter the paper
+   records, and ask people to check their own recent work. The audit log shows the last event
+   the backup holds (its time is the actual recovery point).
+8. **Record it.** Write down the times (loss, decision, back in service), the recovery point
+   reached and anything that slowed you down, and update this runbook. Take a fresh backup
+   straight away (**Back up now**, or `pg-backup.sh`).
+
+Rotating credentials after a loss (the database password, the SCIM tokens, the backup
+passphrase) is not yet a written procedure here: the secret key has `grc.ps1 secret-key rotate`
+([Security](security.md)); change the others where they are set, then in the server's settings.
+
 ## Export and import
 
 `backup` copies the database's own files: fast and exact, but only readable by the same
@@ -888,6 +1157,27 @@ in those rows.
 (`row_to_json` to write, `json_populate_recordset` to load), so the same files load into a
 PostgreSQL server: run `import-all` with `GRC_DATABASE_URL` pointing at an empty database,
 before the setup wizard ([Installation](installation.md#postgresql-server)).
+
+## Several server processes
+
+Several server processes may share one PostgreSQL database. Each needs its own data folder
+(`data/grc.lock` allows one process per folder), and attached files must be in the object store so
+every process sees them. Saves are safe across processes: a save locks the record, `If-Match` is
+checked in the save itself, and custom values are merged by the database. Each webhook delivery is
+sent by one process, and every scheduled task runs once through the job queue. Some things stay per
+process and are safe: Overview figures may lag another process's change by up to
+`GRC_FIGURES_CACHE_SECONDS` (10 s); feature switches and custom-field definitions by up to 5 s; and
+each process pauses outgoing mail on its own failures.
+
+## Long migrations
+
+On PostgreSQL, migrations run one at a time across processes (an advisory lock): a second server
+starting at the same moment waits, then finds them applied. They run without the 120-second request
+statement timeout. Rewriting a large table or building an index (for example the search index's
+trigram index) can take minutes on a large installation, and holds that table's lock meanwhile, so
+upgrade at a quiet time. Progress is logged every `GRC_MIGRATION_REPORT_SECONDS` (default 15):
+`[migrations] <name> still running after N s`, with an index build's phase and percentage, or a note
+that it is waiting for a lock held by running work. Do not restart a server that is migrating.
 
 ## Upgrading
 
@@ -1170,9 +1460,11 @@ Every run completed with no errors and no request left unanswered. What they sho
   database, 30 of about 82,000 requests failed with a server error, logged as "timeout exceeded
   when trying to connect": a request waits at most `GRC_DATABASE_CONNECT_TIMEOUT` (10 s) for
   one of the pool's `GRC_DATABASE_POOL_MAX` (10) connections, and the busy database did not
-  free one in time. People see "Something went wrong" and can try again; nothing half-written
-  is kept. On a small database machine expect this under bursts of writes, and raise the pool
-  or the timeout, or give the database more processors. None of the measured runs had it.
+  free one in time. People then saw "Something went wrong"; since E40-12 such a request is
+  answered 503 with `Retry-After` ("The server is busy") instead, and nothing half-written is
+  kept. On a small database machine expect this under bursts of writes, and raise the pool
+  or the timeout, or give the database more processors ([Database connections](#database-connections)).
+  None of the measured runs had it.
 - Starting the application against the scale-4 database took 8 to 31 s (the slowest while
   the laptop was busiest); ticket creation while seeding ran at about 28 a second at scale 4
   (105 a second on the unlimited container) and about 78 at scale 1.
@@ -1552,7 +1844,11 @@ at least these must change:
    single sign-on if your organization uses it.
 5. Your own incident notification rules, service-level targets and risk scales
    ([Installation](installation.md#settings-that-must-be-yours-before-a-pilot)).
-6. Monitoring and retained logs.
+6. Monitoring and retained logs. Built: [alerts when background work fails](#alerts-when-background-work-fails),
+   `/api/ready` reporting the job queue and email, and [operational metrics](#operational-metrics)
+   for your monitoring system; the server log is written to rotating files or to the console as JSON ([Logs](#logs)). Still yours: a
+   monitoring system that watches them, and how long logs are kept.
+7. A tested [recovery runbook](#recovery-runbook) with recovery targets you have agreed.
 
 The full list is in [Known gaps](known-gaps.md). The route there is sketched in
 [Architecture](architecture.md#path-to-production), and the current protections are

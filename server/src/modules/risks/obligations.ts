@@ -1,6 +1,8 @@
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { dayInZone } from '../../core/timezone.ts';
+import { addMonths, addDays } from '../../../../shared/dates.ts';
+export { addMonths, addDays }; // one copy for every module (E40-12)
 
 // The obligations register: the `obligation` record type, with its type, frequency and what it
 // applies to (E30-01, contract C5), and the history of each period attested (E30-02). Due-date
@@ -42,20 +44,6 @@ export async function seedObligationDefaults(ctx: ModuleContext): Promise<void> 
     { value: 'every_2_years', label: 'Every 2 years', color: 'teal', sort: 60, meta: { months: 24 } },
     { value: 'every_3_years', label: 'Every 3 years', color: 'teal', sort: 70, meta: { months: 36 } },
   ], { module: 'obligations' });
-}
-
-/** `ymd` moved by whole months, kept on the last day of a shorter month (Jan 31 + 1 = Feb 28). */
-export function addMonths(ymd: string, months: number): string {
-  const [y, m, d] = ymd.split('-').map(Number);
-  const target = new Date(Date.UTC(y, m - 1 + months, 1));
-  const last = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
-  target.setUTCDate(Math.min(d, last));
-  return target.toISOString().slice(0, 10);
-}
-
-/** `ymd` moved by whole days. */
-export function addDays(ymd: string, days: number): string {
-  return new Date(Date.parse(`${ymd}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
 }
 
 /** Months one period of `frequency` covers; 0 for a one-off or unknown frequency. */

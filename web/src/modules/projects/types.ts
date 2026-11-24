@@ -1,5 +1,7 @@
 import { timeZone } from '../../core';
 import type { ColorName } from '../../core';
+import { daysBetween } from '../../../../shared/dates.ts';
+export { daysBetween }; // one copy for every module (E40-12)
 
 export type Rag = 'red' | 'amber' | 'green';
 export type RagTrend = 'improving' | 'steady' | 'worsening';
@@ -297,11 +299,6 @@ export const RAG_DIMENSIONS: { key: 'overall' | 'schedule' | 'budget' | 'risk'; 
   { key: 'budget', label: 'Budget' },
   { key: 'risk', label: 'Risk' },
 ];
-
-/** Whole days between two YYYY-MM-DD dates. */
-export function daysBetween(a: string, b: string): number {
-  return Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000);
-}
 
 export function todayIso(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: timeZone() }).format(new Date());

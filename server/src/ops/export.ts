@@ -166,6 +166,11 @@ export interface ExportOptions {
   /** Fingerprint of the secret key in use (ops/secret-key.ts `currentKeyFingerprint`), recorded in the manifest. */
   keyFingerprint?: string | null;
   now?: Date;
+  /**
+   * Called after each table is written (E40-11: "Back up now" shows how far it has got). Not awaited:
+   * on a PostgreSQL server the snapshot holds a connection while it runs.
+   */
+  onTable?: (done: number, total: number, rows: number) => void;
 }
 
 /** What one snapshot holds: the catalog as it was, and a cursor per table to read the rows from. */
@@ -232,8 +237,11 @@ async function openSnapshot(tx: Queryable, includeSecrets: boolean, hold: boolea
  * Writes every table of a snapshot to its file, a page at a time, closing each cursor when done.
  * `yieldBetween` lets other work run between pages (the embedded database, outside the transaction).
  */
-async function drainSnapshot(q: Queryable, snap: Snapshot, outDir: string, includeSecrets: boolean, yieldBetween: boolean): Promise<ExportedTable[]> {
+async function drainSnapshot(
+  q: Queryable, snap: Snapshot, outDir: string, includeSecrets: boolean, yieldBetween: boolean, onTable?: ExportOptions['onTable'],
+): Promise<ExportedTable[]> {
   const out: ExportedTable[] = [];
+  let allRows = 0;
   const page = Math.max(1, exportTuning.pageRows);
   for (const t of snap.tables) {
     const blank = includeSecrets ? undefined : SECRET_COLUMNS[t.name];
@@ -270,6 +278,8 @@ async function drainSnapshot(q: Queryable, snap: Snapshot, outDir: string, inclu
       t.cursor = null;
     }
     out.push({ name: t.name, file, rows, columns: t.columns, sha256: hash.digest('hex'), ...(t.redacted ? { redacted: true } : {}) });
+    allRows += rows;
+    try { onTable?.(out.length, snap.tables.length, allRows); } catch { /* progress only */ }
   }
   return out;
 }
@@ -307,13 +317,13 @@ export async function exportAll(db: Db, opts: ExportOptions): Promise<ExportMani
     ({ snap, tables } = await db.tx(async (tx) => {
       await tx.exec('set transaction isolation level repeatable read, read only');
       const s = await openSnapshot(tx, includeSecrets, false);
-      return { snap: s, tables: await drainSnapshot(tx, s, opts.outDir, includeSecrets, false) };
+      return { snap: s, tables: await drainSnapshot(tx, s, opts.outDir, includeSecrets, false, opts.onTable) };
     }));
   } else {
     // Requests wait only while this short transaction runs and its commit fills the cursors.
     snap = await db.tx((tx) => openSnapshot(tx, includeSecrets, true));
     try {
-      tables = await drainSnapshot(db, snap, opts.outDir, includeSecrets, true);
+      tables = await drainSnapshot(db, snap, opts.outDir, includeSecrets, true, opts.onTable);
     } finally {
       for (const t of snap.tables) if (t.cursor) await db.exec(`close ${t.cursor}`).catch(() => undefined);
     }

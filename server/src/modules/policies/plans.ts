@@ -10,6 +10,8 @@ import { UUID_RE } from '../../core/errors.ts';
 import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { dayInZone, todayInZone } from '../../core/timezone.ts';
+import { addMonths } from '../../../../shared/dates.ts';
+export { addMonths }; // one copy for every module (E40-12)
 
 export const PLAN_KIND = 'plan_review';
 export const PLAN_REVIEW_SETTING = 'policies.plan_review_reminder_days';
@@ -36,14 +38,6 @@ export const DEFAULT_PLAN_REVIEW_WORKFLOW = {
     { key: 'safety-committee', name: 'Safety committee', approvers: { kind: 'permission', permission: 'policies.approve' }, quorum: 'any', due_hours: 720, distinct_approvers: true },
   ],
 };
-
-export function addMonths(date: string, months: number): string {
-  const [y, m, d] = date.split('-').map(Number);
-  const target = new Date(Date.UTC(y, m - 1 + months, 1));
-  const last = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
-  target.setUTCDate(Math.min(d, last));
-  return target.toISOString().slice(0, 10);
-}
 
 /** Whether the policies table has the document type column yet (contract C6, added by the roster work). */
 const columnCache = new WeakMap<object, boolean>();

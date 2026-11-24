@@ -1,5 +1,7 @@
 import { fromZonedInput, todayInZone, toZonedInput } from '../../core';
 import { ANY, type ApprovalRule, type Questionnaire } from './types';
+import { addDays } from '../../../../shared/dates.ts';
+export { addDays }; // one copy for every module (E40-12)
 
 // ---------- calendar days, in the organization's time zone ----------
 
@@ -12,12 +14,6 @@ export const minuteOf = (iso: string | Date): number => {
 };
 /** The instant a calendar day starts. */
 export const startOfDay = (day: string): string => fromZonedInput(`${day}T00:00`);
-
-export function addDays(day: string, n: number): string {
-  const d = new Date(`${day}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-}
 
 /** 0 = Monday ... 6 = Sunday. */
 export const weekdayOf = (day: string): number => (new Date(`${day}T00:00:00Z`).getUTCDay() + 6) % 7;

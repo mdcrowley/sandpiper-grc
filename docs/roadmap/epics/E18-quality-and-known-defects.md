@@ -1,6 +1,6 @@
 # E18 Quality and known defects
 
-**Status:** done (65 of 65 issues done)
+**Status:** done (67 of 67 issues done)
 
 ## Goal
 
@@ -86,6 +86,8 @@ has never been checked, so nobody relies on something untested.
 | E18-63 | Wave 17 interface review: layout | done | P2 |
 | E18-64 | Wave 17 interface review: pages and switched-off areas | done | P2 |
 | E18-65 | Hand-written tables, the Create menu filter and the remaining interface items | done | P3 |
+| E18-66 | Wave 19 security review: models and custom references | done | P1 |
+| E18-67 | Wave 19 security review: provisioning, sign-in address and CSV | done | P1 |
 
 ---
 
@@ -1383,3 +1385,40 @@ Done in wave 18. A hand-written table in `<TableWrap fit>` leaves out lower-prio
 - [x] Tests: `fit.test.ts`, `createMenu.test.ts`, `TableWrap.component.test.ts`, `FilterMenu.component.test.ts`, `dateFields.component.test.ts`, `format.test.ts`, `reports/labels.test.ts`, `inventory/mapExport.test.ts`, `inventory/seed-rename.test.ts` and the changed seed tests; e2e 01-smoke, 05-keyboard, 06-lists, 09-features-off, 11-audits, 12-governance, 13-continuity, 14-condition, 15-ot, 16-records, 17-vendor-lifecycle, 19-feeds and 21-tags pass (52 tests); the accessibility audit on the changed routes is clean (light and dark, 1440 and 820)
 
 **Implemented in:** `web/src/core/{fit.ts,ui.tsx,overlay.tsx,createMenu.ts,Shell.tsx,ChartImpl.tsx,format.ts,dateFields.tsx,base.css,README.md}`, `web/src/modules/{condition,records,frameworks,audits,home,inventory,portal,funding,projects}`, the Create entries in `audits`, `continuity` and `frameworks`, `server/src/modules/inventory/seed-rename.ts` and the seeds of condition, continuity, feeds, fleet, funding, governance, holds, ot, projects, records, tags and vendors.
+
+### E18-66 Wave 19 security review: models and custom references
+
+**Status:** done · **Priority:** P1 · **Type:** security
+
+The wave 19 review of wave 18 (E39) found five issues in vehicle and asset models and one older gap in custom reference fields that models spread. Each item has a regression test in `server/src/modules/models/security.test.ts`, run on the embedded database, on UTC and through the PostgreSQL driver. What is left is E40-13.
+
+**Acceptance criteria**
+
+- [x] Asset models in a vehicle model's equipment need `assets.view`: hidden from others (`asset_model_hidden`), refused with a message that names nothing, stored link kept on save
+- [x] A background model change reloads the person, stops (`stopped`, with a reason) when they are disabled or lack `<module>.edit`, and saves each member as them (audit actor, `updated_by`, lifecycle rules)
+- [x] A malformed `model_id` gets a 400 before any query
+- [x] A member whose model is gone saves as one with no model; a member given a model at the moment it is deleted is left with no model; a retention removal is refused for a model with members (or an asset model named in equipment); a vehicle model's equipment goes with it (models/002)
+- [x] `inherited_custom` is checked: inherited fields only, right types and list values, references visible to the person
+- [x] Custom reference fields get the same visibility check as built-in ones
+- [x] One background change per model (a newer one supersedes a waiting one); a change skipped while its area is off, or whose job gave up, is marked stopped
+- [x] User guide (fleet and services, inventory) updated; the model page shows Stopped and Replaced statuses with the reason
+
+**Implemented in:** `server/src/modules/models/engine.ts`, `index.ts`, `equipment.ts`, `migrations/002_change_reason.sql`, `server/src/core/resource.ts` (`checkRefsVisible`), `web/src/modules/inventory/models.tsx`; tests `server/src/modules/models/security.test.ts`.
+
+
+### E18-67 Wave 19 security review: provisioning, sign-in address and CSV
+
+**Status:** done · **Priority:** P1 · **Type:** security
+
+The wave 19 internal security review found: two definitions of "can administer", so provisioning could give a role it then refused to deactivate (a leaver kept access); a provisioning link permit that outlived the account becoming an administrator; single sign-on addresses still taken from any Host header (a sign-in meant for a staging copy sharing the identity provider could work on production); and two CSV files made by the browser with the older formula guard. Proven by unit and request tests and a browser check of the Sign-in providers page; not tried against a real identity provider.
+
+**Acceptance criteria**
+
+- [x] One definition of "can administer" (`*` or any `admin.` grant) for SCIM guards, group mapping and given roles; a role with `admin.view` cannot be mapped
+- [x] Provisioning may deactivate an account that can administer only when it created it (`user_external_ids.provisioned`, backfilled from the audit log); enabling again and email change stay refused; never the last administrator
+- [x] A provisioning link permit is ignored and cleared at sign-in for an account that can administer, and cleared when such a role is given or a held role gains an `admin.` grant
+- [x] Single sign-on addresses come from `auth.public_url` or a Host naming this computer; otherwise 409 `public_url_required`, and the Sign-in providers page says so
+- [x] Browser CSV files and the import template use the shared formula guard (`shared/csv-guard.ts`)
+- [x] The dev-seed sample rename fallback is audited with its reason and skips records under a legal hold
+
+**Implemented in:** `server/src/core/identity/accounts.ts`, `service.ts`, `server/src/modules/integrations/scim.ts`, `scim-admin.ts`, `shared.ts`, `migrations/002_scim_provisioned.sql`, `server/src/modules/admin/users.ts`, `roles.ts`, `sso.ts`, `web/src/modules/admin/SamlFields.tsx`, `shared/csv-guard.ts`, `server/src/core/export/csv.ts`, `server/src/core/import/routes.ts`, `web/src/core/ListBulk.tsx`, `web/src/modules/training/Records.tsx`, `server/src/modules/inventory/seed-rename.ts`; tests in `integrations/scim.test.ts`, `admin/sso.test.ts`, `core/identity/`, `web/src/core/csvGuard.test.ts`, `inventory/seed-rename-hold.test.ts`.

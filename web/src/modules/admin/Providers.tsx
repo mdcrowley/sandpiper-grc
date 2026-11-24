@@ -276,11 +276,21 @@ function AddressCard({ data, onChanged }: { data: ProvidersResponse; onChanged: 
   return (
     <Card title="Redirect address">
       <div className="stack">
-        <p>Each provider needs to know where to send people back. Register this address with an OpenID Connect provider, replacing the short name (a SAML provider's addresses are shown in its settings):</p>
-        <code className="adm-code-block adm-break">{redirectAddress(data, '')}</code>
+        {data.callbackBase ? (
+          <>
+            <p>Each provider needs to know where to send people back. Register this address with an OpenID Connect provider, replacing the short name (a SAML provider's addresses are shown in its settings):</p>
+            <code className="adm-code-block adm-break">{redirectAddress(data, '')}</code>
+          </>
+        ) : (
+          <Notice tone="danger" role="alert">
+            <strong>Set the application address.</strong> This installation is reached from other computers, so single sign-on does not
+            take its address from the request: until the address is set, sign-ins through a provider are refused and the addresses to
+            give a provider cannot be shown.
+          </Notice>
+        )}
         <TextField
           label="Application address" placeholder="https://grc.example.org" value={value} onChange={(v) => { setValue(v); setError(''); }} error={error || undefined}
-          hint="The https address people type to open the application. Leave empty to use the address of the current request."
+          hint="The https address people type to open the application. Single sign-on, assistant (MCP) access and calendar feeds need it on an installation other computers reach; it may stay empty only when the application is used on this computer."
         />
         <div className="form-actions">
           <Button disabled={value === data.publicUrl} onClick={() => setValue(data.publicUrl)}>Undo</Button>

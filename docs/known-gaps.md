@@ -35,7 +35,6 @@ content, which belongs in a document tool (E25-13, E29-11, E32-06, E34-09).
   - OT security: no network scanning or device discovery; the starter structure file's mappings are
     not loaded automatically; the zones-below-target figure keeps no history; a saved map picture
     shows no OT badge.
-  - Records requests: working days skip weekends only, not public holidays.
   - Vendor risk lifecycle: exclusion-list checks are recorded by hand (no outside service is
     called); finishing an offboarding item does not remove accounts by itself.
   - Integrations: SCIM bulk requests and sorting are not supported, and attributes the application
@@ -87,10 +86,9 @@ content, which belongs in a document tool (E25-13, E29-11, E32-06, E34-09).
 - **Custom fields**: the portal deliberately does not ask ticket custom fields of
   requesters (they are the service desk's own classification); catalog questions do that
   job.
-- **API**: the `If-Match` check takes its lock in one server process only; several
-  processes on one database do not share it. The Overview's figures are kept for a few
-  seconds per process, so a change saved through another process shows up there after up
-  to 10 seconds.
+- **API**: the Overview's figures are kept for a few seconds per process, so a change saved
+  through another process shows up there after up to 10 seconds. Record changes made by module
+  routes outside the generic save are not yet one transaction with their audit event.
 - **Mobile app (server)**: a refresh is repeated safely once within 30 seconds if its first answer
   was never used; two refreshes of the same token at the same moment get one answer, and the other is
   refused. Within `auth.reauth_minutes` of a `prompt=login` sign-in, the phone may perform any
@@ -150,12 +148,24 @@ content, which belongs in a document tool (E25-13, E29-11, E32-06, E34-09).
   about 1 to 1.3 s at the 99th percentile. At scale 4 the two database processors are saturated:
   global search takes 0.8 to 0.9 s and the full-text list 0.4 s, and sorted lists and the Overview 0.8
   to 3.7 s. Under bursts of writes, a request that waits more than `GRC_DATABASE_CONNECT_TIMEOUT` (10 s)
-  for one of the `GRC_DATABASE_POOL_MAX` (10) connections fails with "Something went wrong" (30 of
-  about 82,000 while seeding scale 4).
+  for one of the `GRC_DATABASE_POOL_MAX` (10) connections answers 503 `busy` with `Retry-After` (since
+  wave 19; before, about 30 of 82,000 requests failed this way while seeding scale 4).
+- **Operations**: the audit archive cannot run under a least-privilege database role (no delete
+  privilege); archiving as the owner is not built. Rotating the database password, SCIM tokens and
+  the backup passphrase is not yet a written procedure (E40-14).
 - **Vehicle and asset models (E39)**: a model change saves each member on its own, not in one
   database transaction; a member refused by its own rules is listed on the model and takes the value
   at its next save unless overridden. Inherited custom fields are marked on the model lists, not under
   Administration > Custom fields. Models carry no maintenance schedules or parts (E32-06).
+- **Models and references**: a background model change (E39) runs with the full permissions of the
+  person who saved the model, even when they saved it with a personal access token of narrower
+  scope. Deleting a model does not lock out a member being given that model at the same moment: such a
+  member is found right after the delete and left with no model. Reference fields, built-in and
+  custom, check that the linked record is not restricted and is within its row rules, but not that the
+  person holds view permission on the linked record's module (E40-13).
+- **Provisioning**: provisioning deactivates an account that can administer only when it created
+  the account; for accounts created before wave 19 this is known from the audit log, so one whose
+  creation event was purged keeps the older refusal and is deprovisioned by hand.
 - **Vendors**: the contract import fills structured dates only where the text is
   unambiguous; the "Complete the dates" queue lists the rest.
 

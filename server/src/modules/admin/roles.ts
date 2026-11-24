@@ -1,4 +1,5 @@
 import type { FastifyRequest } from 'fastify';
+import { dropAdminProvisioningPermits } from '../../core/identity/accounts.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { featureState, ownedOff, permissionOff, SWITCHED_OFF, type FeatureState } from '../../core/features.ts';
 import { defaultGrantDifferences, roleDescription, syncDefaultGrants } from '../../core/services.ts';
@@ -134,6 +135,7 @@ export function registerRoles(ctx: ModuleContext) {
       if (out.grants) {
         await tx.query('delete from role_permissions where role_id = $1', [id]);
         for (const g of out.grants) await tx.query('insert into role_permissions (role_id, permission) values ($1,$2)', [id, g]);
+        await dropAdminProvisioningPermits(tx); // W19: members who can now administer lose a provisioning link permit
       }
       await guardAdministrators(tx, req.user!.id);
     });

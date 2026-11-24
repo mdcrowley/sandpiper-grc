@@ -33,23 +33,28 @@ Provisioning never:
 
 - deactivates the last active administrator (the request is refused);
 - sees or changes the **break-glass account** (see [Administration](09-administration.md#the-break-glass-account));
-- gives a role that can administer (any role holding `admin.administer`, `admin.*` or `*`);
-- changes the email address of, deactivates, or enables again an account that can administer (any role holding an `admin.` permission or `*`), even if that role is switched off. Do that by hand under **Users**. The refusal is recorded in the audit log;
+- gives a role that can administer;
+- changes the email address of, or enables again, an account that can administer, even if that role is switched off. Do that by hand under **Users**. The refusal is recorded in the audit log;
+- deactivates an account that can administer **unless provisioning created it** (see below);
 - removes a role an administrator gave by hand.
+
+A role **can administer** when it holds `*` or any `admin.` permission: `admin.administer` and `admin.*`, but also `admin.view` or another `admin.` action. Provisioning uses this one rule everywhere: for what it refuses to change, for the roles a group may be mapped to, and for the roles it gives.
+
+**Leavers who were made administrators.** When provisioning created an account and an administrator later gave it a role that can administer, provisioning may still **deactivate** it when the person leaves, so a leaver never keeps access because of a role. Deactivating only takes access away: provisioning still never enables such an account again or changes its email address, and never deactivates the last active administrator. The audit log records it as "Provisioning (<token>) deactivates <user>, who can administer". An administrator account that provisioning did not create (for example one made under **Users** and later matched by the identity provider) is never deactivated by provisioning; remove its access by hand.
 
 ### Groups and roles
 
 Groups appear under **Groups and roles** when your identity provider sends them, with how many members each has. To give the members of a group a role:
 
 1. Select **Map roles** beside the group.
-2. Choose the **Roles**. Roles that can administer are not offered: give those by hand under **Users**.
+2. Choose the **Roles**. Roles that can administer (any `admin.` permission or `*`) are refused: give those by hand under **Users**.
 3. Select **Save mapping** and confirm your password.
 
 Every member's roles are brought in step at once, and again whenever someone joins or leaves the group. A role given through a group is taken away when the person leaves every group that gives it, or when the mapping changes. A role an administrator gave by hand under **Users** is never taken away by provisioning, even if a group also gives it. If a mapped role is later changed to include administration, provisioning takes it back from the people it gave it to rather than keep handing it out.
 
 ### Signing in
 
-Accounts made by provisioning have no password here, so people sign in through single sign-on (see [Sign-in providers](09-administration.md#sign-in-providers-single-sign-on)). A sign-in provider matches an account by its verified email address and normally asks for the account's password before linking the two, which a provisioned account does not have. Choose the provider under **Sign-in provider for new accounts**: every account provisioning creates, or enables again, may then link that provider by its email address at its first sign-in, for 30 days. Accounts that can administer never get a link permit from provisioning. Without one, an administrator allows each link under **Users** as described in [Administration](09-administration.md#passkeys-and-single-sign-on-on-a-persons-page).
+Accounts made by provisioning have no password here, so people sign in through single sign-on (see [Sign-in providers](09-administration.md#sign-in-providers-single-sign-on)). A sign-in provider matches an account by its verified email address and normally asks for the account's password before linking the two, which a provisioned account does not have. Choose the provider under **Sign-in provider for new accounts**: every account provisioning creates, or enables again, may then link that provider by its email address at its first sign-in, for 30 days. Accounts that can administer never get a link permit from provisioning, and a permit given earlier is cleared when the account is given a role that can administer (or a role it holds gains an `admin.` permission). If such an account signs in with a permit still in place, the permit is ignored and cleared, the sign-in asks for the account's own password as for any link, and the audit log records `identity.permit_ignored`. A permit an administrator gives by hand is not affected. Without one, an administrator allows each link under **Users** as described in [Administration](09-administration.md#passkeys-and-single-sign-on-on-a-persons-page).
 
 ### Tokens
 

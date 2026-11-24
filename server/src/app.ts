@@ -7,7 +7,8 @@ import { registerApiDocs } from './core/apidocs.ts';
 import { loadUser, registerAuth, requireRecentAuth, secretBox } from './core/auth.ts';
 import { registerCustomFieldRoutes } from './core/customfield-routes.ts';
 import { makeCustomFields } from './core/customfields.ts';
-import { openDb } from './core/db.ts';
+import { DatabaseBusyError, openDb } from './core/db.ts';
+import { registerRequestMetrics } from './core/monitoring.ts';
 import { registerReadiness } from './core/health.ts';
 import { registerWebAssets, sendIndex } from './core/webassets.ts';
 import { registerPermissionUse } from './core/permission-use.ts';
@@ -161,9 +162,18 @@ export async function buildApp(opts: BuildOptions) {
     if (err.statusCode && err.statusCode < 500) {
       return reply.code(err.statusCode).send({ error: { code: 'bad_request', message: err.message } });
     }
+    // No database connection came free in time (E40-12): "busy, try again shortly", not a failure.
+    if (err instanceof DatabaseBusyError || (err?.databaseBusy === true)) {
+      console.warn(`[db] ${req.method} ${req.url}: ${err.message} Answered 503; see "Database connections" in docs/operations.md.`);
+      reply.header('retry-after', String(err.retryAfterSeconds ?? 5));
+      return reply.code(503).send({ error: { code: 'busy', message: 'The server is busy. Try again in a few seconds.' } });
+    }
     console.error(`[error] ${req.method} ${req.url}:`, err);
     return reply.code(500).send({ error: { code: 'server_error', message: 'Something went wrong. The error has been logged.' } });
   });
+
+  // Counts answers for the operational metrics endpoint (E40-04; core/monitoring.ts): ahead of every route.
+  registerRequestMetrics(app);
 
   app.addHook('onSend', async (req, reply) => {
     addHsts(req, reply); // only on responses that went out over HTTPS

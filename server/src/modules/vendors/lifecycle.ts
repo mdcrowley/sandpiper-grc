@@ -10,6 +10,8 @@ import { defineMetric } from '../../core/metrics.ts';
 import type { LookupValue, ModuleContext, Row } from '../../core/module.ts';
 import { notePermission } from '../../core/permission-use.ts';
 import { addDays, daysBetween, localDate } from './dates.ts';
+import { addMonths } from '../../../../shared/dates.ts';
+export { addMonths }; // one copy for every module (E40-12)
 
 export const REASSESS_REMINDER_SETTING = 'vendors.reassessment_reminder_days';
 export const EXCLUSION_MONTHS_SETTING = 'vendors.exclusion_check_months';
@@ -44,14 +46,6 @@ export async function ensureLifecycleLists(ctx: ModuleContext): Promise<void> {
     }
     await ctx.settings.set(CADENCE_SEEDED, true);
   }
-}
-
-export function addMonths(date: string, months: number): string {
-  const [y, m, d] = date.slice(0, 10).split('-').map(Number);
-  const target = new Date(Date.UTC(y, m - 1 + months, 1));
-  const last = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
-  target.setUTCDate(Math.min(d, last));
-  return target.toISOString().slice(0, 10);
 }
 
 /** Months between assessments for each criticality value (null = never due). */

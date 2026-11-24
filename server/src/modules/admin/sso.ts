@@ -10,8 +10,8 @@ import { makeDbLimiter } from '../../core/ratelimit.ts';
 import { linkIdentity } from '../../core/identity/accounts.ts';
 import {
   acceptAssertionOnce, auditFailure, beginFlow, callbackPath, consumeFlow, DRIVERS, enabledProviders, finishSignIn, keepPostedResponse,
-  LINK_COOKIE, localSignInOn, providerById, providerByKey, publicBase, readSecret, registerSignInPolicy, safeReturn, signinLimiter,
-  type IdentityDeps,
+  LINK_COOKIE, localSignInOn, NO_APPLICATION_ADDRESS, providerById, providerByKey, publicBase, readSecret, registerSignInPolicy, safeReturn,
+  signinLimiter, SSO_ADDRESS_REQUIRED, type IdentityDeps,
 } from '../../core/identity/service.ts';
 import { IdentityError, type ExternalIdentity, type ProviderRecord } from '../../core/identity/types.ts';
 import { verifyLogoutToken } from '../../core/identity/oidc.ts';
@@ -43,6 +43,9 @@ export async function signInMethods(ctx: ModuleContext, userId: string) {
   const local = Boolean(row?.has_password) && (localOn || Boolean(row?.break_glass)) && allows('local');
   return { local, identities, allows, hasPassword: Boolean(row?.has_password), breakGlass: Boolean(row?.break_glass) };
 }
+
+/** W19: the sign-in could not start because there is no trusted application address (core/identity/service.ts publicBase). */
+const noAddress = (err: unknown) => err instanceof IdentityError && err.reason === NO_APPLICATION_ADDRESS;
 
 export function registerSso(ctx: ModuleContext) {
   const { app, db } = ctx;
@@ -357,6 +360,7 @@ export function registerSso(ctx: ModuleContext) {
       return { redirectUrl: await beginFlow(deps, req, reply, p, 'signin') };
     } catch (err) {
       await auditFailure(deps, req, p, err instanceof IdentityError ? err.reason : 'could not start');
+      if (noAddress(err)) return ctx.fail(409, 'public_url_required', SSO_ADDRESS_REQUIRED);
       return ctx.fail(502, 'provider_unavailable', `${p.name} cannot be reached just now. Try again, or ask an administrator.`);
     }
   }));
@@ -540,6 +544,7 @@ export function registerSso(ctx: ModuleContext) {
       return { redirectUrl: url };
     } catch (err) {
       await auditFailure(deps, req, p, err instanceof IdentityError ? err.reason : 'could not start', req.user!.id, purpose === 'link' ? 'Linking' : 'Confirmation');
+      if (noAddress(err)) return ctx.fail(409, 'public_url_required', SSO_ADDRESS_REQUIRED);
       return ctx.fail(502, 'provider_unavailable', `${p.name} cannot be reached just now. Try again later.`);
     }
   }
@@ -598,7 +603,7 @@ export function registerSso(ctx: ModuleContext) {
     const p = await providerByKey(db, String((req.params as Record<string, string>).key ?? ''));
     if (!p || p.type !== 'saml') return ctx.fail(404, 'not_found', 'There is no SAML provider with that short name.');
     let base: string;
-    try { base = await publicBase(deps, req); } catch { return ctx.fail(409, 'no_address', 'Set the application address under Sign-in providers first.'); }
+    try { base = await publicBase(deps, req); } catch { return ctx.fail(409, 'public_url_required', SSO_ADDRESS_REQUIRED); }
     const download = (req.query as Record<string, string>).download === '1';
     reply.header('content-type', 'application/samlmetadata+xml; charset=utf-8').header('cache-control', 'no-store');
     if (download) reply.header('content-disposition', `attachment; filename="${p.key}-metadata.xml"`);

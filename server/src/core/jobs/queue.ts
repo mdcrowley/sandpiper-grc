@@ -7,7 +7,7 @@
 // administrator (Administration > Background jobs). Recurring work is a row in `job_schedules`.
 import { randomBytes } from 'node:crypto';
 import { hostname } from 'node:os';
-import { inTrial, type Db } from '../db.ts';
+import { afterCommit, inTrial, type Db } from '../db.ts';
 import { featureState, jobOff, SWITCHED_OFF } from '../features.ts';
 import type { Row } from '../module.ts';
 
@@ -136,6 +136,11 @@ export interface JobQueue {
   start(intervalMs?: number): void;
   stop(): void;
   readonly started: boolean;
+  /**
+   * The poller in this process (E40-04): whether it runs, how often it polls, and when a poll last
+   * finished (null before the first). A poll that never finishes leaves `lastPollAt` behind.
+   */
+  poller(): { started: boolean; intervalMs: number; lastPollAt: Date | null; startedAt: Date | null };
 }
 
 const clip = (s: unknown, n = 2000) => String(s ?? '').slice(0, n);
@@ -147,6 +152,9 @@ export function makeJobQueue(db: Db): JobQueue {
   const busy = new Set<string>();
   let timer: NodeJS.Timeout | null = null;
   let kick: NodeJS.Immediate | null = null;
+  let pollEvery = 0;
+  let lastPollAt: Date | null = null;
+  let startedAt: Date | null = null;
 
   const due = `((status in ('queued', 'failed') and run_at <= now()) or (status = 'running' and locked_until < now()))`;
 
@@ -291,9 +299,9 @@ export function makeJobQueue(db: Db): JobQueue {
         }
       }
       // Not from inside a trial (E13-22): its rows are rolled back, and the job must not run in it.
-      if (row && timer && !kick && !inTrial() && runAt.getTime() <= Date.now()) {
-        // The poller is running: do not make a new job wait for the next tick.
-        kick = setImmediate(() => { kick = null; void queue.runDue().catch((err) => console.error('[jobs]', err)); });
+      // After the save that queued it commits (E40-03); a trial's rows are rolled back, so never from one.
+      if (row && timer && runAt.getTime() <= Date.now()) {
+        await afterCommit(() => { if (!kick) kick = setImmediate(() => { kick = null; void queue.runDue().catch((err) => console.error('[jobs]', err)); }); });
       }
       return { id: row?.id ?? null, queued: Boolean(row) };
     },
@@ -361,8 +369,13 @@ export function makeJobQueue(db: Db): JobQueue {
 
     start(intervalMs = 10_000) {
       if (timer) return;
-      const tick = () => { void queue.runDue().catch((err) => console.error('[jobs] poll failed:', err)); };
-      timer = setInterval(tick, Math.max(1000, intervalMs));
+      pollEvery = Math.max(1000, intervalMs);
+      startedAt = new Date();
+      // A poll that finishes (whatever it found) moves lastPollAt on; one that hangs does not (E40-04).
+      const tick = () => {
+        void queue.runDue().then(() => { lastPollAt = new Date(); }, (err) => console.error('[jobs] poll failed:', err));
+      };
+      timer = setInterval(tick, pollEvery);
       timer.unref();
       setTimeout(tick, 2000).unref();
     },
@@ -375,6 +388,8 @@ export function makeJobQueue(db: Db): JobQueue {
     },
 
     get started() { return timer !== null; },
+
+    poller: () => ({ started: timer !== null, intervalMs: pollEvery, lastPollAt, startedAt }),
   };
   return queue;
 }

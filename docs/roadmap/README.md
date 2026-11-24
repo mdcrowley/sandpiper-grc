@@ -152,7 +152,7 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | [E15](epics/E15-self-service-portal.md) | Self-service portal | done | 14 / 14 |
 | [E16](epics/E16-hosting-operations-and-hardening.md) | Hosting, operations and hardening | in progress | 35 / 39 |
 | [E17](epics/E17-documentation.md) | Documentation | done | 14 / 14 |
-| [E18](epics/E18-quality-and-known-defects.md) | Quality and known defects | done | 65 / 65 |
+| [E18](epics/E18-quality-and-known-defects.md) | Quality and known defects | done | 67 / 67 |
 | [E19](epics/E19-fleet-and-services.md) | Fleet and services | done | 14 / 14 |
 | [E20](epics/E20-safety-management.md) | Safety management | done | 15 / 15 |
 | [E21](epics/E21-mcp-server.md) | MCP server (AI assistant access) | done | 25 / 25 |
@@ -174,7 +174,9 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | [E37](epics/E37-asset-tags.md) | Asset tags: values, printing and lookup | in progress | 9 / 10 |
 | [E38](epics/E38-mobile-apps.md) | Mobile apps for iPhone and Android | in progress | 11 / 15 |
 | [E39](epics/E39-vehicle-and-asset-models.md) | Vehicle and asset models | done | 7 / 7 |
-| | **Total** | | **742 / 752** |
+| [E40](epics/E40-production-hardening.md) | Production hardening | in progress | 13 / 14 |
+| [E41](epics/E41-product-gaps-wave-19.md) | Product gaps found in the wave 19 review | open | 0 / 17 |
+| | **Total** | | **757 / 785** |
 
 Of the 10 issues not done, 5 are in the epics E37 (asset tags) and E38 (mobile apps), specified in
 [the asset tags and mobile apps specification](specs/asset-tags-and-mobile-apps.md): the online app
@@ -234,7 +236,7 @@ Keep this table in step with that file.
 | Contract import dates | E06-15 (done) |
 | Wave 10 parts: evidence answers in text, no coverage import or per-control test steps, finance left to the finance system, meeting decisions and kind-less workflows, no emailed calendar invitations, departments not a record type, monthly-only KRIs | E23, E24, E26, E27, E28, E29, E30 (done; the limits are recorded there), E36-03 |
 | Wave 11 parts: printed call trees; one useful-life benchmark per class; no OT network scanning, starter mappings not loaded, no history for zones below target, no OT badge in a saved map picture; working days skip weekends only; exclusion checks and offboarding by hand; no SCIM bulk or sorting, one collector per forwarder, read-only feeds, no product-specific work-tracker connections | E31, E32, E33, E34, E35, E36 (done; the limits are recorded there) |
-| The If-Match lock and the Overview cache are per process | E13-12, E16-38 (done; the limits are recorded there) |
+| The Overview cache is per process; module routes outside the generic save are not one transaction | E16-38, E40-03 (done; the limits are recorded there) |
 | Help page tables always take a Tab stop and have a generic name | E22-48 (done; the limit is recorded there) |
 | Least-privilege account queues custom fields for the owner; user services not proven across a restart or for the system examples | E16-37 (done; recorded there), E16-42 |
 | Mobile app sign-in: a refresh repeated once within 30 seconds; a `prompt=login` sign-in covers sensitive actions for `auth.reauth_minutes` | E38-02 (done) |

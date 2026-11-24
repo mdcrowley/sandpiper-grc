@@ -5,6 +5,7 @@
 // and once as a whole; past imports are read back from that audit event.
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { fail } from '../errors.ts';
+import { csvCell } from '../export/csv.ts';
 import type { AuditInput, ResourceDef, Row } from '../module.ts';
 import { IMPORT_LIMITS, ImportFileError, readUpload } from './read.ts';
 import { importableFields, matchKeys, MappingError, runImport, suggestMapping, type ImportDeps, type ImportMode } from './service.ts';
@@ -15,7 +16,6 @@ export interface ImportRouteDeps extends ImportDeps {
 }
 
 const MODES: ImportMode[] = ['create', 'update', 'upsert'];
-const csvCell = (s: string) => (/[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
 
 export function registerImportRoutes(deps: ImportRouteDeps) {
   const { app } = deps;
@@ -56,7 +56,7 @@ export function registerImportRoutes(deps: ImportRouteDeps) {
 
   app.get('/api/import/:type/fields', async (req) => describeType(req, target(req, null)));
 
-  /** A CSV with one header per importable field, to fill in. */
+  /** A CSV with one header per importable field, to fill in. Labels go through the formula guard (custom field labels are typed by administrators). */
   app.get('/api/import/:type/template', async (req, reply) => {
     const def = target(req, null);
     const fields = await importableFields(deps, def);

@@ -20,6 +20,7 @@ import { featureState } from '../features.ts';
 import { migrate } from '../migrate.ts';
 import type { ModuleContext, Row } from '../module.ts';
 import { makeJobQueue, type JobQueue } from './queue.ts';
+import { registerOps } from './ops.ts';
 
 export { DeferJobError, PermanentJobError, RetryLaterError, requestedWait, type EnqueueOptions, type HandlerOptions, type JobHandler, type JobInfo, type JobQueue, type ScheduleOptions } from './queue.ts';
 
@@ -190,6 +191,10 @@ export async function ensureJobs(ctx: ModuleContext): Promise<JobQueue> {
     return (await jobs.runNow(queued.id!))!;
   });
   ctx.describeRoute({ method: 'POST', path: '/api/admin/jobs/schedules/:name/run', tag: 'Background jobs', permission: A, summary: 'Run a scheduled job now' });
+
+  // Alerts when background work keeps failing, session clean-up, the audit archive, the metrics
+  // endpoint and what /api/ready reports about the queue (E40-04, E40-06, E40-07).
+  await registerOps(ctx, jobs);
 
   return jobs;
 }

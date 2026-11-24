@@ -223,11 +223,23 @@ The tiles show the **Last good backup** (red when there is none or it is more th
 5. **Include the application's secret key** (encrypted backups only) also puts the key that protects second-factor keys and webhook secrets into each backup, so a restore puts it back too. With it off, that key is not in backups and must be kept separately; the page says where it is.
 6. Select **Save backup settings**. You may be asked to confirm your password.
 
-Select **Back up now** at any time. **Recent backups** lists the last 20 with their start time, result (**Checked**, **Failed** or **Running**), file name, size, whether they were taken **Daily** or by a person, and whether they are encrypted. A failed backup shows why.
+Select **Back up now** at any time. The backup runs in the background: the button shows **Backing up**, and a line above the tiles says how far it has got (copying the database, so many tables of so many, packing, writing to the destination, reading it back and checking it, removing older ones). You may leave the page; when you stay, it tells you the result when it finishes. Only one backup runs at a time: while one waits or runs, **Back up now** is not available.
+
+**Recent backups** lists the last 20 with their start time, result (**Checked**, **Failed** or **Running**), file name, size, whether they were taken **Daily** or by a person, and whether they are encrypted. A failed backup shows why; a running one shows how far it has got.
 
 If a backup fails, or none has succeeded for two days, every administrator is notified, and the reason is kept in the audit log. A backup that was running when the server stopped is shown as **Failed** with "Interrupted".
 
-Files kept in the object store are not in these backups: use the store's own versioning. To restore a backup, the person running the server stops it and runs `.\grc.ps1 restore <file>`; see the operations guide.
+Files kept in the object store are not in these backups: use the store's own versioning. To restore a backup, the person running the server stops it and runs `.\grc.ps1 restore <file>`; see the operations guide, which also has a recovery runbook (what to do, in order, after losing the server) and suggested targets for how much work may be lost and how long the application may be unavailable.
+
+### PostgreSQL database dumps
+
+When the application uses a PostgreSQL server, the person running it backs the database up with the script `deploy/postgres/pg-backup.sh` on a schedule, and the **Backups** page checks those backups too. The section appears only on a PostgreSQL server (or once a dump folder is set).
+
+1. Under **PostgreSQL database dumps**, enter the **Dump folder**: the folder the script writes to, as the server sees it (for example `/srv/backups/grc`).
+2. Set **Warn when the newest is older than (hours)**: 26 suits a dump taken every night.
+3. Select **Save backup settings**.
+
+Every five minutes the server looks in the folder. Each new dump is read once and compared with the record the script wrote beside it (its size and checksum), and listed under **PostgreSQL dumps checked** as **Checked** or **Failed**, with the number of entries it holds. The **Last PostgreSQL dump** tile shows the newest good one. Every administrator is told once, in the application and by email, when the newest dump failed its check, or when the newest good one is older than the limit (or none is found); they are told again only if the problem clears and comes back.
 
 ## Notifications
 
@@ -476,6 +488,20 @@ Change the values you need and select **Save changes**; **Undo changes** puts ba
 - The tiles count jobs that are **Waiting**, **Running**, **Failed, will retry**, **Gave up** and **Done**. Finished jobs are kept for 30 days (two days for the regular runs of a schedule, some of which run every minute) and jobs that gave up for 90.
 - **Schedules** lists the regular work, how often it runs, when it last ran and when it runs next. **Run now** runs one straight away.
 - **Recent jobs** lists jobs newest first; choose a **Status** to narrow it. Select a job to see its details, its last error and its result. For a job that failed or gave up, **Try again now** runs it again at once, with its attempts counted from nothing. If a newer run of the same job (for example the schedule's next run) is already waiting or running, **Try again now** says so and leaves the old job as it is.
+
+### Problems being watched
+
+When background work keeps failing, every administrator is told once, under the bell and by email, with a link to the page that shows the problem, and it is listed at the top of **Background jobs** under **Problems being watched** until it clears. Nothing more is sent while it lasts; if it clears and later comes back, you are told again. Each one is also recorded in the audit log.
+
+| You are told when | It clears when |
+|---|---|
+| A job gave up after all its attempts, and no later run of the same kind has finished. When it is the safety notification clock check, the message says that deadline alerts may be missed | A later run finishes, or **Try again now** works |
+| Email is on and the last three messages could not be sent | A message is sent |
+| A webhook's receiver keeps refusing or not answering | A delivery gets through, or the webhook is switched off |
+| An audit-log forwarder has failed three times in a row | It sends again, or is switched off |
+| A copy of the server has stopped running background jobs, or no copy is running them at all (jobs have waited 15 minutes) | Jobs run again |
+| PostgreSQL backups are overdue, or the newest failed its check (see **Backups**) | A good, recent dump is found |
+| The audit archive cannot remove old events (see the administration guide) | The archive runs, or is switched off |
 
 Each job runs once even if more than one copy of the server is using the same database. If the server stops in the middle of a job, the job is picked up again a few minutes after the server starts.
 

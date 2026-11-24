@@ -4,6 +4,8 @@ import type { ModuleContext, Row } from '../../core/module.ts';
 import type { Base, Req } from './base.ts';
 import { AFFECTS } from './base.ts';
 import { LIVE_STATUSES, SETTLED_STATUSES } from './rules.ts';
+// Whole months on a wall-clock reading kept as UTC fields (31 Jan + 1 month = 28/29 Feb).
+import { addMonthsToInstant as addMonths } from '../../../../shared/dates.ts';
 
 export interface Conflict {
   /** `blackout:<id>` or `change:<id>`. */
@@ -24,17 +26,6 @@ const jsonList = (v: unknown): string[] => {
   const x = typeof v === 'string' ? (() => { try { return JSON.parse(v); } catch { return []; } })() : v;
   return Array.isArray(x) ? x.map(String) : [];
 };
-
-/** Adds whole months to a wall-clock reading (kept as UTC fields), keeping the day of the month where it exists (31 Jan + 1 month = 28/29 Feb). */
-function addMonths(d: Date, n: number): Date {
-  const out = new Date(d);
-  const day = out.getUTCDate();
-  out.setUTCDate(1);
-  out.setUTCMonth(out.getUTCMonth() + n);
-  const last = new Date(Date.UTC(out.getUTCFullYear(), out.getUTCMonth() + 1, 0)).getUTCDate();
-  out.setUTCDate(Math.min(day, last));
-  return out;
-}
 
 const zoneFormats = new Map<string, Intl.DateTimeFormat>();
 /** How the clocks of `zone` read an instant, as a Date whose UTC fields are that reading ("wall time"). */

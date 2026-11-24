@@ -32,7 +32,7 @@ Holders of `records.administer` select **Deadlines** on the list to set:
 
 - **Default days to answer**: 20 unless you change it. Set your own: no jurisdiction's deadline is built in.
 - Days for each kind of request, when one kind has its own deadline (empty uses the default).
-- **Count working days only**: Monday to Friday. Public holidays are not known, so extend a request when one falls in its period.
+- **Count working days only**: only working days count toward the deadline, and the first day counted is the day after the request was received. Working days come from the organization's one working-day calendar: the weekdays the **Business hours** calendar is open, less the holidays entered on it. That calendar is kept with the service desk settings (**Service desk > Settings > Calendars and holidays**, see [Service desk](02-service-desk.md#calendars-and-holidays)), by holders of `tickets.administer`; the dialog names it and says how many holidays it holds. When it has been retired, or the service desk is not installed, Monday to Friday is used with no holidays. A holiday added later changes the due dates of requests received or extended from then on; existing due dates stay as they were. Extending a request by a number of days counts working days the same way.
 - **Due soon when this share of the time is left**: 0.25 unless you change it.
 - **Remind of privacy reviews (days before)**: 30 unless you change it.
 

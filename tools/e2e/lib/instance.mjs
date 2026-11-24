@@ -9,6 +9,13 @@
 //   E2E_WEB_DIST   a web build to serve (a folder holding index.html); default: build one into
 //                  <dir>/dist with Vite (about a minute). CI builds first and passes dist/web.
 //   E2E_PORT       the port to use (default: a free one picked by the operating system)
+//   E2E_DATABASE_URL  run the instance on a PostgreSQL server instead of the embedded database: a
+//                  connection string for an account that may create databases (for example
+//                  postgres://grc:secret@127.0.0.1:5432/grc). Each run creates a fresh database
+//                  named grc_e2e_<time>_<random> on that server, passes it to the server as
+//                  GRC_DATABASE_URL, and drops it when the run ends (kept with --keep). A
+//                  GRC_DATABASE_URL (or _FILE, or GRC_DATABASE_MIGRATE_URL) in the environment is
+//                  never passed on, so the tests cannot write to a real database by accident.
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
@@ -35,9 +42,41 @@ async function freePort() {
   });
 }
 
+/** The environment of a child process: ours without any database setting, plus `env`. */
+function childEnv(env) {
+  const out = { ...process.env };
+  for (const k of ['GRC_DATABASE_URL', 'GRC_DATABASE_URL_FILE', 'GRC_DATABASE_MIGRATE_URL', 'GRC_DATABASE_MIGRATE_URL_FILE']) delete out[k];
+  return { ...out, ...env };
+}
+
+/** A fresh, uniquely named database on the server E2E_DATABASE_URL points at; { url, name, drop() }. */
+async function freshDatabase(adminUrl, log) {
+  const { default: pg } = await import('pg');
+  const name = `grc_e2e_${Date.now().toString(36)}_${Math.random().toString(16).slice(2, 10)}`;
+  const admin = new pg.Client({ connectionString: adminUrl });
+  await admin.connect();
+  try {
+    // Byte-order sorting, as the embedded database and the unit tests on a server have.
+    await admin.query(`create database "${name}" template template0 encoding 'UTF8' lc_collate 'C' lc_ctype 'C'`);
+  } finally {
+    await admin.end();
+  }
+  const url = new URL(adminUrl);
+  url.pathname = `/${name}`;
+  log(`using a fresh PostgreSQL database ${name} on ${url.host}`);
+  return {
+    url: url.toString(), name,
+    async drop() {
+      const c = new pg.Client({ connectionString: adminUrl });
+      await c.connect();
+      try { await c.query(`drop database if exists "${name}" with (force)`); } finally { await c.end(); }
+    },
+  };
+}
+
 function run(args, env, log, what) {
   return new Promise((res, rej) => {
-    const p = spawn(process.execPath, args, { cwd: repoRoot, env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
+    const p = spawn(process.execPath, args, { cwd: repoRoot, env: childEnv(env), stdio: ['ignore', 'pipe', 'pipe'] });
     let out = '';
     p.stdout.on('data', (d) => { out += d; });
     p.stderr.on('data', (d) => { out += d; });
@@ -135,12 +174,14 @@ export async function startInstance({ dir, log = console.log, roles = true }) {
   const base = `http://127.0.0.1:${port}`;
   const env = { GRC_DATA_DIR: dataDir, GRC_WEB_DIST: webDist, GRC_SEED_DIR: join(dir, 'no-seed'), GRC_PORT: String(port), GRC_MODULES: process.env.GRC_MODULES ?? '' };
   if (!env.GRC_MODULES) delete env.GRC_MODULES;
+  const database = process.env.E2E_DATABASE_URL ? await freshDatabase(process.env.E2E_DATABASE_URL, log) : null;
+  if (database) env.GRC_DATABASE_URL = database.url;
 
   let server = null;
   let serverLog = '';
   const startServer = async () => {
     serverLog = '';
-    server = spawn(process.execPath, [tsxCli, 'server/src/main.ts'], { cwd: repoRoot, env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
+    server = spawn(process.execPath, [tsxCli, 'server/src/main.ts'], { cwd: repoRoot, env: childEnv(env), stdio: ['ignore', 'pipe', 'pipe'] });
     server.stdout.on('data', (d) => { serverLog += d; });
     server.stderr.on('data', (d) => { serverLog += d; });
     const exited = new Promise((res) => server.once('exit', res));
@@ -210,6 +251,7 @@ export async function startInstance({ dir, log = console.log, roles = true }) {
     async stop({ keep = false } = {}) {
       await stopServer();
       if (!keep) rmSync(dataDir, { recursive: true, force: true });
+      if (database && !keep) await database.drop().catch((err) => log(`(could not drop the database ${database.name}: ${err.message})`));
     },
   };
 }

@@ -3,22 +3,14 @@ import { Group, Progress, RingProgress, SegmentedControl, Stack, Text } from '@m
 import { Button, Card, errorMessage, ErrorState, Loading, useFetch, useToast } from '../../core';
 import type { Row } from '../../core';
 import type { ProjectSettings } from './types';
+import { scoreProject } from '../../../../shared/project-scoring.ts';
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
-/** Mirrors the server rule so the preview matches what will be saved. */
+/** The server's own rule (shared/project-scoring.ts), so the preview is what will be saved. */
 function work(scores: Record<string, number | null>, settings: ProjectSettings) {
-  const total = settings.criteria.reduce((n, c) => n + (c.weight > 0 ? c.weight : 0), 0);
-  let scored = 0;
-  const lines = settings.criteria.map((c) => {
-    const s = scores[c.key];
-    const has = s !== null && s !== undefined;
-    if (has && c.weight > 0) scored += 1;
-    const share = total && c.weight > 0 ? (c.weight / total) * 100 : 0;
-    return { ...c, score: has ? Number(s) : null, share, points: has ? share * (Number(s) / settings.maxScore) : 0 };
-  });
-  const sum = lines.reduce((n, l) => n + l.points, 0);
-  return { lines, total, result: scored && total ? round1(sum) : null };
+  const { lines, totalWeight, result } = scoreProject(scores, settings.criteria, settings.maxScore);
+  return { total: totalWeight, result, lines: lines.map((l) => ({ ...l.criterion, score: l.score, share: l.share, points: l.points })) };
 }
 
 /** Portfolio scoring: a score per weighted criterion gives the project's priority score out of 100. */

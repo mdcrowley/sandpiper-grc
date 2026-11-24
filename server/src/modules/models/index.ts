@@ -1,10 +1,12 @@
 import type { FastifyRequest } from 'fastify';
 import type { FieldDef, ModuleContext, ModuleDef, Row } from '../../core/module.ts';
+import { customListKey } from '../../core/customfields.ts';
+import { UUID_RE } from '../../core/errors.ts';
 import { dayInZone } from '../../core/timezone.ts';
 import {
   BACKGROUND_SETTING, blank, changeRow, cleanOverrides, fieldLabels, INHERITED_CUSTOM_SETTING, inheritedCustom, inheritedFields, KINDS,
-  memberCustomFields, memberLabel, memberValue, modelValue, prepareMember, previewChange, refusalText, runChange, same, startChange,
-  type ModelKind, type Refusal,
+  memberCustomFields, memberLabel, memberValue, modelValue, prepareMember, previewChange, refusalText, runWaitingChanges, same, startChange,
+  type CustomInfo, type ModelKind, type Refusal,
 } from './engine.ts';
 import { registerModelEquipment } from './equipment.ts';
 import { seedModels } from './seed.ts';
@@ -18,7 +20,7 @@ import { seedModels } from './seed.ts';
  * fields when they are saved (`prepare` hook) and when their model changes.
  */
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID = UUID_RE;
 const invalid = (ctx: ModuleContext, fields: Record<string, string>): never => ctx.fail(400, 'validation', 'Check the highlighted fields.', fields);
 
 const COMMON: Record<string, FieldDef> = {
@@ -53,7 +55,7 @@ const ASSET_MODEL_FIELDS: Record<string, FieldDef> = {
 };
 
 /** A model's own rules: a unique name, a sensible year and capacity, custom values kept as an object. */
-async function checkModel(ctx: ModuleContext, kind: ModelKind, patch: Row, existing: Row | null) {
+async function checkModel(ctx: ModuleContext, kind: ModelKind, patch: Row, existing: Row | null, req: FastifyRequest | null) {
   if (typeof patch.name === 'string') {
     patch.name = patch.name.trim();
     const clash = await ctx.db.one<{ id: string }>(
@@ -72,7 +74,71 @@ async function checkModel(ctx: ModuleContext, kind: ModelKind, patch: Row, exist
     const v = patch.inherited_custom;
     if (v === null) patch.inherited_custom = {};
     else if (typeof v !== 'object' || Array.isArray(v)) invalid(ctx, { inherited_custom: 'Give the values as an object keyed by custom field.' });
+    else patch.inherited_custom = await checkInheritedCustom(ctx, kind, v as Row, (existing?.inherited_custom ?? {}) as Row, req);
   }
+}
+
+/**
+ * The values of inherited custom fields, however they were sent (as `cf_<key>` or as `inherited_custom`
+ * itself), checked as the members will check them (W19 review): only the custom fields marked as
+ * inherited are kept, each value must suit its field's type, and a reference must name a record the
+ * person can see (as for any reference they set).
+ */
+async function checkInheritedCustom(ctx: ModuleContext, kind: ModelKind, values: Row, before: Row, req: FastifyRequest | null): Promise<Row> {
+  const fields = await inheritedCustom(ctx, kind);
+  const out: Row = {};
+  const errors: Record<string, string> = {};
+  const listCache = new Map<string, Set<string>>();
+  const allowed = async (f: CustomInfo) => {
+    const list = f.list_key ?? customListKey(kind.memberType, f.key);
+    if (!listCache.has(list)) listCache.set(list, new Set((await ctx.lookups.values(list)).map((x) => x.value)));
+    return listCache.get(list)!;
+  };
+  for (const [key, raw] of Object.entries(values)) {
+    const f = fields.find((x) => x.key === key);
+    if (!f) continue; // not an inherited custom field (any more): dropped
+    const v = typeof raw === 'string' && f.type !== 'longtext' ? raw.trim() : raw;
+    if (v === null || v === undefined || v === '' || (Array.isArray(v) && !v.length)) continue;
+    const bad = (message: string) => { errors[f.name] = message; };
+    switch (f.type) {
+      case 'text': case 'longtext':
+        if (typeof v === 'string' || typeof v === 'number') out[key] = String(v); else bad(`${f.label} must be text.`);
+        break;
+      case 'number': case 'currency':
+        if ((typeof v === 'number' || typeof v === 'string') && Number.isFinite(Number(v))) out[key] = Number(v); else bad(`${f.label} must be a number.`);
+        break;
+      case 'date':
+        if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v))) out[key] = v; else bad(`${f.label} must be a date (YYYY-MM-DD).`);
+        break;
+      case 'boolean':
+        if (typeof v === 'boolean') out[key] = v; else if (v === 'true' || v === 'false') out[key] = v === 'true'; else bad(`${f.label} must be yes or no.`);
+        break;
+      case 'select':
+        if (typeof v === 'string' && (await allowed(f)).has(v)) out[key] = v; else bad(`${f.label}: that is not an allowed value.`);
+        break;
+      case 'multiselect': {
+        const list = Array.isArray(v) ? v : [v];
+        const ok = await allowed(f);
+        if (list.every((x) => typeof x === 'string' && ok.has(x))) out[key] = [...new Set(list as string[])]; else bad(`${f.label}: that is not an allowed value.`);
+        break;
+      }
+      case 'user':
+        if (typeof v === 'string' && UUID_RE.test(v)) out[key] = v; else bad(`${f.label} is not a valid reference.`);
+        break;
+      case 'ref': {
+        const target = f.ref_type ? ctx.resources.get(f.ref_type) : undefined;
+        if (typeof v !== 'string' || !UUID_RE.test(v)) { bad(`${f.label} is not a valid reference.`); break; }
+        // Hidden and missing answer alike; a value the model already had is not checked again.
+        if (target && req?.user && before[key] !== v && !(await ctx.resources.find(target.type, v, req.user))) { bad(`${target.label} not found.`); break; }
+        out[key] = v;
+        break;
+      }
+      default:
+        bad(`${f.label} cannot be inherited.`);
+    }
+  }
+  if (Object.keys(errors).length) invalid(ctx, errors);
+  return out;
 }
 
 /** A model's save may carry inheritable custom values as `cf_<key>`: they are kept in `inherited_custom`. */
@@ -104,8 +170,8 @@ function defineModel(ctx: ModuleContext, kind: ModelKind) {
     fields: kind.key === 'vehicle' ? VEHICLE_MODEL_FIELDS : ASSET_MODEL_FIELDS,
     hooks: {
       prepare: (_req, input, existing) => prepareModel(ctx, kind, input, existing),
-      beforeCreate: async (_req, data) => { await checkModel(ctx, kind, data, null); return data; },
-      beforeUpdate: async (_req, existing, patch) => { await checkModel(ctx, kind, patch, existing); return patch; },
+      beforeCreate: async (req, data) => { await checkModel(ctx, kind, data, null, req); return data; },
+      beforeUpdate: async (req, existing, patch) => { await checkModel(ctx, kind, patch, existing, req); return patch; },
       // The change reaches every member that does not override it (E39-03). The answer carries the
       // change's log row as `_model_change` (the web app shows what happened, and follows a job).
       afterUpdate: async (req, before, after) => {
@@ -145,10 +211,48 @@ function registerRoutes(ctx: ModuleContext, kind: ModelKind, base: string) {
   app.addHook('preHandler', async (req) => {
     if (req.method !== 'DELETE' || req.routeOptions?.url !== `${base}/:id`) return;
     const id = (req.params as { id?: string }).id;
-    if (!id || !UUID.test(id)) return;
-    const n = await db.one<{ c: number }>(`select count(*)::int c from ${kind.memberTable} where model_id = $1 and deleted_at is null`, [id]);
-    if (n && n.c > 0) {
-      ctx.fail(409, 'model_in_use', `This ${kind.label.toLowerCase()} has ${n.c} ${n.c === 1 ? kind.memberLabel : kind.memberPlural}. Assign them another model or remove theirs first, or make the model inactive.`);
+    // Someone who may not delete gets the handler's own refusal, not the member count.
+    if (!id || !UUID.test(id) || !ctx.can(req.user ?? null, `${kind.module}.delete`)) return;
+    await refuseInUse(id);
+  });
+
+  const inUse = async (id: string): Promise<number> =>
+    (await db.one<{ c: number }>(`select count(*)::int c from ${kind.memberTable} where model_id = $1 and deleted_at is null`, [id]))?.c ?? 0;
+  const refuseInUse = async (id: string) => {
+    const n = await inUse(id);
+    if (n > 0) {
+      ctx.fail(409, 'model_in_use', `This ${kind.label.toLowerCase()} has ${n} ${n === 1 ? kind.memberLabel : kind.memberPlural}. Assign them another model or remove theirs first, or make the model inactive.`);
+    }
+  };
+
+  // Removing a model for good at the end of its retention period follows the same rule (W19 review):
+  // it is refused while the model has members, or, for an asset model, while a vehicle model's
+  // equipment names it. (A vehicle model's own equipment goes with it: models/002.)
+  app.addHook('preHandler', async (req) => {
+    if (req.method !== 'POST' || !/\/admin\/retention\/reviews\/:id\/delete$/.test(req.routeOptions?.url ?? '')) return;
+    const reviewId = (req.params as { id?: string }).id;
+    if (!reviewId || !UUID.test(reviewId) || !ctx.can(req.user ?? null, 'admin.administer')) return;
+    const review = await db.one<{ record_type: string; record_id: string }>('select record_type, record_id from retention_reviews where id = $1', [reviewId]);
+    if (review?.record_type !== kind.modelType) return;
+    await refuseInUse(review.record_id);
+    if (kind.key === 'asset' && ctx.resources.get('vehicle_model')) {
+      const named = await db.one<{ c: number }>(
+        `select count(distinct e.vehicle_model_id)::int c from vehicle_model_equipment e join vehicle_models m on m.id = e.vehicle_model_id and m.deleted_at is null
+         where e.asset_model_id = $1`, [review.record_id]);
+      if (named && named.c > 0) {
+        ctx.fail(409, 'model_in_use', `The equipment of ${named.c} ${named.c === 1 ? 'vehicle model names' : 'vehicle models name'} this asset model. Change their equipment first.`);
+      }
+    }
+  });
+
+  // The member count is read before the delete, so a member given the model at the same moment could
+  // still point at it afterwards: the delete looks again, and such a member keeps its values as its
+  // own with no model (the same as a member whose model is missing, engine.prepareMember).
+  ctx.resources.onChange?.(async ({ action, def, row }) => {
+    if (action !== 'delete' || def.type !== kind.modelType) return;
+    const left = await db.query<{ id: string }>(`select id from ${kind.memberTable} where model_id = $1 and deleted_at is null`, [row.id]);
+    for (const m of left) {
+      await ctx.resources.update(kind.memberType, m.id, { model_id: null }, null, { via: `the removal of ${kind.label.toLowerCase()} ${row.name}` });
     }
   });
 
@@ -338,11 +442,9 @@ function registerRoutes(ctx: ModuleContext, kind: ModelKind, base: string) {
   });
 
   // A large change runs as a background job with progress (E39-03).
-  app.jobs.register(kind.jobType, async (payload, job) => {
-    const id = String((payload as Row).changeId ?? '');
-    const row = await runChange(ctx, kind, id, null, (done, of) => job.progress({ done, of }));
-    return row ? { applied: row.applied, refused: Array.isArray(row.refused) ? row.refused.length : 0, total: row.total } : null;
-  }, { maxAttempts: 1 });
+  // One job per model at a time (key `<model type>:<id>`); it runs the model's waiting change.
+  app.jobs.register(kind.jobType, async (payload, job) =>
+    runWaitingChanges(ctx, kind, (payload ?? {}) as Row, job.id, (done, of) => job.progress({ done, of })), { maxAttempts: 1 });
 }
 
 async function register(ctx: ModuleContext) {

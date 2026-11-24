@@ -1,5 +1,6 @@
 import type { FastifyRequest } from 'fastify';
 import { scheduleWork } from '../../core/jobs/index.ts';
+import { setWorkingCalendarSource, toWorkingCalendar, WORKING_CALENDAR_KEY } from '../../core/working-days.ts';
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
 import { registerAssist } from './assist.ts';
 import { AGENT_AUDIENCE, audienceRule, makeAudience } from './audience.ts';
@@ -114,6 +115,14 @@ const mod: ModuleDef = {
     const catalog = makeCatalog(ctx, notify);
     const view ={ preHandler: ctx.requirePerm('tickets.view') };
     const administer = { preHandler: ctx.requirePerm('tickets.administer') };
+
+    // E40-10: the business-hours calendar (its open weekdays and holidays) is the organization's one
+    // working-day calendar, used by every deadline counted in working days (core/working-days.ts).
+    setWorkingCalendarSource(app, async () => {
+      const row = await db.one<Row>('select id from calendars where key = $1 and deleted_at is null', [WORKING_CALENDAR_KEY]);
+      const cal = row ? await sla.calendar(row.id) : null;
+      return cal ? toWorkingCalendar(cal) : null;
+    });
 
     // E18-29: breach flags, warnings and escalation are brought up to date by a timer only, never
     // by reading tickets (a read must not write). The clock view (`/api/tickets/:id/sla`) works out

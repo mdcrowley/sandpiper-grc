@@ -2,7 +2,13 @@
 // some seeds marked it "X (sample)" at the end. Each of those seeds calls `renameSamples` first, so a
 // database loaded before the change has its old sample records renamed in place (with an audit event
 // where the table is a record type) instead of getting a second copy under the new name. Cheap when
-// nothing matches; safe to run on every seed.
+// nothing matches; safe to run on every seed. Reached only from `npm run seed -- --profile dev` (every
+// caller returns before it for other profiles; seeds run only from the command line, server stopped).
+//
+// When a record's own rules refuse the rename (closed, approved), the row is renamed directly and the
+// audit event says so (W19). A record under an active legal hold is never renamed that way: it keeps its
+// old name, and the seed says so on the console.
+import { holdsOn } from '../../core/holds.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 
 export const SAMPLE_PREFIX = '[Sample] ';
@@ -60,15 +66,26 @@ export async function renameSamples(ctx: ModuleContext, renames: SampleRename[])
       if (!r.every && await ctx.db.one(`select 1 from ${table} where ${column} = $1${live} limit 1`, [to])) continue;
       for (const { id } of r.every ? rows : rows.slice(0, 1)) {
         if (def) {
+          let why = '';
           try {
             await ctx.resources.update(r.type!, id, { [column]: to });
             renamed++;
             continue;
-          } catch {
+          } catch (err) {
             // A record its own rules keep from being edited (closed, approved): renamed directly, and audited here.
+            why = String((err as Error)?.message ?? err).slice(0, 160);
+          }
+          // W19: never past a legal hold, even for sample data.
+          if ((await holdsOn(ctx.db, r.type!, id)).length) {
+            console.warn(`[seed] sample ${r.type} "${from}" is under a legal hold, so it keeps its old name`);
+            continue;
           }
           await ctx.db.query(`update ${table} set ${column} = $2 where id = $1`, [id, to]);
-          await ctx.audit(null, { action: `${r.type}.update`, recordType: r.type, recordId: id, summary: `Sample renamed: ${from} to ${to}`, before: { [column]: from }, after: { [column]: to } });
+          await ctx.audit(null, {
+            action: `${r.type}.update`, recordType: r.type, recordId: id,
+            summary: `Sample renamed directly by the dev seed, past the record's own rules (${why || 'refused'}): ${from} to ${to}`,
+            before: { [column]: from }, after: { [column]: to },
+          });
         } else {
           await ctx.db.query(`update ${table} set ${column} = $2 where id = $1`, [id, to]);
         }

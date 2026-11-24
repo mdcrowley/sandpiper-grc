@@ -17,8 +17,9 @@ import { unversioned } from './versioning.ts';
  *
  * - ETag / If-Match (E13-12): one record (GET, POST, PATCH) answers with `ETag`. A PATCH or DELETE
  *   that sends `If-Match` is refused with 409 `version_conflict` when the record has changed since.
- *   Without the header nothing changes, so the web application is unaffected. Writes to one
- *   record are taken one at a time in this process, so the check and the write cannot interleave.
+ *   Without the header nothing changes, so the web application is unaffected. The check is made
+ *   again in the save itself, against the row locked for it, and the version is part of the UPDATE
+ *   statement (core/resource.ts, E40-01), so the check holds across server processes too.
  * - Idempotency-Key (E13-13): a create (POST to a record type's path) with this header is stored
  *   for 24 hours; repeating it with the same key and body replays the first answer
  *   (`Idempotent-Replayed: true`) instead of creating a second record. The same key with a
@@ -36,8 +37,11 @@ declare module 'fastify' {
   interface FastifyRequest {
     /** Set while a create with an Idempotency-Key is running: the stored key's row id. */
     idempotencyRow: string | null;
-    /** Set while this request holds the write lock on one record. */
-    recordLock: (() => void) | null;
+    /**
+     * A generated update or delete sent with If-Match: the record and the header, checked again by
+     * the save against the row it locks (core/resource.ts, E40-01).
+     */
+    recordIfMatch: { type: string; id: string; header: string } | null;
   }
 }
 
@@ -113,10 +117,9 @@ export function pageLinks(url: string, page: number, pageSize: number, total: nu
 export function installConventions(app: FastifyInstance) {
   let deps: Deps | null = null;
   let routes: Map<string, { def: ResourceDef; kind: Kind }> | null = null;
-  const locks = new Map<string, Promise<void>>();
 
   app.decorateRequest('idempotencyRow', null);
-  app.decorateRequest('recordLock', null);
+  app.decorateRequest('recordIfMatch', null);
 
   /** The generated record route a request is on, if any. */
   function recordRoute(req: FastifyRequest) {
@@ -134,23 +137,6 @@ export function installConventions(app: FastifyInstance) {
     return routes.get(`${req.method} ${unversioned(req.routeOptions.url)}`);
   }
 
-  async function lock(key: string): Promise<() => void> {
-    while (locks.has(key)) await locks.get(key);
-    let release!: () => void;
-    const held = new Promise<void>((resolve) => { release = resolve; });
-    locks.set(key, held);
-    const timer = setTimeout(() => done(), 60_000); // never hold a record longer than a minute
-    let freed = false;
-    function done() {
-      if (freed) return;
-      freed = true;
-      clearTimeout(timer);
-      locks.delete(key);
-      release();
-    }
-    return done;
-  }
-
   app.addHook('preHandler', async (req: FastifyRequest, reply: FastifyReply) => {
     const route = recordRoute(req);
     if (!route || !deps || !req.user) return;
@@ -159,9 +145,11 @@ export function installConventions(app: FastifyInstance) {
 
     if (kind === 'update' || kind === 'delete') {
       const id = String((req.params as Row).id ?? '');
-      req.recordLock = await lock(`${def.type}:${id}`);
       const ifMatch = req.headers['if-match'];
       if (typeof ifMatch !== 'string' || !res.mayAccess(req.user, def, kind === 'update' ? 'edit' : 'delete')) return;
+      // The save checks it again against the row it locks: another process may change it meanwhile.
+      req.recordIfMatch = { type: def.type, id, header: ifMatch };
+      // An early answer, with the current ETag, when it has already changed.
       const row = await res.registry.find(def.type, id, req.user).catch(() => undefined);
       if (!row) return; // the route answers 404
       const current = etagOf(row.id, row.updated_at);
@@ -280,8 +268,7 @@ export function installConventions(app: FastifyInstance) {
   });
 
   const unlock = async (req: FastifyRequest) => {
-    req.recordLock?.();
-    req.recordLock = null;
+    req.recordIfMatch = null;
     // A create that never answered (the caller went away) must not hold its key for a day.
     if (req.idempotencyRow) {
       const id = req.idempotencyRow;

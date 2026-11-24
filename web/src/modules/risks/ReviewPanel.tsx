@@ -4,6 +4,7 @@ import {
 } from '../../core';
 import type { RecordContext } from '../../core';
 import { daysUntil, DueChip, RatedChip } from './scales';
+import { addDays } from '../../../../shared/dates.ts';
 
 interface Review {
   id: string;
@@ -16,8 +17,6 @@ interface Review {
   inherent_color: string;
   reviewed_by: string | null;
 }
-
-const addDays = (ymd: string, n: number) => new Date(Date.parse(`${ymd}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 
 /** The dialog that completes a review: a note and the date of the next one. */
 export function ReviewDialog({ risk, onClose, onDone }: {

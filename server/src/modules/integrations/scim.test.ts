@@ -215,25 +215,67 @@ describe('accounts that can administer (W17-0)', () => {
     expect(put.status).toBe(200);
   });
 
-  it('neither deactivates nor enables again an account that can administer, so no link permit is given', async () => {
+  it('deactivates an administrator it created (a leaver), but never enables one again, so no link permit is given (W19)', async () => {
     // A second administrator, made by provisioning and given the role by hand.
     const made = await scim('POST', `${B}/Users`, user('second.admin@example.test'));
     const id = made.body.id;
     await t.db.query('delete from identity_user_settings where user_id = $1', [id]);
     await t.db.query('insert into user_roles (user_id, role_id) values ($1, $2)', [id, await adminRole()]);
-    expect((await scim('DELETE', `${B}/Users/${id}`)).status).toBe(403);
-    expect((await t.db.one<Row>('select status from users where id = $1', [id]))!.status).toBe('active');
-    // The reviewed chain: deactivated earlier (before the role was given), then active with a new address.
-    await t.db.query('delete from user_roles where user_id = $1', [id]);
+    // W19: provisioning created it, so it may take its access away (deactivating never gives access).
     expect((await scim('DELETE', `${B}/Users/${id}`)).status).toBe(204);
-    await t.db.query('insert into user_roles (user_id, role_id) values ($1, $2)', [id, await adminRole()]);
-    await t.db.query('delete from identity_user_settings where user_id = $1', [id]);
+    expect((await t.db.one<Row>('select status from users where id = $1', [id]))!.status).toBe('disabled');
+    expect(await t.db.one(`select 1 from audit_events where action = 'scim.admin_deactivate' and record_id = $1`, [id])).toBeTruthy();
+    // The reviewed chain: deactivated, then active again with a new address. Never.
     const back = await scim('PATCH', `${B}/Users/${id}`, { schemas: [PATCH], Operations: [{ op: 'replace', value: { active: true, emails: [{ value: 'mallory@example.test', primary: true }] } }] });
     expect(back.status).toBe(403);
     const onlyActive = await scim('PATCH', `${B}/Users/${id}`, { schemas: [PATCH], Operations: [{ op: 'replace', path: 'active', value: true }] });
     expect(onlyActive.status).toBe(403);
     expect((await t.db.one<Row>('select status, email from users where id = $1', [id]))).toEqual({ status: 'disabled', email: 'second.admin@example.test' });
     expect(await permit(id)).toBeNull();
+  });
+
+  it('never deactivates an administrator it did not create, even one it has touched (W19)', async () => {
+    const admin = (await t.db.one<{ id: string }>(`select id from users where username = 'admin'`))!;
+    // An earlier PUT gave the administrator a SCIM userName, but provisioning did not create the account.
+    expect((await t.db.one<Row>(`select provisioned from user_external_ids where user_id = $1 and source = 'scim'`, [admin.id]))?.provisioned ?? false).toBe(false);
+    const res = await scim('DELETE', `${B}/Users/${admin.id}`);
+    expect(res.status).toBe(403);
+    expect(res.body.detail).toMatch(/deactivates it only when provisioning created it/);
+    expect((await t.db.one<Row>('select status from users where id = $1', [admin.id]))!.status).toBe('active');
+  });
+
+  it('never deactivates the last active administrator, even one it created (W19)', async () => {
+    const made = await scim('POST', `${B}/Users`, user('only.admin@example.test'));
+    const id = made.body.id;
+    await t.db.query('insert into user_roles (user_id, role_id) values ($1, $2)', [id, await adminRole()]);
+    const others = await t.db.query<{ id: string }>(
+      `update users set status = 'disabled' where id <> $1 and status = 'active' and id in (select ur.user_id from user_roles ur where ur.role_id = $2) returning id`, [id, await adminRole()]);
+    try {
+      const res = await scim('PATCH', `${B}/Users/${id}`, { schemas: [PATCH], Operations: [{ op: 'replace', path: 'active', value: false }] });
+      expect(res.status).toBe(409);
+      expect((await t.db.one<Row>('select status from users where id = $1', [id]))!.status).toBe('active');
+    } finally {
+      await t.db.query(`update users set status = 'active' where id = any($1::uuid[])`, [others.map((o) => o.id)]);
+      await t.db.query('delete from user_roles where user_id = $1', [id]);
+    }
+  });
+
+  it('a link permit provisioning gave does not sign in an account that can administer, and is cleared when the role is given (W19)', async () => {
+    const made = await scim('POST', `${B}/Users`, user('later.admin@example.test'));
+    const id = made.body.id;
+    expect(await permit(id)).toBe(providerId);
+    // Given by hand through the administration API: the provisioning permit goes.
+    const res = await t.api.patch(`/api/admin/users/${id}`, { roles: ['administrator'] });
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(await permit(id)).toBeNull();
+    // A role that gains an admin. grant later: its members' provisioning permits go too.
+    const other = (await scim('POST', `${B}/Users`, user('later.viewer@example.test'))).body.id;
+    const role = await t.api.post('/api/admin/roles', { name: 'IT viewer W19', grants: ['tickets.view'] });
+    expect(role.status, JSON.stringify(role.body)).toBe(201);
+    expect((await t.api.patch(`/api/admin/users/${other}`, { roles: ['it_viewer_w19'] })).status).toBe(200);
+    expect(await permit(other)).toBe(providerId);
+    expect((await t.api.patch(`/api/admin/roles/${role.body.id}`, { grants: ['tickets.view', 'admin.view'] })).status).toBe(200);
+    expect(await permit(other)).toBeNull();
   });
 
   it('a role switched off still counts, and so does any admin.* grant', async () => {
@@ -289,6 +331,20 @@ describe('groups and roles', () => {
     expect(await roles(a)).toEqual(['agent']);
     const listed = (await t.api.get('/api/admin/scim/groups')).body;
     expect(listed.roles.find((r: Row) => r.key === 'administrator').administers).toBe(true);
+
+    // W19: one definition of "can administer". A role with any admin. grant (here admin.view) is not
+    // mapped either: provisioning could then no longer deprovision the people it gave it to.
+    const viewer = await t.api.post('/api/admin/roles', { name: 'IT admin viewer', grants: ['tickets.view', 'admin.view'] });
+    expect(viewer.status, JSON.stringify(viewer.body)).toBe(201);
+    const refusedViewer = await t.api.put(`/api/admin/scim/groups/${g.body.id}/roles`, { roleKeys: ['agent', 'it_admin_viewer'] });
+    expect(refusedViewer.status).toBe(400);
+    expect(refusedViewer.body.error.fields.roleKeys).toMatch(/it_admin_viewer/);
+    expect((await t.api.get('/api/admin/scim/groups')).body.roles.find((r: Row) => r.key === 'it_admin_viewer').administers).toBe(true);
+    // Mapped by other means (a stored mapping from before), it is still never given.
+    await t.db.query(`update scim_group_roles set role_keys = '["agent", "it_admin_viewer"]'::jsonb where id = $1`, [g.body.id]);
+    await scim('PUT', `${B}/Groups/${g.body.id}`, { displayName: 'Dispatch (sample)', members: [{ value: a }] });
+    expect(await roles(a)).toEqual(['agent']);
+    await t.db.query(`update scim_group_roles set role_keys = '["agent"]'::jsonb where id = $1`, [g.body.id]);
 
     // Membership changes follow; a role given by hand is never taken away.
     await scim('PATCH', `${B}/Groups/${g.body.id}`, { Operations: [{ op: 'add', path: 'members', value: [{ value: b }] }] });

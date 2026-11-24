@@ -1,6 +1,8 @@
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, ResourceDef, Row, SessionUser } from '../../core/module.ts';
 import { dayInZone } from '../../core/timezone.ts';
+import { addMonths, addDays, daysBetween } from '../../../../shared/dates.ts';
+export { addMonths, addDays, daysBetween }; // one copy for every module (E40-12)
 
 /**
  * Asset condition (E32): what a rated record is, how its useful life is worked out, and how an
@@ -46,25 +48,6 @@ export const isTarget = (v: unknown): v is TargetType => typeof v === 'string' &
 export const routeOf = (type: TargetType, id: string) => `/${type === 'asset' ? 'assets' : type === 'vehicle' ? 'vehicles' : 'sites'}/${id}`;
 
 // ---------------------------------------------------------------- dates
-
-/** `date` plus whole months (the day is kept, or the month's last day). */
-export function addMonths(date: string, months: number): string {
-  const [y, m, d] = date.slice(0, 10).split('-').map(Number);
-  const first = new Date(Date.UTC(y, m - 1 + months, 1));
-  const last = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0)).getUTCDate();
-  first.setUTCDate(Math.min(d, last));
-  return first.toISOString().slice(0, 10);
-}
-
-export function addDays(date: string, days: number): string {
-  const d = new Date(`${date.slice(0, 10)}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + Math.round(days));
-  return d.toISOString().slice(0, 10);
-}
-
-export function daysBetween(from: string, to: string): number {
-  return Math.round((Date.parse(`${to.slice(0, 10)}T00:00:00Z`) - Date.parse(`${from.slice(0, 10)}T00:00:00Z`)) / 86_400_000);
-}
 
 /** Years (one decimal) from `from` to `to`. */
 export const yearsBetween = (from: string, to: string) => Math.round((daysBetween(from, to) / 365.25) * 10) / 10;

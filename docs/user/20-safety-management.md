@@ -79,7 +79,7 @@ Your organization writes its own **reporting rules**: when an event must be repo
 Every time an event is saved (and when its people involved change), its figures are checked against the rules that are switched on. The **Reporting** tab says whether the event is **Reportable** and which rules apply, and lists a **notification clock** for each: who to notify, by when, and its state: **Running**, **Due soon** (a quarter or less of the time left), **Overdue**, **Made** or **Not required**.
 
 - When a rule newly applies, a clock starts (counted from the event's **Date and time**), a line is added to the timeline, and everyone who may see the event and its investigator are notified.
-- When the time left falls to a quarter, and again when the deadline passes, the same people are alerted once and the timeline records it. The check runs every 15 minutes.
+- When the time left falls to a quarter, and again when the deadline passes, the same people are alerted once and the timeline records it. The check runs every five minutes; an alert that could not be sent (for example while the database was unavailable) is sent by the next check rather than lost.
 - Correcting the event's date and time moves the deadline with it.
 - If the figures change so that a rule no longer applies, its clock is set aside as **Not required**; it runs again if the rule applies again.
 

@@ -1,11 +1,13 @@
 // Administration > Backups: the daily backup the server takes to a second location, its
-// schedule, destination, retention and encryption, the last results, and "Back up now".
-import { useEffect, useState, type FormEvent } from 'react';
+// schedule, destination, retention and encryption, the last results, and "Back up now", which runs
+// as a background job that this page follows (E40-11). On a PostgreSQL server, also the database
+// dumps made by deploy/postgres/pg-backup.sh, which the server checks and records.
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   api, ApiError, Button, Card, EmptyState, ErrorState, errorMessage, formatDateTime, Loading, NumberField, PageHeader,
   relativeTime, Select, Stat, StatusChip, Switch, TableWrap, TextField, useFetch, useToast,
 } from '../../core';
-import type { BackupRun, BackupSettings as Settings, BackupsOverview } from './adminTypes';
+import type { BackupProgress, BackupRun, BackupSettings as Settings, BackupsOverview } from './adminTypes';
 import { usePasswordConfirm } from './confirm';
 import { formatBytes } from './shared';
 import './attachments.css';
@@ -20,6 +22,21 @@ function ageHours(iso: string): number {
   return (Date.now() - Date.parse(iso)) / 36e5;
 }
 
+/** One line about how far a running backup has got. */
+export function progressText(p: BackupProgress | null | undefined): string {
+  if (!p) return 'Starting.';
+  switch (p.stage) {
+    case 'export':
+      return p.total ? `Copying the database: ${p.done ?? 0} of ${p.total} tables${p.rows ? ` (${p.rows.toLocaleString('en-US')} rows)` : ''}.` : 'Copying the database.';
+    case 'files': return 'Copying attached files.';
+    case 'archive': return 'Packing the backup into one file.';
+    case 'upload': return 'Writing it to the destination.';
+    case 'check': return 'Reading it back from the destination and checking it.';
+    case 'prune': return 'Removing older backups beyond the number to keep.';
+    default: return 'Starting.';
+  }
+}
+
 export function BackupSettings() {
   const toast = useToast();
   const confirm = usePasswordConfirm();
@@ -27,10 +44,31 @@ export function BackupSettings() {
   const [form, setForm] = useState<Settings | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
-  const [running, setRunning] = useState(false);
+  const [starting, setStarting] = useState(false);
+  /** The job of a "Back up now" this page started, until its result is told. */
+  const following = useRef<string | null>(null);
 
   useEffect(() => { if (data) setForm(data.settings); }, [data]);
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) => setForm((f) => (f ? { ...f, [key]: value } : f));
+
+  // While a backup waits or runs, look again every two seconds.
+  const busy = Boolean(data && (data.running || data.queued));
+  useEffect(() => {
+    if (!busy) return undefined;
+    const timer = window.setInterval(reload, 2000);
+    return () => window.clearInterval(timer);
+  }, [busy, reload]);
+
+  // The backup this page started has finished: say how it went.
+  useEffect(() => {
+    const id = following.current;
+    if (!id || !data || busy) return;
+    const run = data.runs.find((r) => r.job_id === id);
+    if (!run) return;
+    following.current = null;
+    if (run.status === 'ok') toast.success(`Backed up and checked: ${run.archive_name} (${formatBytes(run.bytes ?? 0)}).`);
+    else toast.error(run.message ?? 'The backup failed.');
+  }, [data, busy, toast]);
 
   const save = async (e: FormEvent) => {
     e.preventDefault();
@@ -50,22 +88,23 @@ export function BackupSettings() {
   };
 
   const runNow = async () => {
-    setRunning(true);
+    setStarting(true);
     try {
-      const { run } = await api.post<{ run: BackupRun }>('/api/backups/run', {});
-      if (run.status === 'ok') toast.success(`Backed up and checked: ${run.archive_name} (${formatBytes(run.bytes ?? 0)}).`);
-      else toast.error(run.message ?? 'The backup failed.');
+      const { jobId } = await api.post<{ jobId: string }>('/api/backups/run', {});
+      following.current = jobId;
+      toast.success('The backup has started. This page follows it; you may leave it.');
       reload();
     } catch (err) {
       toast.error(errorMessage(err));
     } finally {
-      setRunning(false);
+      setStarting(false);
     }
   };
 
   const last = data?.lastSuccess;
   const overdue = last ? ageHours(last.started_at) > 48 : false;
-  const lastRun = data?.runs[0];
+  const lastRun = data?.runs.find((r) => r.status !== 'running');
+  const showPg = Boolean(data && (data.postgres || data.settings.pgDumpFolder));
 
   return (
     <div className="stack att-admin">
@@ -74,13 +113,34 @@ export function BackupSettings() {
         title="Backups"
         subtitle="A copy of everything, taken while the application keeps running, written to a second location and checked there."
         breadcrumbs={[{ label: 'Administration' }, { label: 'Backups' }]}
-        actions={<Button variant="primary" icon="download" onClick={runNow} loading={running} disabled={!data || (data.settings.destination === 'folder' && !data.settings.folder)}>Back up now</Button>}
+        actions={(
+          <Button
+            variant="primary" icon="download" onClick={runNow} loading={starting || busy}
+            disabled={!data || busy || (data.settings.destination === 'folder' && !data.settings.folder)}
+          >
+            {busy ? 'Backing up' : 'Back up now'}
+          </Button>
+        )}
       />
       {error ? <ErrorState error={error} onRetry={reload} /> : !data || !form ? <Loading lines={6} label="Loading backups" /> : (
         <>
-          {lastRun?.status === 'failed' && (
+          {(data.active || data.queued) && (
+            <div className="notice" role="status" aria-live="polite">
+              {data.active
+                ? <>Backing up, started {formatDateTime(data.active.started_at)}{data.active.created_by_name ? ` by ${data.active.created_by_name}` : ''}. {progressText(data.active.progress)}</>
+                : <>The backup is waiting for the server's background jobs to start it.</>}
+            </div>
+          )}
+          {!busy && lastRun?.status === 'failed' && (
             <div className="notice notice-warn" role="alert">
               The last backup, {formatDateTime(lastRun.started_at)}, failed: {lastRun.message}
+            </div>
+          )}
+          {showPg && data.pgDumpOverdue && (
+            <div className="notice notice-warn" role="alert">
+              {data.lastPgDump
+                ? `The newest checked PostgreSQL dump is from ${formatDateTime(data.lastPgDump.started_at)}, older than ${data.settings.pgDumpMaxAgeHours} hours.`
+                : 'No checked PostgreSQL dump has been found yet.'} Check the schedule of the backup script.
             </div>
           )}
           <div className="grid-stats">
@@ -92,6 +152,13 @@ export function BackupSettings() {
             <Stat label="Schedule" icon="clock" value={data.settings.enabled ? `Daily at ${data.settings.time}` : 'Off'} hint={data.settings.enabled ? `${data.timeZone}; keeping ${data.settings.keep}` : 'Switch it on below'} />
             <Stat label="Goes to" icon="database" value={data.settings.destination === 's3' ? 'Object store' : 'Folder'} hint={<span className="att-break">{data.destination ?? 'Not chosen yet'}</span>} />
             <Stat label="Encryption" icon="lock" value={data.settings.encrypt ? 'On' : 'Off'} hint={data.keySource ? `Key: ${data.keySource}` : 'No key is set on the server'} color={data.settings.encrypt ? 'green' : undefined} />
+            {showPg && (
+              <Stat
+                label="Last PostgreSQL dump" icon="database" color={data.pgDumpOverdue ? 'red' : 'green'}
+                value={data.lastPgDump ? relativeTime(data.lastPgDump.started_at) : 'None found'}
+                hint={data.lastPgDump ? formatDateTime(data.lastPgDump.started_at) : data.settings.pgDumpFolder ? 'Run the backup script' : 'Set the dump folder below'}
+              />
+            )}
           </div>
 
           <Card title="Schedule and destination">
@@ -131,6 +198,26 @@ export function BackupSettings() {
                 disabled={!form.encrypt || !data.secretKeyFile}
                 hint={`Encrypted backups only. The secret key protects second-factor keys and webhook secrets in the database and is kept outside the data folder. With this on, a restore puts it back too; with it off, keep a copy of it yourself.`}
               />
+              {showPg && (
+                <fieldset className="att-fieldset">
+                  <legend>PostgreSQL database dumps</legend>
+                  <p className="att-facts">
+                    On a PostgreSQL server, take the database's own backup with <code>deploy/postgres/pg-backup.sh</code> on a schedule. Name the folder it
+                    writes to, as the server sees it: each new dump is checked against the record the script writes beside it, and administrators are told
+                    when the newest good one is older than the limit.
+                  </p>
+                  <div className="form-grid">
+                    <TextField
+                      className="form-cell-wide" label="Dump folder" value={form.pgDumpFolder} onChange={(v) => set('pgDumpFolder', v)} error={errors.pgDumpFolder}
+                      placeholder="/srv/backups/grc" hint="Leave empty to stop checking."
+                    />
+                    <NumberField
+                      label="Warn when the newest is older than (hours)" min={1} max={720} value={form.pgDumpMaxAgeHours}
+                      onChange={(v) => set('pgDumpMaxAgeHours', v ?? 26)} error={errors.pgDumpMaxAgeHours} hint="26 suits a daily dump."
+                    />
+                  </div>
+                </fieldset>
+              )}
               <div className="form-actions">
                 <Button type="submit" variant="primary" loading={saving}>Save backup settings</Button>
               </div>
@@ -154,6 +241,7 @@ export function BackupSettings() {
                         <td><StatusChip color={RESULT[r.status].color} label={RESULT[r.status].label} /></td>
                         <td className="att-run">
                           {r.archive_name ? <span className="att-break">{r.archive_name}</span> : null}
+                          {r.status === 'running' && <div className="att-run-message">{progressText(r.progress)}</div>}
                           {r.message && <div className="att-run-message">{r.message}</div>}
                           {r.pruned.length > 0 && <div className="att-facts">{r.pruned.length} older removed</div>}
                         </td>
@@ -169,10 +257,39 @@ export function BackupSettings() {
               </TableWrap>
             )}
           </Card>
+
+          {showPg && (
+            <Card title="PostgreSQL dumps checked" flush>
+              {data.pgDumps.length === 0 ? (
+                <EmptyState icon="database" title="No dumps checked yet" message={data.settings.pgDumpFolder ? 'Run deploy/postgres/pg-backup.sh; new dumps are checked within five minutes.' : 'Set the dump folder above.'} />
+              ) : (
+                <TableWrap label="The last 10 PostgreSQL dumps checked">
+                  <table className="table">
+                    <caption className="sr-only">The last 10 PostgreSQL dumps checked</caption>
+                    <thead><tr><th>Taken</th><th>Result</th><th>Dump</th><th className="num">Size</th></tr></thead>
+                    <tbody>
+                      {data.pgDumps.map((r) => (
+                        <tr key={r.id}>
+                          <td>{formatDateTime(r.started_at)}</td>
+                          <td><StatusChip color={RESULT[r.status].color} label={RESULT[r.status].label} /></td>
+                          <td className="att-run">
+                            <span className="att-break">{r.archive_name}</span>
+                            {r.message && <div className="att-run-message">{r.message}</div>}
+                          </td>
+                          <td className="num">{r.bytes ? formatBytes(r.bytes) : '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </TableWrap>
+              )}
+            </Card>
+          )}
           <p className="att-facts">{data.secretKeyNote}</p>
           <p className="att-facts">
             To restore one, stop the server and run <code>.\grc.ps1 restore &lt;file&gt;</code> with the backup file (download it from the object store first).
             The data as it is now is kept as a safety copy. Files kept in the object store are not in these backups: use the store's own versioning.
+            The recovery runbook in the operations guide says what to do, in order, after losing the server.
           </p>
         </>
       )}

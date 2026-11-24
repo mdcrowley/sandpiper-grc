@@ -1,7 +1,7 @@
 // Single sign-on, account linking and the break-glass account (E02-09, E02-11, E02-13), against a
 // stand-in OpenID Connect provider running in this process on a free port.
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { hashPassword, SESSION_COOKIE } from '../../core/auth.ts';
+import { createSession, hashPassword, SESSION_COOKIE } from '../../core/auth.ts';
 import { startFakeProvider, type FakeProvider } from '../../core/identity/fake-provider.ts';
 import { oidcCache } from '../../core/identity/oidc.ts';
 import type { ModuleDef } from '../../core/module.ts';
@@ -149,6 +149,49 @@ describe('sign-in providers (E02-09)', () => {
     const again = await ssoSignIn();
     expect(again.location).toBe('/');
     expect(again.session).toBeTruthy();
+  });
+
+  it('ignores and clears a link permit from provisioning once the account can administer (W19)', async () => {
+    const userId = await makeUser('robin', 'robin@example.test', { role: 'administrator' });
+    // A permit as provisioning leaves it (no administrator named), from before the role was given.
+    await t.db.query(`insert into identity_user_settings (user_id, permit_provider_id, permit_expires_at) values ($1, $2, now() + interval '30 days')`, [userId, providerId]);
+    idp.user = { sub: 'robin-sub', email: 'robin@example.test', email_verified: true, name: 'Robin' };
+    const r = await ssoSignIn();
+    expect(r.session).toBeUndefined();
+    expect(r.link).toBeTruthy(); // linking now needs the account's own password
+    expect(await t.db.one('select 1 from user_identities where user_id = $1', [userId])).toBeUndefined();
+    expect((await t.db.one<{ permit_provider_id: string | null }>('select permit_provider_id from identity_user_settings where user_id = $1', [userId]))!.permit_provider_id).toBeNull();
+    expect((await audited('identity.permit_ignored', '%robin can administer%')).length).toBe(1);
+
+    // A permit an administrator gives by hand is the administrator's decision, and still works.
+    expect((await t.api.post(`/api/admin/users/${userId}/link-permit`, { providerId })).status).toBe(200);
+    const byHand = await ssoSignIn();
+    expect(byHand.location).toBe('/');
+    expect(byHand.session).toBeTruthy();
+  });
+
+  it('builds its addresses only from the application address or a Host naming this computer (W19)', async () => {
+    const start = (host: string) => t.app.inject({ method: 'POST', url: `/api/auth/sso/${KEY}/start`, headers: { host, 'x-grc-csrf': '1' }, payload: {} });
+    const refused = await start('grc.example.org');
+    expect(refused.statusCode).toBe(409);
+    expect(refused.json().error).toMatchObject({ code: 'public_url_required' });
+    expect(refused.json().error.message).toMatch(/application address/);
+    const local = await start('127.0.0.1:4212');
+    expect(local.statusCode).toBe(200);
+    expect(new URL(local.json().redirectUrl).searchParams.get('redirect_uri')).toBe(`http://127.0.0.1:4212/api/auth/sso/${KEY}/callback`);
+    // The administration page says so instead of showing an address made from the Host.
+    const adminId = (await t.db.one<{ id: string }>(`select id from users where username = 'admin'`))!.id;
+    const cookie = `${SESSION_COOKIE}=${await createSession(t.db, adminId)}`;
+    const page = await t.app.inject({ method: 'GET', url: '/api/admin/identity-providers', headers: { host: 'grc.example.org', cookie } });
+    expect(page.json().callbackBase).toBe('');
+    await t.db.query(`insert into settings (key, value) values ('auth.public_url', '"https://grc.example.org"'::jsonb) on conflict (key) do update set value = excluded.value`);
+    try {
+      const set = await start('attacker.example');
+      expect(set.statusCode).toBe(200);
+      expect(new URL(set.json().redirectUrl).searchParams.get('redirect_uri')).toBe(`https://grc.example.org/api/auth/sso/${KEY}/callback`);
+    } finally {
+      await t.db.query(`delete from settings where key = 'auth.public_url'`);
+    }
   });
 
   it('refuses a token with a bad signature, the wrong audience, or that has expired', async () => {

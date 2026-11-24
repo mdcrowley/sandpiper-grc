@@ -259,7 +259,7 @@ export async function registerRequests(ctx: ModuleContext) {
     const reason = String(b.reason ?? '').trim();
     if (reason.length < 5 || reason.length > 2000) errors.reason = 'Say why the deadline is extended (5 to 2000 characters).';
     const until = b.until ? String(b.until) : Number.isInteger(Number(b.days)) && Number(b.days) > 0 && Number(b.days) <= 365
-      ? addDays(effectiveDue(request) ?? todayInZone(), Number(b.days), (await readSettings(ctx)).businessDays) : '';
+      ? await (async () => { const st = await readSettings(ctx); return addDays(effectiveDue(request) ?? todayInZone(), Number(b.days), st.businessDays, st.calendar); })() : '';
     if (!isDate(until)) errors.until = 'Give the new due date (YYYY-MM-DD) or a number of days.';
     else if (until <= (effectiveDue(request) ?? '')) errors.until = 'The new due date must be after the current one.';
     if (Object.keys(errors).length) invalid(errors);

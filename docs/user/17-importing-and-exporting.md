@@ -32,7 +32,7 @@ People who may create (or change) a kind of record see **Import** in the list's 
 
 Drop a file on the box or select it to browse. CSV and Excel (`.xlsx`) files are accepted, up to 5 MB and 5,000 rows. The first row with anything in it holds the column names; empty rows are ignored. A CSV may use commas, semicolons, tabs or vertical bars between values. It should be UTF-8 (in Excel: **Save As > CSV UTF-8**). A file that is not UTF-8, such as Excel's older "CSV (Comma delimited)" on Windows, is read as Windows-1252 and a warning says so: check that accented letters look right in the sample and in the check before importing. Older Excel files (`.xls`) cannot be read: save them as `.xlsx` or CSV first.
 
-For a workbook with more than one sheet, choose the **Sheet**. Typed cells are read as they are: dates as dates, numbers as numbers, yes/no as yes/no. A formula gives the value the spreadsheet last worked out.
+For a workbook with more than one sheet, choose the **Sheet**. Typed cells are read as they are: dates as dates, numbers as numbers, yes/no as yes/no. A formula gives the value the spreadsheet last worked out. In every CSV file the application makes, the import template included, a cell that a spreadsheet program could read as a formula (starting with `=`, `+`, `-` or `@`, also after spaces or in full-width form) gets a leading apostrophe.
 
 **Download a template** gives a CSV with one column per field that can be imported. An Excel export of the same list can also be imported again.
 

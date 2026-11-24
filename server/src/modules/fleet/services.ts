@@ -14,6 +14,10 @@ import type { ModuleContext, Row, SessionUser } from '../../core/module.ts';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** Rows "What is affected" lists of each kind (E40-09); the counts are whole. */
+const IMPACT_LIMIT = 500;
+const IMPACT_LIMIT_MAX = 2000;
+
 export interface AffectedVehicle {
   id: string; fleet_number: string; mode: string | null; mode_label: string | null; status: string | null; status_label: string | null;
   depot_id: string | null; depot_name: string | null; route: string;
@@ -298,15 +302,18 @@ export function registerServices(ctx: ModuleContext) {
       }
     }
     const result = await affected(reached.map((s) => s.id), req.user);
+    // The lists are limited (E40-09: a system on every bus would list the whole fleet); the counts are whole.
+    const limit = Math.min(IMPACT_LIMIT_MAX, Math.max(1, Math.trunc(Number(q.limit)) || IMPACT_LIMIT));
     return {
       system: { id: system.id, ref: system.ref, name: system.name, hosting_type: system.hosting_type },
-      systems: reached.map((s) => ({ ...s, route: `/systems/${s.id}` })),
-      ...result,
+      systems: reached.slice(0, limit).map((s) => ({ ...s, route: `/systems/${s.id}` })),
+      vehicles: result.vehicles.slice(0, limit), services: result.services.slice(0, limit), limit,
       counts: { systems: reached.length, vehicles: result.vehicles.length, services: result.services.length },
     };
   });
   ctx.describeRoute({
     method: 'GET', path: '/api/fleet/impact', summary: 'Vehicles and services affected if a system fails', permission: 'fleet.view',
-    query: { system_id: 'The failing system', downstream: 'true: include systems fed by it' },
+    query: { system_id: 'The failing system', downstream: 'true: include systems fed by it', limit: `The most systems, vehicles and services listed (default ${IMPACT_LIMIT}, at most ${IMPACT_LIMIT_MAX}); the counts are always whole` },
+    response: '{ system, systems: [...], vehicles: [...], services: [...], limit, counts: { systems, vehicles, services } }',
   });
 }

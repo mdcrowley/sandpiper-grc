@@ -272,11 +272,11 @@ Asset models work exactly like vehicle models; the details are in [Fleet and ser
 
 - **Giving assets a model**: **New asset from this model** on the model's page; choosing the **Asset model** on an asset; selecting assets on the list and **Set model** (the dialog shows which values differ, and you choose which to keep as each asset's own); **Review and assign** for existing assets with no model whose make and model name match; or an **Asset model** column in an import file, matched by the model's name.
 - **Overrides**: editing a shared value on an asset makes it an override, kept whatever happens to the model, until **Use the model's value** clears it. Removing the model keeps the asset's current values.
-- **Changing a model**: saving a change first shows how many assets take it and how many keep their own value; each asset is then saved through the usual rules and its history says the change came from the model. An asset whose rules refuse the change is listed on the model's page and left unchanged. A change reaching more than 200 assets runs in the background with its progress shown.
+- **Changing a model**: saving a change first shows how many assets take it and how many keep their own value; each asset is then saved through the usual rules and its history says the change came from the model. An asset whose rules refuse the change is listed on the model's page and left unchanged. A change reaching more than 200 assets runs in the background with its progress shown; it saves each asset as you, and stops (the model's page says why) if your account is disabled or you can no longer edit assets first. Saving the model again while a background change is still waiting replaces it with one that applies both.
 - The model's **Assets** tab shows how many assets use it by status and which values some keep as their own; **Model changes** lists every change applied and every assignment.
-- An inactive model is not offered for new assets; a model that still has assets cannot be deleted.
-- A vehicle model's equipment list can name an asset model, so that only equipment of that model counts as working in equipment coverage.
-- An administrator chooses which custom fields of assets are inherited with **Inherited custom fields** on the asset model list (see [Administration](09-administration.md#custom-fields)).
+- An inactive model is not offered for new assets; a model that still has assets cannot be deleted. Neither it nor one that a vehicle model's equipment names can be removed for good at the end of its retention period. An asset whose model is gone keeps its values as its own and has no model.
+- A vehicle model's equipment list can name an asset model, so that only equipment of that model counts as working in equipment coverage. Naming one, or seeing which one is named, needs permission to see assets.
+- An administrator chooses which custom fields of assets are inherited with **Inherited custom fields** on the asset model list (see [Administration](09-administration.md#custom-fields)). Their values on a model are checked as on an asset, and a reference must name a record you can see.
 
 ## Sites
 

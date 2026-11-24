@@ -408,6 +408,8 @@ Choose a **Calendar** to edit it:
 
 Select **Save calendar**. Under **Holidays**, choose a **Date**, optionally a **Name**, and select **Add holiday**; the trash button removes one. On a holiday the clock does not run for targets counted on that calendar.
 
+The **Business hours** calendar is also the organization's working-day calendar: every deadline counted in working days elsewhere in the application (today, records requests set to **Count working days only**) skips the weekdays it is closed and its holidays. Enter the organization's public holidays here once. It keeps counting while the service desk is switched off under Administration > Features, but can then only be changed after switching the service desk back on.
+
 To add a calendar, for example an out-of-hours rota, select **New calendar**, give it a **Name** and select **Add calendar**; it starts as Monday to Friday, 08:00 to 17:00 for you to change. **Retire calendar** removes one that no target uses; a calendar still used by a target says which, and cannot be retired until those targets use another.
 
 ### Escalation

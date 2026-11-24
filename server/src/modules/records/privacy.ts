@@ -8,6 +8,7 @@ import type { ModuleContext, Row, SessionUser } from '../../core/module.ts';
 import { notePermission } from '../../core/permission-use.ts';
 import { todayInZone } from '../../core/timezone.ts';
 import { addDays, readSettings } from './settings.ts';
+import { addMonths } from '../../../../shared/dates.ts';
 
 export const PIA_TYPE = 'privacy_assessment';
 export const PIA_KIND = 'privacy_assessment';
@@ -16,16 +17,6 @@ export const DEFAULT_PIA_WORKFLOW = {
   name: 'Privacy impact assessment',
   description: 'Approving a privacy impact assessment. Someone who may approve privacy records decides.',
   steps: [{ key: 'privacy-approver', name: 'Privacy approver', approvers: { kind: 'permission', permission: 'privacy.approve' }, quorum: 'any' }],
-};
-
-const addMonths = (day: string, months: number): string => {
-  const d = new Date(`${day}T00:00:00Z`);
-  const target = d.getUTCMonth() + months;
-  d.setUTCDate(1);
-  d.setUTCMonth(target);
-  const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
-  d.setUTCDate(Math.min(Number(day.slice(8, 10)), last));
-  return d.toISOString().slice(0, 10);
 };
 
 /** The system's data category ids now, sorted (for comparing with what was approved). */

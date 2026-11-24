@@ -18,9 +18,13 @@ describe('core services', () => {
 
   it('runs webhook deliveries and the retention sweep as job-queue schedules', async () => {
     const names = (await t.db.query<{ name: string }>(`select name from job_schedules where name like 'core.%' order by name`)).map((r) => r.name);
-    expect(names).toEqual(['core.request_counts', 'core.retention_sweep', 'core.webhook_deliveries']);
+    expect(names).toEqual(['core.audit_archive', 'core.ops_watch', 'core.request_counts', 'core.retention_sweep', 'core.session_cleanup', 'core.webhook_deliveries']);
     expect((await t.api.post('/api/admin/jobs/schedules/core.retention_sweep/run')).body).toMatchObject({ status: 'done' });
     expect((await t.api.post('/api/admin/jobs/schedules/core.webhook_deliveries/run')).body).toMatchObject({ status: 'done' });
     expect((await t.api.post('/api/admin/jobs/schedules/core.request_counts/run')).body).toMatchObject({ status: 'done' });
+    // Wave 19 (E40-04, E40-06, E40-07): the archive is off by default and does nothing.
+    expect((await t.api.post('/api/admin/jobs/schedules/core.ops_watch/run')).body).toMatchObject({ status: 'done' });
+    expect((await t.api.post('/api/admin/jobs/schedules/core.session_cleanup/run')).body).toMatchObject({ status: 'done' });
+    expect((await t.api.post('/api/admin/jobs/schedules/core.audit_archive/run')).body).toMatchObject({ status: 'done', result: { status: 'off' } });
   });
 });

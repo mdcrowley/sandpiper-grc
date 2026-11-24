@@ -13,6 +13,9 @@ import { can, requirePerm, type makeAudit, type makeLookups } from './services.t
 import { registerSharedViews } from './views.ts';
 import { redactWebhookAudit } from './webhooks.ts';
 
+/** The Audit page counts at most this many matching events; beyond it, "more than" (E40-06). */
+export const AUDIT_COUNT_CAP = 10_000;
+
 interface Deps {
   app: FastifyInstance;
   db: Db;
@@ -245,6 +248,8 @@ export function registerCoreRoutes({ app, db, audit, lookups, res, custom, gate,
     const link = UUID_RE.test(id) ? await db.one<Row>('select * from record_links where id = $1', [id]) : undefined;
     if (!link) fail(404, 'not_found', 'Link not found.');
     await visibleRecord(req, link!.from_type, link!.from_id, 'edit');
+    // The other end must be visible too, or the answer would tell that a hidden record exists (E40-05).
+    try { await visibleRecord(req, link!.to_type, link!.to_id); } catch { fail(404, 'not_found', 'Link not found.'); }
     await db.query('delete from record_links where id = $1', [id]);
     await audit(req, {
       action: 'link.remove', recordType: link!.from_type, recordId: link!.from_id,
@@ -274,7 +279,11 @@ export function registerCoreRoutes({ app, db, audit, lookups, res, custom, gate,
     if (query.action) where.push(`action = ${add(query.action)}`);
     if (query.record_type) where.push(`record_type = ${add(query.record_type)}`);
     if (query.record_id) where.push(`record_id = ${add(query.record_id)}`);
-    if (query.actor_id) where.push(`actor_id::text = ${add(query.actor_id)}`);
+    // Compared as a uuid, so the index on actor_id serves it (E40-06; `actor_id::text = ...` could not).
+    if (query.actor_id) {
+      if (!UUID_RE.test(String(query.actor_id))) fail(400, 'bad_filter', '"actor_id" must be a person\'s id.');
+      where.push(`actor_id = ${add(query.actor_id)}::uuid`);
+    }
     // Every event of one request (E13-20): the id is the answer's X-Request-Id header.
     if (query.request_id) {
       const rid = String(query.request_id).trim();
@@ -319,11 +328,19 @@ export function registerCoreRoutes({ app, db, audit, lookups, res, custom, gate,
       return '﻿' + [cols.join(','), ...rows.map((r) => cols.map((c) => esc(r[c])).join(',')), ...cut].join('\r\n');
     }
     const { page, pageSize } = pageOf(query); // whole numbers in range (SP-09)
-    const total = (await db.one<{ c: number }>(`select count(*)::int c from audit_events where ${w}`, params))!.c;
-    const rows = redact(await db.query<Row>(
-      `select * from audit_events where ${w} order by id desc limit ${pageSize} offset ${(page - 1) * pageSize}`, params,
-    ));
-    return { rows, total, page, pageSize };
+    // Not an exact count of the whole table on every page (E40-06): at most AUDIT_COUNT_CAP matching
+    // events are counted. Beyond that `total` is the cap and `totalCapped` says "more than"; the pager
+    // follows `hasMore` (one row more than the page is read to know).
+    const counted = (await db.one<{ c: number }>(
+      `select count(*)::int c from (select 1 from audit_events where ${w} limit ${AUDIT_COUNT_CAP + 1}) x`, params,
+    ))!.c;
+    const found = await db.query<Row>(
+      `select * from audit_events where ${w} order by id desc limit ${pageSize + 1} offset ${(page - 1) * pageSize}`, params,
+    );
+    const hasMore = found.length > pageSize;
+    const rows = redact(found.slice(0, pageSize));
+    const totalCapped = counted > AUDIT_COUNT_CAP;
+    return { rows, total: totalCapped ? AUDIT_COUNT_CAP : counted, totalCapped, hasMore, page, pageSize };
   });
 
   // ---------- lookups (configurable lists) ----------

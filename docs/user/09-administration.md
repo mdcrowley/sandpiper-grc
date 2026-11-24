@@ -211,6 +211,8 @@ Asset tags add the permission area **Asset tags** with three permissions: **View
 
 ### Applying default permissions after an upgrade
 
+To link a record to another one, a person needs permission to view the other record's area (for example **Sites** to choose a vehicle's depot); otherwise the link is refused as "not found". Since wave 19 the Training coordinator, Continuity manager and Asset manager roles include the view permissions they need for this; on an existing installation they are offered here.
+
 A new version of the application may add permissions to the supplied roles. Your roles are never changed without you: when there is something to apply, the **Roles** page shows a notice listing, role by role, what would be added.
 
 1. Read the list.
@@ -343,7 +345,7 @@ The list shows each provider's name (with **Default** beside the default one) an
 
 At your identity provider, register this application as a web application (a confidential client) using the **authorization code** flow. Give it the **redirect address** shown on the **Redirect address** card, with the provider's short name in place of `<short name>`, for example `https://grc.example.org/api/auth/sso/staff-directory/callback`. The provider gives you a **client ID** and a **client secret**, and states its **issuer** address.
 
-If people reach the application through an address other than the one your browser uses now (for example behind a reverse proxy), enter it under **Application address** on the **Redirect address** card and select **Save address**. It must be an `https` address with no path, such as `https://grc.example.org`. On an installation other computers reach, set it: without it, assistant (MCP) connections, calendar feeds and the work-tracker callback cannot hand out addresses. A provider on this computer or your internal network is reached only when its exact address (for example `10.20.0.5` or `127.0.0.1:8443`) is on **Allowed hosts** under **Settings**.
+Enter the address people type to open the application under **Application address** on the **Redirect address** card and select **Save address**. It must be an `https` address with no path, such as `https://grc.example.org`. On an installation other computers reach, set it: without it, single sign-on is refused (people see "Single sign-on needs the application address"), the card shows **Set the application address** instead of the redirect address, a SAML provider's addresses and metadata are not given out, and assistant (MCP) connections, calendar feeds and the work-tracker callback cannot hand out addresses. The application never builds these addresses from the address a browser happened to use, because anyone can send any address; only on an installation used on this computer alone (`localhost`, `127.0.0.1`) may the address stay empty. A provider on this computer or your internal network is reached only when its exact address (for example `10.20.0.5` or `127.0.0.1:8443`) is on **Allowed hosts** under **Settings**.
 
 Settings for common kinds of provider:
 
@@ -904,11 +906,11 @@ Every change to a webhook is in the audit log. Because a webhook address often c
 
 ## The audit log
 
-The audit log records every sign-in, change, export and permission change: who did it, when, from which network address, and the values before and after. Entries cannot be edited or deleted by anyone. Open **Administration > Audit log**.
+The audit log records every sign-in, change, export and permission change: who did it, when, from which network address, and the values before and after. Entries cannot be edited or deleted by anyone; the only way events leave the log is the archive of old events, which is off unless an administrator switches it on (see below). Open **Administration > Audit log**.
 
 ### Finding events
 
-Events are listed newest first, 50 to a page. Use **Older** and **Newer** to move between pages. Combine any of these filters:
+Events are listed newest first, 50 to a page. Use **Older** and **Newer** to move between pages. Under the list the page says how many events match; when more than 10,000 match it says "More than 10,000 events" rather than counting them all, and shows the page number without a total. Combine any of these filters:
 
 | Filter | Use it to |
 |---|---|
@@ -942,6 +944,19 @@ To see the history of one record without leaving it, use the **History** tab on 
 2. Select **Export CSV**.
 
 A file named with today's date is downloaded, containing every event that matches the filters, not only the page on screen, up to the newest 50,000. Besides the columns on screen it has the API token used (`token_name`) and the request id (`request_id`). The export is itself recorded in the audit log.
+
+### Archiving old events
+
+*Administrators.* Years of events make the log large. Under the list, **Archive old events** can move events older than a number of months out of the application into files you keep with your long-term records. It is **off** until you switch it on, and nothing is ever removed while it is off.
+
+1. Switch on **Archive old events every day**.
+2. Set **Archive events older than (months)**: at least 12. The default, 84 (seven years), matches the audit retention period on the **Retention** page; use what your records schedule says.
+3. Enter the **Folder for archive files**: a full path the server can write to, outside the data folder, for example `D:\Archive\Sandpiper` or `/srv/archive/sandpiper`.
+4. Select **Save archive settings**. You will be asked to confirm your password.
+
+Every day the application then writes the events older than that age to a compressed file in the folder, reads the file back and checks it, and only then removes those events from the log. **Archive now** runs it at once; the card shows the last run while it works. Each archive is itself an event in the log, naming the file, how many events it holds and its checksum, and the last ten are listed on the card. An archived event is no longer in the application, in exports or in backups taken afterward: keep the files safe. The person running the server can read them with ordinary tools (see the operations guide).
+
+If the database account the server uses may not remove audit events (a set-up the person running the server can choose), the card says so and archiving cannot run.
 
 ## My account: the Account security page
 

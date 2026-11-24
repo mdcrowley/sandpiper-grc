@@ -39,6 +39,13 @@ export interface Db extends Queryable {
    * `tx` inside it is a savepoint. Code with effects outside the database checks `inTrial()`.
    */
   trial?<T>(fn: () => Promise<T>): Promise<T>;
+  /**
+   * Runs `fn` as one transaction that commits (E40-03: a record save). As in a trial, every query on
+   * this handle from `fn`'s own work goes into it and a `tx` inside it is a savepoint; atomic work
+   * inside other atomic work (or a trial) is a savepoint too. Effects outside the database wait for
+   * the commit (`afterCommit`); `inTrial()` is true while the transaction is open.
+   */
+  atomic?<T>(fn: () => Promise<T>): Promise<T>;
   close(): Promise<void>;
   /** The folder the database lives in, or 'memory'. Files that belong beside the database (the secret key) go here. */
   dataDir: string;
@@ -52,27 +59,73 @@ export interface Db extends Queryable {
   generation?(): number;
   /** Called once the server has started: background upkeep (the embedded database's analyze) may begin. */
   started?(): void;
+  /**
+   * PostgreSQL server only: the connection pool of this process (E40-04 metrics, E40-12). `exhausted`
+   * counts requests that waited GRC_DATABASE_CONNECT_TIMEOUT for a connection and got none.
+   */
+  poolStats?(): { total: number; idle: number; waiting: number; max: number; exhausted: number };
 }
 
-// ---------------------------------------------------------------------------------------------
-// Trials: work run in a transaction that is always rolled back (E13-22)
+/**
+ * No database connection came free in time (E40-12): every connection of the pool
+ * (GRC_DATABASE_POOL_MAX) stayed busy for GRC_DATABASE_CONNECT_TIMEOUT. The request is answered 503
+ * with Retry-After (app.ts), so browsers, the mobile app and integrations try again, not a 500.
+ */
+export class DatabaseBusyError extends Error {
+  readonly databaseBusy = true;
+  readonly retryAfterSeconds = 5;
+  constructor(message = 'Every database connection is busy.') {
+    super(message);
+    this.name = 'DatabaseBusyError';
+  }
+}
 
-interface TrialScope { owner: Db; tx: Queryable; open: boolean }
+/** pg-pool's words for "waited for a free connection and none came" (not "the server did not answer"). */
+export const isPoolTimeout = (err: unknown) => /timeout exceeded when trying to connect/i.test(String((err as Error)?.message ?? ''));
+
+// ---------------------------------------------------------------------------------------------
+// Trials (E13-22) and atomic work (E40-03): work whose queries on the shared handle all go into one
+// transaction, rolled back (a trial) or committed (atomic)
+
+interface TrialScope {
+  owner: Db;
+  tx: Queryable;
+  open: boolean;
+  kind: 'trial' | 'atomic';
+  /** Atomic work: what waits for the commit (afterCommit). */
+  after: (() => Promise<void> | void)[];
+}
 const trials = new AsyncLocalStorage<TrialScope>();
 class TrialRollback extends Error {}
 
 /**
- * True while the current work runs inside `Db.trial` (and in anything it scheduled meanwhile).
- * Work with effects outside the database (sending, delivering, running queued jobs) is skipped then.
+ * True while the current work runs inside `Db.trial` (and in anything it scheduled meanwhile), and
+ * while atomic work (`Db.atomic`, a record save) has its transaction open. Work with effects outside
+ * the database (sending, delivering, running queued jobs) is skipped then; inside atomic work it is
+ * started after the commit instead (`afterCommit`).
  */
 export function inTrial(): boolean {
-  return trials.getStore() !== undefined;
+  const s = trials.getStore();
+  return s !== undefined && (s.kind === 'trial' || s.open);
 }
 
 /**
- * Adds `trial` to a handle. Queries on the handle from work running inside a trial go to the trial's
- * transaction: the embedded database serves one transaction at a time, so a query on the outer
- * handle there would wait for ever, and on a server it would not see the trial's own rows.
+ * Runs `fn` once the atomic work in progress commits (E40-03): at once when there is none, never when
+ * it is rolled back or inside a trial. Work started this way runs outside the transaction, so it may
+ * talk to the outside world (webhooks, mail, push, the job queue) and its own failure (logged) never
+ * undoes the saved change.
+ */
+export async function afterCommit(fn: () => Promise<void> | void): Promise<void> {
+  const s = trials.getStore();
+  if (s?.kind === 'trial') return;
+  if (s && s.open) { s.after.push(fn); return; }
+  await fn();
+}
+
+/**
+ * Adds `trial` and `atomic` to a handle. Queries on the handle from work running inside either go to
+ * its transaction: the embedded database serves one transaction at a time, so a query on the outer
+ * handle there would wait for ever, and on a server it would not see the transaction's own rows.
  */
 export function withTrials(db: Db): Db {
   const base = { query: db.query, one: db.one, exec: db.exec, tx: db.tx };
@@ -80,8 +133,12 @@ export function withTrials(db: Db): Db {
   const current = (): Queryable | null => {
     const s = trials.getStore();
     if (!s || s.owner !== routed) return null;
-    // Work a trial started but did not wait for (a promise left running) is discarded with it.
-    if (!s.open) throw new Error('The check has finished; work it started is discarded.');
+    if (!s.open) {
+      // Work a trial started but did not wait for (a promise left running) is discarded with it;
+      // work atomic work left running continues on its own after the commit.
+      if (s.kind === 'trial') throw new Error('The check has finished; work it started is discarded.');
+      return null;
+    }
     return s.tx;
   };
   const routed: Db = {
@@ -103,12 +160,41 @@ export function withTrials(db: Db): Db {
         throw err;
       }
     },
+    async atomic<T>(fn: () => Promise<T>): Promise<T> {
+      const s = trials.getStore();
+      if (s && s.owner === routed && s.open) {
+        // Inside a trial or other atomic work: a savepoint of it. What this part left for the commit
+        // is dropped when the part is rolled back.
+        const mark = s.after.length;
+        try {
+          return await routed.tx(() => fn());
+        } catch (err) {
+          s.after.length = mark;
+          throw err;
+        }
+      }
+      const scope: TrialScope = { owner: routed, tx: null as unknown as Queryable, open: true, kind: 'atomic', after: [] };
+      let result: T | undefined;
+      await base.tx(async (tx) => {
+        scope.tx = tx;
+        try {
+          result = await trials.run(scope, fn);
+        } finally {
+          scope.open = false;
+        }
+      });
+      // Committed: what waited for it runs now, outside the transaction, in order.
+      for (const later of scope.after) {
+        try { await later(); } catch (err) { console.error('[db] work after a commit failed:', err); }
+      }
+      return result as T;
+    },
     async trial<T>(fn: () => Promise<T>): Promise<T> {
-      if (trials.getStore()) throw new Error('A trial cannot start inside another one.');
+      if (trials.getStore()?.open) throw new Error('A trial cannot start inside another one, or inside atomic work.');
       let result: T | undefined;
       try {
         await base.tx(async (tx) => {
-          const scope: TrialScope = { owner: routed, tx, open: true };
+          const scope: TrialScope = { owner: routed, tx, open: true, kind: 'trial', after: [] };
           try {
             result = await trials.run(scope, fn);
           } finally {
@@ -472,8 +558,19 @@ export async function openServerDb(opts: ServerDbOptions): Promise<Db> {
 
   // Every connection gets the session settings (time zone, timeouts, schema) before first use.
   const configured = new WeakSet<pg.ClientBase>();
+  let exhausted = 0;
   const acquire = async (): Promise<pg.PoolClient> => {
-    const client = await pool.connect();
+    let client: pg.PoolClient;
+    try {
+      client = await pool.connect();
+    } catch (err) {
+      // Every connection busy for the whole wait: a 503 with Retry-After, not a 500 (E40-12).
+      if (isPoolTimeout(err) && pool.totalCount >= (pool.options.max ?? 10)) {
+        exhausted += 1;
+        throw new DatabaseBusyError(`Every database connection (${pool.options.max}) stayed busy for ${pool.options.connectionTimeoutMillis} ms.`);
+      }
+      throw err;
+    }
     if (!configured.has(client)) {
       try {
         await client.query(init);
@@ -539,6 +636,7 @@ export async function openServerDb(opts: ServerDbOptions): Promise<Db> {
     },
     dataDir: opts.dataDir,
     driver: 'server',
+    poolStats: () => ({ total: pool.totalCount, idle: pool.idleCount, waiting: pool.waitingCount, max: pool.options.max ?? 10, exhausted }),
   });
 }
 

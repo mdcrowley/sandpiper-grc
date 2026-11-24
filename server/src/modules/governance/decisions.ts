@@ -188,14 +188,19 @@ export function registerDecisions(ctx: ModuleContext) {
     for (const k of approvalKinds(app)) {
       const def = ctx.resources.get(k.recordType);
       if (!def || !ctx.can(req.user, `${def.module}.view`)) continue;
-      for (const recordId of await eng.waiting(k.key, committee.chair_id)) {
-        const record = await ctx.resources.find(def.type, recordId, req.user);
-        if (!record) continue; // a record the reader may not see is left out of the list
+      const waiting = [...new Set(await eng.waiting(k.key, committee.chair_id))].filter((rid) => UUID_RE.test(rid));
+      // The records, once per kind (E40-09); a record the reader may not see is left out of the list.
+      const records = new Map((waiting.length ? await db.query<Row>(
+        `select * from ${def.table} where id = any($1::uuid[]) and deleted_at is null and ${ctx.resources.visibleWhere(def.type, req.user)}`, [waiting]) : [])
+        .map((r) => [String(r.id), r] as const));
+      for (const recordId of waiting) {
+        const record = records.get(recordId);
+        if (!record) continue;
         const inst = await eng.running(k.key, recordId);
         if (!inst) continue;
         items.push({
           kind: k.key, kind_label: k.label, instance_id: inst.id, workflow: inst.name, started_at: inst.startedAt,
-          record_type: def.type, type_label: def.label, record_id: recordId, label: await ctx.resources.labelFor(def.type, recordId),
+          record_type: def.type, type_label: def.label, record_id: recordId, label: String(record[def.titleField] ?? ''),
           ref: def.ref ? record[def.ref.field] ?? null : null, route: def.route,
         });
       }
@@ -214,10 +219,25 @@ export function registerDecisions(ctx: ModuleContext) {
     const rows = await db.query<Row>(
       `select id, ref, title, outcome, record_type, record_id, agenda_item_id, applied_to_workflow, applied_at, restricted from meeting_decisions
        where meeting_id = $1 and deleted_at is null and ${ctx.resources.visibleWhere('meeting_decision', req.user)} order by created_at`, [meeting.id]);
+    // The records decided, read once per record type rather than once per decision (E40-09).
+    const seen = new Map<string, string>();
+    const byType = new Map<string, string[]>();
+    for (const r of rows) {
+      if (!r.record_type || typeof r.record_id !== 'string' || !UUID_RE.test(r.record_id)) continue;
+      byType.set(r.record_type, [...(byType.get(r.record_type) ?? []), r.record_id]);
+    }
+    for (const [type, ids] of byType) {
+      const def = ctx.resources.get(type);
+      if (!def || !ctx.can(req.user, `${def.module}.view`)) continue;
+      const found = await db.query<Row>(
+        `select id, ${def.titleField}::text as label from ${def.table}
+         where id = any($1::uuid[]) and deleted_at is null and ${ctx.resources.visibleWhere(type, req.user)}`, [[...new Set(ids)]]);
+      for (const x of found) seen.set(`${type}:${x.id}`, x.label ?? '');
+    }
     for (const r of rows) {
       const def = r.record_type ? ctx.resources.get(r.record_type) : undefined;
-      const found = def && ctx.can(req.user, `${def.module}.view`) ? await ctx.resources.find(def.type, r.record_id, req.user) : undefined;
-      r.record = found ? { type: def!.type, typeLabel: def!.label, id: found.id, label: await ctx.resources.labelFor(def!.type, found.id), route: def!.route } : r.record_type ? { hidden: true } : null;
+      const label = def ? seen.get(`${def.type}:${r.record_id}`) : undefined;
+      r.record = def && label !== undefined ? { type: def.type, typeLabel: def.label, id: r.record_id, label, route: def.route } : r.record_type ? { hidden: true } : null;
     }
     return rows;
   });

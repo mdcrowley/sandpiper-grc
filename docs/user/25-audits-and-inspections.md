@@ -28,7 +28,7 @@ Open **Governance > Audits**. The tiles show:
 - **Inspections due in 30 days** and how many are overdue; **Inspections on time** over the last 90 days, with how many were missed or failed.
 - **Evidence requests open**, and how many are overdue.
 
-**Coverage of the audit universe** lists each area with its cycle, its state (**Overdue**, **Due soon**, **On cycle** or **Never audited**), its next due date, and its audits in each of the last three years and next year's plan. Choose **Last 5 years** or **This year** to change the span. This answers "which parts of the safety plan were audited in the last three years?".
+**Coverage of the audit universe** lists each area with its cycle, its state (**Overdue**, **Due soon**, **On cycle** or **Never audited**), its next due date, and its audits in each of the last three years and next year's plan. Choose **Last 5 years** or **This year** to change the span. This answers "which parts of the safety plan were audited in the last three years?". The grid shows 200 areas at a time, in name order, with page numbers under it when the universe is larger; the tiles count every area.
 
 Below are **Inspections in the last six months** (done on time, done late and missed each month), **Open findings by rating**, **Next inspections** and **Audits under way and planned**. Select a tile, a bar or an entry to open the records behind it.
 

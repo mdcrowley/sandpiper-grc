@@ -1,5 +1,6 @@
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { pageOf } from '../../core/api/conventions.ts';
 import { isRetired, todayIso } from './shared.ts';
 import { assess, requirementsFor } from '../models/equipment.ts';
 
@@ -257,14 +258,17 @@ export function registerEquipment(ctx: ModuleContext) {
     });
     const withGaps = rows.filter((r) => r.gaps > 0).length;
     if (q.gaps === 'true') rows = rows.filter((r) => r.gaps > 0);
+    // A page of the vehicles (E40-09: a large fleet is thousands of rows); the totals count them all.
+    const { page, pageSize, offset } = pageOf(q, { size: 200, maxSize: 500 });
     return {
       columns: columns.map((c) => ({ value: c.value, label: c.label, ...totals[c.value] })),
-      vehicles: rows,
+      vehicles: rows.slice(offset, offset + pageSize), total: rows.length, page, pageSize,
       summary: { vehicles: vehicles.length, with_gaps: withGaps, fully_equipped: vehicles.length - withGaps },
     };
   });
   ctx.describeRoute({
     method: 'GET', path: '/api/fleet/coverage', summary: 'Equipment coverage: which vehicles lack working required equipment', permission: 'fleet.view',
-    query: { mode: 'Vehicle modes, comma-separated', depot_id: 'Depot site ids', status: 'Vehicle statuses', gaps: 'true: only vehicles with a gap' },
+    query: { mode: 'Vehicle modes, comma-separated', depot_id: 'Depot site ids', status: 'Vehicle statuses', gaps: 'true: only vehicles with a gap', page: 'Page number (default 1)', pageSize: 'Vehicles per page (default 200, at most 500)' },
+    response: '{ columns: [{ value, label, ok, not_working, missing }], vehicles: [...], total, page, pageSize, summary: { vehicles, with_gaps, fully_equipped } }',
   });
 }

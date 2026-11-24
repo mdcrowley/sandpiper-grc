@@ -250,17 +250,34 @@ export function registerRoutes(ctx: ModuleContext, svc: Service) {
 
   // ---------- approvals (everyone) ----------
 
-  /** The record behind a workflow, if its type is on and the person may see it. */
-  async function visible(req: FastifyRequest, type: string, id: string): Promise<{ def: ResourceDef; label: string; ref: string | null; title: string } | null> {
-    const def = ctx.resources.get(type);
-    if (!def || !(await svc.maySee(req.user!, def, id))) return null;
-    const row = (await ctx.resources.find(type, id))!;
-    return { def, label: await svc.recordName(type, id), ref: def.ref ? row[def.ref.field] ?? null : null, title: String(row[def.titleField] ?? '') };
+  interface Rec { def: ResourceDef; ref: string | null; title: string }
+  const recKey = (type: string, id: string) => `${type}:${id}`;
+
+  /**
+   * The records behind workflows, for those whose type is on and that the person may see (the same
+   * rule as `svc.maySee`): one query per record type, not one per workflow (E40-09).
+   */
+  async function visibleRecords(req: FastifyRequest, rows: Row[]): Promise<Map<string, Rec>> {
+    const out = new Map<string, Rec>();
+    const byType = new Map<string, Set<string>>();
+    for (const r of rows) {
+      if (typeof r.record_type !== 'string' || !UUID_RE.test(String(r.record_id ?? ''))) continue;
+      if (!byType.has(r.record_type)) byType.set(r.record_type, new Set());
+      byType.get(r.record_type)!.add(String(r.record_id));
+    }
+    for (const [type, ids] of byType) {
+      const def = ctx.resources.get(type);
+      if (!def || !ctx.can(req.user!, `${def.module}.view`)) continue;
+      if (def.restricted === true && !ctx.can(req.user!, 'security.view')) continue;
+      const found = await db.query<Row>(
+        `select id, ${def.ref ? def.ref.field : 'null'} as ref, ${def.titleField}::text as title from ${def.table}
+         where id = any($1::uuid[]) and deleted_at is null and ${ctx.resources.visibleWhere(type, req.user)}`, [[...ids]]);
+      for (const f of found) out.set(recKey(type, f.id), { def, ref: f.ref ?? null, title: String(f.title ?? '') });
+    }
+    return out;
   }
 
-  async function approvalItem(req: FastifyRequest, r: Row): Promise<Row | null> {
-    const rec = await visible(req, r.record_type, r.record_id);
-    if (!rec) return null;
+  function approvalItem(r: Row, rec: Rec, onBehalfName: string | null): Row {
     const total = asJson<WorkflowDef>(r.definition).steps.length;
     return {
       // A branch of a step that runs side by side (E14-32) is named "Step: Branch".
@@ -273,8 +290,16 @@ export function registerRoutes(ctx: ModuleContext, svc: Service) {
       decision: r.my_decision ?? null, decided_at: r.my_decided_at ?? null, comment: r.my_comment ?? null,
       kind: r.kind ?? null, kind_label: approvalKind(app, r.kind)?.label ?? null,
       // E14-32: the approver this person stands in for here (waiting), or decided for (decided).
-      on_behalf_of: r.on_behalf_of ?? null, on_behalf_of_name: r.on_behalf_of ? (await names([r.on_behalf_of]))[r.on_behalf_of] ?? 'Someone' : null,
+      on_behalf_of: r.on_behalf_of ?? null, on_behalf_of_name: r.on_behalf_of ? onBehalfName ?? 'Someone' : null,
     };
+  }
+
+  /** Approval items for step rows: the records and the names they need are read once for all of them. */
+  async function approvalItems(req: FastifyRequest, rows: Row[]): Promise<Row[]> {
+    const recs = await visibleRecords(req, rows);
+    const shown = rows.filter((r) => recs.has(recKey(r.record_type, r.record_id)));
+    const who = await names([...new Set(shown.map((r) => r.on_behalf_of).filter((v): v is string => typeof v === 'string'))]);
+    return shown.map((r) => approvalItem(r, recs.get(recKey(r.record_type, r.record_id))!, r.on_behalf_of ? who[r.on_behalf_of] ?? null : null));
   }
 
   const STEP_SELECT = `select s.id as step_id, s.instance_id, s.name as step_name, s.group_name, s.position, s.branch, s.status as step_status, s.required, s.due_at,
@@ -291,16 +316,23 @@ export function registerRoutes(ctx: ModuleContext, svc: Service) {
        where s.status = 'pending' and i.status = 'running' and s.approvers @> $1::jsonb and i.requested_by is distinct from $2
          and not exists (select 1 from workflow_decisions d where d.step_id = s.id and d.user_id = $2)
        order by s.due_at nulls last, s.started_at limit 200`, [JSON.stringify([me]), me]);
-    const out: Row[] = [];
+    if (!rows.length) return [];
+    // The decisions of every step at once (E40-09), then each step's own rule in memory.
+    const decided = await db.query<{ step_id: string; user_id: string; on_behalf_of: string | null }>(
+      'select step_id, user_id, on_behalf_of from workflow_decisions where step_id = any($1::uuid[])', [rows.map((r) => r.step_id)]);
+    const byStep = new Map<string, { user_id: string; on_behalf_of: string | null }[]>();
+    for (const d of decided) {
+      if (!byStep.has(d.step_id)) byStep.set(d.step_id, []);
+      byStep.get(d.step_id)!.push({ user_id: d.user_id, on_behalf_of: d.on_behalf_of });
+    }
+    const mine: Row[] = [];
     for (const r of rows) {
       // A stand-in sees a step only while their period runs and someone they stand in for has not decided.
-      const ds = await db.query<{ user_id: string; on_behalf_of: string | null }>('select user_id, on_behalf_of from workflow_decisions where step_id = $1', [r.step_id]);
-      const may = await svc.mayDecide({ id: r.step_id, instance_id: r.instance_id, position: r.position, branch: r.branch, status: 'pending', approvers: r.approvers, principals: r.principals, standins: r.standins }, r.requested_by, me, ds, { id: r.instance_id, kind: r.kind, definition: r.definition }, req.user);
-      if (!may.ok) continue;
-      const item = await approvalItem(req, { ...r, on_behalf_of: may.onBehalfOf });
-      if (item) out.push(item);
+      // (mayDecide reads nothing more unless the step has stand-ins or needs a different person per step.)
+      const may = await svc.mayDecide({ id: r.step_id, instance_id: r.instance_id, position: r.position, branch: r.branch, status: 'pending', approvers: r.approvers, principals: r.principals, standins: r.standins }, r.requested_by, me, byStep.get(r.step_id) ?? [], { id: r.instance_id, kind: r.kind, definition: r.definition }, req.user);
+      if (may.ok) mine.push({ ...r, on_behalf_of: may.onBehalfOf });
     }
-    return out;
+    return approvalItems(req, mine);
   }
 
   app.get('/api/workflows/approvals', async (req) => {
@@ -310,16 +342,17 @@ export function registerRoutes(ctx: ModuleContext, svc: Service) {
       const rows = await db.query<Row>(
         `${STEP_SELECT.replace('from workflow_steps s', ', d.decision as my_decision, d.created_at as my_decided_at, d.comment as my_comment, d.on_behalf_of from workflow_steps s')}
          join workflow_decisions d on d.step_id = s.id and d.user_id = $1 order by d.created_at desc limit 100`, [me]);
-      return { rows: (await Promise.all(rows.map((r) => approvalItem(req, r)))).filter(Boolean) };
+      return { rows: await approvalItems(req, rows) };
     }
     if (view === 'requested') {
       const rows = await db.query<Row>(
         `select i.*, s.step_name, s.due_at, s.required, s.step_id, s.approvals
          from workflow_instances i ${CURRENT_STEP}
          where i.requested_by = $1 order by i.started_at desc limit 100`, [me]);
+      const recs = await visibleRecords(req, rows);
       const out: Row[] = [];
       for (const r of rows) {
-        const rec = await visible(req, r.record_type, r.record_id);
+        const rec = recs.get(recKey(r.record_type, r.record_id));
         if (!rec) continue;
         out.push({
           instance_id: r.id, workflow: r.name, status: r.status, record_type: r.record_type, record_type_label: rec.def.label, record_id: r.record_id,

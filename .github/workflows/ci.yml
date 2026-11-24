@@ -636,9 +636,26 @@ jobs:
   browser:
     # End to end the browser suites take over an hour, so they run as parallel parts. The "rest"
     # part skips only the suites that have a part of their own, so a new suite is always covered.
+    # The "PostgreSQL" part runs some suites again on a PostgreSQL server instead of the embedded
+    # database (E40-08): tools/e2e creates a fresh database per run from E2E_DATABASE_URL.
     name: Browser tests (${{ matrix.part }})
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    services:
+      postgres:
+        # Started for every part (a service cannot be made conditional); only the PostgreSQL part uses it.
+        image: postgres:17-bookworm@sha256:837bed18782820fe967067cb5328b02b0d9992c1be9a37ee0c9c492cfc03af3b
+        env:
+          POSTGRES_USER: grc
+          POSTGRES_PASSWORD: grc-ci-only
+          POSTGRES_DB: grc
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U grc -d grc"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     strategy:
       fail-fast: false
       matrix:
@@ -651,6 +668,9 @@ jobs:
             args: --skip roles,smoke,auth,features-off
           - part: accessibility
             args: ''
+          - part: PostgreSQL
+            args: --only 01-smoke,16-records,23-portal
+            database: postgres
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -674,6 +694,8 @@ jobs:
         run: npm run test:e2e -- ${{ matrix.args }}
         env:
           E2E_WEB_DIST: ${{ github.workspace }}/e2e-web
+          # The account may create databases; each run makes its own and drops it (tools/e2e/lib/instance.mjs).
+          E2E_DATABASE_URL: ${{ matrix.database == 'postgres' && 'postgres://grc:grc-ci-only@127.0.0.1:5432/grc' || '' }}
 
       - name: Accessibility audit
         if: matrix.part == 'accessibility'

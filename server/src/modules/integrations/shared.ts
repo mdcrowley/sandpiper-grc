@@ -4,10 +4,8 @@
 import type { FastifyRequest } from 'fastify';
 import type { Queryable } from '../../core/db.ts';
 import type { ModuleContext, SessionUser } from '../../core/module.ts';
+import { adminCapableRoleIds } from '../../core/identity/accounts.ts';
 import { administratorIds } from '../admin/shared.ts';
-
-/** Grants that make a role an administrator role: provisioning never grants such a role. */
-export const ADMIN_GRANTS = ['*', 'admin.*', 'admin.administer'];
 
 /**
  * A request that the audit log names as "Provisioning (<token name>)": the same source address and
@@ -18,11 +16,12 @@ export function provisioningRequest(req: FastifyRequest, tokenName: string): Fas
   return Object.assign(Object.create(req) as FastifyRequest, { user: actor, apiToken: null });
 }
 
-/** Ids of roles that can administer (any grant in ADMIN_GRANTS). */
-export async function adminRoleIds(q: Queryable): Promise<Set<string>> {
-  const rows = await q.query<{ role_id: string }>('select distinct role_id from role_permissions where permission = any($1::text[])', [ADMIN_GRANTS]);
-  return new Set(rows.map((r) => r.role_id));
-}
+/**
+ * Ids of roles that can administer: `*` or any `admin.` grant (W19). The same definition as the SCIM
+ * guards (isAdminCapable), so provisioning never gives a role that would then stop it deprovisioning
+ * the person. Provisioning never maps a group to, or gives, such a role.
+ */
+export const adminRoleIds = (q: Queryable): Promise<Set<string>> => adminCapableRoleIds(q);
 
 export interface RoleChange { added: string[]; removed: string[] }
 

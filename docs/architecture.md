@@ -367,14 +367,34 @@ File formats are documented in [Installation](installation.md#5-load-data).
   server code for "today" (`todayInZone`) and business-hours arithmetic, and reported to
   the web in `/api/auth/state` so that every user sees times in the organization's zone,
   not their browser's.
+- **Calendar dates and working days.** Arithmetic on `YYYY-MM-DD` dates (`addDays`, `addMonths` with
+  the month-end rule, `daysBetween` and the like) is written once, in `shared/dates.ts`, and used by
+  the server, the web application and the mobile app (E40-12). A deadline counted in working days uses
+  one working-day calendar for the whole organization (E40-10): the arithmetic is
+  `shared/working-days.ts`, and `server/src/core/working-days.ts` reads the calendar, which is the
+  service desk's **Business hours** calendar (its open weekdays and holidays, kept under Service desk >
+  Settings > Calendars). The tickets module offers it with `setWorkingCalendarSource`, so other
+  modules never read its tables; it keeps counting while the service desk is switched off, and with
+  the tickets module not loaded Monday to Friday is used. Records requests are the first user.
 - **Currency.** `GRC_CURRENCY` (default `USD`) is an ISO 4217 code reported the same way
   and used only to format `currency` fields. Amounts are stored as plain numbers; there is
   no conversion and no per-record currency.
 
 ## Testing
 
-- Tests are Vitest files named `*.test.ts` beside the code (`server/src/**`). There are no
-  automated browser tests.
+- Unit tests are Vitest files named `*.test.ts` beside the code (`server/src/**`, `web/src/**` and
+  `shared/`); web component tests (`*.component.test.ts`) render pages in a browser-like document
+  (happy-dom). The browser suite (`tools/e2e`, `npm run test:e2e`) drives a real browser through a
+  throw-away instance: every route, role and record type, the hand-written dialogs, the keyboard, every
+  page with the optional areas switched off, and one suite per newer area (`01-smoke` to `23-portal`,
+  the self-service portal at phone and desktop widths). Continuous integration runs it on the embedded
+  database and runs the smoke, records and portal suites again on PostgreSQL 17 (`E2E_DATABASE_URL`).
+  The accessibility audit (`tools/a11y`) runs axe-core on every route after it.
+- `server/src/core/route-sweep.test.ts` (E40-05) walks every registered route: signed out each
+  non-public route answers 401, a person with no role is refused (403 or 404) on every route that
+  names a permission and never meets a server error, and with every optional area switched off each
+  route of an area answers 404 `switched_off` while the parts always on keep answering. A new route
+  is swept without anyone adding it.
 - `testApp()` in `server/src/test/helpers.ts` builds the whole application on an
   **in-memory database** (`dataDir: 'memory'`), completes setup, and returns `api` (signed
   in as an administrator), `as(roleKey)` (a new user holding only that role; all roles are
@@ -447,9 +467,12 @@ How the one process is reached and where its data lives. Operator's view:
   - *Transactions*: `tx` takes one connection for `begin` ... `commit`/`rollback`. Unlike
     PGlite, other queries on the outer handle are not held back meanwhile; they run on
     other connections and do not see the transaction's uncommitted work.
-  - *Portability*: no extensions; `gen_random_uuid()` (core since PostgreSQL 13), the
-    `english` and `simple` text-search configurations and PL/pgSQL triggers are standard.
-    One migration uses a stored generated column. PostgreSQL 15 or later is supported.
+  - *Portability*: one optional extension, `pg_trgm` (trigram indexes for part-of-a-word search,
+    migrations 009 and 029). The migrations create it when the database owner may, and otherwise log a
+    notice and go on without the index (the search still works, by reading the table); the embedded
+    driver loads it itself. Everything else is standard: `gen_random_uuid()` (core since PostgreSQL
+    13), the `english` and `simple` text-search configurations and PL/pgSQL triggers. One migration
+    uses a stored generated column. PostgreSQL 15 or later is supported.
   - *Tests*: `GRC_TEST_DATABASE=pg` makes every in-memory test database a fresh PGlite
     served over the Postgres wire protocol (`@electric-sql/pglite-socket`, random port)
     and reached through the server driver, so the whole suite exercises it;
@@ -485,7 +508,8 @@ The prototype choices were made so that each can be replaced without redesign. T
 database server, HTTPS and containers are in place (Hosting, above); the rest is not yet
 built; see [Known gaps](known-gaps.md).
 
-- **Database.** Still to design: a transaction-per-request story. A least-privilege set-up,
+- **Database.** A save through the resource engine is one transaction with its audit event (E40-03);
+  record changes made by module routes outside the generic save are not yet. A least-privilege set-up,
   where the application's own account cannot change the schema or drop the audit trigger,
   is built but optional ([Installation](installation.md#a-least-privilege-database-role));
   by default the application's account owns its tables. Backups in server mode use `pg_dump`; `grc.ps1 backup` covers the embedded database only.
@@ -497,9 +521,9 @@ built; see [Known gaps](known-gaps.md).
   linking a directory from Account security (E02-29).
 - **More than one process.** The job queue already works across processes, and so do the
   per-token request counts (`tokens.rate_per_minute`, the `RateLimit` headers and
-  `mcp.rate_per_minute`, kept per clock minute in the database since E16-43). Still to do:
-  move the remaining timers onto it, and move the `If-Match` lock and the webhook worker out of
-  process memory, before running several instances (the policy kiosk's count of wrong employee
-  numbers is kept in the database since E18-60).
+  `mcp.rate_per_minute`, kept per clock minute in the database since E16-43), the `If-Match` check
+  (made in the save itself) and webhook deliveries (claimed one at a time) since E40-01, and the
+  policy kiosk's count of wrong employee numbers since E18-60. What stays per process, and why it is
+  safe, is in [Operations](operations.md#several-server-processes).
 - **Operations.** Scheduled, verified backups, an upgrade with automatic rollback and
   continuous integration are built. Still to do: log retention and monitoring.

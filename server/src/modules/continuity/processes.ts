@@ -31,10 +31,20 @@ export async function dependenciesOf(ctx: ModuleContext, processId: string, user
   const rows = await ctx.db.query<Row>(
     `select id, dep_type, dep_id::text as dep_id, critical, notes, sort from process_dependencies
      where process_id = $1 and dep_type = any($2::text[]) order by sort, created_at`, [processId, kinds]);
+  // The records depended on, read once per record type rather than once per dependency (E40-09).
+  const seen = new Map<string, Row>();
+  for (const kind of [...new Set(rows.map((r) => String(r.dep_type)))]) {
+    const def = ctx.resources.get(DEP_TYPES[kind]);
+    const ids = [...new Set(rows.filter((r) => r.dep_type === kind).map((r) => String(r.dep_id)))];
+    if (!def || !ids.length) continue;
+    const found = await ctx.db.query<Row>(
+      `select * from ${def.table} where id = any($1::uuid[]) and deleted_at is null and ${ctx.resources.visibleWhere(def.type, user)}`, [ids]);
+    for (const x of found) seen.set(`${def.type}:${x.id}`, x);
+  }
   const out: DependencyView[] = [];
   for (const r of rows) {
     const def = ctx.resources.get(DEP_TYPES[r.dep_type])!;
-    const found = await ctx.resources.find(def.type, r.dep_id, user);
+    const found = seen.get(`${def.type}:${r.dep_id}`);
     out.push({
       id: r.id, dep_type: r.dep_type, dep_id: r.dep_id, critical: r.critical, notes: r.notes, sort: r.sort,
       record_type: def.type, type_label: def.label, hidden: !found,

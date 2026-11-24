@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import type { Queryable } from './db.ts';
+import { inTrial, type Queryable } from './db.ts';
 import { fail } from './errors.ts';
 import { isApiRequest, routePattern } from './api/versioning.ts';
 import type { FieldDef, ResourceDef, ResourceRegistry, Row } from './module.ts';
@@ -418,7 +418,7 @@ const cache = new WeakMap<object, { state: FeatureState; at: number; loading?: P
 export async function featureState(db: Queryable): Promise<FeatureState> {
   const hit = cache.get(db);
   if (hit && Date.now() - hit.at < TTL_MS) return hit.state;
-  if (hit?.loading) return hit.loading;
+  if (hit?.loading && !inTrial()) return hit.loading;
   const loading = (async () => {
     let stored: unknown = null;
     let storedOptions: unknown = null;

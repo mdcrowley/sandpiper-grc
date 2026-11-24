@@ -2,6 +2,7 @@
 // vehicles without a working router or camera stand out. Administrators set what each mode needs.
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { Pagination } from '@mantine/core';
 import {
   api, Button, Card, Checkbox, EmptyState, errorMessage, ErrorState, Icon, Loading, Modal, PageHeader, RecordPicker, Select, Stat,
   StatusChip, Switch, TableWrap, useAuth, useFetch, useLookup, useToast, useUnsavedChanges,
@@ -10,6 +11,8 @@ import type { ColorName } from '../../core';
 import { FleetTabs } from './shared';
 
 interface Coverage {
+  /** Vehicles matching the filters; the page shown (E40-09: the server pages them). */
+  total?: number; page?: number; pageSize?: number;
   columns: { value: string; label: string; ok: number; not_working: number; missing: number }[];
   vehicles: {
     id: string; fleet_number: string; mode: string; mode_label: string; status_label: string; status_color: string;
@@ -33,12 +36,14 @@ export function CoveragePage() {
   const mode = params.get('mode') ?? '';
   const depot = params.get('depot_id');
   const gapsOnly = params.get('gaps') === 'true';
+  const page = Math.max(1, Number(params.get('page')) || 1);
   const set = (k: string, v: string | null) => {
     const next = new URLSearchParams(params);
     if (v) next.set(k, v); else next.delete(k);
+    if (k !== 'page') next.delete('page'); // a new filter starts at the first page
     setParams(next, { replace: true });
   };
-  const qs = new URLSearchParams({ ...(mode ? { mode } : {}), ...(depot ? { depot_id: depot } : {}), ...(gapsOnly ? { gaps: 'true' } : {}) }).toString();
+  const qs = new URLSearchParams({ ...(mode ? { mode } : {}), ...(depot ? { depot_id: depot } : {}), ...(gapsOnly ? { gaps: 'true' } : {}), ...(page > 1 ? { page: String(page) } : {}) }).toString();
   const { data, error, reload } = useFetch<Coverage>(`/api/fleet/coverage${qs ? `?${qs}` : ''}`, { keepPrevious: true });
   const [editing, setEditing] = useState(false);
 
@@ -118,6 +123,14 @@ export function CoveragePage() {
                 </tbody>
               </table>
             </TableWrap>
+            {data.total !== undefined && data.pageSize && data.total > data.pageSize && (
+              <nav className="fl-pager" aria-label="Pages of vehicles">
+                <Pagination size="sm" total={Math.ceil(data.total / data.pageSize)} value={Math.min(page, Math.ceil(data.total / data.pageSize))}
+                  onChange={(n) => set('page', n > 1 ? String(n) : null)} siblings={1} boundaries={1}
+                  getControlProps={(control) => ({ 'aria-label': `${control.charAt(0).toUpperCase()}${control.slice(1)} page` })}
+                  getItemProps={(n) => ({ 'aria-label': `Page ${n}` })} />
+              </nav>
+            )}
           </Card>
         )}
       <RequirementsDialog open={editing} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); reload(); }} />

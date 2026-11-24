@@ -9,6 +9,9 @@ const IDENT = /^[a-z_][a-z0-9_]*$/;
 const STD_FIELDS = new Set(['created_at', 'updated_at', 'deleted_at']);
 /** The most records one saved query may add in one run (a hold is a list people read, not a dump). */
 export const QUERY_LIMIT = 5000;
+/** A page of a hold's records: the default and the most one request may ask for. */
+export const HOLD_PAGE_SIZE = 100;
+export const HOLD_PAGE_MAX = 500;
 
 export interface RecordRef { type: string; id: string }
 
@@ -156,37 +159,59 @@ export async function runAllQueries(ctx: ModuleContext): Promise<{ queries: numb
 // ---------------------------------------------------------------- reading a hold's records
 
 /**
- * The records of a hold the reader may see, and the counts. The counts are figures: they include every
- * held record, also those the reader may not see and those of a type that is switched off.
+ * The records of a hold the reader may see, a page at a time (E40-09: a hold driven by a saved query can
+ * cover tens of thousands of records), and the counts. The counts are figures: they include every held
+ * record, also those the reader may not see and those of a type that is switched off. `state` picks the
+ * records still held (`current`), those taken off (`released`) or both (the default, current first).
+ * `shown` is how many rows of that state the reader may see, for paging.
  */
-export async function holdRecords(ctx: ModuleContext, holdId: string, user: SessionUser | null | undefined): Promise<{ rows: Row[]; total: number; hidden: number; released: number }> {
-  const entries = await ctx.db.query<Row>(
-    `select r.id, r.record_type, r.record_id::text as record_id, r.query_id, r.added_at, r.released_at,
-       u.display_name as added_by_name
-     from legal_hold_records r left join users u on u.id = r.added_by
-     where r.hold_id = $1 order by r.released_at nulls first, r.added_at desc, r.id`, [holdId]);
-  const active = entries.filter((e) => !e.released_at);
-  const rows: Row[] = [];
-  for (const type of new Set(entries.map((e) => e.record_type))) {
+export async function holdRecords(
+  ctx: ModuleContext, holdId: string, user: SessionUser | null | undefined,
+  opts: { page?: number; pageSize?: number; state?: 'current' | 'released' | 'all' } = {},
+): Promise<{ rows: Row[]; total: number; hidden: number; released: number; shown: number; page: number; pageSize: number }> {
+  const page = Math.max(1, Math.trunc(opts.page ?? 1) || 1);
+  const pageSize = Math.min(HOLD_PAGE_MAX, Math.max(1, Math.trunc(opts.pageSize ?? HOLD_PAGE_SIZE) || HOLD_PAGE_SIZE));
+  const state = opts.state ?? 'all';
+  const counts = (await ctx.db.one<{ active: number; released: number }>(
+    `select count(*) filter (where released_at is null)::int as active, count(*) filter (where released_at is not null)::int as released
+     from legal_hold_records where hold_id = $1`, [holdId]))!;
+  const types = (await ctx.db.query<{ record_type: string }>('select distinct record_type from legal_hold_records where hold_id = $1', [holdId]))
+    .map((r) => r.record_type);
+  const parts: string[] = [];
+  const params: unknown[] = [holdId];
+  for (const type of types) {
     const def = ctx.resources.get(type);
-    if (!def || !mayViewType(ctx, user, def)) continue;
-    const mine = entries.filter((e) => e.record_type === type);
-    const cols = [`id::text as id`, `${def.titleField}::text as label`, def.ref ? `${def.ref.field}::text as ref` : 'null as ref', 'deleted_at'];
-    const found = new Map((await ctx.db.query<Row>(
-      `select ${cols.join(', ')} from ${def.table} where id = any($1::uuid[]) and ${ctx.resources.visibleWhere(type, user ?? null)}`,
-      [mine.map((e) => e.record_id)])).map((r) => [r.id, r]));
-    for (const e of mine) {
-      const rec = found.get(e.record_id);
-      if (!rec) continue;
-      rows.push({
-        id: e.id, record_type: type, typeLabel: def.label, record_id: e.record_id, label: rec.label ?? def.label, ref: rec.ref ?? null,
-        route: rec.deleted_at ? null : `${def.route}/${e.record_id}`, deleted: Boolean(rec.deleted_at),
-        via: e.query_id ? 'query' : 'hand', added_at: e.added_at, added_by_name: e.added_by_name ?? null, released_at: e.released_at,
-      });
-    }
+    if (!def || !mayViewType(ctx, user, def) || !IDENT.test(def.table)) continue;
+    params.push(type);
+    parts.push(`select r.id, r.record_type, r.record_id::text as record_id, r.query_id, r.added_at, r.released_at, r.added_by,
+        t.${def.titleField}::text as label, ${def.ref ? `t.${def.ref.field}::text` : 'null::text'} as ref, t.deleted_at
+      from legal_hold_records r join ${def.table} t on t.id = r.record_id
+      where r.hold_id = $1 and r.record_type = $${params.length} and ${ctx.resources.visibleWhere(type, user ?? null, 't')}`);
   }
-  const order = new Map(entries.map((e, i) => [e.id, i]));
-  rows.sort((a, b) => order.get(a.id)! - order.get(b.id)!);
-  const visibleActive = rows.filter((r) => !r.released_at).length;
-  return { rows, total: active.length, hidden: active.length - visibleActive, released: entries.length - active.length };
+  // Visible held records, counted whatever page is asked (hidden = held records the reader cannot see).
+  let visibleActive = 0;
+  let shown = 0;
+  let found: Row[] = [];
+  if (parts.length) {
+    const stateSql = state === 'current' ? 'where v.released_at is null' : state === 'released' ? 'where v.released_at is not null' : '';
+    const union = parts.join('\nunion all\n');
+    const c = (await ctx.db.one<{ active: number; shown: number }>(
+      `select count(*) filter (where v.released_at is null)::int as active,
+              count(*) filter (where ${state === 'current' ? 'v.released_at is null' : state === 'released' ? 'v.released_at is not null' : 'true'})::int as shown
+       from (${union}) v`, params))!;
+    visibleActive = c.active;
+    shown = c.shown;
+    found = await ctx.db.query<Row>(
+      `select v.*, u.display_name as added_by_name from (${union}) v left join users u on u.id = v.added_by ${stateSql}
+       order by v.released_at nulls first, v.added_at desc, v.id limit ${pageSize} offset ${(page - 1) * pageSize}`, params);
+  }
+  const rows = found.map((e) => {
+    const def = ctx.resources.get(e.record_type)!;
+    return {
+      id: e.id, record_type: e.record_type, typeLabel: def.label, record_id: e.record_id, label: e.label ?? def.label, ref: e.ref ?? null,
+      route: e.deleted_at ? null : `${def.route}/${e.record_id}`, deleted: Boolean(e.deleted_at),
+      via: e.query_id ? 'query' : 'hand', added_at: e.added_at, added_by_name: e.added_by_name ?? null, released_at: e.released_at,
+    };
+  });
+  return { rows, total: counts.active, hidden: counts.active - visibleActive, released: counts.released, shown, page, pageSize };
 }

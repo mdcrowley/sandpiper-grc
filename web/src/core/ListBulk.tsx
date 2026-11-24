@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { Alert, Button, Checkbox, Group, List, Progress, Stack, Text } from '@mantine/core';
 import { IconDownload, IconPencil, IconX } from '@tabler/icons-react';
+import { csvCell } from '../../../shared/csv-guard.ts';
 import { api, errorMessage, type Row } from './api';
 import { DateField, LookupSelect, RecordPicker, Select, UserPicker } from './fields';
 import { fieldMeta } from './FieldValue';
@@ -14,13 +15,6 @@ import { Modal } from './overlay';
 export const BULK_TYPES = ['lookup', 'user', 'ref', 'boolean', 'date'];
 
 /* ---------- CSV of the selected rows ---------- */
-
-function csvCell(value: unknown): string {
-  const text = value === null || value === undefined ? '' : String(value);
-  // A leading =, +, - or @ would be run as a formula by spreadsheet programs.
-  const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
-  return /[",\r\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
-}
 
 function plainValue(resource: ResourceMeta, field: string, row: Row): unknown {
   const meta = fieldMeta(resource, field);
@@ -38,13 +32,21 @@ function plainValue(resource: ResourceMeta, field: string, row: Row): unknown {
   }
 }
 
-/** Save the given rows as a CSV file with the given field columns. */
-export function downloadRowsCsv(resource: ResourceMeta, fields: string[], rows: Row[], fileName: string): void {
+/**
+ * The CSV text of the given rows and field columns. Every cell goes through the server's formula guard
+ * (shared/csv-guard.ts, W19): a cell a spreadsheet program could read as a formula is shown as text.
+ */
+export function rowsCsv(resource: ResourceMeta, fields: string[], rows: Row[]): string {
   const lines = [
     fields.map((f) => csvCell(fieldMeta(resource, f).label)).join(','),
     ...rows.map((row) => fields.map((f) => csvCell(plainValue(resource, f, row))).join(',')),
   ];
-  const blob = new Blob(['﻿', lines.join('\r\n'), '\r\n'], { type: 'text/csv;charset=utf-8' });
+  return `${lines.join('\r\n')}\r\n`;
+}
+
+/** Save the given rows as a CSV file with the given field columns. */
+export function downloadRowsCsv(resource: ResourceMeta, fields: string[], rows: Row[], fileName: string): void {
+  const blob = new Blob(['﻿', rowsCsv(resource, fields, rows)], { type: 'text/csv;charset=utf-8' });
   const href = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = href;

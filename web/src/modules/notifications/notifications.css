@@ -128,3 +128,7 @@
 .ntf-rem-checks { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4); }
 .ntf-rem-error { margin: var(--s-1) 0 0; color: var(--danger-text); font-size: var(--fs-sm); }
 .ntf-rem-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
+
+/* Background jobs > Problems being watched (E40-04) */
+.ml-problems { list-style: none; margin: var(--s-3) 0 0; padding: 0; display: grid; gap: var(--s-2); }
+.ml-problems li { margin: 0; overflow-wrap: anywhere; }

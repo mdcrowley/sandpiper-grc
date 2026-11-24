@@ -270,7 +270,7 @@ Scoring gives each project a priority score out of 100 so that projects can be r
 2. The **Priority score** dial updates as you go and says "Preview: not saved yet."
 3. Select **Save scores**, or **Discard changes** to go back.
 
-Each criterion's weight is its share of the 100 points. It earns that share multiplied by its score out of 5, shown under each criterion (for example "25 points × 4/5 = 20"). The priority score is the sum; a criterion left unscored earns nothing. **How the score is worked out** on the tab says the same. The criteria supplied are:
+Each criterion's weight is its share of the 100 points. It earns that share multiplied by its score out of 5, shown under each criterion (for example "25 points × 4/5 = 20"). The priority score is the sum; a criterion left unscored earns nothing. **How the score is worked out** on the tab says the same. The preview on the tab uses exactly the rule the application applies when it saves, so the score shown before saving is the score saved. The criteria supplied are:
 
 | Criterion | Weight |
 |---|---|

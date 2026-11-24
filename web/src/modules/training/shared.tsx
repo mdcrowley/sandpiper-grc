@@ -1,6 +1,8 @@
 // Types and small helpers shared by the training and exercise screens.
 import { formatDate, LookupChip, StatusChip } from '../../core';
 import type { ColorName } from '../../core';
+import { daysBetween } from '../../../../shared/dates.ts';
+export { daysBetween }; // one copy for every module (E40-12)
 
 /** `not_passed`: a "did not pass" completion kept as history from before failed results became attempts. */
 export type RecordStatus = 'complete' | 'due' | 'overdue' | 'not_passed';
@@ -60,10 +62,6 @@ export const STATUS: Record<RecordStatus, { label: string; color: ColorName }> =
 };
 
 export const SOURCE: Record<TrainingRecord['source'], string> = { manual: 'Entered by hand', import: 'Imported', rule: 'Assignment rule' };
-
-const DAY = 86_400_000;
-export const daysBetween = (from: string, to: string) =>
-  Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY);
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 

@@ -124,6 +124,24 @@ describe('SAML providers: settings and metadata (E02-10)', () => {
     expect((await t.app.inject({ method: 'GET', url: '/api/auth/sso/nobody/metadata' })).statusCode).toBe(404);
   });
 
+  it('never takes its entity ID or ACS address from a Host that does not name this computer (W19)', async () => {
+    const meta = (host: string) => t.app.inject({ method: 'GET', url: `/api/auth/sso/${KEY}/metadata`, headers: { host } });
+    const refused = await meta('evil.example');
+    expect(refused.statusCode).toBe(409);
+    expect(refused.json().error.code).toBe('public_url_required');
+    expect(refused.body).not.toContain('evil.example');
+    expect((await meta('[::1]:4212')).body).toContain('entityID="http://[::1]:4212/api/auth/sso/');
+    await t.db.query(`insert into settings (key, value) values ('auth.public_url', '"https://grc.example.org"'::jsonb) on conflict (key) do update set value = excluded.value`);
+    try {
+      const set = await meta('staging-grc.example.org');
+      expect(set.body).toContain(`entityID="https://grc.example.org/api/auth/sso/${KEY}/metadata"`);
+      expect(set.body).toContain(`Location="https://grc.example.org/api/auth/sso/${KEY}/acs"`);
+      expect(set.body).not.toContain('staging-grc');
+    } finally {
+      await t.db.query(`delete from settings where key = 'auth.public_url'`);
+    }
+  });
+
   it('reads identity-provider metadata pasted in, and fetches it only when outbound connections allow it', async () => {
     const pasted = await t.api.post('/api/admin/identity-providers/saml-metadata', { xml: idp.metadataXml() });
     expect(pasted.status).toBe(200);

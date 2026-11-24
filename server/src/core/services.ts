@@ -120,7 +120,7 @@ export const DEFAULT_ROLES: {
     key: 'training_coordinator', name: 'Training coordinator', enabled: true, requiresMfa: false,
     description: 'Training, the roster of people and their qualifications.',
     describe: (on) => (on('training') ? 'Training, the roster of people and their qualifications.' : 'The roster of people and their qualifications.'),
-    grants: ['training.*', 'people.*', 'policies.view'],
+    grants: ['training.*', 'people.*', 'policies.view', 'sites.view'],
   },
   // Wave 11: continuity, records and privacy, and asset roles (switched on, like the other working roles).
   {
@@ -128,7 +128,7 @@ export const DEFAULT_ROLES: {
     description: 'Business continuity and emergency management: processes, impact analyses, plans and activations.',
     grants: [
       'continuity.*', 'systems.view', 'sites.view', 'assets.view', 'fleet.view', 'vendors.view', 'people.view',
-      'exercises.view', 'actions.*', 'reports.view', 'dashboards.view',
+      'exercises.view', 'actions.*', 'reports.view', 'dashboards.view', 'policies.view',
     ],
   },
   {
@@ -144,7 +144,7 @@ export const DEFAULT_ROLES: {
       const their = words([on('tags') && 'tags', on('tags') && 'inventory counts', on('condition') && 'condition', on('condition') && 'replacement']);
       return `${sentence(words(['assets', 'sites', on('fleet') && 'vehicles'])).slice(0, -1)}${their ? `, their ${their}` : ''}.`;
     },
-    grants: ['assets.*', 'sites.*', 'fleet.*', 'projects.view', 'funding.view', 'actions.*', 'reports.view', 'dashboards.view', 'tags.*'],
+    grants: ['assets.*', 'sites.*', 'fleet.*', 'projects.view', 'funding.view', 'actions.*', 'reports.view', 'dashboards.view', 'tags.*', 'vendors.view', 'contracts.view', 'systems.view'],
   },
   {
     key: 'approver', name: 'Approver', enabled: false, requiresMfa: false,

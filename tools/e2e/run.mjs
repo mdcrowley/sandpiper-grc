@@ -12,6 +12,8 @@
 // Environment: E2E_WEB_DIST (serve this web build; default: build one, about a minute),
 // E2E_CALL_TIMEOUT_MS (a browser call that gets no answer fails after this long; default 120000),
 // E2E_BROWSER (browser path), E2E_PORT, E2E_BASE (use an instance started by serve.mjs),
+// E2E_DATABASE_URL (run on a PostgreSQL server: an account that may create databases; each run
+// uses a fresh database there and drops it afterwards, see lib/instance.mjs),
 // GRC_MODULES (limit the server modules, as for the server).
 //
 // Output (git-ignored) in tools/e2e/out: log.txt (every step), failures/*.png (a screenshot at

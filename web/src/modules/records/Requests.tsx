@@ -31,10 +31,15 @@ export function ClockChip({ clock }: { clock: Pick<Clock, 'state' | 'days_left' 
   return <StatusChip size="sm" color={clock.state === 'met' && clock.late ? 'amber' : s.color} label={label} />;
 }
 
-interface Settings { dueDays: Record<string, number>; businessDays: boolean; amberFraction: number; reviewReminderDays: number }
+interface Settings {
+  dueDays: Record<string, number>; businessDays: boolean; amberFraction: number; reviewReminderDays: number;
+  /** The working calendar working days are counted on, and its number of holidays (read only). */
+  workingCalendar?: string | null; holidays?: number;
+}
 
 function SettingsDialog({ onClose }: { onClose: () => void }) {
   const toast = useToast();
+  const { areaOn } = useAuth();
   const kinds = useLookup('records_request_kind');
   const { data, error, reload } = useFetch<Settings>('/api/records/settings');
   const [form, setForm] = useState<Settings | null>(null);
@@ -68,7 +73,8 @@ function SettingsDialog({ onClose }: { onClose: () => void }) {
                 }} />
             ))}
           </div>
-          <Switch label="Count working days only (Monday to Friday; holidays are not known)" checked={current.businessDays} onChange={(v) => set({ businessDays: v })} />
+          <Switch label="Count working days only" checked={current.businessDays} onChange={(v) => set({ businessDays: v })}
+            hint={`Working days are the open weekdays of the organization's business-hours calendar, less its holidays (${current.workingCalendar ?? 'Monday to Friday'}${current.holidays ? `, ${current.holidays} holiday${current.holidays === 1 ? '' : 's'}` : ', no holidays'}).${areaOn('tickets') ? ' It is kept with the service desk settings, under Calendars.' : ''}`} />
           <div className="form-grid">
             <NumberField label="Due soon when this share of the time is left" min={0.01} max={0.99} step={0.05} value={current.amberFraction} error={errors.amberFraction}
               onChange={(v) => set({ amberFraction: Number(v) })} hint="0.25 means the last quarter of the time to answer." />

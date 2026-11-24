@@ -34,6 +34,8 @@ invented.
 - [Rate limits](#rate-limits)
 - [Idempotency](#idempotency)
 - [Optimistic concurrency](#optimistic-concurrency)
+- [Paged answers added in wave 19](#paged-answers-added-in-wave-19)
+- [Audit log and backups](#audit-log-and-backups)
 - [Restricted records](#restricted-records)
 - [User provisioning (SCIM 2.0)](#user-provisioning-scim-20)
 - [Calendar feeds and the work-tracker bridge](#calendar-feeds-and-the-work-tracker-bridge)
@@ -458,7 +460,27 @@ PATCH /api/v1/tickets/3b0f...   If-Match: "Xq3vY0n1V0lT5bm8x0dZbA"
 If the record has changed since, the answer is `409 version_conflict` with the current `ETag`:
 read the record again, reapply your change, and send it again. `If-Match: *` matches any
 version. Without `If-Match`, the change is applied as it always is (the last change wins). The
-web application does not send it.
+web application does not send it. The `If-Match` check is made again in the save itself, so it holds
+when several server processes serve the API.
+
+## Paged answers added in wave 19
+
+- `GET /api/legal-holds/:id/records` takes `state`, `page` and `pageSize` (at most 500) and answers
+  `shown`, `page` and `pageSize`.
+- `GET /api/controls/coverage-matrix` takes `state`, `type`, `page` and `pageSize`, and answers `all`,
+  `total`, `page` and `pageSize`.
+- `GET /api/fleet/impact` takes `limit` (default 500).
+- `GET /api/fleet/coverage` and `GET /api/audits/coverage` take `page` and `pageSize` and answer
+  `total`, `page` and `pageSize`.
+- `GET /api/records/settings` adds `workingCalendar` and `holidays`.
+
+## Audit log and backups
+
+`GET /api/audit` returns `totalCapped` and `hasMore`: `total` counts at most 10,000 matching events;
+page on with `hasMore`. `actor_id` must be a uuid (400 `bad_filter` otherwise). `POST /api/backups/run`
+queues a job and returns `{ jobId, overview }`; follow it with `GET /api/backups` (`active`, `queued`,
+`runs[].progress`). Any request may answer 503 `busy` with `Retry-After` when the database is
+saturated: retry after that many seconds.
 
 ## Restricted records
 
@@ -486,6 +508,13 @@ makes a provisioning token (see
 - Errors use the SCIM error shape (`schemas`, `status`, `scimType`, `detail`). Deactivating the
   last active administrator is refused with `409` and no `scimType`; a duplicate user name is
   `409` with `scimType: "uniqueness"`.
+- An account that can administer (any `*` or `admin.` grant) may be deactivated (`DELETE` or
+  `active: false`) only when provisioning created it; changing its email address or enabling it
+  again answers 403 with `scimType: "mutability"`. `PUT /api/admin/scim/groups/:id/roles` refuses any
+  role with an `admin.` grant (400).
+- Without a trusted application address (`auth.public_url`, or a Host naming this computer), single
+  sign-on start, link and re-confirmation and `GET /api/auth/sso/:key/metadata` answer 409
+  `public_url_required`.
 
 ## Calendar feeds and the work-tracker bridge
 

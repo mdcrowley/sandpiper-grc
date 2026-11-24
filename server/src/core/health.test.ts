@@ -13,7 +13,8 @@ describe('readiness (OP-13)', () => {
   it('answers ok without signing in when the database answers', async () => {
     const res = await t.app.inject({ method: 'GET', url: '/api/ready' });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ ok: true, database: 'ok' });
+    // E40-04: also the job queue and email, one word each (no poller runs under tests).
+    expect(res.json()).toEqual({ ok: true, database: 'ok', jobs: 'off', mail: 'off' });
     expect((await t.app.inject({ method: 'GET', url: '/api/v1/ready' })).statusCode).toBe(200);
     expect((await t.app.inject({ method: 'GET', url: '/api/health' })).json()).toEqual({ ok: true });
   });
@@ -37,6 +38,28 @@ describe('readiness (OP-13)', () => {
       expect(slow.statusCode).toBe(503);
       expect(slow.json()).toEqual({ ok: false, database: 'timeout' });
       expect(errors.join('\n')).toMatch(/connection refused/);
+    } finally {
+      console.error = saved;
+      await app.close();
+    }
+  });
+
+  it('says 503 when this process has stopped running background jobs, and only then (E40-04)', async () => {
+    const app = Fastify();
+    let jobs = 'stalled';
+    app.decorate('opsState', { jobs: async () => jobs, mail: async () => 'failing' } as never);
+    registerReadiness(app, { one: (async () => ({ ok: 1 })) as never }, 50);
+    const saved = console.error;
+    console.error = () => undefined;
+    try {
+      const stalled = await app.inject({ method: 'GET', url: '/api/ready' });
+      expect(stalled.statusCode).toBe(503);
+      expect(stalled.json()).toEqual({ ok: false, database: 'ok', jobs: 'stalled', mail: 'failing' });
+      // Behind (no process runs jobs) and failing email are the installation's problems: still ready.
+      jobs = 'behind';
+      const behind = await app.inject({ method: 'GET', url: '/api/ready' });
+      expect(behind.statusCode).toBe(200);
+      expect(behind.json()).toEqual({ ok: true, database: 'ok', jobs: 'behind', mail: 'failing' });
     } finally {
       console.error = saved;
       await app.close();

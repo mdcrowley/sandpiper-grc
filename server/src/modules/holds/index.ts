@@ -75,11 +75,16 @@ async function register(ctx: ModuleContext) {
 
   // ---------------------------------------------------------------- records
 
-  app.get('/api/legal-holds/:id/records', { preHandler: ctx.requirePerm('legal.view') }, async (req) => holdRecords(ctx, (await holdFor(req)).id, req.user));
+  app.get('/api/legal-holds/:id/records', { preHandler: ctx.requirePerm('legal.view') }, async (req) => {
+    const q = req.query as Row;
+    const state = q.state === 'current' || q.state === 'released' ? q.state : 'all';
+    return holdRecords(ctx, (await holdFor(req)).id, req.user, { page: Number(q.page) || 1, pageSize: Number(q.pageSize) || undefined, state });
+  });
   ctx.describeRoute({
     method: 'GET', path: '/api/legal-holds/:id/records', tag: 'Legal holds', permission: 'legal.view',
-    summary: 'The records a legal hold covers that you may see; the counts include every held record',
-    response: '{ rows: [{ id, record_type, typeLabel, record_id, label, ref, route, deleted, via: "hand" | "query", added_at, added_by_name, released_at }], total, hidden, released }',
+    summary: 'The records a legal hold covers that you may see, a page at a time; the counts include every held record',
+    query: { state: '`current` (still held), `released` (taken off) or `all` (the default, current first)', page: 'Page number (default 1)', pageSize: 'Rows per page (default 100, at most 500)' },
+    response: '{ rows: [{ id, record_type, typeLabel, record_id, label, ref, route, deleted, via: "hand" | "query", added_at, added_by_name, released_at }], total, hidden, released, shown, page, pageSize }',
   });
 
   app.post('/api/legal-holds/:id/records', { preHandler: ctx.requirePerm('legal.edit') }, async (req, reply) => {

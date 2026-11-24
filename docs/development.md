@@ -162,6 +162,8 @@ In a plain shell: `$env:Path = "$PWD\.tools\node;$env:Path"` then `npm run <scri
 | `GRC_SEED_DIR` | `./seed` | Where the `pilot` seed profile reads its files |
 | `GRC_BACKUP_DIR` | `./backups` | Where `backup` writes and `restore` reads |
 | `GRC_WEB_DIST` | `./dist/web` | Where the web build is written and served from |
+| `GRC_MIGRATION_REPORT_SECONDS` | `15` | How often a long migration is reported in the log |
+| `GRC_METRICS_TOKEN` (or `_FILE`) | not set | Switches on `GET /api/ops/metrics` (Prometheus text format) for a bearer token of at least 24 characters ([Operations](operations.md#operational-metrics)) |
 | `GRC_MODULES` | all | Comma-separated server modules to load (server, CLI and tests) |
 | `GRC_WEB_MODULES` | all | Comma-separated web module folders to build |
 | `GRC_TIMEZONE` | the machine's zone | Organization time zone (IANA name) |
@@ -238,12 +240,14 @@ Read them in code with `ctx.settings.get(key, fallback)`, using the same fallbac
 | `vendors.exclusion_check_before_contract` | `false` | A match, or no check within `vendors.exclusion_check_months`, stops the vendor's contracts from becoming active |
 | `funding.subrecipient_reminder_days` | `30` | Days before sub-recipient monitoring is due that the monitor is reminded |
 | `records.request_due_days` | `{ "*": 20 }` | Days to answer a records request, by request kind (`*` is every kind not named); no jurisdiction's deadline is built in |
-| `records.business_days` | `false` | Count working days (Monday to Friday) instead of calendar days |
+| `records.business_days` | `false` | Count working days on the organization's working calendar (the service desk's Business hours calendar: its open weekdays and holidays, `core/working-days.ts`) instead of calendar days |
 | `records.clock_amber_fraction` | `0.25` | A request's clock turns amber when this fraction of the time to answer remains |
 | `privacy.review_reminder_days` | `30` | Days before an approved privacy impact assessment's review that its owner is reminded |
 | `safety.clock_amber_fraction` | `0.25` | A safety notification clock turns amber when this fraction of its window remains |
 | `funding.certification_month` | `12` | Month in which next year's certification drafts are copied forward |
-| `retention.audit_months` | `84` | Audit log retention, recorded for the retention schedule (nothing deletes audit events) |
+| `retention.audit_months` | `84` | Audit log retention, recorded for the retention schedule; events are removed only by the audit archive when switched on |
+| `audit.archive` | `{ enabled: false, olderThanMonths: 84, folder: '' }` | Audit log archive (Audit log > Archive old events; recent password); nothing is removed while off ([Operations](operations.md#audit-log-archive)) |
+| `backups.schedule` `.pgDumpFolder`, `.pgDumpMaxAgeHours` | `''`, `26` | PostgreSQL: folder of `deploy/postgres/pg-backup.sh` dumps checked by the server, and their age limit |
 | `retention.webhook_delivery_days` | `30` | Finished webhook deliveries are removed after this many days (pending ones never); delivered ones lose their content at once |
 | `retention.mail_log_days` | `180` | Outgoing message log (`mail_log`) rows that are no longer queued or retrying are removed after this many days |
 | `retention.mail_inbound_log_days` | `180` | Incoming email log (`mail_inbound_log`) rows are removed after this many days |
@@ -336,7 +340,8 @@ server/src/test/helpers.ts    testApp() - in-memory app with a signed-in admin
 web/src/core/                 shell, design system, generic list/detail/form, api client (see web/src/core/README.md)
 web/src/modules/<key>/        one folder per module: index.tsx (+ pages)
 shared/                       code the server, the web and the mobile app share: tag values and formats
-                              (tag-format.ts), inspection completion rules (inspection-rules.ts), API shapes (asset-tags-api.ts, mobile-api.ts, push-api.ts); no imports
+                              (tag-format.ts), inspection completion rules (inspection-rules.ts), calendar-date helpers (dates.ts), working-day
+                              arithmetic (working-days.ts), project scoring (project-scoring.ts), the CSV formula guard (csv-guard.ts), API shapes (asset-tags-api.ts, mobile-api.ts, push-api.ts); no imports
                               beyond shared/, tested by the root vitest
 mobile/                       the iPhone and Android app (Expo, React Native): its own package.json and
                               lockfile, not part of the root install, typecheck or tests (see below)
@@ -363,7 +368,9 @@ TypeScript ESM, run by `tsx`. Relative imports carry the `.ts` extension. No enu
 Dates: build "today" with `dayInZone(offsetDays)` (or `todayInZone()`) from
 `core/timezone.ts`, never from the machine's clock or UTC (`new Date().getDate()`,
 `toISOString().slice(0, 10)`): those differ from the organization's date for part of
-every day, and tests then fail at some hours or on a machine set to UTC.
+every day, and tests then fail at some hours or on a machine set to UTC. Date arithmetic uses
+`shared/dates.ts` (`addDays`, `addMonths`, `daysBetween`, …), never a copy; a deadline in working
+days uses `dueAfter`/`workingCalendar` from `core/working-days.ts`.
 
 ### Module shape
 
@@ -465,7 +472,11 @@ Services other modules may offer are Fastify decorators; check before use:
   delayMs?, maxAttempts?, rerunIfRunning? })` (a second job with the same `key` while one waits is
   skipped; with `rerunIfRunning: true`, a job with that key that is already running is asked to run
   once more after it finishes (`jobs.rerun`), for hook-queued work that reads its list when it starts,
-  such as push delivery and tracker sends)
+  such as push delivery and tracker sends). Core also keeps `core.ops_watch` (alerts administrators
+  once per problem when background work keeps failing; `app.opsState.alerts.raise(key, { title,
+  detail, route })` / `.clear([key])` for a module's own problems), `core.session_cleanup` and
+  `core.audit_archive`. A database connection that does not come free answers 503 `busy` with
+  `Retry-After` (`DatabaseBusyError`, `core/db.ts`)
   and `app.jobs.schedule(name, { type, every })` for recurring work. For a module's
   recurring work use `await scheduleWork(ctx, '<module>.<work>', () => run(), { every,
   firstRunInMs? })` (`core/jobs`), never `setInterval`: it registers the handler and a
@@ -578,6 +589,13 @@ with effects outside the database (a file, an outside call) checks `inTrial()` t
 webhook event that is not a record change, add it to `WEBHOOK_EVENTS` in `core/webhooks.ts`
 and call `emitWebhookEvent(ctx.app, { event, data, record?, req? })`.
 
+A record save through the resource engine (create, update, delete) runs in `ctx.db.atomic(fn)`
+(E40-03): its hooks' queries on `ctx.db` go into one transaction with the row and its audit event,
+and a `db.tx` inside is a savepoint. Effects outside the database wait for the commit: wrap them in
+`afterCommit(fn)` from `core/db.ts` (the job queue does). `inTrial()` is also true while the save's
+transaction is open. Record-change listeners run after the commit. Linking a record (a `ref` field)
+needs view permission on the linked area, except on the portal and mobile sync routes.
+
 Field types: `text`, `longtext`, `number`, `currency`, `date`, `datetime`, `boolean`,
 `lookup` (needs `list`), `user`, `ref` (needs `to`), `json`. Field names are column names.
 
@@ -618,7 +636,8 @@ Generated routes:
 | Route | Purpose |
 |---|---|
 | `GET /api/health` | `{ ok: true }` (public) |
-| `GET /api/ready` | `{ ok: true, database: "ok" }`, or 503 `{ ok: false, database: "timeout" \| "error" }` when the database does not answer within 2 s (public; container health check) |
+| `GET /api/ready` | `{ ok, database, jobs, mail }` (jobs: `ok`, `off`, `behind` or `stalled`; mail: `ok`, `off` or `failing`); 503 when the database does not answer within 2 s or this process's job poller is stalled (public; container health check) |
+| `GET /api/ops/metrics` | Prometheus metrics, off unless `GRC_METRICS_TOKEN` is set; bearer token (public route, own token) |
 | `GET /api/branding`, `/api/branding/logo/:variant` | The organization's public look: names, colors as tokens per theme, logo addresses (public; `publicBranding` in `core/organization.ts` never includes the address or contacts) |
 | `GET /api/auth/state` | `{ appName, branding, timeZone, currency, setupRequired, user, permissions, features, areasOff, pilot, mfa... }` (public) |
 | `POST /api/setup` | First-run administrator (public, only while no users exist) |
@@ -660,7 +679,8 @@ walks every route under both spellings. List paging uses `pageOf(query)` from
 
 **Conventions** (`core/api/conventions.ts`, applied centrally to generated routes):
 `ETag` on one record, and `If-Match` on a `PATCH` or `DELETE` refused with 409
-`version_conflict` when the record has changed; `Idempotency-Key` on a create replays the
+`version_conflict` when the record has changed (checked in the save itself, so it holds across
+server processes); `Idempotency-Key` on a create replays the
 first answer for 24 hours; list answers carry `Link` and `X-Total-Count`; requests made
 with a token carry `RateLimit-*` headers; every answer carries `X-Request-Id`, which is
 recorded on audit events as `request_id`.
@@ -824,13 +844,19 @@ The test commands:
   browser through every route (checking that every menu label matches the title of the page
   it opens), every role, every record type, the hand-written dialogs and
   the keyboard, module by module, every page with the optional parts switched off, and the
-  Lifecycles page, and then one suite per newer module area (`01-smoke` to `20-followups`). Options
+  Lifecycles page, and then one suite per newer module area (`01-smoke` to `23-portal`; `23-portal` takes a person with only the Requester role through the self-service portal at 390 and 1440 pixels). Options
   after `--`: `--only smoke,roles` (some suites), `--skip roles` (every suite but these; the
   numbered name, such as `03-records`, picks one of two suites with the same name), `--grep ticket` (tests whose name
   contains it), `--headed` (show the browser), `--keep` (keep the scratch data folder).
   Logs and screenshots go to `tools/e2e/out`. `node tools/e2e/serve.mjs` keeps an
   instance running, and `E2E_BASE` points the tests at it; `E2E_BROWSER` picks the
-  browser and `E2E_PORT` the port.
+  browser and `E2E_PORT` the port. `E2E_DATABASE_URL` runs the instance on a PostgreSQL server
+  instead of the embedded database: give an account that may create databases; each run creates a
+  fresh `grc_e2e_…` database there and drops it afterward (`--keep` keeps it). A `GRC_DATABASE_URL`
+  already in the environment is never passed to the test instance.
+- `server/src/core/route-sweep.test.ts` calls every registered route signed out, as a person with no
+  role, and with every optional area off; a new route is swept automatically. A route that cannot
+  follow its rules goes on one of the test's exception lists with its reason.
 - `npm run test:a11y`: the accessibility audit. It runs axe-core (WCAG 2.1 A and AA) on
   every route, with every optional area switched on (the portal and the mobile app start off), in light and dark at 1440 and 820 pixels wide (`--quick`: light at 1440
   only; `--routes /a,/b`; `--no-fail`), and writes `tools/a11y/out/report.md`. It fails
@@ -843,8 +869,8 @@ The test commands:
   tests. See [Accessibility](accessibility.md#screen-reader-run).
 
 GitHub Actions runs the typecheck, tests and build on Windows and Linux, the tests through
-the PostgreSQL wire protocol, the container build and smoke test, and the browser suite
-followed by the accessibility audit, which fails the build on a finding not yet raised as
+the PostgreSQL wire protocol, the container build and smoke test, and the browser suite (with
+the smoke, records and portal suites run again on PostgreSQL 17) followed by the accessibility audit, which fails the build on a finding not yet raised as
 an issue in `tools/a11y/known.json`.
 
 ### Actions (shared contract)

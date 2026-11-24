@@ -28,6 +28,7 @@ import { dayInZone } from '../../core/timezone.ts';
 import { tokenHash } from '../../core/tokens.ts';
 import { sensitive } from '../admin/shared.ts';
 import { writeCalendar, type IcsEvent } from './ics.ts';
+import { addDays } from '../../../../shared/dates.ts';
 
 export const SETTING_CALENDAR_ENABLED = 'feeds.calendar_enabled';
 export const FEED_PREFIX = 'grc_cal_';
@@ -112,12 +113,6 @@ export async function feedEvents(ctx: ModuleContext, user: SessionUser, feed: Fe
     if (out.length >= MAX_EVENTS) break;
   }
   return out.sort((a, b) => a.start.localeCompare(b.start) || a.uid.localeCompare(b.uid));
-}
-
-function addDays(day: string, n: number): string {
-  const d = new Date(`${day}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
 }
 
 function present(r: Row) {

@@ -54,6 +54,12 @@ export function SamlServiceProviderBox({ data, provider, keyName, spEntityId, re
         Most identity providers read them from the metadata address in one step. Otherwise copy the entity ID and the assertion
         consumer service (ACS) address into its application settings, with the HTTP-POST binding.
       </p>
+      {!data.callbackBase && (
+        <Notice tone="danger" role="alert">
+          Set the application address on the Sign-in providers page first: these addresses are made from it, and the metadata and
+          sign-ins are refused until it is set.
+        </Notice>
+      )}
       <CopyBox label="Entity ID (audience)" value={sp.entityId} testId="saml-entity-id" />
       <CopyBox label="Assertion consumer service (ACS) address" value={sp.acsUrl} testId="saml-acs" />
       <CopyBox label="Metadata address" value={sp.metadataUrl} testId="saml-metadata-url" />

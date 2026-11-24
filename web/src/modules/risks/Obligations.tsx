@@ -6,6 +6,7 @@ import {
 } from '../../core';
 import type { ListResult, RecordContext, Row, StatsResult } from '../../core';
 import { DueChip } from './scales';
+import { addDays } from '../../../../shared/dates.ts';
 
 // The attachments module supplies the evidence panel. It is found at build time and loaded on
 // first use, so this module still builds and runs when that folder is absent.
@@ -20,8 +21,6 @@ const AttachmentsPanel = load ? lazy(() => load().then((m) => ({ default: m.Atta
 const controlsLoaders = import.meta.glob<{ ControlsPanel: ComponentType<{ recordType: string; recordId: string }> }>('../controls/ControlsPanel.tsx');
 const loadControls = Object.values(controlsLoaders)[0];
 const ControlsPanel = loadControls ? lazy(() => loadControls().then((m) => ({ default: m.ControlsPanel }))) : null;
-
-const addDays = (ymd: string, n: number) => new Date(Date.parse(`${ymd}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 
 /** One entry of an obligation's "Applies to": a name, or a record of another type. */
 interface AppliesTo { label: string; type?: string; id?: string }

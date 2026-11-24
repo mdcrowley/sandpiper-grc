@@ -1,6 +1,6 @@
 // Administration > Background jobs (/admin/jobs): what the job queue has run, what failed, and the schedules.
 import { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   api, ApiError, Button, Card, Drawer, EmptyState, ErrorState, errorMessage, formatDateTime, KeyValue, Loading, PageHeader, qs, relativeTime,
   Select, Stat, StatusChip, TableWrap, useFetch, useToast,
@@ -109,6 +109,31 @@ function JobDrawer({ id, onClose, onChanged }: { id: string; onClose: () => void
   );
 }
 
+/** A problem with background work that the administrators were told about (E40-04). */
+interface OpsAlert { key: string; title: string; detail: string | null; route: string | null; opened_at: string; last_seen_at: string; notified_at: string | null; occurrences: number }
+
+/** Problems still open: background work that keeps failing. Each was told to administrators once. */
+function OpenProblems() {
+  const { data } = useFetch<{ alerts: OpsAlert[] }>('/api/admin/jobs/alerts');
+  if (!data || data.alerts.length === 0) return null;
+  return (
+    <Card title="Problems being watched">
+      <p className="muted">Administrators were told about each of these once, in the application and by email. Each clears by itself when the work succeeds again, and is told again if it comes back.</p>
+      <ul className="ml-problems">
+        {data.alerts.map((a) => (
+          <li key={a.key} className="notice notice-warn">
+            <div>
+              <strong>{a.title}</strong>
+              {a.detail && <div>{a.detail}</div>}
+              <div className="muted">Since {formatDateTime(a.opened_at)}; last seen {relativeTime(a.last_seen_at)}{a.route && a.route !== '/admin/jobs' ? <> · <Link to={a.route}>Open</Link></> : null}</div>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
 export function JobsPage() {
   const toast = useToast();
   const [search, setSearch] = useSearchParams();
@@ -152,6 +177,8 @@ export function JobsPage() {
           {!data.pollerRunning && (
             <p className="notice">The queue is not being worked on by this server process (it starts when the server starts listening). Jobs still run when you use <strong>Run now</strong> or <strong>Try again now</strong>.</p>
           )}
+
+          <OpenProblems />
 
           <Card title="Schedules" flush>
             {data.schedules.length === 0 ? <EmptyState icon="clock" title="No schedules" message="Parts of the application add their own regular work here." /> : (

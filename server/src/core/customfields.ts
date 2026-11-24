@@ -55,17 +55,25 @@ export function customFieldDef(f: CustomField): FieldDef {
   };
 }
 
+/**
+ * How long one process trusts the definitions it read (E40-01): a change made in this process applies
+ * at once (`invalidate`), one made by another server process on the same database within this time.
+ */
+const DEFS_TTL_MS = 5_000;
+
 export function makeCustomFields(db: Db) {
   let cache: Map<string, CustomField[]> | null = null;
+  let readAt = 0;
 
   async function load(): Promise<Map<string, CustomField[]>> {
-    if (cache) return cache;
+    if (cache && Date.now() - readAt < DEFS_TTL_MS) return cache;
     const rows = await db.query<CustomField>(
       `select id, record_type, key, label, type, required, list_key, ref_type, section, position, help, active
        from custom_fields where active order by record_type, position, label`);
     const map = new Map<string, CustomField[]>();
     for (const r of rows) (map.get(r.record_type) ?? map.set(r.record_type, []).get(r.record_type)!).push(r);
     cache = map;
+    readAt = Date.now();
     return map;
   }
 

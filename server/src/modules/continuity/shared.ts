@@ -2,22 +2,8 @@
 // and the record types they point at, and number checks for hours.
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
-
-/** `YYYY-MM-DD` plus whole days. */
-export function addDays(ymd: string, days: number): string {
-  const d = new Date(`${ymd}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
-}
-
-/** `YYYY-MM-DD` plus whole months; the 31st becomes the last day of a shorter month. */
-export function addMonths(ymd: string, months: number): string {
-  const [y, m, d] = ymd.split('-').map(Number);
-  const first = new Date(Date.UTC(y, m - 1 + months, 1));
-  const last = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0)).getUTCDate();
-  first.setUTCDate(Math.min(d, last));
-  return first.toISOString().slice(0, 10);
-}
+import { addDays, addMonths } from '../../../../shared/dates.ts';
+export { addDays, addMonths }; // one copy for every module (E40-12)
 
 /** A date column read back as `YYYY-MM-DD` (drivers give strings or Date objects). */
 export function ymd(v: unknown): string | null {

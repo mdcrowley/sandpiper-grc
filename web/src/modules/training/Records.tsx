@@ -5,23 +5,24 @@ import {
   Button, Card, EmptyState, ErrorState, formatDate, Loading, PageHeader, qs, Select, TableWrap, TextField, useAuth, useDebounced, useFetch,
 } from '../../core';
 import type { ListResult, Row } from '../../core';
+import { csvCell } from '../../../../shared/csv-guard.ts';
 import { RecordStatusChip, ResultCell, SOURCE, STATUS, WhenCell } from './shared';
 import type { Audiences, TrainingRecord } from './shared';
 
 interface RecordList { today: string; rows: TrainingRecord[]; total: number }
 
-function downloadCsv(rows: TrainingRecord[]) {
-  const cell = (v: unknown) => {
-    let s = v === null || v === undefined ? '' : String(v);
-    if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
-    return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
+/** The CSV text of training records. Cells go through the server's formula guard (shared/csv-guard.ts, W19). */
+export function trainingRecordsCsv(rows: TrainingRecord[]): string {
   const head = ['Person', 'Email', 'Department', 'Course', 'Status', 'Assigned on', 'Due on', 'Completed on', 'Score', 'Result', 'Evidence note', 'Source'];
   const lines = rows.map((r) => [
     r.person, r.email, r.department, r.course_title, STATUS[r.status].label, r.assigned_on, r.due_on, r.completed_on, r.score, r.result,
     r.evidence_note, SOURCE[r.source],
-  ].map(cell).join(','));
-  const blob = new Blob(['﻿' + [head.join(','), ...lines].join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  ].map(csvCell).join(','));
+  return [head.map(csvCell).join(','), ...lines].join('\r\n');
+}
+
+function downloadCsv(rows: TrainingRecord[]) {
+  const blob = new Blob(['﻿' + trainingRecordsCsv(rows)], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = 'training-records.csv';

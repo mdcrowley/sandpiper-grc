@@ -2,14 +2,17 @@ import { Fragment, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   api, Button, Card, DateField, EmptyState, ErrorState, errorMessage, formatDate, formatDateTime, humanize, Icon, IconButton, Loading,
-  PageHeader, qs, relativeTime, Select, TableWrap, TextField, todayInZone, useDebounced, useFetch, useMeta, UserPicker, useToast,
+  PageHeader, qs, relativeTime, Select, TableWrap, TextField, todayInZone, useAuth, useDebounced, useFetch, useMeta, UserPicker, useToast,
 } from '../../core';
 import type { ListResult } from '../../core';
+import { AuditArchiveCard } from './AuditArchive';
 import { AuditDiff, FilterPills, Pager } from './common';
 import type { AuditEvent, FilterPill } from './common';
 
 /** An audit event with the token and request that made it, when there were any. */
 type Event = AuditEvent & { token_name?: string | null; request_id?: string | null };
+/** The server counts at most 10,000 matching events (E40-06); beyond that `totalCapped` says "more than". */
+type AuditPage = ListResult<Event> & { totalCapped?: boolean; hasMore?: boolean };
 
 const PAGE_SIZE = 50;
 const CORE_TYPES = ['user', 'role', 'setting', 'lookup', 'department'];
@@ -18,6 +21,7 @@ const CORE_ROUTES: Record<string, string> = { user: '/admin/users', role: '/admi
 
 export function AuditLogPage() {
   const toast = useToast();
+  const auth = useAuth();
   const { resources } = useMeta();
   // A link from elsewhere (a person's page, for example) may arrive with filters already chosen.
   const [params] = useSearchParams();
@@ -41,8 +45,10 @@ export function AuditLogPage() {
     q: search, action: actionSearch, record_type: recordType, record_id: recordId, actor_id: actor?.id, request_id: requestSearch,
     from: from ? `${from} 00:00:00` : '', to: to ? `${to} 23:59:59.999` : '',
   };
-  const { data, error, loading, reload } = useFetch<ListResult<Event>>(`/api/audit${qs({ ...filters, page, pageSize: PAGE_SIZE })}`, { keepPrevious: true });
-  const pages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
+  const { data, error, loading, reload } = useFetch<AuditPage>(`/api/audit${qs({ ...filters, page, pageSize: PAGE_SIZE })}`, { keepPrevious: true });
+  const capped = data?.totalCapped === true;
+  // Beyond the count cap the pages are not counted: "Older" follows hasMore.
+  const pages = !data ? 1 : capped ? (data.hasMore ? page + 1 : page) : Math.max(1, Math.ceil(data.total / PAGE_SIZE));
   const first = <T,>(setter: (v: T) => void) => (v: T) => { setter(v); setPage(1); };
   const clear = () => { setQ(''); setAction(''); setRecordType(''); setRecordId(''); setRequestId(''); setActor(null); setFrom(''); setTo(''); setPage(1); };
   const typeLabel = (t: string) => resources?.[t]?.label ?? humanize(t);
@@ -188,12 +194,15 @@ export function AuditLogPage() {
                 </table>
               </TableWrap>
               <Pager
-                summary={`${data.total.toLocaleString('en-US')} ${data.total === 1 ? 'event' : 'events'}, newest first`}
-                page={page} pages={pages} onPage={setPage} previous="Newer" next="Older"
+                summary={capped
+                  ? `More than ${data.total.toLocaleString('en-US')} events, newest first`
+                  : `${data.total.toLocaleString('en-US')} ${data.total === 1 ? 'event' : 'events'}, newest first`}
+                page={page} pages={pages} pagesKnown={!capped} onPage={setPage} previous="Newer" next="Older"
               />
             </>
           )}
       </Card>
+      {auth.can('admin.administer') && <AuditArchiveCard />}
     </>
   );
 }

@@ -1,10 +1,11 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { guardFormula } from './export/csv.ts';
 import { CURRENCY } from './config.ts';
-import { inTrial, type Db } from './db.ts';
-import { fail, UUID_RE } from './errors.ts';
+import { afterCommit, type Db } from './db.ts';
+import { ApiError, fail, UUID_RE } from './errors.ts';
 import { assertNotHeld } from './holds.ts';
-import { pageOf } from './api/conventions.ts';
+import { etagOf, ifMatchAccepts, pageOf } from './api/conventions.ts';
+import { routePattern } from './api/versioning.ts';
 import type { CreateOptions, FieldDef, ResourceDef, ResourceRegistry, Row, SessionUser, UpdateOptions } from './module.ts';
 import { CUSTOM_PREFIX, customFieldDef, customName, type CustomField, type CustomFields } from './customfields.ts';
 import { makeLifecycles, type HeldMove, type Lifecycles } from './lifecycle.ts';
@@ -16,6 +17,19 @@ import { registerExportRoutes } from './export/routes.ts';
 import { registerImportRoutes } from './import/routes.ts';
 
 const IDENT = /^[a-z_][a-z0-9_]*$/;
+
+/**
+ * Routes that save records on a person's behalf, linking records the route itself chose or offered
+ * (the self-service portal links a catalog item and the requester; mobile sync replays work on
+ * records its package gave the device). There a link still has to be to a record the person may see,
+ * but not to one of an area they may view: a requester holds portal permissions, not tickets.view
+ * (E40-13).
+ */
+const ON_BEHALF_ROUTES = [/^\/api\/portal\//, /^\/api\/mobile\/sync$/];
+const onBehalf = (req: FastifyRequest) => {
+  const route = routePattern(req);
+  return ON_BEHALF_ROUTES.some((r) => r.test(route));
+};
 const CODE = CURRENCY.replace(/[^A-Z]/g, '') || 'USD';
 const CURRENCY_CODE_RE = new RegExp(`^${CODE}|${CODE}$`, 'i');
 const STD_FIELDS: Record<string, FieldDef> = {
@@ -85,12 +99,41 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
   const lifecycles = makeLifecycles({ db, lookups, customDefs: (type) => custom.defs(type) });
   if (!app.hasDecorator('lifecycles')) app.decorate('lifecycles', lifecycles);
 
-  /** Tells listeners (webhooks, watchers) about a change. A failing listener never fails the change. */
+  /**
+   * Tells listeners (webhooks, watchers) about a change once it is committed (E40-03): a save that is
+   * rolled back, and a rolled-back check (E13-22), tell nobody. A failing listener never fails the
+   * change.
+   */
   async function emit(change: RecordChange): Promise<void> {
-    if (inTrial()) return; // a rolled-back check (E13-22) tells nobody
-    for (const fn of listeners) {
-      try { await fn(change); } catch (err) { console.error(`[events] listener failed on ${change.def.type}.${change.action}:`, err); }
-    }
+    await afterCommit(async () => {
+      for (const fn of listeners) {
+        try { await fn(change); } catch (err) { console.error(`[events] listener failed on ${change.def.type}.${change.action}:`, err); }
+      }
+    });
+  }
+
+  /**
+   * A record save as one transaction (E40-03): the row, its custom values, its history and audit
+   * event, and the type's hooks (whose queries on the shared handle go into it, core/db.ts) commit
+   * together or not at all. Listeners and other effects outside the database run after the commit.
+   */
+  const atomic = <T>(fn: () => Promise<T>): Promise<T> => (db.atomic ? db.atomic(fn) : fn());
+
+  /** `updated_at` matches a version read earlier, to the millisecond the ETag is made from (JavaScript dates hold no more). */
+  const sameVersion = (mark: string) => `date_trunc('milliseconds', updated_at) = date_trunc('milliseconds', ${mark}::timestamptz)`;
+  const versionConflict = (def: ResourceDef) =>
+    new ApiError(409, 'version_conflict', `This ${def.label.toLowerCase()} has changed since you read it. Fetch it again, then reapply your change.`);
+
+  /**
+   * The If-Match check (E40-01), made against the row as locked for the save: with several server
+   * processes the early check in conventions.ts may have read an older row. Answers the version the
+   * write must still find, or null when this save carries no If-Match for this record.
+   */
+  function checkVersion(def: ResourceDef, row: Row, req: FastifyRequest | null): unknown {
+    const want = req?.recordIfMatch;
+    if (!want || want.type !== def.type || want.id !== row.id) return null;
+    if (!ifMatchAccepts(want.header, etagOf(row.id, row.updated_at))) throw versionConflict(def);
+    return row.updated_at;
   }
 
   // ---------- custom fields and search index ----------
@@ -389,6 +432,18 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
   }
 
   /**
+   * `find`, locking the row until the save's transaction ends (E40-01): another save of the same
+   * record, in this process or another one on the same database, waits and then reads this one's
+   * result, so neither overwrites the other (custom values included).
+   */
+  async function findForSave(def: ResourceDef, id: string, user?: SessionUser | null): Promise<Row | undefined> {
+    if (!UUID_RE.test(id)) return undefined;
+    return db.one(
+      `select * from ${def.table} where id = $1 and deleted_at is null and ${visibilitySql(def, user)} for update`, [id],
+    );
+  }
+
+  /**
    * The type's lifecycle rules (E14-31): a person's save that makes a move the rules do not allow,
    * or leaves a field the new status needs empty, is refused like any other invalid field. It runs
    * before the module's own hooks, which still apply their own rules afterwards.
@@ -400,26 +455,37 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
 
   /**
    * A person may link only to records they can see (wave 11 review): a ref field naming a record the
-   * caller cannot see (restricted, a row rule, removed) or that does not exist is refused, the same way. Values that
+   * caller cannot see (restricted, a row rule, removed, or in an area they may not view: E40-13) or
+   * that does not exist is refused, the same way. Values that
    * do not change on an update are not checked again, and system work is exempt.
    */
   async function checkRefsVisible(def: ResourceDef, data: Row, req: FastifyRequest | null, existing?: Row): Promise<void> {
     if (!req?.user) return;
     const fields: Record<string, string> = {};
-    for (const [name, f] of Object.entries(def.fields)) {
+    // Reference custom fields (`cf_<key>`, stored in `custom`) follow the same rule (W19 review).
+    const customRefs = Object.keys(data).some((k) => k.startsWith(CUSTOM_PREFIX))
+      ? Object.entries(await custom.defs(def.type)).filter(([, f]) => f.type === 'ref') : [];
+    const stored = (name: string) => (name.startsWith(CUSTOM_PREFIX) ? ((existing?.custom ?? {}) as Row)[name.slice(CUSTOM_PREFIX.length)] : existing?.[name]);
+    for (const [name, f] of [...Object.entries(def.fields), ...customRefs]) {
       if (f.type !== 'ref' || !f.to || !(name in data)) continue;
       const v = data[name];
-      if (v === null || v === undefined || v === '' || (existing && existing[name] === v)) continue;
+      if (v === null || v === undefined || v === '' || (existing && stored(name) === v)) continue;
       const target = registry.get(f.to);
       if (!target) continue;
-      // Hidden and missing answer alike, so the refusal does not tell that a hidden record exists.
-      if (!(await find(f.to, String(v), req.user))) fields[name] = `${target.label} not found.`;
+      // Hidden and missing answer alike, so the refusal does not tell that a hidden record exists. A
+      // person without view on the linked record's area cannot link to it either (E40-13).
+      if ((!mayAccess(req.user, target, 'view') && !onBehalf(req)) || !(await find(f.to, String(v), req.user))) fields[name] = `${target.label} not found.`;
     }
     if (Object.keys(fields).length) fail(400, 'validation', 'Check the highlighted fields.', fields);
   }
 
   async function create(type: string, input: Row, req: FastifyRequest | null = null, opts: CreateOptions = {}): Promise<Row> {
     const def = need(type);
+    return atomic(() => createNow(def, input, req, opts));
+  }
+
+  async function createNow(def: ResourceDef, input: Row, req: FastifyRequest | null, opts: CreateOptions): Promise<Row> {
+    const type = def.type;
     if (def.hooks?.prepare) input = await def.hooks.prepare(req, { ...input }, null);
     let data = await validate(def, input, 'create', !req, opts.skipCustomRequired === true);
     await checkRefsVisible(def, data, req);
@@ -449,7 +515,13 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
 
   async function update(type: string, id: string, input: Row, req: FastifyRequest | null = null, opts: UpdateOptions = {}): Promise<Row> {
     const def = need(type);
-    const existing = (await find(type, id, req?.user)) ?? fail(404, 'not_found', `${def.label} not found.`);
+    return atomic(() => updateNow(def, id, input, req, opts));
+  }
+
+  async function updateNow(def: ResourceDef, id: string, input: Row, req: FastifyRequest | null, opts: UpdateOptions): Promise<Row> {
+    const type = def.type;
+    const existing = (await findForSave(def, id, req?.user)) ?? fail(404, 'not_found', `${def.label} not found.`);
+    const version = checkVersion(def, existing, req);
     if (def.hooks?.prepare) input = await def.hooks.prepare(req, { ...input }, existing);
     let patch = await validate(def, input, 'update', !req);
     await checkRefsVisible(def, patch, req, existing);
@@ -473,33 +545,44 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
         after[k] = v;
       }
     }
-    // Custom values: compared one by one, stored together in the `custom` column.
+    // Custom values: compared one by one, stored together in the `custom` column. Only the changed
+    // keys are written, merged into the column by the statement itself (E40-01), so a save that
+    // changes one custom value never puts back an older copy of the others.
     const labels: Record<string, string> = {};
     const set: Row = { ...after };
+    const customSet: Row = {};
+    const customRemoved: string[] = [];
     if (customValues) {
-      const stored = { ...((existing.custom ?? {}) as Row) };
+      const stored = (existing.custom ?? {}) as Row;
       const customLabels = await custom.defs(type);
-      let changed = false;
       for (const [k, v] of Object.entries(customValues)) {
         if (JSON.stringify(stored[k] ?? null) === JSON.stringify(v ?? null)) continue;
         before[`${CUSTOM_PREFIX}${k}`] = stored[k] ?? null;
         after[`${CUSTOM_PREFIX}${k}`] = v;
         labels[`${CUSTOM_PREFIX}${k}`] = customLabels[`${CUSTOM_PREFIX}${k}`]?.label ?? k;
-        if (v === null) delete stored[k]; else stored[k] = v;
-        changed = true;
+        if (v === null) customRemoved.push(k); else customSet[k] = v;
       }
-      if (changed) set.custom = stored;
     }
     if (!Object.keys(after).length) {
       if (held) return holdMove(def, existing, held, req!);
       return existing;
     }
+    for (const k of Object.keys(set)) if (k.startsWith(CUSTOM_PREFIX)) delete set[k];
     const { cols, marks, params } = sqlValues(set, 3);
-    const row = (await db.one<Row>(
-      `update ${def.table} set ${cols.map((c, i) => `${c} = ${marks[i]}`).join(', ')},
-         updated_at = now(), updated_by = $2 where id = $1 returning *`,
-      [id, req?.user?.id ?? null, ...params],
-    ))!;
+    const assignments = cols.map((c, i) => `${c} = ${marks[i]}`);
+    const extra: unknown[] = [];
+    const param = (v: unknown) => { extra.push(v); return `$${3 + params.length + extra.length - 1}`; };
+    if (Object.keys(customSet).length || customRemoved.length) {
+      assignments.push(`custom = (coalesce(custom, '{}'::jsonb) || ${param(JSON.stringify(customSet))}::jsonb) - ${param(customRemoved)}::text[]`);
+    }
+    // With If-Match, the version is part of the statement (E40-01): a row changed meanwhile is not written.
+    const versionCond = version === null ? '' : ` and ${sameVersion(param(version))}`;
+    const row = await db.one<Row>(
+      `update ${def.table} set ${[...assignments, 'updated_at = now()', 'updated_by = $2'].join(', ')}
+       where id = $1 and deleted_at is null${versionCond} returning *`,
+      [id, req?.user?.id ?? null, ...params, ...extra],
+    );
+    if (!row) throw versionConflict(def);
     await audit(req, {
       action: `${type}.update`, recordType: type, recordId: id,
       summary: `${def.label} updated: ${labelOf(def, row)} (${Object.keys(after).map((k) => def.fields[k]?.label ?? labels[k] ?? k).join(', ')})${opts.via ? ` from ${opts.via}` : ''}`,
@@ -882,16 +965,23 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
 
     app.delete(`${def.path}/:id`, async (req) => {
       authorize(req, def, 'delete');
-      const id = (req.params as any).id;
-      const row = (await find(def.type, id, req.user)) ?? fail(404, 'not_found', `${def.label} not found.`);
-      // A record under a legal hold is never deleted (wave 11 C1; bulk delete comes through here too).
-      await assertNotHeld(db, def.type, id, 'delete');
-      await db.query(`update ${def.table} set deleted_at = now(), updated_by = $2 where id = $1`, [id, req.user!.id]);
-      await audit(req, {
-        action: `${def.type}.delete`, recordType: def.type, recordId: id,
-        summary: `${def.label} deleted: ${labelOf(def, row)}`, before: { ...pickFields(def, row), ...customOf(row) },
+      const id = String((req.params as any).id ?? '');
+      // One transaction, as a save (E40-03); the row is locked, and If-Match checked against it (E40-01).
+      await atomic(async () => {
+        const row = (await findForSave(def, id, req.user)) ?? fail(404, 'not_found', `${def.label} not found.`);
+        const version = checkVersion(def, row, req);
+        // A record under a legal hold is never deleted (wave 11 C1; bulk delete comes through here too).
+        await assertNotHeld(db, def.type, id, 'delete');
+        const done = await db.one(
+          `update ${def.table} set deleted_at = now(), updated_by = $2 where id = $1 and deleted_at is null${version === null ? '' : ` and ${sameVersion('$3')}`} returning id`,
+          version === null ? [id, req.user!.id] : [id, req.user!.id, version]);
+        if (!done) throw versionConflict(def);
+        await audit(req, {
+          action: `${def.type}.delete`, recordType: def.type, recordId: id,
+          summary: `${def.label} deleted: ${labelOf(def, row)}`, before: { ...pickFields(def, row), ...customOf(row) },
+        });
+        await emit({ action: 'delete', def, row, req });
       });
-      await emit({ action: 'delete', def, row, req });
       return { ok: true };
     });
   }

@@ -66,11 +66,24 @@ export interface BackupSettings {
   s3Prefix: string;
   encrypt: boolean;
   includeSecretKey: boolean;
+  /** PostgreSQL server: where deploy/postgres/pg-backup.sh writes its dumps, as the server sees it ('' = not checked). */
+  pgDumpFolder: string;
+  /** Hours after which the newest checked dump is too old. */
+  pgDumpMaxAgeHours: number;
+}
+
+/** How far a running backup has got (E40-11). */
+export interface BackupProgress {
+  stage: 'start' | 'export' | 'files' | 'archive' | 'upload' | 'check' | 'prune';
+  done?: number;
+  total?: number;
+  rows?: number;
 }
 
 export interface BackupRun {
   id: string;
-  trigger: 'scheduled' | 'manual';
+  /** pg_dump: a PostgreSQL dump found in the pg_dump folder and checked. */
+  trigger: 'scheduled' | 'manual' | 'pg_dump';
   status: 'running' | 'ok' | 'failed';
   started_at: string;
   finished_at: string | null;
@@ -82,6 +95,8 @@ export interface BackupRun {
   pruned: string[];
   message: string | null;
   created_by_name: string | null;
+  progress?: BackupProgress | null;
+  job_id?: string | null;
 }
 
 export interface BackupsOverview {
@@ -94,8 +109,17 @@ export interface BackupsOverview {
   s3Available: boolean;
   destination: string | null;
   running: boolean;
+  /** The backup running now, in any server process. */
+  active: BackupRun | null;
+  /** "Back up now" waiting for the job queue to start it. */
+  queued: { id: string; status: string; created_at: string } | null;
   lastSuccess: BackupRun | null;
   runs: BackupRun[];
+  /** The database is a PostgreSQL server: its dumps are made by pg-backup.sh and checked here. */
+  postgres: boolean;
+  pgDumps: BackupRun[];
+  lastPgDump: BackupRun | null;
+  pgDumpOverdue: boolean;
 }
 
 export const STORE_LABELS: Record<string, string> = { disk: 'Local disk', memory: 'Local disk', s3: 'Object store' };

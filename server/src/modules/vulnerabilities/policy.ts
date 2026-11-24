@@ -1,6 +1,8 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { todayInZone } from '../../core/timezone.ts';
+import { addDays } from '../../../../shared/dates.ts';
+export { addDays }; // one copy for every module (E40-12)
 
 /**
  * The severity policy: how many days a finding of each severity may stay open, counted
@@ -31,12 +33,6 @@ export const DEFAULT_POLICY: SeverityPolicy = {
 };
 
 export const today = () => todayInZone();
-
-export function addDays(date: string, days: number): string {
-  const d = new Date(`${date}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
-}
 
 export async function loadPolicy(ctx: ModuleContext): Promise<SeverityPolicy> {
   const saved = await ctx.settings.get<Partial<SeverityPolicy> | null>(POLICY_KEY, null);

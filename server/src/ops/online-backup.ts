@@ -82,6 +82,8 @@ export interface OnlineBackupOptions {
   /** Also carry this secret key file (encrypted backups only), as extra/secret.key. */
   secretKeyFile?: string | null;
   now?: Date;
+  /** How far it has got (E40-11), for the page that follows a "Back up now". Not awaited. */
+  onProgress?: (p: { stage: 'export' | 'files' | 'archive' | 'upload' | 'check' | 'prune'; done?: number; total?: number; rows?: number }) => void;
 }
 
 export interface OnlineBackupResult {
@@ -159,7 +161,13 @@ export async function runOnlineBackup(opts: OnlineBackupOptions): Promise<Online
   const filesDir = opts.dataDir === 'memory' ? null : join(opts.dataDir, 'files');
   try {
     // 1. A consistent export: every table is read from one snapshot (see export.ts).
-    const manifest = await exportAll(opts.db, { outDir: work, filesDir, includeSecrets: true, keyFingerprint: currentKeyFingerprint(opts.dataDir), now });
+    const progress = (p: Parameters<NonNullable<OnlineBackupOptions['onProgress']>>[0]) => { try { opts.onProgress?.(p); } catch { /* progress only */ } };
+    progress({ stage: 'export', done: 0 });
+    const manifest = await exportAll(opts.db, {
+      outDir: work, filesDir, includeSecrets: true, keyFingerprint: currentKeyFingerprint(opts.dataDir), now,
+      onTable: (done, total, rows) => progress({ stage: 'export', done, total, rows }),
+    });
+    progress({ stage: 'archive' });
     // The secret key is kept outside the data folder; it travels only when asked, and only encrypted.
     if (opts.secretKeyFile) {
       if (!opts.key) throw new OpsError('The secret key can only be put in an encrypted backup.');
@@ -182,12 +190,14 @@ export async function runOnlineBackup(opts: OnlineBackupOptions): Promise<Online
     await rm(work, { recursive: true, force: true });
 
     // 3. To the second location, then read back from there and check every entry.
+    progress({ stage: 'upload' });
     try {
       await opts.destination.put(name, local);
     } catch (err) {
       throw new OpsError(`The backup could not be written to ${opts.destination.describe()}: ${(err as Error).message}`);
     }
     let check: { problems: string[] };
+    progress({ stage: 'check' });
     try {
       check = checkExportEntries(await hashArchive(openArchiveStream(await opts.destination.get(name), opts.key)));
     } catch (err) {
@@ -199,6 +209,7 @@ export async function runOnlineBackup(opts: OnlineBackupOptions): Promise<Online
     }
 
     // 4. Keep the newest `keep` archives there.
+    progress({ stage: 'prune' });
     const ours = (await opts.destination.list()).filter((o) => NAME_RE.test(o.name)).map((o) => o.name).sort(byAge).reverse();
     const pruned: string[] = [];
     for (const old of ours.slice(opts.keep)) {

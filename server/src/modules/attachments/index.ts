@@ -87,6 +87,33 @@ const mod: ModuleDef = {
       return { def, row, restricted, label };
     }
 
+    /**
+     * The parents of many files at once, keyed `type:id`, with the same rule as `findParent`: one
+     * query per record type, not one per record (E40-09). Records gone or not visible are left out.
+     */
+    async function findParents(req: FastifyRequest, refs: Row[]): Promise<Map<string, Parent>> {
+      const out = new Map<string, Parent>();
+      const byType = new Map<string, Set<string>>();
+      for (const r of refs) {
+        if (typeof r.record_type !== 'string' || typeof r.record_id !== 'string' || !UUID_RE.test(r.record_id)) continue;
+        if (!byType.has(r.record_type)) byType.set(r.record_type, new Set());
+        byType.get(r.record_type)!.add(r.record_id);
+      }
+      for (const [type, ids] of byType) {
+        const def = ctx.resources.get(type);
+        if (!def || !ctx.can(req.user, `${def.module}.view`)) continue;
+        if (def.restricted === true && !ctx.can(req.user, 'security.view')) continue;
+        const rows = await db.query<Row>(
+          `select * from ${def.table} where id = any($1::uuid[]) and deleted_at is null and ${ctx.resources.visibleWhere(type, req.user)}`, [[...ids]]);
+        for (const row of rows) {
+          const restricted = def.restricted === true || (def.restricted === 'flag' && row.restricted === true);
+          const label = [def.ref && row[def.ref.field], row[def.titleField]].filter(Boolean).join(' ') || def.label;
+          out.set(`${type}:${row.id}`, { def, row, restricted, label });
+        }
+      }
+      return out;
+    }
+
     const mayEdit = (req: FastifyRequest, parent: Parent) => ctx.can(req.user, `${parent.def.module}.edit`);
 
     async function needParent(req: FastifyRequest, type: unknown, id: unknown, action: 'view' | 'edit'): Promise<Parent> {
@@ -164,12 +191,10 @@ const mod: ModuleDef = {
          order by expires_on, file_name limit 2000`,
         [today, days],
       );
-      const parents = new Map<string, Parent | undefined>();
+      const parents = await findParents(req, found);
       const rows: Row[] = [];
       for (const a of found) {
-        const key = `${a.record_type}:${a.record_id}`;
-        if (!parents.has(key)) parents.set(key, await findParent(req, a.record_type, a.record_id));
-        const parent = parents.get(key);
+        const parent = parents.get(`${a.record_type}:${a.record_id}`);
         if (!parent) continue; // the record is gone, or the caller may not see it
         rows.push({
           ...present(a), days_left: a.days_left, expired: a.days_left < 0,

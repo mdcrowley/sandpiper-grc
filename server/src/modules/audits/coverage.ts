@@ -4,6 +4,7 @@
 // restricted audit appears in the coverage grid for someone who may not see it, it shows as
 // "Restricted audit" with its status only.
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { pageOf } from '../../core/api/conventions.ts';
 import { dayInZone } from '../../core/timezone.ts';
 import { addDays, addMonths } from './dates.ts';
 import { MISSED_AFTER_DAYS } from './jobs.ts';
@@ -20,15 +21,23 @@ export function registerCoverage(ctx: ModuleContext) {
     const today = dayInZone();
     const thisYear = Number(today.slice(0, 4));
     const years = Array.from({ length: n + 1 }, (_, i) => thisYear - n + 1 + i); // the last n years and next year's plan
+    // A page of the active areas (E40-09), and only the audits of the years shown; `covered` counts every area.
+    const { page, pageSize, offset } = pageOf(req.query as Row, { size: 200, maxSize: 500 });
+    const YEAR = 'coalesce(a.plan_year, extract(year from coalesce(a.fieldwork_start, a.planned_start))::int)';
+    const total = Number((await db.one<Row>('select count(*)::int as n from audit_areas where deleted_at is null and active'))?.n ?? 0);
+    const covered = Number((await db.one<Row>(
+      `select count(distinct r.id)::int as n from audit_areas r join audits a on a.area_id = r.id and a.deleted_at is null and a.status = 'closed'
+       where r.deleted_at is null and r.active and ${YEAR} between $1 and $2`, [years[0], thisYear]))?.n ?? 0);
     const areas = await db.query<Row>(
       `select a.id, a.name, a.category, a.cycle_months, a.last_audited_on, a.next_due_on, a.risk_level, u.display_name as owner_name
        from audit_areas a left join users u on u.id = a.owner_id
-       where a.deleted_at is null and a.active order by a.name`);
+       where a.deleted_at is null and a.active order by a.name, a.id limit $1 offset $2`, [pageSize, offset]);
     const audits = await db.query<Row>(
-      `select a.id, a.ref, a.title, a.status, a.area_id, a.restricted,
-              coalesce(a.plan_year, extract(year from coalesce(a.fieldwork_start, a.planned_start))::int) as year,
+      `select a.id, a.ref, a.title, a.status, a.area_id, a.restricted, ${YEAR} as year,
               (${ctx.resources.visibleWhere('audit_engagement', req.user, 'a')}) as visible
-       from audits a where a.deleted_at is null and coalesce(a.status, '') <> 'canceled'`);
+       from audits a where a.deleted_at is null and coalesce(a.status, '') <> 'canceled'
+         and (a.area_id is null or a.area_id = any($3::uuid[])) and ${YEAR} between $1 and $2`,
+      [years[0], years[years.length - 1], areas.map((a) => a.id)]);
     const entry = (a: Row) => (a.visible
       ? { id: a.id, ref: a.ref, title: a.title, status: a.status, restricted: Boolean(a.restricted) }
       : { id: null, ref: null, title: 'Restricted audit', status: a.status, restricted: true });
@@ -46,15 +55,15 @@ export function registerCoverage(ctx: ModuleContext) {
         return { ...a, state: state(a), audited_in_period: covered > 0, by_year: byYear(audits.filter((x) => x.area_id === a.id)) };
       }),
       unassigned: byYear(audits.filter((x) => !x.area_id)),
-      covered: areas.filter((a) => audits.some((x) => x.area_id === a.id && x.status === 'closed' && Number(x.year) >= years[0] && Number(x.year) <= thisYear)).length,
+      covered, total, page, pageSize,
     };
   });
   ctx.describeRoute({
     method: 'GET', path: '/api/audits/coverage', tag: 'Audits', permission: 'audits.view',
     summary: 'Coverage of the audit universe: each active area with its cycle, last and next audit, and its audits in each of the last years and next year',
     description: 'Restricted audits the caller may not see appear as "Restricted audit" with their status only.',
-    query: { years: 'Years back, including this one (1 to 10, default 3)' },
-    response: '{ today, years: number[], areas: [{ id, name, category, cycle_months, last_audited_on, next_due_on, risk_level, owner_name, state: "overdue" | "due_soon" | "ok" | "never", audited_in_period, by_year: { [year]: [{ id, ref, title, status, restricted }] } }], unassigned: { [year]: [...] }, covered }',
+    query: { years: 'Years back, including this one (1 to 10, default 3)', page: 'Page of areas (default 1)', pageSize: 'Areas per page (default 200, at most 500)' },
+    response: '{ today, years: number[], areas: [{ id, name, category, cycle_months, last_audited_on, next_due_on, risk_level, owner_name, state: "overdue" | "due_soon" | "ok" | "never", audited_in_period, by_year: { [year]: [{ id, ref, title, status, restricted }] } }], unassigned: { [year]: [...] }, covered, total, page, pageSize }',
   });
 
   app.get('/api/audits/summary', view, async (req) => {

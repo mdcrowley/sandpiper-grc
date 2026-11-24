@@ -3,9 +3,8 @@ import { Link } from 'react-router-dom';
 import { Group, SegmentedControl, Text, Tooltip } from '@mantine/core';
 import { Card, ColorDot, EmptyState, formatDate, Icon, lookupColor, lookupLabel, TableWrap, toColorName, useLookup, useMediaQuery } from '../../core';
 import { daysBetween, type Milestone, type PortfolioRow } from './types';
+import { addDays } from '../../../../shared/dates.ts';
 
-const DAY = 86400000;
-const addDays = (iso: string, n: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * DAY).toISOString().slice(0, 10);
 const monthStart = (iso: string) => `${iso.slice(0, 7)}-01`;
 const nextMonth = (iso: string) => {
   const d = new Date(`${iso}T00:00:00Z`);

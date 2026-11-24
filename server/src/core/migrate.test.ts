@@ -121,3 +121,45 @@ describe('least-privilege run-time role (E16-31)', () => {
     }
   });
 });
+
+describe('one migration at a time, without the statement timeout (E40-02)', () => {
+  it('applies a migration once when two runs on one database overlap: the second finds it done', async () => {
+    const db = await openDb('memory');
+    try {
+      const dir = folder('overlap', { '001_a.sql': 'create table mig_overlap_a (id int);', '002_b.sql': 'create table mig_overlap_b (id int);' });
+      const [first, second] = await Promise.all([migrate(db, [{ scope: 'overlap', dir }]), migrate(db, [{ scope: 'overlap', dir }])]);
+      expect([...first, ...second].sort()).toEqual(['overlap/001_a.sql', 'overlap/002_b.sql']);
+      expect(await db.query(`select name from schema_migrations where name like 'overlap/%'`)).toHaveLength(2);
+    } finally {
+      await db.close();
+    }
+  });
+
+  it('takes the migration lock and lifts the statement timeout inside each migration only', async () => {
+    const db = await openDb('memory');
+    try {
+      const seen: string[] = [];
+      const dir = folder('inside', { '001_probe.sql': `create table mig_probe as select current_setting('statement_timeout') as timeout,
+        (select count(*) from pg_locks where locktype = 'advisory' and pid = pg_backend_pid())::int as advisory;` });
+      expect(await migrate(db, [{ scope: 'inside', dir }], { onProgress: (l) => seen.push(l) })).toEqual(['inside/001_probe.sql']);
+      expect(await db.one('select timeout, advisory from mig_probe')).toEqual({ timeout: '0', advisory: 1 });
+      expect(seen).toEqual([]); // quick: nothing to report
+    } finally {
+      await db.close();
+    }
+  });
+
+  it('reports a migration that runs long, while it runs and when it ends', async () => {
+    const db = await openDb('memory');
+    try {
+      const lines: string[] = [];
+      const dir = folder('long', { '001_long.sql': 'create table mig_long as select g as n from generate_series(1, 1) g; select pg_sleep(0.6);' });
+      expect(await migrate(db, [{ scope: 'long', dir }], { reportEveryMs: 100, onProgress: (l) => lines.push(l) })).toEqual(['long/001_long.sql']);
+      // A PostgreSQL server reports while it runs; the embedded database (on this thread) when it ends.
+      if (process.env.GRC_TEST_DATABASE_URL) expect(lines[0]).toMatch(/^\[migrations\] long\/001_long\.sql still running after \d+ s/);
+      expect(lines.at(-1)).toMatch(/^\[migrations\] long\/001_long\.sql applied after \d+ s$/);
+    } finally {
+      await db.close();
+    }
+  });
+});

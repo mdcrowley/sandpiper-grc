@@ -395,7 +395,8 @@ added to responses sent over HTTPS (see "Network exposure").
 - Unexpected errors are logged on the server and returned as a generic message.
 - CSV exports prefix a cell with an apostrophe when its first non-space character is `=`, `+`,
   `-`, `@` or their full-width forms, or when it starts with a tab or line break, to stop
-  spreadsheet formula injection (one check for every CSV export, `core/export/csv.ts`).
+  spreadsheet formula injection: one check (`shared/csv-guard.ts`) for every server export, the
+  import template and the CSV files the browser makes (selected list rows, training records).
 
 ### Authorization and restricted records
 
@@ -498,6 +499,10 @@ What still protects details in a figure:
   dashboards, schedules, packs), a grouping by a link to such a type, or a custom field.
 - **Labels of referenced records** are shown only to people who hold view on the
   referenced record's module; others see "Restricted".
+- **Linking.** A person may link only to records they can see: built-in `ref` fields and custom
+  reference fields (`cf_<key>`) alike. A reference to a restricted record, a record outside a row
+  rule, or a missing record is refused with the same "<Type> not found." answer. Unchanged values
+  are not checked again, and system work is exempt.
 - **Audit search.** Events about restricted record types, and about individual records
   flagged restricted (for example a restricted action), are left out for people without
   `security.view`.
@@ -540,8 +545,13 @@ What still protects details in a figure:
   source address; the audit screen shows them as "Not signed in". So do sign-ins and failures, lockouts, password and
   second-factor changes, role and user changes, setting changes, ended sessions and
   exports.
-- **Append-only.** A database trigger raises an error on any `UPDATE` or `DELETE` of an
-  audit row. The application has no route that edits or removes events.
+- **Append-only.** A database trigger refuses every `UPDATE` and `DELETE` of an audit row, except
+  a delete inside a transaction that sets `grc.audit_archive` to `on`, which only the audit archive
+  (off by default, administrators with a recent password confirmation) does, after writing and
+  checking the events to a file; each archive is itself an audit event. A least-privilege run-time
+  role has no delete privilege on the table at all. The application has no route that edits events.
+- **Operational metrics.** `GET /api/ops/metrics` is off unless `GRC_METRICS_TOKEN` is set, compares
+  the bearer token in constant time, and holds no personal data.
 - Each record's own history is visible to anyone who may see that record. The full audit
   search and its CSV export need `audit.view`.
 - Password hashes, second-factor secrets and recovery codes are never written to audit
@@ -1054,11 +1064,16 @@ the server and the push services.
   never a session or a personal access token; tokens are stored as SHA-256, compared in
   constant time, revocable and limited to the addresses an administrator lists. Every
   refusal gets the same answer and is audited; refused addresses are rate limited.
-- **What it may not do.** Provisioning never gives a role that can administer, never changes
-  the email address or active state of an account holding any `admin.*` or `*` permission
-  (switched-off roles included; 403 `mutability`, audited `scim.refused`), never gives such an
-  account a provider link permit, never sees or changes the break-glass account, never deactivates the last active administrator, and
-  never removes a role given by hand. Deactivating an account ends its sessions, set-up and
+- **What it may not do.** One rule says what can administer: a grant of `*` or of any `admin.`
+  permission (`ADMIN_CAPABLE_SQL`, `core/identity/accounts.ts`), switched-off roles included.
+  Provisioning never maps a group to or gives such a role; never changes the email address of, or
+  enables again, an account that can administer (403 `mutability`, audited `scim.refused`);
+  deactivates one only when provisioning created it (`user_external_ids.provisioned`; audited
+  `scim.admin_deactivate`), so a leaver is always removable while access is only ever taken away;
+  never gives such an account a provider link permit, and a provisioning permit is ignored and
+  cleared at sign-in (`identity.permit_ignored`) and cleared whenever such a role is given or a held
+  role gains an `admin.` grant; never sees or changes the break-glass account, never deactivates
+  the last active administrator, and never removes a role given by hand. Deactivating an account ends its sessions, set-up and
   reset links, API tokens, assistant connections and calendar feeds. A changed email address is
   told to the old address, whether provisioning or an administrator changed it.
 - **Forwarding** sends the audit log to a syslog collector (over TLS with the certificate
@@ -1081,11 +1096,30 @@ Gmail API and the relay.
 
 ### Application address
 
-Without `auth.public_url`, addresses handed to other programs (the MCP OAuth issuer and resource,
-MCP tool links, calendar feed addresses, the work-tracker callback, mobile sign-in endpoints) are
-taken from the Host header only when it names this computer (`localhost`, `127.x`, `[::1]`). On an
-installation other computers reach, set the application address: until then the OAuth metadata
-answers 404, making a calendar feed answers 409 `public_url_required`, and links are relative.
+Without `auth.public_url`, addresses handed to other programs (single sign-on: the OpenID Connect
+redirect address, the SAML entity ID, ACS, AuthnRequest issuer and single logout addresses, and the
+sign-out return address; the MCP OAuth issuer and resource, MCP tool links, calendar feed addresses,
+the work-tracker callback, mobile sign-in endpoints) are taken from the Host header only when it
+names this computer (`localhost`, `127.x`, `[::1]`). On an installation other computers reach, set
+the application address: until then single sign-on start, linking and SAML metadata answer 409
+`public_url_required`, the OAuth metadata answers 404, making a calendar feed answers 409
+`public_url_required`, and links are relative.
+
+### Vehicle and asset models
+
+A model and its members share one permission module (`fleet` or `assets`). The asset models named in
+a vehicle model's equipment list are shown and accepted only for holders of `assets.view`; others see
+only that a row names one (`asset_model_hidden`), get a refusal that names nothing, and keep the
+stored link when they save. A change reaching more than `models.background_after` members runs as a
+background job, one per model (a newer change supersedes a waiting one). The job reloads the person
+who saved the model, stops (`stopped`, with a reason) when they can no longer sign in or no longer
+hold `<module>.edit` (checked again every 25 members), and saves each member as that person, with
+their rules, lifecycles, reference checks and name in the audit and `updated_by`. A change whose job
+was skipped because the area was switched off, or that gave up, is marked stopped. A malformed
+`model_id` is refused before any query, and a member whose model is gone is saved as one with no
+model. A model with members, or an asset model named in a vehicle model's equipment, cannot be
+removed for good by a retention review. The values of inherited custom fields on a model are checked
+like the members' (inherited fields only, by type, references visible to the person).
 
 ### Calendar feeds, work-tracker bridge and evidence links
 

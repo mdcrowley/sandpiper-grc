@@ -1,5 +1,6 @@
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, ResourceDef, Row } from '../../core/module.ts';
+import { pageOf } from '../../core/api/conventions.ts';
 import { dayInZone } from '../../core/timezone.ts';
 import { meanings } from './lists.ts';
 import { COVER_TYPES, COVERS, coverDef, coverDefs, isClosed, recordName, REVIEW_FIELDS, UUID_RE } from './shared.ts';
@@ -245,11 +246,22 @@ export function registerCoverage(ctx: ModuleContext) {
     out.sort((a, b) => STATES.indexOf(a.state) - STATES.indexOf(b.state) || COVER_TYPES.indexOf(a.type) - COVER_TYPES.indexOf(b.type)
       || String(a.ref ?? a.title).localeCompare(String(b.ref ?? b.title), undefined, { numeric: true }));
     const counts = Object.fromEntries(STATES.map((s) => [s, out.filter((r) => r.state === s).length]));
-    return { types: defs.map((d) => ({ type: d.type, label: d.label, plural: d.plural })), counts, rows: out };
+    // A page of the rows that match the filters (E40-09); the counts are of every covered record.
+    const q = (req.query ?? {}) as Row;
+    const list = (v: unknown) => String(v ?? '').split(',').map((x) => x.trim()).filter(Boolean);
+    const wantStates = list(q.state);
+    const wantTypes = list(q.type);
+    const matching = out.filter((r) => (!wantStates.length || wantStates.includes(r.state)) && (!wantTypes.length || wantTypes.includes(r.type)));
+    const { page, pageSize, offset } = pageOf(q, { size: 200, maxSize: 500 });
+    return {
+      types: defs.map((d) => ({ type: d.type, label: d.label, plural: d.plural })), counts,
+      all: out.length, total: matching.length, page, pageSize, rows: matching.slice(offset, offset + pageSize),
+    };
   });
   ctx.describeRoute({
     method: 'GET', path: '/api/controls/coverage-matrix', permission: 'controls.view',
-    summary: 'Which covered records rely on ineffective, overdue, untested or partly effective controls (only records the caller may see)',
-    response: '{ types, counts: { ineffective, overdue, untested, partly_effective, effective }, rows: [{ type, typeLabel, id, ref, title, route, status, state, controls: [...] }] }',
+    summary: 'Which covered records rely on ineffective, overdue, untested or partly effective controls (only records the caller may see), a page at a time',
+    query: { state: 'Weakest states to show, comma-separated', type: 'Record types to show, comma-separated', page: 'Page number (default 1)', pageSize: 'Rows per page (default 200, at most 500)' },
+    response: '{ types, counts: { ineffective, overdue, untested, partly_effective, effective }, all, total, page, pageSize, rows: [{ type, typeLabel, id, ref, title, route, status, state, controls: [...] }] }',
   });
 }

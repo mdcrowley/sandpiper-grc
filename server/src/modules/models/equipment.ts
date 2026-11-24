@@ -73,16 +73,23 @@ export function registerModelEquipment(ctx: ModuleContext) {
   const { app, db } = ctx;
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-  async function listFor(modelId: string) {
+  /** Whether the person may see asset models: names and links to them need assets.view (W19 review). */
+  const seesAssets = (user: SessionUser | null) => Boolean(ctx.resources.get('asset_model')) && ctx.can(user, 'assets.view');
+
+  /** The model's equipment. Without `user` (system, audit) every asset model is named; a person without assets.view sees only that one is named. */
+  async function listFor(modelId: string, user?: SessionUser | null) {
     const types = await ctx.lookups.values('asset_type');
     const items = (await equipmentOfModels(db, [modelId])).get(modelId) ?? [];
-    const assetModels = items.some((i) => i.asset_model_id) && ctx.resources.get('asset_model')
+    const named = user === undefined || seesAssets(user);
+    const assetModels = named && items.some((i) => i.asset_model_id) && ctx.resources.get('asset_model')
       ? new Map((await db.query<{ id: string; name: string }>('select id, name from asset_models where id = any($1::uuid[])', [items.map((i) => i.asset_model_id).filter(Boolean)])).map((r) => [r.id, r.name]))
       : new Map<string, string>();
     return items.map((i) => ({
       ...i,
       asset_type_label: types.find((t) => t.value === i.asset_type)?.label ?? i.asset_type,
-      asset_model_name: i.asset_model_id ? assetModels.get(i.asset_model_id) ?? null : null,
+      ...(named
+        ? { asset_model_name: i.asset_model_id ? assetModels.get(i.asset_model_id) ?? null : null }
+        : { asset_model_id: null, asset_model_name: null, asset_model_hidden: Boolean(i.asset_model_id) }),
     }));
   }
 
@@ -91,7 +98,7 @@ export function registerModelEquipment(ctx: ModuleContext) {
 
   app.get('/api/vehicle-models/:id/equipment', { preHandler: ctx.requirePerm('fleet.view') }, async (req) => {
     const model = await modelFor((req.params as { id: string }).id, req.user);
-    return { items: await listFor(model.id) };
+    return { items: await listFor(model.id, req.user) };
   });
   ctx.describeRoute({ method: 'GET', path: '/api/vehicle-models/:id/equipment', summary: 'Equipment a vehicle model adds to its mode\'s required equipment', permission: 'fleet.view' });
 
@@ -104,15 +111,22 @@ export function registerModelEquipment(ctx: ModuleContext) {
     const types = (await ctx.lookups.values('asset_type')).map((t) => t.value);
     const errors: Record<string, string> = {};
     const items: ModelEquipmentItem[] = [];
+    // Someone who may not see asset models cannot name one, and keeps the one already named for a kind
+    // of equipment they still list (they were shown only that there is one).
+    const sees = seesAssets(req.user);
+    const stored = sees ? [] : (await equipmentOfModels(db, [model.id])).get(model.id) ?? [];
     for (const [i, raw] of list!.entries()) {
       const r = (raw ?? {}) as Row;
       const type = String(r.asset_type ?? '');
       const count = r.count === undefined || r.count === null || r.count === '' ? 1 : Number(r.count);
-      const am = r.asset_model_id ? String(r.asset_model_id) : null;
+      let am = r.asset_model_id ? String(r.asset_model_id) : null;
       if (!types.includes(type)) { errors[`items.${i}.asset_type`] = 'Choose a kind of equipment (an asset type).'; continue; }
       if (items.some((x) => x.asset_type === type)) { errors[`items.${i}.asset_type`] = 'Each kind of equipment is listed once; set its count instead.'; continue; }
       if (!Number.isInteger(count) || count < 1 || count > 50) { errors[`items.${i}.count`] = 'Enter a whole number from 1 to 50.'; continue; }
-      if (am) {
+      if (!sees) {
+        if (am) { errors[`items.${i}.asset_model_id`] = 'Choosing an asset model needs permission to see assets.'; continue; }
+        am = stored.find((s) => s.asset_type === type)?.asset_model_id ?? null;
+      } else if (am) {
         const asset = UUID.test(am) && ctx.resources.get('asset_model') ? await ctx.resources.find('asset_model', am, req.user) : undefined;
         if (!asset) { errors[`items.${i}.asset_model_id`] = 'That asset model was not found.'; continue; }
         if (asset.asset_type && asset.asset_type !== type) { errors[`items.${i}.asset_model_id`] = `Asset model ${asset.name} is not of this kind of equipment.`; continue; }
@@ -137,7 +151,7 @@ export function registerModelEquipment(ctx: ModuleContext) {
       before: { equipment: before.map(({ asset_type, count, asset_model_id }) => ({ asset_type, count, asset_model_id })) },
       after: { equipment: after.map(({ asset_type, count, asset_model_id }) => ({ asset_type, count, asset_model_id })) },
     });
-    return { items: after };
+    return { items: await listFor(model.id, req.user) };
   });
   ctx.describeRoute({
     method: 'PUT', path: '/api/vehicle-models/:id/equipment', summary: 'Set the equipment a vehicle model adds to its mode\'s required equipment', permission: 'fleet.edit',

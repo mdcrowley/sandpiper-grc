@@ -5,6 +5,8 @@ import { ANONYMIZED_TEXT, onAnonymize } from '../../core/retention.ts';
 import { dayInZone, todayInZone } from '../../core/timezone.ts';
 import type { SampleRename } from '../inventory/seed-rename.ts';
 import { activeUser, cleanText, idParam, validDate } from './shared.ts';
+import { addMonths } from '../../../../shared/dates.ts';
+export { addMonths }; // one copy for every module (E40-12)
 
 /**
  * Sub-recipients of funding awards and their monitoring (E35-07, E27-11). A sub-recipient is an
@@ -29,14 +31,6 @@ export const MONITORING_RESULTS: LookupValue[] = [
   { value: 'findings', label: 'Findings', color: 'amber', sort: 20 },
   { value: 'unsatisfactory', label: 'Unsatisfactory', color: 'red', sort: 30 },
 ];
-
-export function addMonths(date: string, months: number): string {
-  const [y, m, d] = date.slice(0, 10).split('-').map(Number);
-  const target = new Date(Date.UTC(y, m - 1 + months, 1));
-  const last = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
-  target.setUTCDate(Math.min(d, last));
-  return target.toISOString().slice(0, 10);
-}
 
 /** The next monitoring date: the last one plus the frequency; never monitored = due now; "once" and done = never again. */
 export function nextMonitoring(frequency: string | null | undefined, last: string | null, today: string): string | null {

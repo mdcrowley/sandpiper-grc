@@ -1,7 +1,7 @@
 import { randomToken, sha256 } from '../../core/auth.ts';
 import { revokeAllPasskeys } from '../../core/webauthn/index.ts';
 import { revokedSummary, revokeProgramAccess } from '../../core/tokens.ts';
-import { notifyEmailChange } from '../../core/identity/accounts.ts';
+import { dropAdminProvisioningPermits, notifyEmailChange } from '../../core/identity/accounts.ts';
 import { pageOf } from '../../core/api/conventions.ts';
 import type { Queryable } from '../../core/db.ts';
 import { UUID_RE } from '../../core/errors.ts';
@@ -255,6 +255,7 @@ export function registerUsers(ctx: ModuleContext) {
       if (roles) {
         await tx.query('delete from user_roles where user_id = $1', [id]);
         for (const r of roles) await tx.query('insert into user_roles (user_id, role_id) values ($1,$2)', [id, r.id]);
+        await dropAdminProvisioningPermits(tx, id); // W19: no provisioning link permit for an account that can administer
       }
       if (status === 'disabled') {
         await tx.query('delete from sessions where user_id = $1', [id]);

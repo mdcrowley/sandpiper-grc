@@ -1,7 +1,7 @@
 // What is affected: choose a system that has failed and see the vehicles carrying its equipment
 // and the services that depend on it (optionally through the systems it feeds).
 import { Link, useSearchParams } from 'react-router-dom';
-import { Card, EmptyState, ErrorState, Loading, PageHeader, RecordPicker, Stat, Switch, useFetch } from '../../core';
+import { Card, EmptyState, ErrorState, Loading, Notice, PageHeader, RecordPicker, Stat, Switch, useFetch } from '../../core';
 import { AffectedLists, type AffectedData } from './AffectedPanel';
 import { FleetTabs } from './shared';
 
@@ -9,6 +9,8 @@ interface Impact extends AffectedData {
   system: { id: string; ref: string | null; name: string };
   systems: { id: string; ref: string | null; name: string; depth: number; route: string }[];
   counts: { systems: number; vehicles: number; services: number };
+  /** The most rows listed of each kind (the counts are whole). */
+  limit?: number;
 }
 
 export function ImpactPage() {
@@ -45,6 +47,11 @@ export function ImpactPage() {
               <Stat label="Services affected" value={shown.counts.services} icon="route" color={shown.counts.services ? 'amber' : undefined} />
               <Stat label="Vehicles affected" value={shown.counts.vehicles} icon="bus" color={shown.counts.vehicles ? 'amber' : undefined} />
             </div>
+            {(shown.counts.vehicles > shown.vehicles.length || shown.counts.services > shown.services.length || shown.counts.systems > shown.systems.length) && (
+              <Notice tone="info">
+                The lists show the first {shown.limit ?? shown.vehicles.length} of each kind; the figures above count them all. Choose a system nearer the failure to narrow them.
+              </Notice>
+            )}
             {shown.systems.length > 1 && (
               <Card title="Systems reached">
                 <ul className="fl-chips" aria-label="Systems reached">

@@ -69,7 +69,7 @@ A vehicle model has a **Name**, and the values its vehicles share: **Mode**, **M
 - **Suggestions**: the vehicle model list says when existing vehicles with no model match a model by make, model name and (when the model has one) model year. Select **Review and assign** to open the same dialog for them.
 - **Import**: a **Vehicle model** column in an import file names the model (see [Import vehicles](#import-vehicles)).
 
-An inactive model is not offered for new vehicles; vehicles that already have it keep it. A model that still has vehicles cannot be deleted: give them another model, or make it inactive.
+An inactive model is not offered for new vehicles; vehicles that already have it keep it. A model that still has vehicles cannot be deleted, or removed for good at the end of its retention period: give them another model, or make it inactive. A vehicle model removed for good takes its equipment list with it. If a vehicle's model is gone anyway (a vehicle given the model at the moment it was deleted), the vehicle keeps its values as its own and has no model.
 
 ### Overrides
 
@@ -79,7 +79,7 @@ On a vehicle with a model, a shared value marked **From model** follows the mode
 
 Edit the model's **Details** and save. When the change reaches vehicles, a dialog first says how many of the model's vehicles take the new values, how many keep their own value (an override) for each field that changes, and which ones. Select **Save and apply**, or **Cancel** to change nothing.
 
-Each vehicle is then saved through the usual rules, so its lifecycle rules and checks still apply, and its **History** (and the audit log) says the change came from the model, for example "Vehicle updated: 1205 (Make) from vehicle model [Sample] Citystrider 12 diesel bus". Webhooks are sent for each vehicle that changed. A vehicle whose own rules refuse the new value is left unchanged and listed in a notice on the model's page; it takes the value at its next save unless you keep its value as an override. A change that reaches more than 200 vehicles runs in the background: the model's page shows its progress until it is done.
+Each vehicle is then saved through the usual rules, so its lifecycle rules and checks still apply, and its **History** (and the audit log) says the change came from the model, for example "Vehicle updated: 1205 (Make) from vehicle model [Sample] Citystrider 12 diesel bus". Webhooks are sent for each vehicle that changed. A vehicle whose own rules refuse the new value is left unchanged and listed in a notice on the model's page; it takes the value at its next save unless you keep its value as an override. A change that reaches more than 200 vehicles runs in the background: the model's page shows its progress until it is done. The background change saves each vehicle as you, so your name is in each vehicle's **History** and your rules apply. It stops, and the model's page says why, if your account is disabled or you can no longer edit Fleet and services before it is finished, or if Fleet and services is switched off before it runs; save the model again to apply it. A model has one background change at a time: saving the model again while a change is still waiting replaces it (shown as **Replaced by a newer change** under **Model changes**), and the newer change applies both. A change saved with an access token (through the API) is applied in the background within that token's permissions, and stops if the token is revoked first.
 
 The model's tabs:
 
@@ -95,11 +95,13 @@ The equipment a mode requires (set under [Required equipment](#required-equipmen
 - A kind the mode requires with a higher count raises the count ("2 cameras" where the mode asks for one).
 - With an asset model named, only equipment of that asset model counts as working; other equipment of that kind counts as installed but not working.
 
+Naming an asset model needs permission to see assets. Someone with Fleet and services access only does not see the **Equipment** tab; through the API they see that a row names an asset model, but not which one, and saving the list keeps it.
+
 The vehicle's **Equipment** tab and **Equipment coverage** then show each requirement with where it comes from (**Required for the mode**, **Added by the vehicle model**, or the mode's with the count set by the model) and, for a count above one, how many units are working, not working and missing.
 
 ### Inherited custom fields
 
-An administrator selects **Inherited custom fields** on the vehicle model list and checks the custom fields of vehicles that should come from the model. Each checked field then appears on every vehicle model (in the **Inherited custom fields** card, changed with **Edit**) and is inherited with overrides like the built-in shared values. See [Administration](09-administration.md#custom-fields).
+An administrator selects **Inherited custom fields** on the vehicle model list and checks the custom fields of vehicles that should come from the model. Each checked field then appears on every vehicle model (in the **Inherited custom fields** card, changed with **Edit**) and is inherited with overrides like the built-in shared values. A value on the model is checked as it would be on a vehicle (a number must be a number, a choice must be on its list), and a reference must name a record you can see. See [Administration](09-administration.md#custom-fields).
 
 ## Equipment coverage
 
@@ -113,7 +115,7 @@ Open **Equipment coverage**. The tiles count the vehicles (retired ones are left
 | Dash | **Not needed for this mode or model** |
 | 1/2 | Where a vehicle model asks for more than one: working units out of the count |
 
-Each column heading says how many gaps it has, and the **Gaps** column counts them for each vehicle. Filter by **Mode** or **Depot or garage**, or switch on **Only vehicles with a gap**, for example to find every bus without a working on-vehicle router or camera. Select a fleet number to open that vehicle's equipment.
+Each column heading says how many gaps it has, and the **Gaps** column counts them for each vehicle. Filter by **Mode** or **Depot or garage**, or switch on **Only vehicles with a gap**, for example to find every bus without a working on-vehicle router or camera. Select a fleet number to open that vehicle's equipment. The table shows 200 vehicles at a time, with page numbers under it for a larger fleet; the tiles and the column headings count every vehicle that matches the filters.
 
 ### Required equipment
 
@@ -140,7 +142,7 @@ Open **What is affected**, choose the **System that has failed** (for example th
 - **Services affected**: services that depend on the system, with their mode and what they need it for. Discontinued services are left out.
 - **Vehicles affected**: vehicles that carry equipment belonging to the system, with their mode, depot and how many pieces of its equipment they carry. Retired vehicles are left out.
 
-Switch on **Include systems it feeds** to follow the recorded integrations downstream, as the relationship map does: the **Systems reached** card then lists every system the failure reaches and how many steps away it is, and the vehicles and services of all of them are counted. The same answer is part of the system's own impact view in the inventory: select a system on the relationship map, or open its **Map** tab, and **If this fails** lists the **Services** and **Vehicles** too (see [Inventory](03-inventory.md)).
+Switch on **Include systems it feeds** to follow the recorded integrations downstream, as the relationship map does: the **Systems reached** card then lists every system the failure reaches and how many steps away it is, and the vehicles and services of all of them are counted. The tiles always count everything affected; for a system whose failure reaches more than 500 vehicles, services or systems, the lists show the first 500 of each and a note says so. The same answer is part of the system's own impact view in the inventory: select a system on the relationship map, or open its **Map** tab, and **If this fails** lists the **Services** and **Vehicles** too (see [Inventory](03-inventory.md)).
 
 ## Elsewhere in the application
 

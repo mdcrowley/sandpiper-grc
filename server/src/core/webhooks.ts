@@ -5,7 +5,7 @@ import { request as httpsRequest } from 'node:https';
 import { BlockList, isIP } from 'node:net';
 import { rootCertificates } from 'node:tls';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { inTrial, type Db } from './db.ts';
+import { afterCommit, inTrial, type Db } from './db.ts';
 import { fail, UUID_RE } from './errors.ts';
 import { featureState } from './features.ts';
 import type { ResourceDef, Row, SessionUser } from './module.ts';
@@ -40,6 +40,8 @@ import { can, requirePerm, type makeAudit, type makeSettings } from './services.
 export const RETRY_MINUTES = [1, 5, 30, 120, 720];
 const EVENT_RE = /^(\*|[a-z][a-z0-9_]*\.(\*|create|update|delete|test))$/;
 const TIMEOUT_MS = 10_000;
+/** How long a process holds a delivery it is sending before another may take it (E40-01): well past one send. */
+const CLAIM_SECONDS = Math.ceil(TIMEOUT_MS / 1000) * 3 + 30;
 
 export const signWebhook = (secret: string, timestamp: string | number, body: string) =>
   `sha256=${createHmac('sha256', secret).update(`${timestamp}.${body}`).digest('hex')}`;
@@ -524,7 +526,7 @@ export function registerWebhooks({ app, db, audit, settings, res, box, loadUser,
       }, def.type, row.id);
       queued += 1;
     }
-    if (queued && autoRun) setImmediate(() => { void processDue().catch((err) => console.error('[webhooks]', err)); });
+    if (queued) await kick();
   });
 
   /** Whether a hook may receive something restricted: by explicit choice of someone who still holds security.view. */
@@ -565,7 +567,7 @@ export function registerWebhooks({ app, db, audit, settings, res, box, loadUser,
       }, record?.type, record?.id);
       queued += 1;
     }
-    if (queued && autoRun) setImmediate(() => { void processDue().catch((err) => console.error('[webhooks]', err)); });
+    if (queued) await kick();
     return queued;
   }
   if (!app.hasDecorator('webhookEvent')) app.decorate('webhookEvent', emitEvent);
@@ -622,7 +624,7 @@ export function registerWebhooks({ app, db, audit, settings, res, box, loadUser,
         queued += 1;
       }
     }
-    if (queued && autoRun) setImmediate(() => { void processDue().catch((err) => console.error('[webhooks]', err)); });
+    if (queued) await kick();
     return queued;
   }
   if (!app.hasDecorator('webhookRetentionChange')) app.decorate('webhookRetentionChange', retentionChange);
@@ -685,21 +687,46 @@ export function registerWebhooks({ app, db, audit, settings, res, box, loadUser,
     else await finish('pending', { code, error, next: wait });
   }
 
+  /**
+   * Takes the oldest due delivery for this process (E40-01): its next attempt moves past the time a
+   * send can take, in the same statement, and rows another process is taking are skipped, so with
+   * several server processes on one database each delivery is sent once. A process that stops in the
+   * middle of a send leaves the delivery due again once that time has passed.
+   */
+  async function claim(): Promise<Row | undefined> {
+    const taken = await db.one<{ id: string }>(
+      `update webhook_deliveries set next_attempt_at = now() + make_interval(secs => $1::int)
+       where id = (select id from webhook_deliveries where status = 'pending' and next_attempt_at <= now()
+                   order by created_at, id limit 1 for update skip locked)
+       returning id`, [CLAIM_SECONDS]);
+    if (!taken) return undefined;
+    return db.one<Row>(
+      `select d.*, w.url, w.url_sealed, w.preset, w.secret, w.active, w.deleted_at from webhook_deliveries d join webhooks w on w.id = d.webhook_id
+       where d.id = $1`, [taken.id]);
+  }
+
   let running = false;
-  /** Sends every delivery that is due. Returns how many were attempted. */
+  /** Sends every delivery that is due (at most `limit`). Returns how many were attempted. */
   async function processDue(limit = 25): Promise<number> {
-    if (running || inTrial()) return 0; // never deliver from inside a rolled-back check (E13-22)
+    if (running || inTrial()) return 0; // never deliver from inside a rolled-back check (E13-22) or an open save (E40-03)
     running = true;
     try {
-      const due = await db.query<Row>(
-        `select d.*, w.url, w.url_sealed, w.preset, w.secret, w.active, w.deleted_at from webhook_deliveries d join webhooks w on w.id = d.webhook_id
-         where d.status = 'pending' and d.next_attempt_at <= now() order by d.created_at limit $1`, [limit]);
-      for (const d of due) await attempt(d);
-      return due.length;
+      let sent = 0;
+      while (sent < limit) {
+        const d = await claim();
+        if (!d) break;
+        await attempt(d);
+        sent += 1;
+      }
+      return sent;
     } finally {
       running = false;
     }
   }
+  /** Starts sending at once what was just queued, once the save that queued it is committed (E40-03). */
+  const kick = () => afterCommit(() => {
+    if (autoRun) setImmediate(() => { void processDue().catch((err) => console.error('[webhooks]', err)); });
+  });
 
   // Due deliveries are sent by a job-queue schedule set up by core in app.ts (E14-23); a new one is
   // also tried at once, except under test (tests call processDue themselves).

@@ -2,6 +2,7 @@
 // saved queries and its release. Holds are always on: they never lapse when a part is switched off.
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Pagination } from '@mantine/core';
 import {
   api, Button, Card, ConfirmDialog, EmptyState, errorMessage, ErrorState, formatDate, formatDateTime, Loading, Modal, PageHeader,
   RecordPage, RecordPicker, ResourceList, Select, StatusChip, TableWrap, TextArea, TextField, useAuth, useFetch, useMeta, useToast,
@@ -31,7 +32,22 @@ interface HeldRecord {
   id: string; record_type: string; typeLabel: string; record_id: string; label: string; ref: string | null; route: string | null;
   deleted: boolean; via: 'hand' | 'query'; added_at: string; added_by_name: string | null; released_at: string | null;
 }
-interface HeldPage { rows: HeldRecord[]; total: number; hidden: number; released: number }
+interface HeldPage { rows: HeldRecord[]; total: number; hidden: number; released: number; shown: number; page: number; pageSize: number }
+
+/** Held records come a page at a time (E40-09): a hold driven by a saved query may cover tens of thousands. */
+const PAGE_SIZE = 100;
+
+function Pager({ data, page, onPage, label }: { data: HeldPage; page: number; onPage: (n: number) => void; label: string }) {
+  const pages = Math.max(1, Math.ceil(data.shown / Math.max(1, data.pageSize)));
+  if (pages <= 1) return null;
+  return (
+    <nav className="lh-pad" aria-label={label}>
+      <Pagination size="sm" total={pages} value={Math.min(page, pages)} onChange={onPage} siblings={1} boundaries={1}
+        getControlProps={(control) => ({ 'aria-label': `${control.charAt(0).toUpperCase()}${control.slice(1)} page` })}
+        getItemProps={(n) => ({ 'aria-label': `Page ${n}` })} />
+    </nav>
+  );
+}
 
 /** Record types the reader may see, for the pickers (legal holds themselves are left out). */
 function useTypes() {
@@ -70,7 +86,11 @@ function AddRecordDialog({ holdId, onClose, onAdded }: { holdId: string; onClose
 function Records({ hold }: { hold: Row }) {
   const { can } = useAuth();
   const toast = useToast();
-  const { data, error, reload } = useFetch<HeldPage>(`/api/legal-holds/${hold.id}/records`);
+  const [page, setPage] = useState(1);
+  const [offPage, setOffPage] = useState(1);
+  const { data, error, reload: reloadCurrent } = useFetch<HeldPage>(`/api/legal-holds/${hold.id}/records?state=current&page=${page}&pageSize=${PAGE_SIZE}`);
+  const { data: offData, reload: reloadOff } = useFetch<HeldPage>(`/api/legal-holds/${hold.id}/records?state=released&page=${offPage}&pageSize=${PAGE_SIZE}`);
+  const reload = () => { reloadCurrent(); reloadOff(); };
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<HeldRecord | null>(null);
   const [busy, setBusy] = useState(false);
@@ -86,8 +106,8 @@ function Records({ hold }: { hold: Row }) {
       reload();
     } catch (err) { toast.error(errorMessage(err)); } finally { setBusy(false); }
   };
-  const current = data?.rows.filter((r) => !r.released_at) ?? [];
-  const off = data?.rows.filter((r) => r.released_at) ?? [];
+  const current = data?.rows ?? [];
+  const off = offData?.rows ?? [];
   return (
     <div className="stack">
       <Card title="Records under this hold" flush actions={canEdit && <Button size="sm" icon="plus" onClick={() => setAdding(true)}>Add a record</Button>}>
@@ -120,14 +140,16 @@ function Records({ hold }: { hold: Row }) {
                   </table>
                 </TableWrap>
               )}
+              <Pager data={data} page={page} onPage={setPage} label="Pages of records under this hold" />
             </>
           )}
       </Card>
-      {off.length > 0 && (
-        <Card title={`Taken off the hold (${off.length})`} flush>
+      {offData && offData.released > 0 && (
+        <Card title={`Taken off the hold (${offData.released})`} flush>
           <ul className="lh-list">
             {off.map((r) => <li key={r.id}><span className="muted">{r.typeLabel}</span> {r.ref && <span className="ref">{r.ref}</span>} {r.label} <span className="muted">· {formatDateTime(r.released_at)}</span></li>)}
           </ul>
+          <Pager data={offData} page={offPage} onPage={setOffPage} label="Pages of records taken off the hold" />
         </Card>
       )}
       {adding && <AddRecordDialog holdId={hold.id} onClose={() => setAdding(false)} onAdded={() => { setAdding(false); reload(); }} />}

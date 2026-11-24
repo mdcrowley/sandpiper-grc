@@ -216,8 +216,10 @@ export function FilterPills({ pills, onClear }: { pills: FilterPill[]; onClear: 
 }
 
 /** Count on the left, page buttons on the right, under a table. */
-export function Pager({ summary, page, pages, onPage, previous = 'Previous', next = 'Next' }: {
+export function Pager({ summary, page, pages, onPage, previous = 'Previous', next = 'Next', pagesKnown = true }: {
   summary: ReactNode; page: number; pages: number; onPage: (page: number) => void; previous?: string; next?: string;
+  /** False when the number of pages is not counted (the audit log beyond its count cap): shows "Page n" only. */
+  pagesKnown?: boolean;
 }) {
   return (
     <div className="adm-foot">
@@ -225,7 +227,7 @@ export function Pager({ summary, page, pages, onPage, previous = 'Previous', nex
       {pages > 1 && (
         <nav className="row" aria-label="Pages">
           <Button size="sm" icon="chevron-left" disabled={page <= 1} onClick={() => onPage(page - 1)}>{previous}</Button>
-          <span className="muted">Page {page} of {pages}</span>
+          <span className="muted">{pagesKnown ? `Page ${page} of ${pages}` : `Page ${page}`}</span>
           <Button size="sm" disabled={page >= pages} onClick={() => onPage(page + 1)}>{next}</Button>
         </nav>
       )}

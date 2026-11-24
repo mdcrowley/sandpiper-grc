@@ -1,6 +1,8 @@
 import type { FastifyRequest } from 'fastify';
 import { loadUser } from '../../core/auth.ts';
 import { CUSTOM_PREFIX } from '../../core/customfields.ts';
+import { UUID_RE } from '../../core/errors.ts';
+import { intersectGrants, tokenScopes } from '../../core/tokens.ts';
 import type { ModuleContext, ResourceDef, Row, SessionUser } from '../../core/module.ts';
 
 /**
@@ -133,8 +135,9 @@ export function cleanOverrides(v: unknown, fields: string[]): string[] {
 
 const invalid = (ctx: ModuleContext, fields: Record<string, string>): never => ctx.fail(400, 'validation', 'Check the highlighted fields.', fields);
 
-async function modelRow(ctx: ModuleContext, kind: ModelKind, id: unknown): Promise<Row | undefined> {
-  if (typeof id !== 'string' || !/^[0-9a-f-]{36}$/i.test(id)) return undefined;
+/** A model that is not removed; anything that is not a well-formed id is "not found" without asking the database (W19 review). */
+export async function modelRow(ctx: ModuleContext, kind: ModelKind, id: unknown): Promise<Row | undefined> {
+  if (typeof id !== 'string' || !UUID_RE.test(id)) return undefined;
   return ctx.db.one<Row>(`select * from ${kind.modelTable} where id = $1 and deleted_at is null`, [id]);
 }
 
@@ -158,7 +161,16 @@ export async function prepareMember(ctx: ModuleContext, kind: ModelKind, input: 
     return input;
   }
   const model = await modelRow(ctx, kind, modelId);
-  if (!model) invalid(ctx, { model_id: `${kind.label} not found.` });
+  if (!model) {
+    // The member's own model is gone (removed in a race with an assignment, or removed for good): the
+    // member keeps its values as its own and has no model, so it can still be saved (W19 review).
+    if (existing?.model_id && modelId === existing.model_id) {
+      input.model_id = null;
+      input.model_overrides = [];
+      return input;
+    }
+    invalid(ctx, { model_id: `${kind.label} not found.` });
+  }
   if (modelId !== existing?.model_id && model!.active === false) {
     invalid(ctx, { model_id: `${kind.label} ${model!.name} is inactive and is not offered for new ${kind.memberPlural}.` });
   }
@@ -251,34 +263,84 @@ export async function backgroundAfter(ctx: ModuleContext): Promise<number> {
   return Number.isFinite(n) && n >= 0 ? n : BACKGROUND_DEFAULT;
 }
 
-/** A model change's log row as the API gives it. */
+/** Why a background change stopped when its job was skipped or gave up (W19 review). */
+function stoppedReason(kind: ModelKind, skipped: boolean): string {
+  if (!skipped) return 'The background job ended before the change was finished. Save the model again to apply it.';
+  return kind.key === 'vehicle'
+    ? 'Fleet and services was switched off before the change ran. Save the model again to apply it.'
+    : 'Its area was switched off before the change ran. Save the model again to apply it.';
+}
+
+/**
+ * A model change's log row as the API gives it. A waiting or running change whose job was skipped
+ * (its area switched off) or gave up is marked stopped here, so it does not wait for ever.
+ */
 export async function changeRow(ctx: ModuleContext, id: string): Promise<Row | undefined> {
+  const stale = await ctx.db.one<{ id: string; model_type: string; skipped: boolean }>(
+    `select c.id, c.model_type, coalesce(j.result->>'skipped', '') = 'switched_off' as skipped
+     from model_changes c join jobs j on j.id = c.job_id
+     where c.id = $1 and c.status in ('queued', 'running')
+       and (j.status = 'dead' or (j.status = 'done' and j.result->>'skipped' = 'switched_off')
+         -- the job finished a while ago and no later run of the model's job is left to take the change
+         or (j.status = 'done' and j.finished_at < now() - interval '1 minute' and not exists (
+           select 1 from jobs l where l.dedupe_key = c.model_type || ':' || c.model_id::text and l.status in ('queued', 'failed', 'running'))))`, [id]);
+  if (stale) {
+    const kind = kindOfModel(stale.model_type);
+    if (kind) {
+      await ctx.db.query(
+        `update model_changes set status = 'stopped', reason = $2, finished_at = now() where id = $1 and status in ('queued', 'running')`,
+        [id, stoppedReason(kind, stale.skipped)]);
+    }
+  }
   return ctx.db.one<Row>(
-    `select c.id, c.model_type, c.model_id, c.kind, c.fields, c.status, c.total, c.applied, c.kept, c.refused, c.job_id,
+    `select c.id, c.model_type, c.model_id, c.kind, c.fields, c.status, c.reason, c.total, c.applied, c.kept, c.refused, c.job_id,
             c.created_at, c.finished_at, u.display_name as created_by_name
      from model_changes c left join users u on u.id = c.created_by where c.id = $1`, [id]);
 }
+
+/** One background change per model at a time: the job queue's key for a model (W19 review). */
+export const changeKey = (kind: ModelKind, modelId: string) => `${kind.modelType}:${modelId}`;
 
 /**
  * A model was saved with new values for `fields`: each member that does not override a field takes
  * the new value through the normal update path (its type's rules, lifecycles, hooks, audit, history
  * and webhooks; the audit line says it came from the model). A member whose own rules refuse the value
  * is listed and left unchanged. More than `models.background_after` members: a background job does it
- * with progress. Answers the change's log row.
+ * with progress, saving each member as the person who saved the model. A newer background change of
+ * the same model takes over the fields of one still waiting (marked superseded), and the model has
+ * one background job at a time. Answers the change's log row.
  */
 export async function startChange(ctx: ModuleContext, kind: ModelKind, model: Row, fields: string[], req: FastifyRequest | null, opts: { changeKind?: string } = {}): Promise<Row | undefined> {
   if (!fields.length) return undefined;
+  const threshold = await backgroundAfter(ctx);
   const members = await membersOf(ctx, kind, model.id);
-  const targets = members.filter((m) => Object.keys(memberPatch(m, model, fields)).length);
-  const kept = members.filter((m) => fields.some((f) => (Array.isArray(m.model_overrides) ? m.model_overrides : []).includes(f))).length;
-  const background = targets.length > (await backgroundAfter(ctx));
+  const targetsOf = (fs: string[]) => members.filter((m) => Object.keys(memberPatch(m, model, fs)).length);
+  const keptOf = (fs: string[]) => members.filter((m) => fs.some((f) => (Array.isArray(m.model_overrides) ? m.model_overrides : []).includes(f))).length;
+  const background = targetsOf(fields).length > threshold && Boolean(ctx.app.jobs);
+  let all = fields;
+  if (background) {
+    // Changes of this model still waiting: this one takes their fields over (the members take the
+    // model's values as they are when the job runs), and they are marked superseded.
+    const waiting = await ctx.db.query<{ id: string; fields: string[] }>(
+      `update model_changes set status = 'superseded', reason = 'A newer change of the model replaced it.', finished_at = now()
+       where model_type = $1 and model_id = $2 and status = 'queued' returning id, fields`, [kind.modelType, model.id]);
+    all = [...new Set([...fields, ...waiting.flatMap((w) => (Array.isArray(w.fields) ? w.fields : []))])];
+  }
+  // Saved with an access token: the token and its scopes go with the change, so a background job
+  // works within them, not with the person's full permissions (E40-13).
+  const token = req?.apiToken ?? null;
   const log = (await ctx.db.one<{ id: string }>(
-    `insert into model_changes (model_type, model_id, kind, fields, status, total, kept, created_by)
-     values ($1, $2, $3, $4::jsonb, $5, $6, $7, $8) returning id`,
-    [kind.modelType, model.id, opts.changeKind ?? 'change', JSON.stringify(fields), background ? 'queued' : 'running', targets.length, kept, req?.user?.id ?? null]))!;
-  if (background && ctx.app.jobs) {
-    const job = await ctx.app.jobs.enqueue(kind.jobType, { changeId: log.id, userId: req?.user?.id ?? null });
-    await ctx.db.query('update model_changes set job_id = $2 where id = $1', [log.id, job.id ?? null]);
+    `insert into model_changes (model_type, model_id, kind, fields, status, total, kept, created_by, via_token_id, via_token_name, via_token_scopes)
+     values ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11::jsonb) returning id`,
+    [kind.modelType, model.id, opts.changeKind ?? 'change', JSON.stringify(all), background ? 'queued' : 'running', targetsOf(all).length, keptOf(all), req?.user?.id ?? null,
+      token && UUID_RE.test(String(token.id)) ? token.id : null, token?.name ?? null, token ? JSON.stringify(req ? tokenScopes(req) ?? [] : []) : null]))!;
+  if (background) {
+    const key = changeKey(kind, model.id);
+    // A job of this model already waiting runs the waiting change; one already running runs once more after it.
+    const job = await ctx.app.jobs.enqueue(kind.jobType, { modelId: model.id, changeId: log.id }, { key, rerunIfRunning: true });
+    const jobId = job.id ?? (await ctx.db.one<{ id: string }>(
+      `select id from jobs where dedupe_key = $1 and status in ('queued', 'failed', 'running') order by created_at desc limit 1`, [key]))?.id ?? null;
+    await ctx.db.query('update model_changes set job_id = $2 where id = $1', [log.id, jobId]);
     return changeRow(ctx, log.id);
   }
   await runChange(ctx, kind, log.id, req, null);
@@ -286,21 +348,63 @@ export async function startChange(ctx: ModuleContext, kind: ModelKind, model: Ro
 }
 
 /**
- * Applies a logged change to the model's members, now. With a request the person's rules apply as for
- * any save; in a job (no request) the person who saved the model is checked against the lifecycle
- * rules before each member is saved as system work on their behalf.
+ * The person a background change works as: the one who saved the model, reloaded now. A change saved
+ * with an access token works within that token's scopes (E40-13), and stops when the token has since
+ * been revoked or has expired. Null when the account can no longer sign in, the token is no longer
+ * valid, or what remains does not hold `<module>.edit` (the change then stops).
  */
-export async function runChange(ctx: ModuleContext, kind: ModelKind, changeId: string, req: FastifyRequest | null, onProgress: ((done: number, of: number) => Promise<void>) | null): Promise<Row | undefined> {
+async function actingPerson(ctx: ModuleContext, kind: ModelKind, change: Row): Promise<SessionUser | null> {
+  const user = await loadUser(ctx.db, change.created_by);
+  if (!user) return null;
+  let acting: SessionUser = user;
+  if (change.via_token_id || Array.isArray(change.via_token_scopes)) {
+    if (change.via_token_id) {
+      // A personal access token still has to be valid; a token of another kind is held to its scopes.
+      const t = await ctx.db.one<{ valid: boolean }>(
+        'select (revoked_at is null and expires_at > now()) as valid from api_tokens where id = $1', [change.via_token_id]);
+      if (t && !t.valid) return null;
+    }
+    const scopes = Array.isArray(change.via_token_scopes) ? change.via_token_scopes.map(String) : [];
+    acting = { ...user, permissions: intersectGrants(scopes, user.permissions) };
+  }
+  return ctx.can(acting, `${kind.module}.edit`) ? acting : null;
+}
+
+/**
+ * A request standing for that person, so each member is saved under their rules and named in the
+ * audit (W19 review), with the token the change was saved with (E40-13).
+ */
+const onBehalfOf = (user: SessionUser, change: Row): FastifyRequest =>
+  ({ user, apiToken: change.via_token_id ? { id: change.via_token_id, name: change.via_token_name ?? '' } : null, headers: {}, ip: null, id: `model-change-${change.id}` }) as unknown as FastifyRequest;
+
+/**
+ * Applies a logged change to the model's members, now. With a request the person's rules apply as for
+ * any save. In a job (no request) the change must still be waiting; the person who saved the model is
+ * reloaded, and the change stops when they can no longer sign in or edit the area (checked again
+ * every 25 members); otherwise each member is saved as that person, with their rules, lifecycles and
+ * name in the audit. A change with no person (system work) is saved as system work.
+ */
+export async function runChange(ctx: ModuleContext, kind: ModelKind, changeId: string, req: FastifyRequest | null, onProgress: ((done: number, of: number) => Promise<void>) | null, jobId: string | null = null): Promise<Row | undefined> {
   const change = await ctx.db.one<Row>('select * from model_changes where id = $1', [changeId]);
   const def = ctx.resources.get(kind.memberType);
   if (!change || !def) return undefined;
-  const model = await modelRow(ctx, kind, change.model_id);
-  if (!model) {
-    await ctx.db.query(`update model_changes set status = 'failed', finished_at = now() where id = $1`, [changeId]);
+  if (!req && change.status !== 'queued') return changeRow(ctx, changeId); // superseded, stopped or already done
+  const stop = async (reason: string, status = 'stopped') => {
+    await ctx.db.query(`update model_changes set status = $2, reason = $3, finished_at = now() where id = $1`, [changeId, status, reason]);
     return changeRow(ctx, changeId);
+  };
+  const model = await modelRow(ctx, kind, change.model_id);
+  if (!model) return stop('The model was removed before the change ran.', 'failed');
+  let as: FastifyRequest | null = req;
+  const lostReason = change.via_token_id || change.via_token_scopes
+    ? 'The person who saved the model can no longer sign in or edit this area, or the access token it was saved with no longer allows it, so the rest of the change was not applied.'
+    : 'The person who saved the model can no longer sign in or edit this area, so the rest of the change was not applied.';
+  if (!req && change.created_by) {
+    const user = await actingPerson(ctx, kind, change);
+    if (!user) return stop(lostReason);
+    as = onBehalfOf(user, change);
   }
-  await ctx.db.query(`update model_changes set status = 'running' where id = $1`, [changeId]);
-  const user: SessionUser | null = req?.user ?? (change.created_by ? await loadUser(ctx.db, change.created_by) : null);
+  await ctx.db.query(`update model_changes set status = 'running', job_id = coalesce($2, job_id) where id = $1`, [changeId, jobId]);
   const fields: string[] = Array.isArray(change.fields) ? change.fields : [];
   const members = await membersOf(ctx, kind, model.id);
   const targets = members.map((m) => ({ m, patch: memberPatch(m, model, fields) })).filter((t) => Object.keys(t.patch).length);
@@ -309,11 +413,7 @@ export async function runChange(ctx: ModuleContext, kind: ModelKind, changeId: s
   let applied = 0;
   for (const [i, { m, patch }] of targets.entries()) {
     try {
-      if (!req && user) {
-        const problems = await ctx.app.lifecycles.check(def, m, patch, { user, apiToken: null } as unknown as FastifyRequest);
-        if (Object.keys(problems).length) throw Object.assign(new Error('refused'), { fields: problems });
-      }
-      await ctx.resources.update(kind.memberType, m.id, patch, req, { via });
+      await ctx.resources.update(kind.memberType, m.id, patch, as, { via });
       applied++;
     } catch (err) {
       refused.push({ id: m.id, label: memberLabel(def, m), message: refusalText(err) });
@@ -321,12 +421,27 @@ export async function runChange(ctx: ModuleContext, kind: ModelKind, changeId: s
     if ((i + 1) % 25 === 0 || i + 1 === targets.length) {
       await ctx.db.query('update model_changes set applied = $2, refused = $3::jsonb where id = $1', [changeId, applied, JSON.stringify(refused.slice(0, 500))]);
       await onProgress?.(i + 1, targets.length);
+      if (!req && change.created_by && i + 1 < targets.length && !(await actingPerson(ctx, kind, change))) return stop(lostReason);
     }
   }
   await ctx.db.query(
     `update model_changes set status = 'done', total = $2, applied = $3, refused = $4::jsonb, finished_at = now() where id = $1`,
     [changeId, targets.length, applied, JSON.stringify(refused.slice(0, 500))]);
   return changeRow(ctx, changeId);
+}
+
+/** The background job: every change of the model still waiting, oldest first (normally one). */
+export async function runWaitingChanges(ctx: ModuleContext, kind: ModelKind, payload: Row, jobId: string, onProgress: (done: number, of: number) => Promise<void>): Promise<Row | null> {
+  let modelId = typeof payload.modelId === 'string' ? payload.modelId : null;
+  if (!modelId && typeof payload.changeId === 'string' && UUID_RE.test(payload.changeId)) {
+    modelId = (await ctx.db.one<{ model_id: string }>('select model_id from model_changes where id = $1', [payload.changeId]))?.model_id ?? null;
+  }
+  if (!modelId || !UUID_RE.test(modelId)) return null;
+  const waiting = await ctx.db.query<{ id: string }>(
+    `select id from model_changes where model_type = $1 and model_id = $2 and status = 'queued' order by created_at`, [kind.modelType, modelId]);
+  let last: Row | undefined;
+  for (const w of waiting) last = await runChange(ctx, kind, w.id, null, onProgress, jobId);
+  return last ? { applied: last.applied, refused: Array.isArray(last.refused) ? last.refused.length : 0, total: last.total, status: last.status } : null;
 }
 
 /** The reason a member refused a change, in words a person can act on. */

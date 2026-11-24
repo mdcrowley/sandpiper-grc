@@ -1,4 +1,5 @@
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -25,6 +26,20 @@ const scratch = mkdtempSync(join(tmpdir(), 'grc-online-backup-'));
 const CRED = { accessKeyId: 'AKIDTESTONLY', secretAccessKey: 'invented-secret-for-tests-only', region: 'test-region-1', bucket: 'grc-files' };
 let t: Awaited<ReturnType<typeof testApp>>;
 let s3: FakeS3;
+
+/**
+ * "Back up now" (E40-11): queued as a background job, which the test runs at once (the poller does
+ * not run under tests); answers the run it made and the page's overview afterwards.
+ */
+async function backupNow(): Promise<{ run: any; overview: any; jobId: string; job: any }> {
+  const res = await t.api.post('/api/backups/run', {});
+  expect(res.status).toBe(200);
+  expect(res.body.overview.queued).toMatchObject({ status: 'queued' });
+  const job = await t.app.jobs.runNow(res.body.jobId);
+  const overview = (await t.api.get('/api/backups')).body;
+  const run = overview.runs.find((r: any) => r.job_id === res.body.jobId);
+  return { run, overview, jobId: res.body.jobId, job };
+}
 
 async function entries(file: string, key: any = null) {
   const names: string[] = [];
@@ -72,17 +87,22 @@ describe.skipIf(Boolean(process.env.GRC_TEST_DATABASE_URL))('backups taken by th
     const saved = await t.api.patch('/api/backups/settings', { folder, keep: 2 });
     expect(saved.status).toBe(200);
     expect(saved.body.destination).toBe(folder);
-    const first = (await t.api.post('/api/backups/run', {})).body.run;
+    const first = (await backupNow()).run;
     expect(first).toMatchObject({ status: 'ok', verified: true, encrypted: false, trigger: 'manual' });
     expect(first.archive_name).toMatch(/^sandpiper-backup-\d{8}-\d{6}\.tar$/);
     const file = join(folder, first.archive_name);
+    expect(first.created_by).toBeTruthy(); // the person who asked, though a background job ran it
+    expect(first.progress).toBeNull();
+    const job = await t.db.one<any>(`select status, result from jobs where id = $1`, [first.job_id]);
+    expect(job).toMatchObject({ status: 'done', result: { archive: first.archive_name } });
+    expect((await t.db.query(`select 1 from audit_events where action = 'backup.requested'`)).length).toBe(1);
     const names = await entries(file);
     expect(names[0]).toBe('archive.json');
     expect(names).toEqual(expect.arrayContaining(['manifest.json', 'tables/users.jsonl', 'tables/audit_events.jsonl', 'checksums.sha256']));
     expect((await describeArchive(file))).toMatchObject({ kind: 'online-backup', encrypted: false });
 
-    await t.api.post('/api/backups/run', {});
-    await t.api.post('/api/backups/run', {});
+    await backupNow();
+    await backupNow();
     expect(readdirSync(folder).filter((n) => n.endsWith('.tar'))).toHaveLength(2);
     const runs = (await t.api.get('/api/backups')).body.runs;
     expect(runs).toHaveLength(3);
@@ -97,7 +117,7 @@ describe.skipIf(Boolean(process.env.GRC_TEST_DATABASE_URL))('backups taken by th
     process.env.GRC_BACKUP_PASSPHRASE = 'an invented passphrase for tests';
     const o = await t.api.patch('/api/backups/settings', { encrypt: true });
     expect(o.body.keySource).toMatch(/GRC_BACKUP_PASSPHRASE/);
-    const run = (await t.api.post('/api/backups/run', {})).body.run;
+    const run = (await backupNow()).run;
     expect(run).toMatchObject({ status: 'ok', encrypted: true });
     expect(run.archive_name).toMatch(/\.tar\.sgrc$/);
     const file = join(scratch, 'second-location', run.archive_name);
@@ -106,7 +126,7 @@ describe.skipIf(Boolean(process.env.GRC_TEST_DATABASE_URL))('backups taken by th
     expect(await entries(file, { kind: 'passphrase', passphrase: process.env.GRC_BACKUP_PASSPHRASE })).toContain('tables/users.jsonl');
 
     delete process.env.GRC_BACKUP_PASSPHRASE;
-    const failed = (await t.api.post('/api/backups/run', {})).body.run;
+    const failed = (await backupNow()).run;
     expect(failed).toMatchObject({ status: 'failed' });
     expect(failed.message).toMatch(/no key is set/);
     expect(notified.at(-1)).toMatchObject({ permission: 'admin.administer', title: 'A backup failed', route: '/admin/backups' });
@@ -117,7 +137,8 @@ describe.skipIf(Boolean(process.env.GRC_TEST_DATABASE_URL))('backups taken by th
     const blocker = join(scratch, 'not-a-folder');
     writeFileSync(blocker, 'a file where the folder should be');
     await t.api.patch('/api/backups/settings', { folder: blocker });
-    const failed = (await t.api.post('/api/backups/run', {})).body;
+    const failed = await backupNow();
+    expect(failed.job).toMatchObject({ status: 'dead' });
     expect(failed.run).toMatchObject({ status: 'failed' });
     expect(failed.run.message).toMatch(/could not be written to/);
     expect(failed.overview.lastSuccess.status).toBe('ok');
@@ -148,13 +169,101 @@ describe.skipIf(Boolean(process.env.GRC_TEST_DATABASE_URL))('backups taken by th
     expect(storage.status).toBe(200);
     const o = await t.api.patch('/api/backups/settings', { destination: 's3', s3Prefix: 'nightly' });
     expect(o.body.destination).toMatch(/^object store grc-files\/grc\/nightly\/ at http:\/\/127\.0\.0\.1:/);
-    const run = (await t.api.post('/api/backups/run', {})).body.run;
+    const run = (await backupNow()).run;
     expect(run).toMatchObject({ status: 'ok', verified: true });
     const key = `grc/nightly/${run.archive_name}`;
     expect(s3.objects.has(key)).toBe(true);
     const names: string[] = [];
     for await (const e of openArchiveStream(Readable.from([s3.objects.get(key)!]), null)) { names.push(e.path); for await (const _ of e.body) { /* read */ } }
     expect(names).toContain('manifest.json');
+  });
+
+  it('records progress while it runs, and refuses a second Back up now while one waits (E40-11)', async () => {
+    const stages: string[] = [];
+    const query = t.db.query.bind(t.db);
+    (t.db as any).query = async (sql: string, params?: unknown[]) => {
+      if (sql.includes('set progress') && Array.isArray(params)) stages.push(JSON.parse(String(params[1])).stage);
+      return query(sql, params);
+    };
+    try {
+      const first = await t.api.post('/api/backups/run', {});
+      expect(first.status).toBe(200);
+      const second = await t.api.post('/api/backups/run', {});
+      expect(second.status).toBe(409);
+      await t.app.jobs.runNow(first.body.jobId);
+    } finally {
+      (t.db as any).query = query;
+    }
+    expect(stages).toEqual(expect.arrayContaining(['export', 'archive', 'upload', 'check', 'prune']));
+    const o = (await t.api.get('/api/backups')).body;
+    expect(o.running).toBe(false);
+    expect(o.queued).toBeNull();
+    expect(o.runs[0]).toMatchObject({ status: 'ok', progress: null });
+  });
+});
+
+// E40-11: dumps made by deploy/postgres/pg-backup.sh are checked and recorded, and an old or damaged
+// newest dump is told to the administrators once.
+describe('PostgreSQL dumps made by the documented script', () => {
+  const sha = (b: Buffer) => createHash('sha256').update(b).digest('hex');
+  const dump = (folder: string, stamp: string, content: string, at: Date, extra: Record<string, unknown> = {}) => {
+    const name = `grc-db-${stamp}.dump`;
+    const data = Buffer.from(content);
+    writeFileSync(join(folder, name), data);
+    writeFileSync(join(folder, `${name}.json`), JSON.stringify({
+      kind: 'sandpiper-pg-dump', file: name, startedAt: at.toISOString(), finishedAt: at.toISOString(),
+      bytes: data.length, sha256: sha(data), entries: 42, pgDumpVersion: '17.2', ...extra,
+    }));
+    return name;
+  };
+  const open = async () => (await t.db.query<{ key: string; title: string }>(`select key, title from ops_alerts where cleared_at is null and starts_with(key, 'backup.pg_dump')`));
+
+  it('checks each new dump once, warns when the newest is too old or damaged, and clears when fixed', async () => {
+    const folder = join(scratch, 'pg-dumps');
+    mkdirSync(folder, { recursive: true });
+    expect((await t.api.patch('/api/backups/settings', { pgDumpFolder: 'relative' })).body.error.fields.pgDumpFolder).toMatch(/full path/);
+    expect((await t.api.patch('/api/backups/settings', { pgDumpMaxAgeHours: 0 })).body.error.fields.pgDumpMaxAgeHours).toBeTruthy();
+    expect((await t.api.patch('/api/backups/settings', { pgDumpFolder: folder, pgDumpMaxAgeHours: 26 })).status).toBe(200);
+
+    // Nothing there yet: overdue.
+    let r = await t.app.backupScheduler.checkPgDumps();
+    expect(r.problem).toMatch(/No checked dump/);
+    expect((await open()).map((a) => a.key)).toEqual(['backup.pg_dump_overdue']);
+
+    const old = dump(folder, '20300101-021500', 'an old invented dump', new Date(Date.now() - 50 * 3600_000));
+    const fresh = dump(folder, '20300103-021500', 'a recent invented dump', new Date(Date.now() - 2 * 3600_000));
+    writeFileSync(join(folder, 'grc-db-20300104-021500.dump'), 'still being written: no record yet');
+    r = await t.app.backupScheduler.checkPgDumps();
+    expect(r).toMatchObject({ checked: 2, newest: fresh, problem: null });
+    expect(await open()).toEqual([]);
+    const o = (await t.api.get('/api/backups')).body;
+    expect(o.pgDumps.map((d: any) => [d.archive_name, d.status])).toEqual([[fresh, 'ok'], [old, 'ok']]);
+    expect(o.lastPgDump.archive_name).toBe(fresh);
+    expect(o.pgDumpOverdue).toBe(false);
+    expect(o.runs.every((x: any) => x.trigger !== 'pg_dump')).toBe(true); // the server's own runs stay apart
+    expect((await t.app.backupScheduler.checkPgDumps()).checked).toBe(0); // each is checked once
+
+    // A damaged newest dump: told once, by its own alert.
+    const bad = dump(folder, '20300105-021500', 'the content the record describes', new Date());
+    writeFileSync(join(folder, bad), 'the content the record describes, changed');
+    r = await t.app.backupScheduler.checkPgDumps();
+    expect(r.checked).toBe(1);
+    expect((await open()).map((a) => a.key)).toEqual(['backup.pg_dump_bad']);
+    const row = await t.db.one<any>(`select status, message from backup_runs where archive_name = $1`, [bad]);
+    expect(row).toMatchObject({ status: 'failed' });
+    expect(row.message).toMatch(/size|checksum/);
+    expect((await t.db.query(`select 1 from audit_events where action = 'backup.pg_dump_failed'`)).length).toBe(1);
+
+    // A good one after it clears that; time passing past the limit raises "overdue".
+    dump(folder, '20300106-021500', 'the next invented dump', new Date());
+    await t.app.backupScheduler.checkPgDumps();
+    expect(await open()).toEqual([]);
+    r = await t.app.backupScheduler.checkPgDumps(new Date(Date.now() + 30 * 3600_000));
+    expect(r.problem).toMatch(/hours old/);
+    expect((await open()).map((a) => a.key)).toEqual(['backup.pg_dump_overdue']);
+    await t.api.patch('/api/backups/settings', { pgDumpFolder: '' });
+    await t.app.backupScheduler.checkPgDumps();
+    expect(await open()).toEqual([]);
   });
 });
 

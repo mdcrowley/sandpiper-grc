@@ -1,7 +1,8 @@
 // The audit plan and coverage: what is due, what each area's audits were over the last years,
 // open findings, and how inspections are going.
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { Pagination } from '@mantine/core';
 import {
   AgendaList, Button, Card, Chart, chartColor, EmptyState, ErrorState, formatDate, Loading, LookupChip, PageHeader, Select, Stat, TableWrap, useAuth, useFetch,
 } from '../../core';
@@ -11,6 +12,8 @@ import { AuditTabs } from './shared';
 interface Entry { id: string | null; ref: string | null; title: string; status: string; restricted: boolean }
 interface Coverage {
   today: string; years: number[]; covered: number;
+  /** Active areas in all, and the page of them shown (E40-09: the server pages them). */
+  total?: number; page?: number; pageSize?: number;
   areas: { id: string; name: string; category: string | null; cycle_months: number | null; last_audited_on: string | null; next_due_on: string | null;
     risk_level: string | null; owner_name: string | null; state: 'overdue' | 'due_soon' | 'ok' | 'never'; audited_in_period: boolean; by_year: Record<string, Entry[]> }[];
   unassigned: Record<string, Entry[]>;
@@ -34,7 +37,9 @@ const STATE: Record<string, { label: string; color: ColorName }> = {
 const monthLabel = (p: string) => new Date(`${p}-15T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' });
 
 function CoverageGrid({ years }: { years: number }) {
-  const { data, error, reload } = useFetch<Coverage>(`/api/audits/coverage?years=${years}`);
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [years]);
+  const { data, error, reload } = useFetch<Coverage>(`/api/audits/coverage?years=${years}&page=${page}`);
   if (error) return <ErrorState error={error} onRetry={reload} />;
   if (!data) return <Loading lines={6} />;
   if (!data.areas.length) {
@@ -42,7 +47,9 @@ function CoverageGrid({ years }: { years: number }) {
       action={<Link className="btn btn-primary" to="/audits/areas?new=1">Add an area</Link>} />;
   }
   const thisYear = Number(data.today.slice(0, 4));
+  const pages = data.total && data.pageSize ? Math.ceil(data.total / data.pageSize) : 1;
   return (
+    <>
     <TableWrap fit label="Audits of each area by year, with the area's cycle and next due date" className="au-coverage">
       <table className="table">
         <caption className="sr-only">Audits of each area by year, with the area's cycle and next due date</caption>
@@ -74,6 +81,14 @@ function CoverageGrid({ years }: { years: number }) {
         </tbody>
       </table>
     </TableWrap>
+    {pages > 1 && (
+      <nav className="au-pager" aria-label="Pages of audit areas">
+        <Pagination size="sm" total={pages} value={Math.min(page, pages)} onChange={setPage} siblings={1} boundaries={1}
+          getControlProps={(control) => ({ 'aria-label': `${control.charAt(0).toUpperCase()}${control.slice(1)} page` })}
+          getItemProps={(n) => ({ 'aria-label': `Page ${n}` })} />
+      </nav>
+    )}
+    </>
   );
 }
 

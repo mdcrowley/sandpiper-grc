@@ -68,6 +68,33 @@ describe('due dates (no jurisdiction built in)', () => {
     expect((await req({ received_on: '2026-11-02', kind: 'personal_access' })).due_on).toBe('2026-12-14');
     await t.api.put('/api/records/settings', { dueDays: { '*': 20 }, businessDays: false });
   });
+
+  it('counts working days on the service desk\'s business-hours calendar, holidays included (E40-10)', async () => {
+    const cals = (await t.api.get('/api/tickets/sla/calendars')).body as { id: string; key: string; name: string }[];
+    const business = cals.find((c) => c.key === 'business')!;
+    expect(business).toBeTruthy();
+    await t.api.put('/api/records/settings', { dueDays: { '*': 5 }, businessDays: true });
+    // Without a holiday: received Monday 2025-12-22, 5 working days = Monday 2025-12-29.
+    expect((await req({ received_on: '2025-12-22' })).due_on).toBe('2025-12-29');
+    for (const day of ['2025-12-25', '2026-01-01']) {
+      const added = await t.api.post(`/api/tickets/sla/calendars/${business.id}/holidays`, { day, name: 'Invented winter holiday' });
+      expect(added.status, JSON.stringify(added.body)).toBe(201);
+    }
+    const shown = await t.api.get('/api/records/settings');
+    expect(shown.body).toMatchObject({ businessDays: true, workingCalendar: business.name, holidays: 2 });
+    expect(shown.body).not.toHaveProperty('calendar');
+    // The holiday moves the due date by one working day.
+    const r = await req({ received_on: '2025-12-22' });
+    expect(r.due_on).toBe('2025-12-30');
+    // Extending by working days skips holidays too: 2025-12-30 + 2 working days = 2026-01-02.
+    const ext = await t.api.post(`/api/records-requests/${r.id}/extend`, { days: 2, reason: 'Invented reason for more time' });
+    expect(ext.status, JSON.stringify(ext.body)).toBeLessThan(300);
+    expect(String((await t.api.get(`/api/records-requests/${r.id}`)).body.extended_due_on).slice(0, 10)).toBe('2026-01-02');
+    // Calendar days ignore the calendar.
+    await t.api.put('/api/records/settings', { dueDays: { '*': 5 }, businessDays: false });
+    expect((await req({ received_on: '2025-12-22' })).due_on).toBe('2025-12-27');
+    await t.api.put('/api/records/settings', { dueDays: { '*': 20 }, businessDays: false });
+  });
 });
 
 describe('personal-data requests and figures', () => {

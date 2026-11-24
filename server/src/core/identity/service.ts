@@ -6,8 +6,9 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { createSession, loadUser, secretBox, setSessionCookie, sha256 } from '../auth.ts';
 import type { Db } from '../db.ts';
 import { makeDbLimiter } from '../ratelimit.ts';
-import { clientIp, cookieSecure, isHttps } from '../request.ts';
+import { clientIp, cookieSecure } from '../request.ts';
 import { isBreakGlass, resolveSignIn, syncMappedRoles, type Audit } from './accounts.ts';
+import { configuredBase, loopbackBase } from './base.ts';
 import { providerMfaSatisfied } from './config.ts';
 import { addSignInPolicy, afterSignIn, checkSignIn } from './hooks.ts';
 import { setProviderAllowList } from './http.ts';
@@ -66,13 +67,25 @@ export function readSecret(db: Db, provider: ProviderRecord): string | null {
   }
 }
 
-/** The address of this application as the browser sees it: setting `auth.public_url`, else the request's own. */
+/** IdentityError reason when single sign-on has no trusted address to give the provider (W19). */
+export const NO_APPLICATION_ADDRESS = 'no application address';
+
+/** What a person or administrator is told when single sign-on has no trusted address (W19). */
+export const SSO_ADDRESS_REQUIRED = 'Single sign-on needs the application address: an administrator sets it under Administration > '
+  + 'Sign-in providers ("Application address", auth.public_url). Without it, single sign-on works only on this computer.';
+
+/**
+ * This application's address for single sign-on (the OpenID Connect redirect address, the SAML entity
+ * ID, ACS and single logout addresses, the sign-out return address): `auth.public_url`, else the Host
+ * header only when it names this computer (core/identity/base.ts, as for MCP and calendar feeds). On an
+ * installation other computers reach, a Host header is whatever the caller sent: building these
+ * addresses from it let a caller choose which service provider this installation claims to be (W19).
+ * Throws an IdentityError (reason NO_APPLICATION_ADDRESS) when neither applies.
+ */
 export async function publicBase(deps: IdentityDeps, req: FastifyRequest): Promise<string> {
-  const configured = String(await deps.settings.get('auth.public_url', '')).trim().replace(/\/+$/, '');
-  if (configured) return configured;
-  const host = String(req.headers.host ?? '').trim();
-  if (!/^[A-Za-z0-9.-]+(:\d{1,5})?$|^\[[0-9a-fA-F:]+\](:\d{1,5})?$/.test(host)) throw new IdentityError('no usable host name', 'Set the application address under Sign-in providers.');
-  return `${isHttps(req) ? 'https' : 'http'}://${host}`;
+  const base = (await configuredBase(deps.settings)) || loopbackBase(req);
+  if (!base) throw new IdentityError(NO_APPLICATION_ADDRESS, SSO_ADDRESS_REQUIRED);
+  return base;
 }
 
 export const callbackPath = (key: string) => `/api/auth/sso/${encodeURIComponent(key)}/callback`;
