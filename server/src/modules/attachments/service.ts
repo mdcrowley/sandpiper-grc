@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { todayInZone } from '../../core/timezone.ts';
 import {
-  BLOCKED_EXTENSIONS, DEFAULT_ALLOWED_EXTENSIONS, HEAD_BYTES, isValidExtension, normalizeExtensions, typeGroup,
+  BLOCKED_EXTENSIONS, DEFAULT_ALLOWED_EXTENSIONS, HEAD_BYTES, isValidExtension, normalizeExtensions, previewKind, typeGroup,
 } from './filetypes.ts';
 
 export const SETTING_MAX_BYTES = 'attachments.max_bytes';
@@ -174,5 +174,7 @@ export function present(row: Row): Row {
     uploaded_by_name: row.uploaded_by_name,
     uploaded_at: row.created_at,
     updated_at: row.updated_at,
+    // E41-16: 'image' or 'pdf' when the file can be shown in the browser (GET /api/attachments/:id/preview).
+    preview: link ? null : previewKind(row.extension, row.content_type),
   };
 }

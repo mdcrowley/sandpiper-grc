@@ -66,6 +66,8 @@ export function registerHazards(ctx: ModuleContext) {
   ctx.defineResource({
     type: 'hazard', table: 'hazards', module: 'safety', label: 'Hazard', plural: 'Hazards',
     path: '/api/hazards', route: '/safety/hazards', titleField: 'title',
+    // Role grants scoped to departments or sites (E41-01, core/scope.ts).
+    scope: { site: 'site_id' },
     ref: { field: 'ref', prefix: 'HAZ-' },
     searchable: ['title', 'description', 'consequence', 'existing_controls'],
     defaultSort: { field: 'score', dir: 'desc' },

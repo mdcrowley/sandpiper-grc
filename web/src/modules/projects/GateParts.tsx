@@ -41,6 +41,7 @@ const BLOCKER: Record<Blocker['kind'], { icon: IconName; lead: string }> = {
   status: { icon: 'alert-circle', lead: '' },
   checklist: { icon: 'check-square', lead: 'Checklist: ' },
   document: { icon: 'file-text', lead: 'Required document: ' },
+  certificate: { icon: 'shield', lead: '' },
 };
 
 /** Exactly what stands between a gate and its approval. */
@@ -65,6 +66,7 @@ export function blockerSummary(gate: Gate): string {
     count('status') ? 'the project is not active' : '',
     items ? `${items} checklist ${items === 1 ? 'item' : 'items'} to do` : '',
     docs ? `${docs} required ${docs === 1 ? 'document' : 'documents'} missing` : '',
+    count('certificate') ? 'no certificate of readiness' : '',
   ].filter(Boolean).join(', ');
 }
 
@@ -75,6 +77,7 @@ export function blockerAdvice(gate: Gate): string {
   if (kinds.has('status')) steps.push('make the project active again');
   if (kinds.has('checklist')) steps.push('check the outstanding checklist items');
   if (kinds.has('document')) steps.push('mark each required document as received (or have an approver waive it)');
+  if (kinds.has('certificate')) steps.push('issue the certificate of readiness on the Certification tab');
   return `To approve this gate, ${steps.join(', then ')}.`;
 }
 

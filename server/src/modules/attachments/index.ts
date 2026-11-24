@@ -5,7 +5,7 @@
 // the caller may not see (including a restricted one) answers "not found" for everything, so
 // neither its files nor their existence leak.
 import type { Readable } from 'node:stream';
-import type { FastifyRequest } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import { requireRecentAuth } from '../../core/auth.ts';
 import { UUID_RE } from '../../core/errors.ts';
 import { assertNotHeld } from '../../core/holds.ts';
@@ -22,6 +22,7 @@ import { dailyHousekeeping } from './housekeeping.ts';
 import { linkCheckDays, runLinkCheckReminders } from './linkReminders.ts';
 import { auditAddress, isLink, linkChange, registerLinkRoutes } from './links.ts';
 import { insertAttachment, prepareFile, receiveFile, sandboxDownload, sendStoredFile, type Refusal } from './intake.ts';
+import { queueFileTexts, registerFileText } from './text.ts';
 import { makeScannerRegistry } from './scanner.ts';
 import {
   formatBytes, present, readSettings, SETTING_EXTENSIONS, SETTING_MAX_BYTES, validateDescriptive, validateSettings,
@@ -56,6 +57,8 @@ const mod: ModuleDef = {
     registerFileAdmin(ctx, applyScanner);
     await registerBackgroundFileJobs(ctx);
     await registerBackups(ctx);
+    // The text inside PDF, Word and plain-text files, for search (E41-16, text.ts).
+    await registerFileText(ctx);
 
     // Daily: files of records deleted for good are marked removed, and removed files past the
     // purge period are deleted from storage. A job-queue schedule (Administration > Background jobs).
@@ -171,12 +174,13 @@ const mod: ModuleDef = {
       const { record_type, record_id } = req.query as Record<string, string>;
       const parent = await needParent(req, record_type, record_id, 'view');
       const rows = await db.query<Row>(
-        `select a.*, u.display_name as checked_by_name from attachments a left join users u on u.id = a.checked_by
+        `select a.*, u.display_name as checked_by_name, x.status as text_status
+         from attachments a left join users u on u.id = a.checked_by left join attachment_texts x on x.attachment_id = a.id
          where a.record_type = $1 and a.record_id = $2 and a.deleted_at is null
          order by a.created_at desc, a.id`,
         [record_type, record_id],
       );
-      return { rows: rows.map(present), canEdit: mayEdit(req, parent), today: todayInZone(), linkCheckDays: await linkCheckDays(ctx) };
+      return { rows: rows.map((r) => ({ ...present(r), text_status: r.text_status ?? null })), canEdit: mayEdit(req, parent), today: todayInZone(), linkCheckDays: await linkCheckDays(ctx) };
     });
 
     // ---------- evidence about to expire, across every record the caller may see ----------
@@ -259,6 +263,8 @@ const mod: ModuleDef = {
             collected_on: meta.collected_on, expires_on: meta.expires_on, scan_status: row.scan_status,
           },
         });
+        // Its text is read for search in the background (E41-16).
+        await queueFileTexts(ctx);
         reply.code(201);
         return file.scanUnavailable ? { ...present(row), scan_warning: file.scanUnavailable.warning } : present(row);
       });
@@ -266,10 +272,7 @@ const mod: ModuleDef = {
 
     // ---------- download ----------
 
-    app.get('/api/attachments/:id/download', {
-      // Runs after the application-wide headers: a downloaded file gets the tightest policy there is.
-      onSend: sandboxDownload,
-    }, async (req, reply) => {
+    const serveFile = (inline: boolean) => async (req: FastifyRequest, reply: FastifyReply) => {
       const { att, parent } = await needAttachment(req, 'view');
       // A link has nothing stored here: its address is in the list (E36-05).
       if (isLink(att)) ctx.fail(409, 'is_link', 'This is a link to a document kept elsewhere. Open its address instead.');
@@ -283,10 +286,21 @@ const mod: ModuleDef = {
       return sendStoredFile(ctx, reply, att, problem, async () => {
         if (!parent.restricted) return;
         await ctx.audit(req, {
-          action: 'attachment.download', recordType: parent.def.type, recordId: parent.row.id,
-          summary: `File downloaded from a restricted record: ${att.file_name}`, after: { attachment_id: att.id },
+          action: inline ? 'attachment.preview' : 'attachment.download', recordType: parent.def.type, recordId: parent.row.id,
+          summary: `File ${inline ? 'previewed' : 'downloaded'} from a restricted record: ${att.file_name}`, after: { attachment_id: att.id },
         });
-      });
+      }, { inline });
+    };
+
+    // Both run after the application-wide headers: a file gets the tightest policy there is
+    // (`default-src 'none'; sandbox`), whether it is downloaded or shown in place.
+    app.get('/api/attachments/:id/download', { onSend: sandboxDownload }, serveFile(false));
+    // E41-16: images and PDFs shown in the browser (`Content-Disposition: inline`, only for those types).
+    app.get('/api/attachments/:id/preview', { onSend: sandboxDownload }, serveFile(true));
+    ctx.describeRoute({
+      method: 'GET', path: '/api/attachments/:id/preview', tag: 'Attachments',
+      summary: 'Show an image or a PDF in the browser',
+      description: "Needs view permission on the record the file belongs to. Served in place (`Content-Disposition: inline`) under its fixed type, only for PNG, JPEG, GIF, WebP and BMP images and PDFs (the file's `preview` field); any other file answers 415 `no_preview`. The checksum is verified first, and the answer carries `Content-Security-Policy: default-src 'none'; sandbox`. Previews from restricted records are audited.",
     });
 
     // ---------- describe and remove ----------

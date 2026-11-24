@@ -1,5 +1,5 @@
 // Funder compliance reviews: the list, and one review with its areas, document requests and deficiencies.
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState, type ComponentType } from 'react';
 import { Link } from 'react-router-dom';
 import {
   api, Button, Card, ConfirmDialog, DateField, EmptyState, ErrorState, errorMessage, formatDate, Loading, LookupChip, LookupSelect, Modal,
@@ -7,6 +7,12 @@ import {
 } from '../../core';
 import type { Row } from '../../core';
 import { FundingTabs, ofText } from './shared';
+
+// Outside reviewers (E41-09): the funder's reviewer may be invited to one review; the tab shows only when that module is in the build.
+interface ReviewersPanelProps { basePath: string; recordId: string; noun: string; restricted?: boolean }
+const reviewerLoaders = import.meta.glob<{ ReviewersPanel: ComponentType<ReviewersPanelProps> }>('../outsidereviews/ReviewersPanel.tsx');
+const loadReviewers = Object.values(reviewerLoaders)[0];
+const OutsideReviewers = loadReviewers ? lazy(() => loadReviewers().then((m) => ({ default: m.ReviewersPanel }))) : null;
 
 export function ReviewList() {
   return (
@@ -292,6 +298,12 @@ export function ReviewDetail() {
         { key: 'areas', label: 'Areas', content: ({ row, canEdit }) => <Areas row={row} canEdit={canEdit} /> },
         { key: 'requests', label: 'Requests', content: ({ row, canEdit }) => <Requests row={row} canEdit={canEdit} /> },
         { key: 'deficiencies', label: 'Deficiencies', content: ({ row }) => <Deficiencies row={row} /> },
+        ...(OutsideReviewers ? [{
+          key: 'reviewers', label: 'Outside reviewers',
+          content: ({ row }: { row: Row }) => (
+            <Suspense fallback={<Loading lines={3} />}><OutsideReviewers basePath="/api/compliance-reviews" recordId={row.id} noun="review" /></Suspense>
+          ),
+        }] : []),
       ]}
     />
   );

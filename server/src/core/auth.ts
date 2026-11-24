@@ -7,6 +7,7 @@ import { CURRENCY, DEFAULT_APP_NAME, TIME_ZONE } from './config.ts';
 import type { Db, Queryable } from './db.ts';
 import { fail, UUID_RE } from './errors.ts';
 import { featureState } from './features.ts';
+import { SCOPED_MODULES_SQL } from './scope.ts';
 import { isApiRequest } from './api/versioning.ts';
 import { afterSignIn, checkSignIn, sessionSecondFactor, signOutRedirect } from './identity/hooks.ts';
 import type { SessionUser } from './module.ts';
@@ -376,7 +377,8 @@ export async function loadUser(db: Db, userId: string): Promise<SessionUser | nu
   const row = await db.one<any>(
     `select u.id, u.username, u.display_name, u.email,
         coalesce(array_agg(distinct r.key) filter (where r.enabled), '{}') as roles,
-        coalesce(array_agg(distinct rp.permission) filter (where r.enabled and rp.permission is not null), '{}') as permissions
+        coalesce(array_agg(distinct rp.permission) filter (where r.enabled and rp.permission is not null), '{}') as permissions,
+        ${SCOPED_MODULES_SQL('u.id')} as scoped
      from users u
      left join user_roles ur on ur.user_id = u.id
      left join roles r on r.id = ur.role_id
@@ -391,6 +393,8 @@ export async function loadUser(db: Db, userId: string): Promise<SessionUser | nu
     roles: row.roles, permissions: row.permissions,
     // Permission modules of switched-off areas: nobody holds them (core/features.ts).
     off: [...(await featureState(db)).offPermissions],
+    // Modules one of their roles scopes to their departments or sites (E41-01, core/scope.ts).
+    scoped: row.scoped ?? [],
   };
 }
 
@@ -413,6 +417,7 @@ async function sessionUser(db: Db, token: string | undefined) {
     `select u.id, u.username, u.display_name, u.email,
         coalesce(array_agg(distinct r.key) filter (where r.enabled), '{}') as roles,
         coalesce(array_agg(distinct rp.permission) filter (where r.enabled and rp.permission is not null), '{}') as permissions,
+        ${SCOPED_MODULES_SQL('u.id')} as scoped,
         extract(epoch from now() - s.last_seen_at)::float8 as idle_seconds,
         (select jsonb_object_agg(st.key, st.value) from settings st where st.key = any($2::text[])) as settings
      from sessions s
@@ -435,6 +440,8 @@ async function sessionUser(db: Db, token: string | undefined) {
     roles: row.roles, permissions: row.permissions,
     // Permission modules of switched-off areas: nobody holds them (core/features.ts).
     off: [...(await featureState(db)).offPermissions],
+    // Modules one of their roles scopes to their departments or sites (E41-01, core/scope.ts).
+    scoped: row.scoped ?? [],
   };
   return { user, hashed, settings };
 }

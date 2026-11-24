@@ -7,11 +7,13 @@ import {
   StatusChip, TableWrap, TextArea, todayInZone, useAuth, useFetch, useToast,
 } from '../../core';
 import type { Row } from '../../core';
-import { ACK_STATE } from './shared';
+import { ACK_STATE, readIn } from './shared';
 
 interface RosterRow {
   id: string; person_id: string; person: string; employee_number: string | null; position: string | null; state: 'acknowledged' | 'outstanding' | 'overdue' | 'superseded';
   due_on: string | null; acknowledged_at: string | null; method: string | null; recorded_by_name: string | null; sheet_attachment_id: string | null;
+  /** The language read (E41-07). */
+  language?: string | null;
 }
 interface RosterTracking {
   version: { version: number } | null;
@@ -114,7 +116,7 @@ export function RosterAcks({ policy, versionNumber }: { policy: Row; versionNumb
                     <td>{r.employee_number ?? '–'}</td>
                     <td>{r.position ?? '–'}</td>
                     <td><StatusChip color={ACK_STATE[r.state].color} label={ACK_STATE[r.state].label} /></td>
-                    <td>{r.acknowledged_at ? formatDate(r.acknowledged_at) : r.due_on ? `Due ${formatDate(r.due_on)}` : '–'}</td>
+                    <td>{r.acknowledged_at ? `${formatDate(r.acknowledged_at)}${readIn(r.language)}` : r.due_on ? `Due ${formatDate(r.due_on)}` : '–'}</td>
                     <td>{r.method ? <Badge color="gray">{METHOD[r.method] ?? r.method}</Badge> : '–'}</td>
                     <td>{r.recorded_by_name ?? (r.acknowledged_at ? 'Sample data or import' : '–')}</td>
                   </tr>

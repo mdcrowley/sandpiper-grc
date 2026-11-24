@@ -41,6 +41,8 @@ invented.
 - [Calendar feeds and the work-tracker bridge](#calendar-feeds-and-the-work-tracker-bridge)
 - [Asset tags and inventory counts](#asset-tags-and-inventory-counts)
 - [Vehicle and asset models](#vehicle-and-asset-models)
+- [Routes added in wave 20](#routes-added-in-wave-20)
+- [Routes added in waves 21 and 22](#routes-added-in-waves-21-and-22)
 - [Examples of common integrations](#examples-of-common-integrations)
 
 ## Authentication: personal access tokens
@@ -597,6 +599,132 @@ needs `admin.administer`), and `/api/vehicle-models/:id/equipment` (GET; PUT
 `{ items: [{ asset_type, count, asset_model_id? }] }`). `/api/fleet/coverage` rows add `detail` per
 cell, and `/api/vehicles/:id/equipment` adds `count`, `source`, `installed`, `working`,
 `not_working` and `missing`. Imports resolve a model by name.
+
+## Routes added in wave 20
+
+### Departments and scoped roles
+
+- `/api/departments` (record type `department`, `people.*`; pickers and labels are open to everyone
+  signed in); `POST /api/departments/:id/merge { into }` (`people.delete`).
+- `GET /api/admin/roles` returns `scopable`; `POST`/`PATCH /api/admin/roles` accept
+  `scopes: { <module>: 'department' | 'site' }`.
+- Assets, actions, projects and business processes take `department_id`, and still accept
+  `department` as a name; actions take `site_id`; sites take `parent_id` and `manager_id`.
+
+### My work and the compliance calendar
+
+- `GET /api/work/mine?days=30&limit=5&skip=<keys>`: your own due work across every area that is on,
+  one section per kind (calendar source), overdue first.
+- `GET /api/work/calendar?from&to&person=me|all|<user id>&area=<keys>&kind=<keys>`: everything dated
+  in the window (at most 400 days; default the current month) that you may see; `ownOnly` lists
+  kinds that give only your own items.
+- Kinds of switched-off areas are left out of both.
+
+### User access reviews
+
+- `/api/system-accounts` (with `POST /import` and `POST /rematch`).
+- `/api/access-reviews` (with `/:id/systems`, `/launch`, `/decisions`, `/systems/:systemId/sign-off`,
+  `/items/:itemId/removed`, `/removals`, `/complete`, `/cancel`, `/control-test`, `/export`,
+  `/totals`, and `GET /mine` and `GET /summary`).
+
+### Figures over time
+
+- `/api/figures` (GET list, `?months=`; POST create, needs `reports.create`), `/api/figures/:id`
+  (GET with `months`; PATCH needs `reports.edit`; DELETE needs `reports.delete`).
+- `POST /api/figures/record` (`reports.edit`).
+- `GET /api/figures/:id/export?format=pdf|xlsx|csv|html&months=` (`reports.export`).
+- Figures are the same for everyone; seeing one needs view on its record type's module.
+
+### Disposal, meetings, heat map and the audit archive
+
+- `GET /api/assets/:id/data-wiping-certificate.pdf` (`assets.view`).
+- `GET /api/meetings/:id/invitations` (`governance.view`); `POST /api/meetings/:id/invitations`
+  (`governance.edit`; 409 `mail_off`, `not_invited`, `meeting_past`, `minutes_approved`, `nobody`);
+  `GET /api/meetings/:id/invitation.ics` (`governance.view`).
+- `GET /api/risks/heatmap/common?basis=&include_closed=` (`risks.view` and `security.view`; the same
+  shape as `/api/risks/heatmap`, scale key `_common`).
+- `GET /api/audit/archive` now also returns `ownerCommand`.
+
+### Version and the update check
+
+- `GET /api/admin/about`, `PATCH /api/admin/about { updateCheck }` (administrators): the version and
+  the update check.
+
+## Routes added in waves 21 and 22
+
+### Confidential safety reporting
+
+- `GET /api/safety/confidential-viewers` (`safety.view`), `PUT /api/safety/confidential-viewers`
+  (`safety.administer`; adding someone asks for a recent password confirmation): the people named to
+  see confidential reporters.
+- `GET /api/safety-events/:id/reporter`: a confidential event's reporter, for named people with
+  `safety.view` only; every look is audited (`safety_event.reporter_view`).
+- `POST /api/portal/safety-reports` takes `confidential: true`; `GET /api/portal/safety-reports`
+  rows carry `confidential`, `outcome` and `closed_on`.
+
+### Safety and security certification of projects
+
+- `GET /api/projects/:id/certification`; `POST /api/projects/:id/certificates` (409
+  `certification_open` while a required item is open);
+  `POST /api/projects/:id/certificates/:certId/withdraw`;
+  `GET /api/projects/:id/certificates/:certId/pdf`.
+- Record types `cert_item` (`/api/certifiable-items`) and `cert_requirement`
+  (`/api/certification-requirements`). Gate templates take `requires_certificate`.
+
+### Registers
+
+- `/api/registers/:register` (with `/stats` and `/:id`) serves every register's records with the
+  usual list contract; `/api/admin/registers` defines registers.
+
+### Translated policies and languages
+
+- `GET /api/policies/translation-languages`; `GET /api/policies/:id/versions/:vid/translations`;
+  `PUT` and `DELETE /api/policies/:id/versions/:vid/translations/:lang`.
+- `lang` on `/api/policies/acknowledgments/mine`, `/api/policies/acknowledgments/:ackId` and
+  `/api/policies/kiosk/pending`; `language` on acknowledge, on the kiosk (`languages` per document)
+  and on sign-in sheets.
+
+### Vendor intake, risk tiers and contractor performance
+
+- Vendor intake and risk tiers: `GET`/`PUT /api/vendors/intake-settings`,
+  `POST /api/vendors/intake/preview`, `GET`/`POST /api/vendors/:id/intake`,
+  `GET`/`POST /api/vendors/:id/checks`, `DELETE /api/vendors/:id/checks/:checkId`.
+- Contractor performance: `GET /api/contracts/:id/performance`, `GET /api/contracts/performance`,
+  `POST`/`PATCH`/`DELETE /api/contracts/:id/measures[/:measureId]`,
+  `POST /api/contracts/:id/measures/:measureId/scores`,
+  `PATCH`/`DELETE /api/contracts/:id/scores/:scoreId` (send the score's `updated_at` to get 409
+  `version_conflict` when it changed).
+
+### Outside reviewers
+
+- `GET`/`POST /api/audits/:id/outside-reviewers` and `/api/compliance-reviews/:id/outside-reviewers`,
+  with `PATCH …/:grantId`, `POST …/:grantId/revoke` and `POST …/:grantId/resend`.
+- `GET /api/admin/outside-reviewers`, `POST /api/admin/outside-reviewers/:grantId/revoke`.
+- For the reviewer: `GET /api/outside-review`, `/api/outside-review/:grantId` and
+  `/api/outside-review/:grantId/files/:fileId`.
+- `PUT /api/audit-requests/:id/files`, with `GET`/`DELETE /api/audit-requests/:id/files/:fid`: the
+  person asked for evidence attaches files without `audits.edit`.
+
+### Control test steps and coverage import
+
+- `GET`/`POST /api/controls/:id/steps`, `PATCH`/`DELETE /api/controls/:id/steps/:stepId`,
+  `PUT /api/controls/:id/steps/order`.
+- `GET /api/control-tests/:id/steps`, `POST /api/control-tests/:id/steps/copy`,
+  `PATCH /api/control-tests/:id/steps/:rowId`.
+- `POST /api/controls/coverage/import`, `GET /api/controls/coverage/import-template`.
+
+### Call trees
+
+- `POST`/`GET /api/emergency-activations/:id/call-outs`,
+  `POST /api/emergency-activations/:id/call-outs/:cid/recipients/:rid/acknowledge`,
+  `POST /api/emergency-activations/:id/call-outs/:cid/remind`.
+- Public (no sign-in): `GET`/`POST /api/call-out/:token`, the acknowledgment link.
+
+### Records retention and file previews
+
+- `/api/record-series` and `/api/records-destructions`, with `/:id/state`, `/:id/submit`,
+  `/:id/carried-out` and `/:id/cancel`.
+- `GET /api/attachments/:id/preview`: images and PDFs inline; 415 `no_preview` otherwise.
 
 ## Examples of common integrations
 

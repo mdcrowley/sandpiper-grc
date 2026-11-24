@@ -7,6 +7,7 @@ import {
 } from '../../core';
 import type { RecordContext, Row } from '../../core';
 import { ControlsTabs, StateChip } from './shared';
+import { ControlSteps } from './Steps';
 
 const CREATE_FIELDS = ['title', 'objective', 'description', 'control_type', 'automation', 'frequency', 'domain', 'owner_id', 'operator_id', 'key_control', 'status', 'test_every_months', 'next_test_due'];
 
@@ -168,6 +169,7 @@ export function ControlDetail() {
       )}
       tabs={[
         { key: 'coverage', label: 'Coverage', content: ({ row }) => <CoverageTab control={row} /> },
+        { key: 'steps', label: 'Test steps', content: ({ row }) => <ControlSteps control={row} /> },
         { key: 'tests', label: 'Tests', content: ({ row }) => <TestsTab control={row} /> },
       ]}
       evidence

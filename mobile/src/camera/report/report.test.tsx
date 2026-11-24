@@ -5,6 +5,7 @@ import { buildReport, initialAnswers, pickDefault, type ReportAnswers } from './
 import ReportFormScreen, { TEXT as FORM } from './ReportFormScreen';
 import ReportHomeScreen, { TEXT as HOME } from './ReportHomeScreen';
 import * as handoff from '../../tags/handoff';
+import { setLanguage } from '../../i18n';
 import { params, picker, router, server } from '../../tags/tests/mocks';
 
 jest.mock('../../api/client', () => require('../../tags/tests/mocks').clientMock());
@@ -26,6 +27,7 @@ jest.mock('../../offline', () => {
   const real = jest.requireActual('../../offline/package');
   return {
     packageList: real.packageList, packageSites: real.packageSites, sendNow: jest.fn(), outbox: () => ({ prune: jest.fn() }),
+    useOfflinePackage: () => mockOfflinePkg.current,
     orOffline: async (fromServer: () => Promise<unknown>, fromPackage: (p: unknown) => unknown) => {
       try { return await fromServer(); } catch (e) { const v = mockOfflinePkg.current ? fromPackage(mockOfflinePkg.current) : null; if (v) return v; throw e; }
     },
@@ -72,6 +74,14 @@ describe('what a report sends', () => {
     expect(problem).toEqual({ path: '/api/portal/requests', recordType: 'ticket', link: null, body: { title: 'Leaking pump', details: 'Water on the floor', where: 'North depot, Bay 3', affects: 'team', how_urgent: 'stopped' } });
     const hazard = buildReport('hazard', answers({ site: null, locationDetail: '', harm: 'minor' }), { kind: 'hazard', prefill: { type: 'safety_event', path: '/api/portal/safety-reports', values: { where: 'Asset Pump 7' } }, record: null });
     expect(hazard.body).toEqual({ title: 'Leaking pump', description: 'Water on the floor', event_type: 'unsafe_condition', harm: 'minor', occurred_at: '2026-11-22T10:00:00.000Z', where: 'Asset Pump 7' });
+  });
+
+  it('a portal user\'s report from scratch goes to the portal\'s forms (E41-17)', () => {
+    const problem = buildReport('problem', answers({ site: null, affects: 'me', howUrgent: 'can_wait' }), null, { portal: true });
+    expect(problem).toEqual({ path: '/api/portal/requests', recordType: 'ticket', link: null, body: { title: 'Leaking pump', details: 'Water on the floor', where: 'Bay 3', affects: 'me', how_urgent: 'can_wait' } });
+    const hazard = buildReport('hazard', answers({ site: null, harm: 'none' }), null, { portal: true });
+    expect(hazard.path).toBe('/api/portal/safety-reports');
+    expect(hazard.body).toMatchObject({ title: 'Leaking pump', event_type: 'unsafe_condition', harm: 'none', where: 'Bay 3' });
   });
 
   it('starts the form from the prefill', () => {
@@ -139,6 +149,33 @@ describe('report form', () => {
     expect(screen.getByText(FORM.notAllowed)).toBeTruthy();
   });
 
+  it('a portal user reports a problem from scratch on the portal\'s form, with no site search (E41-17)', async () => {
+    server.can = new Set(['portal.create', 'portal.view']);
+    server.areas.portal = true;
+    params.current = { kind: 'problem', via: 'portal' };
+    await render(<ReportFormScreen />);
+    expect(screen.queryByText(FORM.notAllowed)).toBeNull();
+    expect(screen.getByText(FORM.affects)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: `${FORM.noSite}, ${FORM.site}` })).toBeNull();
+    await fireEvent.changeText(screen.getByLabelText(FORM.titleLabel), 'Printer jammed');
+    await fireEvent.changeText(screen.getByLabelText(FORM.where), 'Dispatch office');
+    await fireEvent.press(screen.getByLabelText(FORM.send));
+    await waitFor(() => expect(router.dismissTo).toHaveBeenCalledWith('/report'));
+    const { saveReport } = jest.requireMock('../reportQueue') as { saveReport: jest.Mock };
+    expect(saveReport).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'problem', path: '/api/portal/requests', recordType: 'ticket', body: expect.objectContaining({ title: 'Printer jammed', where: 'Dispatch office', affects: 'me', how_urgent: 'slowed' }) }),
+      [], 'c0ffee00-0000-4000-8000-000000000001',
+    );
+  });
+
+  it('the portal route is refused without the portal permission or area', async () => {
+    server.can = new Set(['portal.view']);
+    server.areas.portal = true;
+    params.current = { kind: 'problem', via: 'portal' };
+    await render(<ReportFormScreen />);
+    expect(screen.getByText(FORM.notAllowed)).toBeTruthy();
+  });
+
   it('from a tag card, says which record it is about', async () => {
     params.current = { start: handoff.put({ kind: 'report', start: { kind: 'hazard', prefill: null, record: { type: 'asset', id: 'a1', label: 'Asset Pump 7', siteId: 's1', siteLabel: 'North depot' } } }) };
     await render(<ReportFormScreen />);
@@ -157,6 +194,24 @@ describe('Report tab', () => {
     expect(screen.queryByLabelText(HOME.hazard)).toBeNull();
     await fireEvent.press(screen.getByLabelText(HOME.problem));
     expect(router.push).toHaveBeenCalledWith('/report/new?kind=problem');
+  });
+
+  it('portal users report a problem from scratch; a hazard only while the portal takes safety reports (E41-17)', async () => {
+    server.can = new Set(['portal.create', 'portal.view']);
+    server.areas.portal = true;
+    await render(<ReportHomeScreen />);
+    expect(screen.queryByLabelText(HOME.hazard)).toBeNull();
+    await fireEvent.press(screen.getByLabelText(HOME.problem));
+    expect(router.push).toHaveBeenCalledWith('/report/new?kind=problem&via=portal');
+    mockOfflinePkg.current = { portal: { safetyTypes: [{ value: 'near_miss', label: 'Near miss' }], harm: [] } };
+    await render(<ReportHomeScreen />);
+    await fireEvent.press(screen.getByLabelText(HOME.hazard));
+    expect(router.push).toHaveBeenCalledWith('/report/new?kind=hazard&via=portal');
+    mockOfflinePkg.current = null;
+    // With the portal switched off, nothing.
+    server.areas.portal = false;
+    await render(<ReportHomeScreen />);
+    expect(screen.getByText(HOME.none)).toBeTruthy();
   });
 
   it('switched-off areas leave their report out', async () => {
@@ -182,5 +237,52 @@ describe('Report tab', () => {
     await fireEvent.press(screen.getByLabelText(HOME.open));
     expect(router.push).toHaveBeenCalledWith('/report/offline');
     useReports.mockReturnValue([]);
+  });
+});
+
+describe('confidential portal safety reports (E41-05) and the report in Spanish (E41-07)', () => {
+  beforeEach(() => { server.reset(); jest.clearAllMocks(); params.current = {}; });
+  afterEach(() => { setLanguage('en'); });
+
+  it('sends confidential only for a portal safety report when it is switched on', () => {
+    const base = answers({ site: null, harm: 'none' });
+    expect(buildReport('hazard', { ...base, confidential: true }, null, { portal: true }).body.confidential).toBe(true);
+    expect(buildReport('hazard', base, null, { portal: true }).body).not.toHaveProperty('confidential');
+    expect(buildReport('problem', { ...base, confidential: true }, null, { portal: true }).body).not.toHaveProperty('confidential');
+  });
+
+  it('a portal user may keep their name confidential on a hazard report', async () => {
+    server.can = new Set(['portal.create', 'portal.view']);
+    server.areas.portal = true;
+    params.current = { kind: 'hazard', via: 'portal' };
+    await render(<ReportFormScreen />);
+    const toggle = screen.getByRole('switch', { name: `${FORM.confidential}, ${FORM.confidentialHint}` });
+    await fireEvent.press(toggle);
+    await fireEvent.changeText(screen.getByLabelText(FORM.titleLabel), 'Loose handrail');
+    await fireEvent.press(screen.getByLabelText(FORM.send));
+    await waitFor(() => expect(router.dismissTo).toHaveBeenCalledWith('/report'));
+    const { saveReport } = jest.requireMock('../reportQueue') as { saveReport: jest.Mock };
+    expect(saveReport).toHaveBeenCalledWith(
+      expect.objectContaining({ path: '/api/portal/safety-reports', body: expect.objectContaining({ title: 'Loose handrail', confidential: true }) }),
+      [], 'c0ffee00-0000-4000-8000-000000000001',
+    );
+  });
+
+  it('is not offered on a staff hazard report', async () => {
+    server.can = new Set(['safety.create']);
+    params.current = { kind: 'hazard' };
+    await render(<ReportFormScreen />);
+    expect(screen.queryByRole('switch')).toBeNull();
+  });
+
+  it('shows the form in Spanish when the person chose it', async () => {
+    setLanguage('es');
+    server.can = new Set(['portal.create', 'portal.view']);
+    server.areas.portal = true;
+    params.current = { kind: 'problem', via: 'portal' };
+    await render(<ReportFormScreen />);
+    expect(screen.getByText('Informar un problema')).toBeTruthy();
+    expect(screen.getByText('Solo a mí')).toBeTruthy();
+    expect(FORM.send).toBe('Enviar');
   });
 });

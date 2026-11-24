@@ -32,7 +32,7 @@ export function AssetList() {
         'site_id', 'warranty_end', 'support_end',
         ...(funder.on ? [{ field: 'funder_interest', label: funder.label, sortable: true, render: (row: Row) => (row.funder_interest ? <Badge color="amber">{funder.label}{row.funder_interest_pct != null ? ` ${row.funder_interest_pct}%` : ''}</Badge> : '—') }] : []),
         { field: 'disposal_request_status', hidden: true },
-        { field: 'department', hidden: true },
+        { field: 'department_id', hidden: true },
         { field: 'owner_id', hidden: true },
         { field: 'system_id', hidden: true },
         { field: 'serial', hidden: true },
@@ -40,8 +40,8 @@ export function AssetList() {
         { field: 'purchase_date', hidden: true },
         { field: 'model_id', hidden: true },
       ]}
-      filters={funderFields(['status', 'asset_type', 'model_id', 'site_id', 'system_id', 'user_id', 'owner_id', 'funding_source', 'funder_interest', 'disposal_request_status', 'warranty_end', 'support_end', 'purchase_date'], funder.on)}
-      bulkFields={['status', 'asset_type', 'site_id', 'owner_id', 'system_id', 'funding_source', 'warranty_end', 'support_end']}
+      filters={funderFields(['status', 'asset_type', 'model_id', 'site_id', 'department_id', 'system_id', 'user_id', 'owner_id', 'funding_source', 'funder_interest', 'disposal_request_status', 'warranty_end', 'support_end', 'purchase_date'], funder.on)}
+      bulkFields={['status', 'asset_type', 'site_id', 'department_id', 'owner_id', 'system_id', 'funding_source', 'warranty_end', 'support_end']}
       createInitial={fromModel.initial}
       createFields={funderFields(['name', 'model_id', 'asset_type', 'status', 'make', 'model', 'serial', 'site_id', 'location', 'purchase_date', 'cost', 'funding_source', 'funder_interest', 'funder_interest_pct', 'warranty_end', 'support_end'], funder.on)}
       // Import is the list's own (the generic import wizard, E13-21).

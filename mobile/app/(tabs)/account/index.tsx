@@ -9,6 +9,8 @@ import { appVersion, setUnlockPreference, signOut, unlockAvailable, unsentWorkCo
 import { changeDistributor, setPushEnabled, startPush, usePushState } from '../../../src/push';
 import { pushText as P } from '../../../src/push/text';
 import { accountText as T } from '../../../src/text/account';
+import { languageChoices, useLanguage } from '../../../src/i18n';
+import { chooseLanguage } from '../../../src/i18n/preference';
 import { Banner, Body, Button, Row, Screen, Section, SwitchRow } from '../../../src/ui';
 
 export default function AccountScreen() {
@@ -19,6 +21,8 @@ export default function AccountScreen() {
   const [canUnlock, setCanUnlock] = useState(true);
   const push = usePushState();
   const unifiedPush = push.status === 'on' && push.provider === 'unifiedpush';
+  const lang = useLanguage();
+  const [languageProblem, setLanguageProblem] = useState(false);
 
   useFocusEffect(useCallback(() => {
     let live = true;
@@ -84,6 +88,15 @@ export default function AccountScreen() {
           />
         ) : null}
       </Section>
+
+      {/* E41-07: the language of the employee-facing screens, kept on the person's account. */}
+      <Section title={T.sections.language}>
+        {languageChoices().map((l, i, all) => (
+          <Row key={l.code} label={l.name} selected={l.code === lang} last={i === all.length - 1}
+            onPress={() => { setLanguageProblem(false); chooseLanguage(l.code).catch(() => setLanguageProblem(true)); }} />
+        ))}
+      </Section>
+      <Body muted>{languageProblem ? T.languageFailed : T.languageDetail}</Body>
 
       <Section title={T.sections.security}>
         <SwitchRow

@@ -10,6 +10,10 @@ import { calendarSources } from '../../core/calendar.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { dayInZone } from '../../core/timezone.ts';
 import type { MobileHome, MobileWorkItem, MobileWorkKey, MobileWorkSection } from '../../../../shared/mobile-api.ts';
+import type { MyDueWork } from '../../../../shared/work-api.ts';
+
+/** Calendar sources that already have a section of their own (or a list of their own, actions). */
+const OWN_SECTIONS = new Set(['audits.inspections', 'condition.assessments_due', 'actions.due']);
 
 export const ITEMS = 5;
 
@@ -118,13 +122,26 @@ export function registerHome(ctx: ModuleContext) {
       })), '/training/mine'));
     }
 
+    // Every other kind of due work a module registers as a calendar source (E41-03): evidence requests,
+    // control tests, verifications, periods to attest, vendor reassessments, certifications and the rest,
+    // from My work's own list (GET /api/work/mine). Inspections and condition assessments have their own
+    // sections above (they open the app's field work screens).
+    const due = await sub<MyDueWork>(req, `/api/work/mine${qs({ limit: String(ITEMS), skip: [...OWN_SECTIONS].join(',') })}`);
+    for (const s of due?.sections ?? []) {
+      if (OWN_SECTIONS.has(s.key)) continue;
+      add(section(s.key as MobileWorkKey, s.kind, s.count, s.items.map((i) => ({
+        type: i.recordType, id: i.recordId, label: i.title, ref: i.ref, route: i.url,
+        status: null, due: i.allDay ? i.start.slice(0, 10) : i.start, overdue: i.overdue,
+      })), `/calendar${qs({ view: 'mine', kind: s.key })}`));
+    }
+
     const unread = await sub<{ unread: number }>(req, '/api/notifications/unread-count');
     return { sections, unreadNotifications: unread?.unread ?? 0, generatedAt: new Date().toISOString() };
   });
   ctx.describeRoute({
     method: 'GET', path: '/api/mobile/home', tag: 'Mobile app',
-    summary: 'My work for the mobile app: tickets, actions, approvals, inspections, condition assessments, acknowledgments and training waiting for you',
-    description: 'Each section is the same list the web shows the same person (counted the same way, at most 5 items, most urgent first); sections of switched-off areas or of lists you may not open are left out.',
+    summary: 'My work for the mobile app: tickets, actions, approvals, inspections, condition assessments, acknowledgments, training and every other kind of due work (evidence requests, control tests, verifications, attestations, reassessments, certifications) waiting for you',
+    description: 'Each section is the same list the web shows the same person (counted the same way, at most 5 items, most urgent first); sections of switched-off areas or of lists you may not open are left out. Due work comes from GET /api/work/mine, one section per kind (its key is the calendar source key, for example `audits.requests`).',
     response: 'MobileHome: { sections: [{ key, label, count, items: [{ type, id, label, ref, route, status, due, overdue }], webRoute }], unreadNotifications, generatedAt }',
   });
 }

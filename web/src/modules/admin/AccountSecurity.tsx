@@ -62,7 +62,8 @@ export function QrImage({ text, label, size = 208 }: { text: string; label: stri
   );
 }
 
-export function AccountSecurityPage() {
+/** `limited`: only the password, second factor, passkeys and sessions (an outside reviewer's own page, E41-09). */
+export function AccountSecurityPage({ limited = false }: { limited?: boolean }) {
   const auth = useAuth();
   const inRouter = useInRouterContext();
   const { data, error, reload } = useFetch<Security>('/api/auth/security');
@@ -80,6 +81,7 @@ export function AccountSecurityPage() {
   // After anything that changes the second factor, the session's own state changes too (the reminder, a block).
   const changed = () => { reload(); void auth.refresh(); };
   const blocked = Boolean(data?.mfaEnrollmentBlocked && !data.totpEnabled);
+  const reduced = blocked || limited;
 
   return (
     <div className="adm-account">
@@ -122,7 +124,7 @@ export function AccountSecurityPage() {
               {!codes && !data.totpEnabled && Boolean(data.passkeys) && (
                 <PasskeyRecoveryCodes data={data} onCodes={(c) => { setCodes(c); changed(); }} />
               )}
-              {!blocked && !codes && <LinkedIdentitiesCard />}
+              {!reduced && !codes && <LinkedIdentitiesCard />}
             </div>
             <div className={`stack${codes ? ' adm-no-print' : ''}`}>
               <Card title="Password" actions={<Button size="sm" icon="key" onClick={() => setChanging(true)}>Change password</Button>}>
@@ -133,13 +135,13 @@ export function AccountSecurityPage() {
                 </p>
               </Card>
               <SessionsCard />
-              {!blocked && !codes && <AlertContactCard />}
+              {!reduced && !codes && <AlertContactCard />}
               {/* Wave 8: name a stand-in for approvals (also under Approvals > Stand-ins). */}
-              {!blocked && !codes && <StandinCard />}
+              {!reduced && !codes && <StandinCard />}
             </div>
           </div>
           {/* Not while access is blocked for want of a second factor: tokens are for people who can already work. */}
-          {!blocked && inRouter && !data.mfaEnrollmentBlocked && <div className={codes ? 'adm-no-print' : undefined}><MyTokensCard /><ConnectAssistantCard /></div>}
+          {!reduced && inRouter && !data.mfaEnrollmentBlocked && <div className={codes ? 'adm-no-print' : undefined}><MyTokensCard /><ConnectAssistantCard /></div>}
         </div>
       )}
       <ChangePasswordDialog open={changing} onClose={() => { setChanging(false); reload(); }} />

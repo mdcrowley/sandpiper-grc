@@ -81,10 +81,12 @@ The **Heat map** card shows one scale at a time as a grid, with the worst likeli
 
 The controls at the top of the card:
 
-1. **Scale**: choose **Cyber and enterprise risk** or **Safety hazard matrix** (with more than three scales, a drop-down list). The line above the grid names the scale and gives its description. A scale that belongs to a part switched off under **Administration > Features** (the safety hazard matrix while safety management is off) is not offered; a new risk in a category scored on it uses the cyber and enterprise scale.
+1. **Scale**: choose **Cyber and enterprise risk**, **Safety hazard matrix** or **All scales** (with more than two scales, a drop-down list). The line above the grid names the scale and gives its description. A scale that belongs to a part switched off under **Administration > Features** (the safety hazard matrix while safety management is off) is not offered; a new risk in a category scored on it uses the cyber and enterprise scale.
 2. **Residual** or **Inherent**: which score to plot.
 3. **Show movement**: draws an arrow from each risk's inherent cell to its residual cell, so you can see where controls move risks. One arrow is drawn for each pair of cells, however many risks make that move. Risks whose two scores fall in the same cell have no arrow.
 4. **Include closed risks**: closed risks are left out unless you switch this on. In the ranked list they then carry their **Closed** status.
+
+**All scales** puts the risks of every scale on one five-by-five grid at the common levels (**Low**, **Medium**, **High**, **Critical**). Each scale's levels are spread from its lowest to its highest: the lowest level of every scale is **Lowest**, the highest is **Highest**, and the four severities of the safety hazard matrix fall at **Lowest**, **Low**, **High** and **Highest**. A cell with risks in it is colored by the most severe common level among them; an empty cell by the most severe common level any scale gives that part of its grid. The legend counts each risk at its own common level, so its totals match the **Critical** and **High** tiles above. The ranked list shows common levels too. It is a picture of where risks sit across the organization; to read a risk's exact rating, use its own scale. There is no appetite ring on this view, since each category's appetite is set on its own scale. **All scales** is offered when more than one scale is in use.
 
 When a risk appetite is set for a category scored on the scale, the cells rated above it have a **dashed ring**. Where several categories share a scale, the ring follows the strictest of their appetites, and the legend names it, for example "Above appetite (Medium or lower is accepted for Cybersecurity)". Each risk is still judged against its own category's appetite in the register.
 
@@ -404,7 +406,7 @@ Select **Clear selection** to clear them all. The **List** grouping has its own 
 | **Needs verification**, **Verifier**, **Verification due** | Whether someone must check that the action worked before it counts as done, who, and by when. On by default for actions in a corrective action plan. |
 | **Closure evidence** | What shows the action was done. Required, as text or an attachment, for the sources an administrator lists. |
 | **Source** | Where the action came from: Risk, Assessment, Incident, Audit, Exercise, Information request, Project, Change, Vulnerability, Policy, Training, Vendor, Problem, Safety or Other. A source whose part is switched off under **Administration > Features** is not offered. An action raised on a record is filed under that record's kind unless you choose otherwise. |
-| **Department**, **External reference**, **Notes** | Optional. |
+| **Department**, **Site**, **External reference**, **Notes** | Optional. The department is one of the organization's departments (**People > Departments**). An action raised on a hazard, a safety event or an inspection of a site takes that site unless you choose another; people whose role is limited to their departments or sites see the actions of theirs (see [Administration](09-administration.md#which-records-a-role-reaches)). |
 
 Each action has a reference beginning `ACT-`. Its page shows the due date with the days left, the owner, the priority, where it arose from and the plan it belongs to, and the **Verification**, **Extensions** (asking for a later due date), **Activity**, **Attachments**, **Related** and **History** tabs. Grouping actions into a plan with a root cause, approval and verification is described in [Corrective action plans](24-corrective-action-plans.md).
 
@@ -527,7 +529,6 @@ The change is given a reference beginning `REG-`. Its **Impact and actions** tab
 
 ## Not available yet
 
-- The heat map shows one scale at a time; there is no combined heat map across scales (the **Risk report** counts all scales by common level).
 - Key risk indicators are monthly; there is no weekly or daily indicator.
 - A regulatory change is entered by hand; there is no feed of changes from outside the application.
 - An acceptance recorded by hand names its approver; they do not sign in to confirm it (ask for acceptance through the workflow when they can).

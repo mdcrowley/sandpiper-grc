@@ -270,6 +270,7 @@ export function registerFigures(ctx: ModuleContext) {
 
   defineCalendarSource(app, {
     key: 'condition.assessments_due', label: 'Condition assessments due', recordType: 'condition_assessment', permission: 'assets.view',
+    work: true, kind: 'Condition assessments', // E41-03: My work
     events: async (c, user, from, to) => {
       const list = new Map((await classes(c)).map((x) => [x.id, x]));
       const every = await everyMonths(c);

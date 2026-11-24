@@ -14,7 +14,7 @@ import type { ApiError, ListResult } from '../../core';
 import { downloadFile, fileName, openDocument } from './data';
 import { ShareDialog, useCanChange } from './dialogs';
 import { ResultView } from './ResultView';
-import type { ChartSpec, PackSection, ReportDefinition, ReportPack, ReportResult, Snapshot } from './types';
+import type { ChartSpec, PackSection, ReportDefinition, ReportPack, ReportResult, Snapshot, TrackedFigure } from './types';
 import { Markdown } from './visuals';
 
 export function PacksPage() {
@@ -31,7 +31,7 @@ export function PacksPage() {
   );
 }
 
-interface PreviewSection { kind: 'text' | 'report'; title: string; body?: string; reportId?: string; description?: string | null; note?: string | null; result?: ReportResult | null; chart?: ChartSpec | null }
+interface PreviewSection { kind: 'text' | 'report' | 'figure'; title: string; body?: string; reportId?: string; description?: string | null; note?: string | null; result?: ReportResult | null; chart?: ChartSpec | null }
 interface Preview {
   pack: Pick<ReportPack, 'id' | 'name' | 'cover_title' | 'cover_subtitle' | 'description'>;
   sections: PreviewSection[]; generatedAt: string; preparedFor: string;
@@ -191,6 +191,9 @@ function PackDocument({ preview, appName }: { preview: Preview; appName?: string
 function PackEditor({ pack, onDone }: { pack: ReportPack; onDone: (saved: boolean) => void }) {
   const toast = useToast();
   const reports = useFetch<ListResult<ReportDefinition>>('/api/reports?pageSize=200&sort=name');
+  // Figures recorded over time (E41-04) a board pack can chart.
+  const figures = useFetch<TrackedFigure[]>('/api/figures');
+  const [pickFigure, setPickFigure] = useState('');
   const [f, setF] = useState({ name: pack.name, description: pack.description ?? '', cover_title: pack.cover_title ?? '', cover_subtitle: pack.cover_subtitle ?? '' });
   const [sections, setSections] = useState<PackSection[]>(pack.sections ?? []);
   const [busy, setBusy] = useState(false);
@@ -199,6 +202,8 @@ function PackEditor({ pack, onDone }: { pack: ReportPack; onDone: (saved: boolea
   const custom = useCustomFieldInputs('report_pack', { initial: pack });
   useEffect(() => { setSections(pack.sections ?? []); }, [pack]);
   const nameOf = (rid: string) => reports.data?.rows.find((r) => r.id === rid)?.name;
+  const figureName = (fid: string) => figures.data?.find((x) => x.id === fid)?.name;
+  const sectionName = (s: PackSection) => (s.kind === 'text' ? 'Text' : s.kind === 'figure' ? `Over time: ${figureName(s.figureId) ?? 'a figure not available to you'}` : nameOf(s.reportId) ?? 'A report not available to you');
   const move = (i: number, by: number) => { const next = [...sections]; const [s] = next.splice(i, 1); next.splice(i + by, 0, s); setSections(next); };
   const set = (i: number, patch: Partial<PackSection>) => setSections(sections.map((s, j) => (j === i ? { ...s, ...patch } as PackSection : s)));
 
@@ -232,21 +237,25 @@ function PackEditor({ pack, onDone }: { pack: ReportPack; onDone: (saved: boolea
           </div>
         </Card>
         <Card title="Sections" actions={<span className="muted">{sections.length} of 40</span>}>
-          {sections.length === 0 && <p className="rp-empty-hint">No sections yet. Add a saved report or some text below.</p>}
+          {sections.length === 0 && <p className="rp-empty-hint">No sections yet. Add a saved report, a figure over time or some text below.</p>}
           <ol className="rp-pack-sections">
             {sections.map((s, i) => (
               <li key={i} className="rp-pack-sec">
                 <div className="rp-pack-sec-head">
                   <span className="rp-column-n">{i + 1}</span>
                   <Icon name={s.kind === 'text' ? 'edit' : 'chart'} size={16} />
-                  <strong className="truncate">{s.kind === 'text' ? 'Text' : nameOf(s.reportId) ?? 'A report not available to you'}</strong>
+                  <strong className="truncate">{sectionName(s)}</strong>
                   <span className="rp-pack-sec-tools">
                     <IconButton icon="arrow-up" label="Move up" variant="ghost" size="sm" disabled={i === 0} onClick={() => move(i, -1)} />
                     <IconButton icon="arrow-down" label="Move down" variant="ghost" size="sm" disabled={i === sections.length - 1} onClick={() => move(i, 1)} />
                     <IconButton icon="x" label="Remove this section" variant="ghost" size="sm" onClick={() => setSections(sections.filter((_, j) => j !== i))} />
                   </span>
                 </div>
-                <TextField label="Heading" value={s.title ?? ''} onChange={(title) => set(i, { title })} placeholder={s.kind === 'report' ? nameOf(s.reportId) : 'Heading'} />
+                <TextField label="Heading" value={s.title ?? ''} onChange={(title) => set(i, { title })} placeholder={s.kind === 'report' ? nameOf(s.reportId) : s.kind === 'figure' ? figureName(s.figureId) : 'Heading'} />
+                {s.kind === 'figure' && (
+                  <Select label="Months to show" value={String(s.months ?? 12)} onChange={(m) => set(i, { months: Number(m) })}
+                    options={[6, 12, 24, 36].map((n) => ({ value: String(n), label: `Last ${n} months` }))} />
+                )}
                 {s.kind === 'text' && <TextArea label="Text" rows={4} value={s.body} onChange={(body) => set(i, { body })} hint="# for a heading, - for a bullet, **bold**, *italic*." />}
               </li>
             ))}
@@ -254,6 +263,10 @@ function PackEditor({ pack, onDone }: { pack: ReportPack; onDone: (saved: boolea
           <div className="rp-pack-add">
             <Select label="Add a saved report" searchable value={pick} placeholder="Choose a report…" options={(reports.data?.rows ?? []).map((r) => ({ value: r.id, label: r.name }))}
               onChange={(rid) => { if (rid) { setSections([...sections, { kind: 'report', reportId: rid }]); setPick(''); } }} />
+            {(figures.data?.length ?? 0) > 0 && (
+              <Select label="Add a figure over time" searchable value={pickFigure} placeholder="Choose a figure…" options={(figures.data ?? []).map((x) => ({ value: x.id, label: x.name }))}
+                onChange={(fid) => { if (fid) { setSections([...sections, { kind: 'figure', figureId: fid, months: 12 }]); setPickFigure(''); } }} />
+            )}
             <Button icon="plus" onClick={() => setSections([...sections, { kind: 'text', title: '', body: '' }])}>Add text</Button>
           </div>
         </Card>

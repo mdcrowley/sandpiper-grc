@@ -104,7 +104,9 @@ describe('one query per kind (E40-09)', () => {
     const many = await statements(async () => { deps = (await t.api.get(`/api/business-processes/${proc.id}/dependencies`)).body.dependencies ?? []; });
     expect(deps).toHaveLength(7);
     expect(deps[0]).toMatchObject({ dep_type: 'system', hidden: false, label: expect.stringMatching(/^Depended on/) });
-    expect(many).toBeLessThanOrEqual(few);
+    // One extra read is allowed: a cache (features, role scopes) may refresh during either window. Reading per
+    // dependency would add five.
+    expect(many).toBeLessThanOrEqual(few + 1);
   });
 });
 

@@ -11,12 +11,15 @@ import { printBranding, publicBranding } from '../../core/organization.ts';
 import type { ModuleDef, Row, SessionUser } from '../../core/module.ts';
 import { catalog } from './catalog.ts';
 import { makeDocuments, type Allow, type BuiltDocument } from './documents.ts';
-import { EXPORT_KINDS, FILE_TYPES, FORMAT_NAMES, renderFile } from './files.ts';
+import { registerFigureRoutes } from './figure-routes.ts';
+import { makeFigures } from './figures.ts';
+import { describeSpecFilters, EXPORT_KINDS, FILE_TYPES, FORMAT_NAMES, renderFile } from './files.ts';
 import { AccessError, runReport } from './query.ts';
 import { defineReportResources } from './resources.ts';
 import { runDueSchedules, runSchedule } from './schedule.ts';
 import { seedStandard } from './seed.ts';
 import { makeSharing } from './sharing.ts';
+import { toCsv } from './render.ts';
 import { makeSnapshots } from './snapshots.ts';
 import { mayView, reportable, SpecError, type GlobalFilters } from './spec.ts';
 import { runWidget, type Widget } from './widgets.ts';
@@ -75,7 +78,15 @@ const mod: ModuleDef = {
     // A saved report inside a dashboard or pack runs only for people it is shared with; everyone
     // else sees a "not shared with you" placeholder in its place.
     const visibleReport = async (user: SessionUser, id: string) => sharing.load(user, 'report_definition', id);
-    const documents = makeDocuments(ctx, visibleReport);
+    // Figures over time (E41-04): the same values for everyone; who may see one follows its record type.
+    const figures = makeFigures(ctx);
+    const loadFigure = async (user: SessionUser, id: string, months: number) => {
+      const f = await figures.visible(user, id);
+      if (!f) return null;
+      const filters = f.source === 'count' && f.record_type ? await describeSpecFilters(ctx, { type: f.record_type, filters: typeof f.filters === 'string' ? JSON.parse(f.filters) : f.filters ?? undefined }) : [];
+      return { figure: f, result: await figures.result(f, Math.min(60, Math.max(1, months)), new Date()), what: figures.describe(f).what, filters };
+    };
+    const documents = makeDocuments(ctx, visibleReport, loadFigure);
     const deps = { documents, snapshots, canSee: (user: SessionUser, type: 'report_definition' | 'dashboard', row: Row) => sharing.canSee(user, type, row) };
 
     // Must be in place before the generated routes are defined: it applies the sharing rules to them.
@@ -198,7 +209,7 @@ const mod: ModuleDef = {
       const widget = (b.widget && typeof b.widget === 'object' ? b.widget : ctx.fail(400, 'validation', 'No widget was given.')) as Widget;
       // A saved report runs only when it is shared with the viewer, wherever it is placed.
       const loadReport = async (id: string) => visibleReport(req.user!, id);
-      return runWidget(ctx, req.user, widget, { globals: readGlobals(b.globals), month: b.month, loadReport });
+      return runWidget(ctx, req.user, widget, { globals: readGlobals(b.globals), month: b.month, loadReport, loadFigure: async (id, months) => (await loadFigure(req.user!, id, months))?.result ?? null });
     });
 
     /**
@@ -252,6 +263,11 @@ const mod: ModuleDef = {
       const sections = [];
       for (const s of (pack.sections as Row[]) ?? []) {
         if (s.kind === 'text') { sections.push({ kind: 'text', title: s.title, body: s.body }); continue; }
+        if (s.kind === 'figure') {
+          const sec = await documents.figureSection(req.user!, String(s.figureId), s.title, Number(s.months) || 12);
+          sections.push({ kind: 'figure', figureId: s.figureId, title: sec.title, description: sec.description ?? null, note: sec.note ?? null, result: sec.result ?? null, chart: sec.result ? { kind: 'line' } : null });
+          continue;
+        }
         const report = await visibleReport(req.user!, String(s.reportId));
         const sec = await documents.reportSection(req.user!, report, s.title);
         sections.push({ kind: 'report', reportId: s.reportId, title: sec.title, description: sec.description ?? null, note: sec.note ?? null, result: sec.result ?? null, chart: report?.chart ?? null });
@@ -361,6 +377,17 @@ const mod: ModuleDef = {
 
     app.post('/api/report-schedules/run-due', { preHandler: ctx.requirePerm('admin.administer') }, async () => runDueSchedules(ctx, deps, new Date()));
 
+    // ---------- figures over time (E41-04) ----------
+
+    await registerFigureRoutes(ctx, figures, async (req, reply, id, months, format) => {
+      const kind = (EXPORT_KINDS as string[]).includes(format) ? format : ctx.fail(400, 'bad_format', 'Choose CSV, Excel, PDF or a print-ready document.');
+      const doc = await documents.forFigure(req.user!, id, months);
+      const r = doc.input.sections[0]?.result;
+      // CSV of the one table, as for a single report.
+      const built = r ? { ...doc, csv: toCsv(r, req.user!.displayName) } : doc;
+      return send(req, reply, built, kind, { type: 'tracked_figure', id, what: `figure "${doc.title}" over time` });
+    });
+
     /** Whether scheduled deliveries can also go by email here (an administrator has switched email on). */
     app.get('/api/reports/email-status', { preHandler: ctx.requirePerm('reports.view') }, async () => {
       const on = app.hasDecorator('mailEnabled') ? await (app as unknown as { mailEnabled(): Promise<boolean> }).mailEnabled().catch(() => false) : false;
@@ -383,8 +410,8 @@ const mod: ModuleDef = {
     await jobs.schedule('reports.deliver', { type: 'reports.deliver', every: 5 * 60_000, firstRunInMs: 90_000 });
   },
 
-  async seed(ctx) {
-    return seedStandard(ctx);
+  async seed(ctx, opts) {
+    return seedStandard(ctx, opts.profile);
   },
 };
 

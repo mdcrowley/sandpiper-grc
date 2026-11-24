@@ -234,7 +234,7 @@ export function ActionDetail() {
           )}
         </div>
       )}
-      summaryFields={['title', 'description', 'status', 'priority', 'owner_id', 'due_on', 'completed_on', 'source', 'department', 'external_ref', 'notes', 'cap_id', 'verification_required', 'verifier_id', 'closure_evidence']}
+      summaryFields={['title', 'description', 'status', 'priority', 'owner_id', 'due_on', 'completed_on', 'source', 'department_id', 'site_id', 'external_ref', 'notes', 'cap_id', 'verification_required', 'verifier_id', 'closure_evidence']}
       tabs={[
         { key: 'verification', label: 'Verification', content: (rec: RecordContext) => <VerificationPanel rec={rec} /> },
         { key: 'extensions', label: 'Extensions', content: (rec: RecordContext) => <ExtensionsPanel rec={rec} /> },

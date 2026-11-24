@@ -15,6 +15,7 @@ At the top of every portal page:
 - The portal's title (**Help and requests** unless the service desk has changed it), which takes you home.
 - **Home** and **My requests**.
 - The bell, for your notifications (for example "New reply on your request TKT-00041").
+- The globe button chooses the portal's language (see [Your language](#your-language)).
 - The moon or sun button switches between the dark and light themes.
 - The menu under your initials: **Change password**, **Sign-in security**, **Open the full application** (only if you also use other parts of the application), and **Sign out**.
 
@@ -86,7 +87,9 @@ Select **Report a safety concern** on the home page. If someone is in danger now
 - **Describe what happened** (required), and optionally **What was done straight away?** and **How many people were hurt?**
 - **It involves someone's health or other personal details**: check it so that only the people allowed to see personal information see the details. Please do not write medical details.
 
-Select **Send report**. You get a reference (for example SE-00104). The safety team is told and triages the report in their safety events list, where it has the status **Reported**. **My safety reports**, under the form and on the home page, shows each report you made with a plain status: **Received**, **Being looked into** or **Closed**. A report marked as holding personal details shows its reference only.
+Select **Send report**. You get a reference (for example SE-00104). The safety team is told and triages the report in their safety events list, where it has the status **Reported**. **My safety reports**, under the form and on the home page, shows each report you made with a plain status: **Received**, **Being looked into** or **Closed**. A report marked as holding personal details shows its reference only. When a report is closed, you are notified and **My safety reports** shows **What was done**, in the safety team's words.
+
+To keep your name out of the report, check **Keep my name confidential** before you send it. Your name is then not saved with the report: the safety team sees that the reporter asked to stay confidential, and only the few people your organization names can see who sent it; each time they look, it is recorded. You still see the report under **My safety reports** (marked "your name is kept confidential") and are told what was done; that notification says only that a safety report you made has been closed. Do not write your own name in the description if you want to stay confidential.
 
 ## My requests
 
@@ -132,6 +135,14 @@ Articles written for all staff appear in the search on the home page and while y
 
 Select a policy under **Policies to acknowledge** to read it. When you have read it, select **I have read and understood it**. It then leaves the list.
 
+When the version you were asked to read has a translation in your language, the portal shows the translation, with a link to read the original instead (and back). Your acknowledgment records the language you read it in. When it has no translation in your language, the original is shown and the page says so.
+
+## Your language
+
+The portal can be shown in English or Spanish (Español). Select the globe button at the top of any page and choose a language. Your choice is kept on your account, so the portal opens in it on any computer and the mobile app uses it too. Until you choose, the portal follows your browser's language when it is one of these, and English otherwise.
+
+The portal's own words are translated: the pages, buttons, messages and the plain status of your requests. What people in your organization write is shown as they wrote it: the catalog, help articles, replies from the service desk, the kinds of safety event, and any portal title, welcome or status wording the service desk set themselves. Messages the server sends back when something you typed needs changing are in English.
+
 ## My approvals
 
 People who approve service requests or changes see **My approvals** on the home page. Each item shows who asked and their answers (for a change, when it is planned). Select **Approve**, or **Reject** and then say **Why are you rejecting it?** and select **Reject** again. **Cancel** goes back.
@@ -158,4 +169,5 @@ Staff can also email the service desk address when email to ticket is set up: se
 
 ## Not available yet
 
-- Following a safety report's investigation in detail from the portal (only its status is shown).
+- More languages than English and Spanish. Adding one is a translation file per part (see the developer guide); the catalog, help articles and the organization's own lists are not translated.
+- Following a safety report's investigation in detail from the portal (only its status is shown, and what was done once it is closed).

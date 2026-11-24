@@ -1,6 +1,6 @@
 # Projects
 
-The Projects area takes a technology project from a one-page request through a fixed set of stages, with a gate between each stage where a checklist must be complete, the required documents must be in place and an approval recorded before the project can move on. This page covers submitting a request, how the tier is set, working a gate, moving a project back, status reports, the project register, milestones, scoring, actions and the portfolio views. The screens are in the **Projects** group of the menu: **Project portfolio**, **New project request** and **Project settings**.
+The Projects area takes a technology project from a one-page request through a fixed set of stages, with a gate between each stage where a checklist must be complete, the required documents must be in place and an approval recorded before the project can move on. This page covers submitting a request, how the tier is set, working a gate, moving a project back, status reports, the project register, milestones, scoring, safety and security certification, actions and the portfolio views. The screens are in the **Projects** group of the menu: **Project portfolio**, **New project request**, **Safety and security certification** and **Project settings**.
 
 An administrator can switch projects off under **Administration > Features** (see [Administration](09-administration.md#features)). Records are kept and return when it is switched back on.
 
@@ -13,6 +13,9 @@ An administrator can switch projects off under **Administration > Features** (se
 | Edit a project, check checklist items, mark documents received, attach files, add reports, items and milestones, save scores | **Edit** on Projects |
 | Ask for approval at a gate (when its template names an approval workflow) | **Edit** on Projects |
 | Record a gate decision, waive a required document, move a project back a stage | **Approve** on Projects |
+| Add certifiable items and requirements, record verification | **Edit** on Projects |
+| Issue or withdraw a certificate of readiness | **Approve** on Projects |
+| Derive a requirement from a hazard, or from a threat | **View** on Safety, or **View** on Risks and on Security incidents and restricted records |
 | Escalate a project risk to the risk register | **Edit** on Projects and **Create** on Risks |
 | Change project settings and gate templates | **Administer** on Projects |
 
@@ -25,7 +28,7 @@ Every project starts as a one-page request.
 1. Open **Projects > New project request**, select **New project request** on the portfolio, or choose **Project request** from the **Create** menu. These are shown only to people who may send a request: people who may create projects, and, depending on **Who may submit a project request** in **Project settings**, people who may view projects or everyone.
 2. Enter a **Name**.
 3. In **What is needed and why**, describe the problem. In **Expected benefits**, say what will be better afterward.
-4. Enter the **Sponsor** and **Department**.
+4. Enter the **Sponsor** and choose the **Department** (one of the organization's departments).
 5. Enter a rough **Budget**, choose the **Funding source** (**Operating budget**, **Capital budget**, **Grant or outside funder** or **Other**; leave it as **Not known yet** if you do not know) and enter a **Target date**.
 6. Under **Does it touch any of these?**, check any that apply: **Touches payment**, **Touches personal data**, **Touches operational systems**.
 7. Where the system inventory is in use and you may view it, name any **Systems affected**: existing systems the project would change, replace or depend on.
@@ -171,6 +174,7 @@ In the decision window, choosing **Approved** while something is outstanding sho
 
 - **Checklist:** each item still unchecked.
 - **Required document:** each required document that is neither received nor waived.
+- **Certificate of readiness not issued:** the gate's template requires a certificate of readiness, the project carries certifiable items, and no certificate is in force (see [Safety and security certification](#safety-and-security-certification)).
 
 **Record decision** stays disabled until the list is empty. Check the items and deal with the documents first, or record the decision as **Deferred**. A project that is on hold, canceled or completed cannot have any gate decision recorded ("No decision can be recorded yet"): make it **Active** again first.
 
@@ -282,6 +286,54 @@ Each criterion's weight is its share of the 100 points. It earns that share mult
 
 Administrators can change the criteria and weights. The score appears on the project page and in the **Score** column of the portfolio table.
 
+## Safety and security certification
+
+A capital project that builds or changes something people will ride, work on or rely on (a new vehicle type, a signal system, a station, a fare system) is often certified safe and secure before it is used. The **Certification** tab on a project keeps that work: the items to certify, the requirements each must meet, the evidence that each requirement was verified, and the **certificate of readiness**.
+
+### Certifiable items
+
+A certifiable item is one part of the project to certify. On the **Certification** tab, select **Add certifiable item** and give:
+
+- **Item**: for example "Low-floor bus type" or "Platform screen doors". It gets a reference such as CI-00001.
+- **What it covers**, a **Category** (vehicles and rolling stock, systems and equipment, stations and facilities, track and infrastructure, operations and training, other) and an **Owner**.
+- **Required for the certificate of readiness**: on by default. A required item must be verified before the certificate can be issued. Turn it off for an item that may stay open when the project is certified (for example finishing work); the certificate then lists it as an accepted open item.
+
+An item is **Open** until it has at least one requirement and every requirement is verified or marked not applicable; it is then **Verified**. Use the three-dot menu on an item to add a requirement, edit the item or delete it (its requirements are deleted with it).
+
+### Requirements and where they come from
+
+Each requirement says what must be true, for example "Doors cannot open away from the platform". Select **Add requirement** on the item and give the **Requirement**, **What must be true**, and where it comes from:
+
+- **Derived from: A hazard**: pick a hazard from the safety hazard log (needs **View** on Safety).
+- **Derived from: A threat (a risk)**: pick a risk from the risk register (needs **View** on Risks and on Security incidents and restricted records). A requirement derived from a threat is **restricted**: only people who may see restricted records see its details. Everyone else sees "A restricted requirement" in its place, with its status, and it still counts in every figure.
+- **Other basis**: a standard, design criterion or rule, as text.
+
+Only the kinds of record you may open, in areas that are switched on, are offered. Add the **Verification method** (inspection, test, analysis, demonstration or document review), the **Verifier** and a **Due** date. Requirements with a verifier and a due date appear in that person's **My work** and on the compliance calendar until they are verified.
+
+### Verifying a requirement
+
+Choose **Record verification** from the requirement's menu. A requirement can be marked **Verified** only with a **Verification method** and some evidence: an **Evidence reference** (the test report or inspection record), **Verification notes**, or a file attached on the requirement's own page (open it from its reference; files there are evidence files). **Not applicable** needs a note saying why. The person and the date are recorded. Setting a requirement back to **Open** or **Verification under way** clears them.
+
+### The certificate of readiness
+
+The top of the tab says where the project stands:
+
+- **The certificate cannot be issued yet**: lists each required item that is open and how many of its requirements are open.
+- **Ready for the certificate of readiness**: every required item is verified. Someone with **Approve** on Projects selects **Issue the certificate**, says what it **Certifies as ready**, adds any **Conditions and restrictions**, their role and the date, and selects **Issue certificate**. The window lists the open items that are not required, which the certificate accepts.
+- **Certificate of readiness in force**: with **Download the certificate (PDF)** and **Withdraw**.
+
+The certificate PDF names the project, what it certifies, who issued it and when, every certifiable item with how many of its requirements were verified, the open items accepted, and the conditions. It shows only items, never the details of restricted requirements.
+
+Only one certificate is in force at a time. It is **withdrawn automatically** when a required item opens again (a requirement is set back to open, a new required item or requirement is added, or an item is made required); the project manager and sponsor are told, and the reason names the items. Someone with **Approve** can also withdraw it by hand, with a reason. Withdrawn certificates stay under **Certificates** on the tab, with their PDFs. Issuing, withdrawing and printing are recorded in the project's history.
+
+### Gates that require the certificate
+
+An administrator can turn on **Require a certificate of readiness** on a gate template (see [Project settings](#project-settings)), typically **Go-live**. Such a gate cannot be approved while the project carries certifiable items and no certificate is in force; it shows "Certificate of readiness not issued" among the blockers. A project with no certifiable items is not affected.
+
+### Across projects
+
+**Projects > Safety and security certification** lists every certifiable item you may see, across projects, with filters by status, category, project and owner; **All requirements** lists the requirements. A role scoped to departments (see [Administration](09-administration.md)) sees the items and requirements of its departments' projects.
+
 ## Actions
 
 Where the action tracker is in use, the **Actions** tab lists the to-dos raised from this project. Type in **Add an action and press Enter** (with an optional due date) to add one; it also appears in the action tracker with the source **Project**. See [Risks, actions and obligations](06-risks-actions-obligations.md).
@@ -335,6 +387,7 @@ The **Activity**, **Attachments**, **Related** and **History** tabs work as on e
 Where notifications are in use, the projects area tells people about:
 
 - **A gate ready for a decision**: approvers are told "Gate ready for a decision" and the project manager "Gate decision due". A daily check repeats this while the gate waits.
+- **A certificate of readiness withdrawn automatically**: the project manager and sponsor are told "Certificate of readiness withdrawn" when a required certifiable item opens again.
 - **A project turning red**: when a new report rates the project red overall and the previous one did not, the project manager and approvers are told "Project turned red".
 - **A status report that is due**: once a project has left the Idea stage, its manager is reminded "Status report due" when there has been no report for longer than the number of days set in **Project settings** (30 by default).
 
@@ -350,7 +403,7 @@ Open **Projects > Project settings**, or select **Settings** on the portfolio. Y
 | **Work-in-progress limit** | **Active projects in delivery**: a whole number of 1 or more. Select **Save limit**. |
 | **Requests and reminders** | **Who may submit a project request**: **People who can create projects** (the default), **Everyone who can view projects** or **Everyone who can sign in**. **Status report due after (days)**: 1 to 366, counted from the period end of the last report. Select **Save requests and reminders**. |
 | **Scoring criteria** | For each criterion, its name (**Criterion**), **What it means** and **Weight**. Use **Add criterion** or the trash icon, then **Save criteria**. At least one criterion must have a weight above zero. Every project's score is recalculated. |
-| **Gates** | For each gate, select **Edit** to change the **Gate name**, the **Checklist** (one item per line), the **Documents** (a name each, with a **Required** switch; **Add document** adds one, the trash button removes one), **Ask for a change record at this gate**, the **Approval workflow** (one of the active workflows of the kind "Project gate decision", or **None: decisions are recorded by hand**; the table shows it under **Approval**), and the **Approvers** for each tier (one role per line). Select **Save gate**. |
+| **Gates** | For each gate, select **Edit** to change the **Gate name**, the **Checklist** (one item per line), the **Documents** (a name each, with a **Required** switch; **Add document** adds one, the trash button removes one), **Ask for a change record at this gate**, **Require a certificate of readiness** (projects with certifiable items pass the gate only while a certificate of readiness is in force; this applies at once to gates already open), the **Approval workflow** (one of the active workflows of the kind "Project gate decision", or **None: decisions are recorded by hand**; the table shows it under **Approval**), and the **Approvers** for each tier (one role per line). Select **Save gate**. |
 
 A ready-made workflow, **Gate decision** (one approval from anyone with **Approve** on Projects, due in five days), is supplied under **Administration > Approval workflows**, but no gate template names it until an administrator chooses it. The approval workflow a template names applies to its gates at once, including gates already open.
 
@@ -358,10 +411,11 @@ Other changes to a gate template apply to gates opened from then on. A gate alre
 
 ## Sample data
 
-Loading sample data adds seven invented projects whose names start with **[Sample]**, for example "[Sample] Real-time passenger information upgrade" and "[Sample] Depot network refresh", spread across every stage with gates, reports, milestones and register items. Delete them when you no longer need them.
+Loading sample data adds seven invented projects whose names start with **[Sample]**, for example "[Sample] Real-time passenger information upgrade" and "[Sample] Depot network refresh", spread across every stage with gates, reports, milestones and register items; "[Sample] Real-time passenger information upgrade" also carries certifiable items with their requirements. Delete them when you no longer need them.
 
 ## Not available yet
 
 - A gate collects sign-off in the application only when its template names an approval workflow (see [Asking for approval through a workflow](#asking-for-approval-through-a-workflow)). The **Approvers** list of each tier is guidance: the application does not check a decision recorded by hand against it.
 - Gates cannot be added or removed, and the stages they sit between cannot be changed, on screen.
 - Moving a project back goes one stage at a time.
+- Certification covers the whole project with one certificate of readiness: there is no separate certificate of conformance per item, and the application does not require a second person to confirm a verification.

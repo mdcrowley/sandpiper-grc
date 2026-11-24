@@ -14,6 +14,8 @@ const KEY = {
   tokens: 'grc.tokens',
   prefs: 'grc.prefs',
   profile: 'grc.profile',
+  // The person's language (E41-07), also kept on their account on the server.
+  language: 'grc.language',
 } as const;
 
 /** Who is signed in and what they may do: the last `GET /api/mobile/settings`, so the app opens offline. */
@@ -74,12 +76,14 @@ export const storage = {
   setPrefs: (prefs: Prefs) => write(KEY.prefs, prefs),
   profile: () => readJson<StoredProfile>(KEY.profile),
   setProfile: (profile: StoredProfile | null) => write(KEY.profile, profile),
+  language: () => SecureStore.getItemAsync(KEY.language, OPTIONS),
+  setLanguage: (code: string | null) => write(KEY.language, code),
   /**
    * Signing out or a refused refresh: removes tokens, the server's answers and preferences. The typed
    * server address stays (it is remembered, §5.2) and so does the installation identifier.
    */
   async wipe(): Promise<void> {
-    await Promise.all([write(KEY.tokens, null), write(KEY.hello, null), write(KEY.prefs, null), write(KEY.profile, null)]);
+    await Promise.all([write(KEY.tokens, null), write(KEY.hello, null), write(KEY.prefs, null), write(KEY.profile, null), write(KEY.language, null)]);
   },
   /**
    * A new installation (install.ts, iPhone, where the Keychain outlives the app): removes everything,

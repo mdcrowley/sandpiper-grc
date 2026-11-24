@@ -190,7 +190,24 @@ export const STANDARD_PACK = {
     { kind: 'text', title: 'Summary', body: 'Replace this text with a short summary of the period: what improved, what needs a decision, and what you are asking for.\n\n- One point per line\n- Keep it to what the reader needs to decide' },
     { kind: 'report', reportKey: 'framework_progress' },
     { kind: 'report', reportKey: 'top_risks' },
+    { kind: 'figure', figureKey: 'open_risks_by_level', months: 12 },
     { kind: 'report', reportKey: 'overdue_actions' },
     { kind: 'report', reportKey: 'open_incidents' },
   ] as Row[],
 };
+
+/**
+ * The standard figures recorded over time (E41-04): what a board usually follows month by month.
+ * A count of records (with an optional breakdown by a list field) or a metric another module
+ * offers. A figure whose part of the application is not loaded or switched off is simply not shown.
+ */
+export interface StandardFigure { key: string; name: string; description: string; source: 'count' | 'metric'; metric_key?: string; record_type?: string; filters?: FilterGroup; group_field?: string }
+
+export const STANDARD_FIGURES: StandardFigure[] = [
+  { key: 'open_risks_by_level', name: 'Open risks by level', description: 'Risks not closed, by their summary level.', source: 'count', record_type: 'risk', filters: all(c('status', 'nin', ['closed'])), group_field: 'summary_level' },
+  { key: 'overdue_actions', name: 'Overdue actions', description: 'Open actions past their due date.', source: 'metric', metric_key: 'actions.overdue' },
+  { key: 'open_findings_by_rating', name: 'Open audit findings by rating', description: 'Audit and inspection findings not closed, by rating.', source: 'count', record_type: 'audit_finding', filters: all(c('status', 'nin', ['closed'])), group_field: 'rating' },
+  { key: 'findings_overdue', name: 'Audit findings overdue', description: 'Findings past their response or close-out date.', source: 'metric', metric_key: 'audits.findings_overdue' },
+  { key: 'open_vulnerabilities_by_severity', name: 'Open vulnerabilities by severity', description: 'Vulnerabilities not closed, by severity.', source: 'count', record_type: 'vulnerability', filters: openVulns, group_field: 'severity' },
+  { key: 'training_compliance', name: 'Staff qualified for their position', description: 'The share of staff holding every qualification their position needs.', source: 'metric', metric_key: 'training.compliance_pct' },
+];

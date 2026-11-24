@@ -16,7 +16,10 @@
 // again by the next run, so an event can be in two files, never in none.
 //
 // A least-privilege run-time role (docs/installation.md) may not delete audit events at all: the run
-// then stops before writing anything and says so (setting saved, alert to the administrators).
+// then stops before writing anything and says so. The archive then runs as the database owner, with
+// the command `audit-archive` (server/src/ops/audit-archive-owner.ts, E40-14), from a scheduled task;
+// the daily job only watches, and tells the administrators once when events more than
+// OWNER_GRACE_DAYS past the cut-off are still in the database (the owner's runs have stopped).
 import { createReadStream, createWriteStream, existsSync } from 'node:fs';
 import { mkdir, rm, stat } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
@@ -33,6 +36,10 @@ import type { OpsAlerts } from './jobs/alerts.ts';
 
 export const SETTING_AUDIT_ARCHIVE = 'audit.archive';
 export const MAX_PER_RUN = 500_000;
+/** With a least-privilege role, how long past the cut-off events may wait for the owner's run before the administrators are told. */
+export const OWNER_GRACE_DAYS = 31;
+/** The command that archives as the database owner, as an operator types it. */
+export const OWNER_COMMAND = 'npm run cli -- audit-archive (grc audit-archive in the container)';
 const BATCH = 5_000;
 const PRIVATE_DIR = 0o700;
 const PRIVATE_FILE = 0o600;
@@ -57,6 +64,8 @@ export interface ArchiveResult {
   cutoff?: string;
   more?: boolean;
   message?: string;
+  /** not_permitted: events more than OWNER_GRACE_DAYS past the cut-off are still there (the owner's runs have stopped). */
+  overdue?: boolean;
 }
 
 export async function readArchiveSettings(ctx: Pick<ModuleContext, 'settings'>): Promise<AuditArchiveSettings> {
@@ -91,7 +100,12 @@ export async function mayRemoveAuditEvents(db: Db): Promise<boolean> {
 
 /** One archive run. Throws with a plain message when the file cannot be written or does not check. */
 export async function archiveAuditEvents(
-  ctx: Pick<ModuleContext, 'db' | 'audit' | 'settings'>, opts: { now?: Date; settings?: AuditArchiveSettings; onProgress?: (p: Row) => Promise<void> } = {},
+  ctx: Pick<ModuleContext, 'db' | 'audit' | 'settings'>,
+  opts: {
+    now?: Date; settings?: AuditArchiveSettings; onProgress?: (p: Row) => Promise<void>;
+    /** Who runs it, for the audit event ("the owner command as grc_owner"). */
+    by?: string;
+  } = {},
 ): Promise<ArchiveResult> {
   const { db } = ctx;
   const s = opts.settings ?? await readArchiveSettings(ctx);
@@ -105,9 +119,13 @@ export async function archiveAuditEvents(
   const first = await db.one<{ id: number }>('select id from audit_events where at < $1::timestamptz order by id limit 1', [cut]);
   if (!first) return { status: 'nothing', cutoff: cut };
   if (!(await mayRemoveAuditEvents(db))) {
+    const grace = new Date(cutoff.getTime() - OWNER_GRACE_DAYS * 86_400_000).toISOString();
+    const overdue = Boolean(await db.one('select 1 from audit_events where at < $1::timestamptz limit 1', [grace]));
     return {
-      status: 'not_permitted', cutoff: cut,
-      message: 'The database account the server uses may not remove audit events (a least-privilege role). Nothing was archived.',
+      status: 'not_permitted', cutoff: cut, overdue,
+      message: overdue
+        ? `The database account the server uses may not remove audit events (a least-privilege role), and events more than ${OWNER_GRACE_DAYS} days past the cut-off are still in the database. Run the archive as the database owner: ${OWNER_COMMAND}.`
+        : `The database account the server uses may not remove audit events (a least-privilege role). Nothing was archived here; the archive runs as the database owner: ${OWNER_COMMAND}.`,
     };
   }
 
@@ -188,8 +206,8 @@ export async function archiveAuditEvents(
   const more = ids.length >= MAX_PER_RUN;
   await ctx.audit(null, {
     action: 'audit.archive', recordType: 'audit_archive', recordId: name,
-    summary: `${removed.toLocaleString('en-US')} audit events older than ${cut.slice(0, 10)} archived to ${file} (SHA-256 ${sha256.slice(0, 16)}…) and removed${more ? '; more remain for the next run' : ''}`,
-    after: { file, events: count, removed, firstId, lastId, bytes, sha256, olderThan: cut },
+    summary: `${removed.toLocaleString('en-US')} audit events older than ${cut.slice(0, 10)} archived to ${file} (SHA-256 ${sha256.slice(0, 16)}…) and removed${opts.by ? ` by ${opts.by}` : ''}${more ? '; more remain for the next run' : ''}`,
+    after: { file, events: count, removed, firstId, lastId, bytes, sha256, olderThan: cut, ...(opts.by ? { by: opts.by } : {}) },
   });
   return { status: 'archived', file, count, sha256, firstId, lastId, cutoff: cut, more };
 }
@@ -202,8 +220,9 @@ export async function registerAuditArchive(ctx: ModuleContext, jobs: JobQueue, a
 
   jobs.register('core.audit_archive', async (_payload, job) => {
     const result = await archiveAuditEvents(ctx, { onProgress: (p) => job.progress(p) });
-    if (result.status === 'not_permitted') {
-      await alerts.raise('audit.archive', { title: 'The audit archive cannot remove old events', detail: result.message, route: '/admin/audit' });
+    // With a least-privilege role the owner's command archives; the job only watches that it keeps doing so.
+    if (result.status === 'not_permitted' && result.overdue) {
+      await alerts.raise('audit.archive', { title: 'Old audit events are not being archived', detail: result.message, route: '/admin/audit' });
     } else await alerts.clear(['audit.archive']);
     return result;
   }, { maxAttempts: 2, leaseSeconds: 3600 });
@@ -218,6 +237,7 @@ export async function registerAuditArchive(ctx: ModuleContext, jobs: JobQueue, a
     return {
       settings,
       permitted: await mayRemoveAuditEvents(db as Db),
+      ownerCommand: OWNER_COMMAND,
       oldest: (await db.one<{ at: string }>('select min(at) as at from audit_events'))?.at ?? null,
       runs, job: job ?? null,
     };

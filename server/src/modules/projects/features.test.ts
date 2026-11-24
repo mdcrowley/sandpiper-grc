@@ -211,6 +211,7 @@ describe('systems affected and change records (E11-20, E11-21)', () => {
       expect(list).toMatchObject({ available: true, hidden: 0 });
       expect(list.systems[0]).toMatchObject({ id: sys.id, label: 'Invented payroll system' });
       // other edits do not re-check the list
+      await t.db.query("insert into departments (name) values ('Finance') on conflict (name) do update set deleted_at = null");
       expect((await t.api.patch(`/api/projects/${p.id}`, { department: 'Finance' })).status).toBe(200);
     } else {
       expect(unknown.body.error.fields.systems_affected).toMatch(/not available/);

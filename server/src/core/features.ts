@@ -230,9 +230,44 @@ export const AREAS: Area[] = [
     description: 'The Sandpiper GRC app for iPhone and Android: sign-in through the phone\'s browser, My work, reading asset tags with the camera, reporting problems with photos, inspections, condition assessments and counts that work offline, push notifications, and the list of signed-in devices. Switching it off signs out every device.',
     permissions: [], modules: ['mobile', 'push'], jobs: ['mobile.', 'push.'],
   },
+  // Wave 20 (E41-02). Shares the systems permissions, like OT security: its record types are hidden by name.
+  {
+    key: 'accessreviews', label: 'User access reviews', defaultOn: true,
+    description: 'The accounts each system holds, matched to the staff roster with leavers and people on leave flagged, and review campaigns in which system owners keep or remove each account, with removals tracked to done.',
+    permissions: [], types: ['system_account', 'access_review'], modules: ['accessreviews'], jobs: ['accessreviews.'],
+    lookupValues: { action_source: ['access_review'], notification_kind: ['access_review'] },
+    lists: ['system_account_status', 'system_account_kind', 'system_account_attention', 'system_account_match', 'system_account_source', 'access_review_status'],
+  },
+  // Wave 22 (E41-15). Shares the records permissions (records requests), so its record types and lists are
+  // hidden by name; switching records requests off takes those permissions away, and so hides it too.
+  {
+    key: 'recordsretention', label: 'Records retention schedule', defaultOn: true,
+    description: 'The organization\'s own record series, paper and electronic, with how long each is kept after which event and what happens at the end, and a destruction log in which each batch of records is approved before it is destroyed and recorded with its certificate afterwards. Legal holds stop a destruction.',
+    permissions: [], types: ['record_series', 'records_destruction'], modules: ['recordsretention'], jobs: ['recordsretention.'],
+    lists: ['record_series_status', 'record_series_category', 'record_medium', 'retention_unit', 'retention_trigger', 'record_disposition', 'destruction_status', 'destruction_method'],
+  },
 ];
 
 export const AREA_KEYS = AREAS.map((a) => a.key);
+
+/**
+ * Areas added while the application runs (E41-06): each register an administrator defines is an area
+ * of its own, switched under Administration > Features like the others. `defineRuntimeArea` adds or
+ * replaces one in AREAS, `removeRuntimeArea` takes it out again; a built-in area is never touched.
+ * Call `invalidateFeatures(db)` afterwards so the next read sees it. AREA_KEYS and FEATURE_DEFAULTS
+ * keep the built-in areas only (a run-time area missing from the stored setting takes its default).
+ */
+const BUILT_IN_AREAS = new Set(AREA_KEYS);
+export function defineRuntimeArea(area: Area): void {
+  if (BUILT_IN_AREAS.has(area.key)) throw new Error(`Area ${area.key} is built in`);
+  const i = AREAS.findIndex((a) => a.key === area.key);
+  if (i >= 0) AREAS[i] = area; else AREAS.push(area);
+}
+export function removeRuntimeArea(key: string): void {
+  if (BUILT_IN_AREAS.has(key)) return;
+  const i = AREAS.findIndex((a) => a.key === key);
+  if (i >= 0) AREAS.splice(i, 1);
+}
 
 /**
  * Options within an area (E18-28): one feature of a part of the application that suits some

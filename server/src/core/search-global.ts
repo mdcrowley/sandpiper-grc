@@ -23,17 +23,19 @@ interface Deps {
 
 /**
  * Global search (GET /api/search): full text over every record type the caller may view, with
- * their comments and attached file names; ranked, best first. Queries under three characters match
+ * their comments, attached file names and the text inside attached files (E41-16); ranked, best first. Queries under three characters match
  * by substring. Each type shows its best PER_TYPE, under the same permission, restriction and row
  * rules as its list.
  */
 export function registerGlobalSearch({ app, db, res }: Deps) {
   const { registry, mayAccess, visibilitySql } = res;
 
-  // Whether the attachments module's table exists (file names are searched when it does).
+  // Whether the attachments module's tables exist (file names, and the text read from files, are searched when they do).
   let hasAttachments = false;
+  let hasFileTexts = false;
   app.addHook('onReady', async () => {
     hasAttachments = Boolean((await db.one<{ t: string | null }>(`select to_regclass('public.attachments')::text as t`))?.t);
+    hasFileTexts = hasAttachments && Boolean((await db.one<{ t: string | null }>(`select to_regclass('public.attachment_texts')::text as t`))?.t);
   });
 
   app.get('/api/search', async (req) => {
@@ -55,6 +57,7 @@ export function registerGlobalSearch({ app, db, res }: Deps) {
     // Which record types have a matching comment or file name at all (two queries, not two per type).
     let commentTypes = new Set<string>();
     let fileTypes = new Set<string>();
+    let fileTextTypes = new Set<string>();
     if (s.fts) {
       const p: unknown[] = [];
       const tsq = s.tsquery((v) => { p.push(v); return `$${p.length}`; });
@@ -62,6 +65,11 @@ export function registerGlobalSearch({ app, db, res }: Deps) {
       if (hasAttachments) {
         fileTypes = new Set((await db.query<Row>(
           'select distinct record_type from attachments where deleted_at is null and file_name ilike $1', [s.like])).map((r) => r.record_type));
+      }
+      if (hasFileTexts) {
+        fileTextTypes = new Set((await db.query<Row>(
+          `select distinct a.record_type from attachment_texts x join attachments a on a.id = x.attachment_id
+           where a.deleted_at is null and x.vector @@ ${tsq}`, p)).map((r) => r.record_type));
       }
     }
 
@@ -222,6 +230,20 @@ export function registerGlobalSearch({ app, db, res }: Deps) {
            from attachments a join ${def.table} t on t.id = a.record_id
            where a.record_type = $2 and a.deleted_at is null and a.file_name ilike $1 and ${visible} order by t.id limit ${PER_TYPE}`, [s.like, def.type]);
         for (const r of rows) out.push([r, 'attachment', r.file_name]);
+      }
+      // The text inside its files (E41-16), under the record's rules like the rest: the passage found is
+      // shown after the file's name.
+      if (fileTextTypes.has(def.type)) {
+        const p: unknown[] = [];
+        const addP = (v: unknown) => { p.push(v); return `$${p.length}`; };
+        const tsq = s.tsquery(addP);
+        const rows = await db.query<Row>(
+          `select x.id, x.label, x.ref, x.rank, x.file_name || ': ' || ts_headline('${SEARCH_CONFIG}', left(x.content, 100000), ${tsq}, '${HEADLINE_OPTIONS}') as headline
+           from (select distinct on (t.id) t.id, ${label}, a.file_name, ft.content, ts_rank(ft.vector, ${tsq}) * 0.4 as rank
+                 from attachment_texts ft join attachments a on a.id = ft.attachment_id join ${def.table} t on t.id = a.record_id
+                 where a.record_type = ${addP(def.type)} and a.deleted_at is null and ft.vector @@ ${tsq} and ${visible}
+                 order by t.id, rank desc limit ${PER_TYPE}) x`, p);
+        for (const r of rows) out.push([r, 'attachment', r.headline]);
       }
       return out;
     }

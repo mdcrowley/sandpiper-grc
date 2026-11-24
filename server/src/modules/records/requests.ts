@@ -414,6 +414,7 @@ export async function registerRequests(ctx: ModuleContext) {
 
   defineCalendarSource(app, {
     key: 'records.requests_due', label: 'Records requests I own, by due date', recordType: REQUEST_TYPE, permission: 'records.view',
+    work: true, kind: 'Records requests', // E41-03: My work
     events: async (_ctx, user, from, to) => {
       const rows = await db.query<Row>(
         `select id, ref, subject, coalesce(extended_due_on, due_on)::text as due from records_requests

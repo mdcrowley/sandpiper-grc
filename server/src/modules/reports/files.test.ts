@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createSession, SESSION_COOKIE } from '../../core/auth.ts';
 import { readXlsx } from '../../core/import/xlsx.ts';
+import { checkPdfUa } from '../../core/export/pdfua.ts';
 import { pdfPageCount, pdfText } from '../../core/export/testing.ts';
 import type { ModuleDef } from '../../core/module.ts';
 import { testApp } from '../../test/helpers.ts';
@@ -107,6 +108,10 @@ describe('report files', () => {
     expect(res.status).toBe(200);
     expect(pdfPageCount(res.body)).toBe(2);
     expect(pdfText(res.body)).toContain('Read me');
+    // E41-13: tagged for PDF/UA; the chart is a figure that lists its values in words.
+    const ua = await checkPdfUa(res.body);
+    expect(ua.failures).toEqual([]);
+    expect(ua.figures.length).toBeGreaterThan(0);
     const book = readXlsx((await raw(lead, `/api/dashboards/${dash.id}/export?format=xlsx`)).body);
     expect(book.map((s) => s.name)).toEqual(['Things by status', 'Second band']);
     expect((await raw(lead, `/api/dashboards/${dash.id}/export?format=csv`)).status).toBe(400);
@@ -118,6 +123,10 @@ describe('report files', () => {
     expect(pdfPageCount(file.body)).toBe(3); // cover, summary, report
     expect(text).toContain('Quarterly board pack');
     expect(text).toContain('Page 3 of 3');
+    const packUa = await checkPdfUa(file.body);
+    expect(packUa.failures).toEqual([]);
+    expect(packUa.title).toBe('Quarterly board pack');
+    expect(packUa.headings.slice(0, 3)).toEqual(['H1', 'H2', 'H2']);
   });
 });
 

@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { StatusChip, formatDate } from '../../core';
 import { wrapPolicyTables } from './policyTables';
+import { BASE_LANGUAGE, englishName } from '../../../../shared/i18n.ts';
 import type { ColorName } from '../../core';
 
 export interface PolicyVersion {
@@ -42,7 +43,13 @@ export interface AckRow {
   reminder_count: number;
   state: AckState;
   days_overdue: number;
+  /** The language the person read (E41-07); empty before translations existed. */
+  language?: string | null;
 }
+
+/** " (read in Spanish)" after an acknowledgment given in a translation; nothing for the original language. */
+export const readIn = (language: string | null | undefined): string =>
+  language && language !== BASE_LANGUAGE ? ` (read in ${englishName(language)})` : '';
 
 export interface AckTracking {
   today: string;

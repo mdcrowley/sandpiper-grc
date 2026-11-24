@@ -332,6 +332,8 @@ export async function registerCounts(ctx: ModuleContext): Promise<void> {
   ctx.defineResource({
     type: COUNT_TYPE, table: 'inventory_counts', module: 'tags', label: 'Inventory count', plural: 'Inventory counts',
     path: '/api/inventory-counts', route: '/inventory-counts', titleField: 'title',
+    // Role grants scoped to departments or sites (E41-01, core/scope.ts).
+    scope: { site: 'site_id' },
     ref: { field: 'ref', prefix: 'CNT-' },
     searchable: ['title', 'area', 'notes'],
     defaultSort: { field: 'started_at', dir: 'desc' },

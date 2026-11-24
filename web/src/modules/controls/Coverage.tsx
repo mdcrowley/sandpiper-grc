@@ -4,7 +4,8 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Pagination } from '@mantine/core';
-import { Card, EmptyState, ErrorState, Loading, LookupChip, MultiSelect, PageHeader, TableWrap, useFetch } from '../../core';
+import { Button, Card, EmptyState, ErrorState, Loading, LookupChip, MultiSelect, PageHeader, TableWrap, useAuth, useFetch } from '../../core';
+import { CoverageImportDialog } from './CoverageImport';
 import { ControlsTabs, STATE_INFO, STATE_ORDER, StateChip, type CoverState } from './shared';
 
 interface MatrixControl { id: string; ref: string; title: string; key_control: boolean; state: CoverState }
@@ -30,12 +31,16 @@ export function CoveragePage() {
   if (types.length) query.set('type', types.join(','));
   if (states.length) query.set('state', states.join(','));
   const { data, error, reload } = useFetch<Matrix>(`/api/controls/coverage-matrix?${query}`);
+  const { can } = useAuth();
+  const [importing, setImporting] = useState(false);
   const rows = data?.rows ?? [];
   const pages = data ? Math.max(1, Math.ceil(data.total / Math.max(1, data.pageSize))) : 1;
 
   const header = (
     <>
-      <PageHeader title="Control coverage" subtitle="Which records rely on controls that are failing, overdue or not yet tested." />
+      <PageHeader title="Control coverage" subtitle="Which records rely on controls that are failing, overdue or not yet tested."
+        actions={can('controls.edit') ? <Button icon="upload" onClick={() => setImporting(true)}>Import coverage</Button> : undefined} />
+      <CoverageImportDialog open={importing} onClose={() => setImporting(false)} onDone={reload} />
       <ControlsTabs active="coverage" />
     </>
   );

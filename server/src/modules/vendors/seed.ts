@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { CURRENCY } from '../../core/config.ts';
 import type { ModuleContext, Row, SeedOptions } from '../../core/module.ts';
+import { seedIntake } from './seed-intake.ts';
 import { seedLifecycle } from './seed-lifecycle.ts';
 import { classifyClauseText, saveClauseCheck } from './clauses.ts';
 import { addDays, localDate } from './dates.ts';
@@ -511,6 +512,6 @@ export async function seedVendors(ctx: ModuleContext, opts: SeedOptions): Promis
   if (stats.contacts) parts.push(`${stats.contacts} contacts`);
   if (stats.actions) parts.push(`${stats.actions} actions`);
   if (stats.systemsLinked) parts.push(`${stats.systemsLinked} systems linked`);
-  if (opts.profile === 'dev') parts.push(...await seedLifecycle(ctx));
+  if (opts.profile === 'dev') parts.push(...await seedLifecycle(ctx), ...await seedIntake(ctx));
   return parts.join('; ');
 }

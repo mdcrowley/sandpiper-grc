@@ -93,3 +93,5 @@
 .pol-kiosk-name .muted { font-size: var(--fs-sm); }
 .pol-kiosk-text { max-height: 50vh; overflow: auto; }
 .pol-kiosk-done { display: grid; gap: var(--s-3); justify-items: start; font-size: var(--fs-lg, 1.125rem); }
+.pol-kiosk-language { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3); }
+.pol-pad { margin: 0; padding: var(--s-3) var(--s-4); }

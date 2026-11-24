@@ -197,6 +197,10 @@ action is added to this table and to its module's tests in the same change.
 | Service desk | Email-to-ticket settings (mailbox password) and a new mail relay key | Ask | Secrets, and a way in from outside |
 | Service desk | Switch the self-service portal on or off (portal settings) | Ask | The same feature switch as Administration > Features |
 | Service desk | Portal title, welcome line, banner, reopen window, who may ask for a colleague, safety reports from the portal; service levels, calendars, priority matrix, escalation rules, catalog | Don't ask | Service configuration, audited and reversible |
+| Safety | Name people who may see confidential safety reporters (`PUT /api/safety/confidential-viewers`, adding someone) | Ask | Opens who the reporter is |
+| Safety | Remove someone from the people who may see confidential reporters | Don't ask | Only narrows access |
+| Audits and funding | Invite an outside reviewer to an audit engagement or a compliance review | Ask | Opens a way in for people outside the organization |
+| Audits and funding | Change an outside reviewer's end date, resend the set-up link, revoke access | Don't ask | One invitation at a time, audited; revoking only narrows access |
 | Vendors | Switch on vendor response links | Ask | Opens a way in for people outside the organization |
 | Vendors | Switch response links off, link length and files; make or revoke a link for one assessment; set many contract terms at once | Don't ask | Narrows access, or one record at a time; links expire and can be revoked |
 | Vulnerabilities | Merge duplicate findings | Ask | Cannot be undone |
@@ -429,11 +433,26 @@ added to responses sent over HTTPS (see "Network exposure").
   record the caller cannot see (`checkRefsVisible` in `core/resource.ts`), so a record cannot
   be linked to a restricted or hidden one by guessing its id; a value left unchanged is not
   checked again, and system work is exempt.
+- **Certification requirements (E41-08)** derived from a threat (a risk) are restricted and follow
+  their source (`restrictedFrom`). The project's Certification tab counts every requirement for
+  everyone and shows no detail of the restricted ones; the certificate PDF lists items only.
 - **OT security zones** can be restricted; a restricted zone needs `security.view`, a
   conduit is restricted whenever either of its zones is, and only `security.view` holders
   change a zone's restriction.
 - **Requests about personal data** (records requests of a personal-data kind) need
   `privacy.view` as well as `records.view`.
+- **Scoped roles (E41-01).** A role's grants for an area can be limited to the records of its
+  members' departments or sites (`roles.scopes`, `core/scope.ts`). The limit is part of the
+  visibility rule (`visibleWhere`), so it reaches lists, record pages, search, pickers, labels,
+  links, exports, imports and MCP; a person always sees what they created; another unscoped role
+  lifts it; the Administrator role cannot be limited. Figures count every record for everyone and
+  are not masked by scope: scope narrows work, it is not confidentiality.
+- **User access reviews (E41-02).** Access review decisions need no permission, only being the
+  named reviewer of that system (or the campaign owner, for the reviewer's own account); nobody
+  decides on their own account, and the items route answers 404 to anyone else without
+  `systems.view`.
+- **My work and the compliance calendar** are lists, not figures: each record is checked with
+  `visibleWhere` for the viewer, so restricted and out-of-scope records are left out (E41-03).
 - **Hand-written queries** that return records use `ctx.resources.visibleWhere(type, user)`
   to get the same condition as the generated routes. Queries that return figures do not
   (see below).
@@ -474,6 +493,8 @@ What still protects details in a figure:
   restricted record one word at a time.
 - **Labels stay protected.** A figure grouped by a reference to a restricted record
   labels it "Restricted" for people who may not see it; the count is the same.
+- **Figure snapshots** (`figure_values`, figures over time, E41-04) hold numbers and list values
+  only, worked out as the system; they never hold record words or people.
 - **A figure about "me"** (a report filtered on "me", the "mine" counts on the action
   tracker) is the viewer's own, not a shared figure, and keeps the list rule.
 - **Lists keep filtering.** A list of records, its total, a drill-down from a figure,
@@ -549,11 +570,17 @@ What still protects details in a figure:
   a delete inside a transaction that sets `grc.audit_archive` to `on`, which only the audit archive
   (off by default, administrators with a recent password confirmation) does, after writing and
   checking the events to a file; each archive is itself an audit event. A least-privilege run-time
-  role has no delete privilege on the table at all. The application has no route that edits events.
+  role has no delete privilege on the table at all. There the archive runs as the owner with
+  `audit-archive` (`server/src/ops/audit-archive-owner.ts`), which uses the owner's connection for
+  the archive only; the run-time role still cannot delete. Rotating every secret is in
+  [Operations](operations.md#rotating-secrets). The application has no route that edits events.
 - **Operational metrics.** `GET /api/ops/metrics` is off unless `GRC_METRICS_TOKEN` is set, compares
   the bearer token in constant time, and holds no personal data.
 - Each record's own history is visible to anyone who may see that record. The full audit
   search and its CSV export need `audit.view`.
+- **Audited reads.** Looking at a confidential safety reporter
+  (`GET /api/safety-events/:id/reporter`, audited as `safety_event.reporter_view`; named people
+  with `safety.view` only) writes an event every time.
 - Password hashes, second-factor secrets and recovery codes are never written to audit
   events or returned by the user administration API.
 
@@ -1121,6 +1148,23 @@ model. A model with members, or an asset model named in a vehicle model's equipm
 removed for good by a retention review. The values of inherited custom fields on a model are checked
 like the members' (inherited fields only, by type, references visible to the person).
 
+### Windows installer and the update check
+
+Windows installer (E42): the service runs as its own virtual account `NT SERVICE\SandpiperGRC`.
+Where a domain policy refuses virtual accounts the right to log on as a service, it runs as Network
+Service instead and keeps its service SID, so permissions granted to `NT SERVICE\SandpiperGRC`
+still apply. The data folder does not inherit ProgramData's permissions: SYSTEM and Administrators
+have full control, and the service may change data, backups, logs and seed and read config. The
+secret key (`config\secret.key`, 32 random bytes made at install) is readable by SYSTEM,
+Administrators and the service only.
+
+Update check: Administration > About asks GitHub's public releases at most once a day, only while
+that page is open, the check is on, outbound connections are on and api.github.com is an allowed
+host. The request carries no cookie, version, host name or organization data and uses the outbound
+safeguards (address checked at connection time, certificate verified, no redirects, 10 s, 256 KB).
+It never downloads or installs anything. The Windows management scripts never download or run
+anything either.
+
 ### Calendar feeds, work-tracker bridge and evidence links
 
 `server/src/modules/feeds/`; details in
@@ -1178,6 +1222,50 @@ them over. Link tokens in paths are masked in the server log, and pages send
 
 Exclusion-list checks never call an outside service; they are recorded by hand against lists the
 organization names.
+
+### Confidential safety reporting
+
+A confidential safety report (E41-05) keeps the reporter's identity off the safety event. Only
+people named under Safety settings (`/api/safety/confidential-viewers`; adding someone needs a
+recent password confirmation) who also hold `safety.view` can see it, and every look is audited.
+It cannot protect what the reporter writes in the report itself, and people who run the server can
+still find the identity in the database, backups and the request log.
+
+### Outside reviewers
+
+`server/src/modules/outsidereviews/` (`gate.ts`, `subjects.ts`)
+
+Outside reviewer accounts (E41-09) are confined server-side to their own reviews and account
+security: every other route answers 404 whatever their roles, roles given to them are stripped
+every 6 hours, and they cannot obtain API, assistant or mobile tokens because those are issued only
+through routes they cannot reach. Set-up links go only to the invitee's email, sealed in the queue.
+Inviting needs a recent password confirmation, and access ends at an end date at most 366 days
+ahead or on revoking, which ends the account's sessions.
+
+### Vendor checks and contractor performance
+
+Waiving a vendor's required check, or removing a waiver, needs `vendors.approve` and a reason,
+and is audited (E41-10). Removing check records and performance scores is refused under a legal
+hold.
+
+### Call-tree acknowledgment links
+
+`/api/call-out/:token` (E41-14) is public. Its link is a random 32-byte secret of which only a
+SHA-256 hash is stored (left out of exports without secrets). It is single-purpose (it
+acknowledges one message for one person) and expires after 1 to 168 hours (default 72), when the
+activation closes or when the continuity area is switched off. The route is rate limited per
+address (60 a minute, 20 wrong links in 15 minutes) and answers one uniform 404; opening the link
+does not acknowledge. The link is sealed in queued email like set-up links, is in the clear in a
+text message and therefore in the text delivery log, and is redacted in request logs.
+
+### Text inside attached files and previews
+
+Attached files' text (E41-16) is extracted in a worker thread (memory limit, 30 s, 25 MB, 300,000
+characters) with pdf.js and fflate; no macros, scripts or outside programs run. The text is reached
+only through its record's visibility rules and is deleted when the file is removed. Previews are
+served inline only for PNG, JPEG, GIF, WebP, BMP and PDF, under their fixed type, with
+`default-src 'none'; sandbox`. PDFs are drawn on canvases by pdf.js in the page, so PDF scripts
+never run and the application's content security policy is unchanged.
 
 ### Files: malware scanning, storage and purge
 

@@ -11,6 +11,8 @@ interface ArchiveSettings { enabled: boolean; olderThanMonths: number; folder: s
 interface ArchiveOverview {
   settings: ArchiveSettings;
   permitted: boolean;
+  /** The command that archives as the database owner (E40-14). */
+  ownerCommand?: string;
   oldest: string | null;
   runs: { id: number; at: string; summary: string | null }[];
   job: { id: string; status: string; last_error: string | null; result: { status?: string; events?: number; removed?: number; stage?: string } | null } | null;
@@ -80,7 +82,7 @@ export function AuditArchiveCard() {
   return (
     <Card
       title="Archive old events"
-      actions={data.settings.enabled ? <Button size="sm" icon="folder" loading={starting} disabled={Boolean(active)} onClick={() => void runNow()}>Archive now</Button> : undefined}
+      actions={data.settings.enabled && data.permitted ? <Button size="sm" icon="folder" loading={starting} disabled={Boolean(active)} onClick={() => void runNow()}>Archive now</Button> : undefined}
     >
       <form className="form" onSubmit={save}>
         <p className="muted">
@@ -90,10 +92,13 @@ export function AuditArchiveCard() {
         </p>
         {!data.permitted && (
           <div className="notice notice-warn" role="alert">
-            The database account the server uses may not remove audit events (a least-privilege set-up), so archiving cannot run.
+            The database account the server uses may not remove audit events (a least-privilege set-up), so the server does not archive by
+            itself. Switch the archive on and choose the age and folder here, then have the database owner run it from a scheduled task, for
+            example once a week: <code>{data.ownerCommand ?? 'npm run cli -- audit-archive'}</code>. Administrators are told if old events
+            wait more than a month past the age below.
           </div>
         )}
-        <Switch label="Archive old events every day" checked={form.enabled} onChange={(v) => set('enabled', v)} />
+        <Switch label={data.permitted ? 'Archive old events every day' : 'Archive old events (run by the database owner)'} checked={form.enabled} onChange={(v) => set('enabled', v)} />
         <div className="form-grid">
           <NumberField
             label="Archive events older than (months)" required min={12} max={1200} value={form.olderThanMonths}

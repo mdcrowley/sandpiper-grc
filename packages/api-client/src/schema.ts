@@ -132,7 +132,7 @@ export interface paths {
     };
   };
   "/api/mobile/home": {
-    /** My work for the mobile app: tickets, actions, approvals, inspections, condition assessments, acknowledgments and training waiting for you. */
+    /** My work for the mobile app: tickets, actions, approvals, inspections, condition assessments, acknowledgments, training and every other kind of due work (evidence requests, control tests, verifications, attestations, reassessments, certifications) waiting for you. */
     get: {
       path: never;
       query: never;

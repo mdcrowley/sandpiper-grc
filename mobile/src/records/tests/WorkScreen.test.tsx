@@ -80,6 +80,24 @@ describe('My work', () => {
     await waitFor(() => expect(browser.openBrowserAsync).toHaveBeenCalledWith('https://grc.example.org/training/my'));
   });
 
+  it('shows the other kinds of due work, one section each, and opens them on the web (E41-03)', async () => {
+    server.routes['GET /api/mobile/home'] = home([
+      { key: 'audits.requests', label: 'Evidence requests', count: 2, items: [item({ type: 'audit_request', id: 'r1', label: 'Evidence due: REQ-0012 Depot key log', ref: 'REQ-0012', route: '/audits/requests/r1', status: null, due: '2026-11-20', overdue: true })], webRoute: '/calendar?view=mine&kind=audits.requests' },
+      { key: 'training.certifications', label: 'Certification renewals', count: 1, items: [item({ type: 'certification', id: 'c1', label: 'Certification expires: First aid', ref: 'CRT-0003', route: '/training/certifications/c1', status: null, due: '2026-12-01' })], webRoute: '/calendar?view=mine&kind=training.certifications' },
+    ]);
+    await render(<WorkScreen />);
+    expect(await screen.findByText('Evidence requests')).toBeTruthy();
+    expect(screen.getByText('Certification renewals')).toBeTruthy();
+    expect(screen.getByText(TEXT.waiting(2))).toBeTruthy();
+    await waitFor(() => expect(tabOptions).toHaveBeenCalledWith({ tabBarBadge: 3, tabBarAccessibilityLabel: `${TEXT.title}, ${TEXT.waiting(3)}` }));
+    await waitFor(() => expect(server.calls.some((c) => c.path === '/api/meta')).toBe(true));
+    await act(async () => { await Promise.resolve(); });
+    await fireEvent.press(screen.getByText('Evidence due: REQ-0012 Depot key log'));
+    await waitFor(() => expect(browser.openBrowserAsync).toHaveBeenCalledWith('https://grc.example.org/audits/requests/r1'));
+    await fireEvent.press(screen.getByText(TEXT.showAllWeb(2)));
+    await waitFor(() => expect(browser.openBrowserAsync).toHaveBeenCalledWith('https://grc.example.org/calendar?view=mine&kind=audits.requests'));
+  });
+
   it('refreshes with the button (no gesture needed) and when the app returns to the foreground', async () => {
     let n = 0;
     server.routes['GET /api/mobile/home'] = () => { n += 1; return home([{ ...SECTIONS[0], count: n }]); };

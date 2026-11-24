@@ -73,6 +73,9 @@ export function requirable(name: string, f: FieldDef, statusField: string): bool
  * application". The data rules add to these and can never loosen them.
  */
 export const APPLICATION_RULES: Record<string, string[]> = {
+  records_destruction: ['The status is set by the application: Submit, approval, Carried out and Cancel on the destruction page; a legal hold blocks submitting and carrying out.'],
+  cert_item: ['The status is set by the application: an item is open until it has requirements and each is verified or not applicable.'],
+  access_review: ['The status is set by the application: Launch, Complete and Cancel on the review page. A completed or canceled review can only have its notes changed.'],
   ticket: [
     'A resolved status, and a closed one other than Canceled, needs a resolution code (unless the status is marked as needing none in Lists).',
     'While a catalog request waits for approval or was refused, only the statuses allowed before approval can be chosen.',
@@ -127,6 +130,7 @@ export const APPLICATION_RULES: Record<string, string[]> = {
   ],
   safety_event: [
     'A final status needs a root cause and no open corrective actions, and records the closing date.',
+    'When the event has a reporter (named or confidential), a final status also needs what the reporter is told; the reporter is then told, and the time recorded.',
   ],
   audit_engagement: [
     'Closing needs a report summary and a management response or corrective action plan on every finding; where an Audit report approval workflow is active, the approval closes the audit and it cannot be closed by hand.',

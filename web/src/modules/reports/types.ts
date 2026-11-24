@@ -65,7 +65,7 @@ export interface ReportDefinition extends Shared {
   id: string; name: string; description: string | null; record_type: string; spec: ReportSpec; chart: ChartSpec; updated_at: string;
 }
 
-export type WidgetKind = 'report' | 'number' | 'gauge' | 'progress' | 'chart' | 'table' | 'list' | 'countdown' | 'calendar' | 'text';
+export type WidgetKind = 'report' | 'number' | 'gauge' | 'progress' | 'chart' | 'table' | 'list' | 'countdown' | 'calendar' | 'text' | 'figure';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type WidgetConfig = Record<string, any>;
 export interface Widget { id: string; kind: WidgetKind; title: string; x: number; y: number; w: number; h: number; config: WidgetConfig }
@@ -83,7 +83,7 @@ export interface WidgetData {
   value?: number | null; denominator?: number | null; trend?: { current: number; previous: number; days: number };
 }
 
-export type PackSection = { kind: 'text'; title: string; body: string } | { kind: 'report'; reportId: string; title?: string };
+export type PackSection = { kind: 'text'; title: string; body: string } | { kind: 'report'; reportId: string; title?: string } | { kind: 'figure'; figureId: string; title?: string; months?: number };
 export interface ReportPack extends Shared {
   id: string; name: string; description: string | null; cover_title: string | null; cover_subtitle: string | null; sections: PackSection[];
 }
@@ -94,3 +94,19 @@ export interface Snapshot {
 }
 
 export const GRID_COLUMNS = 12;
+
+/** A figure recorded over time (E41-04), as GET /api/figures gives it. */
+export interface FigureGroup { value: string | null; label: string; color: string | null; count: number }
+export interface FigureValue { period: string; kind: 'month_end' | 'on_demand'; value: number | null; groups: FigureGroup[] | null; recorded_at: string }
+export interface TrackedFigure {
+  id: string; key: string | null; name: string; description: string | null; source: 'count' | 'metric';
+  metric_key: string | null; record_type: string | null; filters: FilterGroup | null; group_field: string | null; active: boolean;
+  unit: 'count' | 'percent' | 'number'; type_label: string | null; group_label: string | null; metric_label: string | null; what: string;
+  latest: FigureValue | null; updated_at: string;
+  /** With ?months=: the figure month by month, drawn like a grouped report. */
+  result?: ReportResult;
+}
+export interface FigureDetail extends TrackedFigure {
+  months: number; filters_text: string[]; result: ReportResult;
+  values: { period: string; value: FigureValue; current: boolean }[];
+}

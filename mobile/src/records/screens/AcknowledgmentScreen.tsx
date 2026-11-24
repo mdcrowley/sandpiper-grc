@@ -10,8 +10,9 @@ import { useLoad } from '../hooks';
 import { htmlToBlocks, type TextBlock } from '../html';
 import type { AckDetail } from '../types';
 import { Body, Button, Card, FieldRow, Heading, Loading, Notice } from '../ui';
+import { getLanguage, languageName, localized } from '../../i18n';
 
-export const TEXT = {
+export const TEXT = localized('acknowledgment', {
   loading: 'Loading the policy',
   version: 'Version',
   effective: 'In effect from',
@@ -24,7 +25,12 @@ export const TEXT = {
   done: (when: string) => `Acknowledged ${when}.`,
   superseded: 'This version has been replaced or the policy retired. There is nothing to acknowledge.',
   back: 'Back',
-};
+  translated: (language: string) => `You are reading the ${language} translation.`,
+  readOriginal: (language: string) => `Read the original (${language})`,
+  readTranslation: (language: string) => `Read it in ${language}`,
+  noTranslation: (language: string) => `This policy has no translation in your language yet. It is shown in the original (${language}).`,
+  recordsLanguage: (language: string) => `Your acknowledgment records that you read it in ${language}.`,
+});
 
 function Block({ block }: { block: TextBlock }) {
   const { colors } = useTheme();
@@ -52,7 +58,10 @@ function Block({ block }: { block: TextBlock }) {
 export default function AcknowledgmentScreen({ ackId }: { ackId: string }) {
   const { colors } = useTheme();
   const router = useRouter();
-  const ack = useLoad(() => fetchAcknowledgment(ackId), [ackId]);
+  // E41-07: in the person's language when the version is translated into it; they may switch to the original.
+  const lang = getLanguage();
+  const [reading, setReading] = useState<string | null>(null);
+  const ack = useLoad(() => fetchAcknowledgment(ackId, reading ?? lang), [ackId, reading, lang]);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const blocks = useMemo(() => (ack.data ? htmlToBlocks(ack.data.body_html ?? '') : []), [ack.data]);
@@ -61,7 +70,7 @@ export default function AcknowledgmentScreen({ ackId }: { ackId: string }) {
     setBusy(true);
     setProblem(null);
     try {
-      const next = await acknowledge(ackId);
+      const next = await acknowledge(ackId, ack.data?.language);
       ack.setData({ ...(ack.data as AckDetail), ...next });
     } catch (err) {
       setProblem(errorText(err));
@@ -79,6 +88,16 @@ export default function AcknowledgmentScreen({ ackId }: { ackId: string }) {
         <>
           {a.policy_ref ? <Body muted>{a.policy_ref}</Body> : null}
           <Heading level={1}>{a.policy_title}</Heading>
+          {a.language && a.original_language && a.language !== a.original_language ? (
+            <Card>
+              <Body>{TEXT.translated(languageName(a.language))}</Body>
+              <Button label={TEXT.readOriginal(languageName(a.original_language))} onPress={() => setReading(a.original_language ?? null)} />
+            </Card>
+          ) : a.original_language && lang !== a.original_language ? (
+            a.translations?.includes(lang)
+              ? <Button label={TEXT.readTranslation(languageName(lang))} onPress={() => setReading(lang)} />
+              : <Body muted>{TEXT.noTranslation(languageName(a.original_language))}</Body>
+          ) : null}
           <Card>
             <FieldRow label={TEXT.version} value={String(a.version)} />
             {a.effective_on ? <FieldRow label={TEXT.effective} value={formatDate(a.effective_on)} /> : null}
@@ -101,6 +120,7 @@ export default function AcknowledgmentScreen({ ackId }: { ackId: string }) {
           {!a.acknowledged_at && a.state !== 'superseded' ? (
             <Card>
               <Body>{TEXT.confirm}</Body>
+              {a.language && a.original_language && a.language !== a.original_language ? <Body muted>{TEXT.recordsLanguage(languageName(a.language))}</Body> : null}
               <Button kind="primary" label={TEXT.acknowledge} hint={TEXT.confirm} onPress={() => void send()} busy={busy} />
             </Card>
           ) : (

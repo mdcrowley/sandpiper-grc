@@ -103,7 +103,43 @@ const trackerTest = (theme, width) => ({
   },
 });
 
+// The compliance calendar (E41-03): the person's own due work appears in the list, the month grid and
+// "My due work", and choosing an area leaves the others out.
+const calendarTest = (theme, width) => ({
+  name: `feeds: the compliance calendar shows due work in its list, month and my due work views (${theme}, ${width})`,
+  theme, width,
+  async run(t) {
+    const { page } = t;
+    const tag = Date.now().toString(36);
+    const me = (await t.api().must('GET', '/api/auth/state')).user;
+    const today = await page.eval(`new Intl.DateTimeFormat('en-CA').format(new Date())`);
+    const title = `E2E due action ${tag}`;
+    await t.api().must('POST', '/api/actions', { title, status: 'open', owner_id: me.id, due_on: today });
+    await t.step('the list view shows it', async () => {
+      await page.goto('/calendar?view=list');
+      await page.waitFor({ text: title });
+    });
+    await t.step('the month view shows it', async () => {
+      await page.goto('/calendar?view=month');
+      await page.waitFor({ text: 'Compliance calendar', tag: 'h1' });
+      await page.waitFor('.cc-month');
+      t.soft((await page.text('.cc-month')).includes('Action due'), 'the month grid does not show the action');
+    });
+    await t.step('my due work shows it', async () => {
+      await page.goto('/calendar?view=mine');
+      await page.waitFor({ text: title });
+    });
+    await t.step('another area leaves it out', async () => {
+      await page.goto('/calendar?view=list&area=vendors');
+      await page.waitFor({ text: 'Compliance calendar', tag: 'h1' });
+      await page.settled();
+      t.soft(!(await page.text('main')).includes(title), 'an action shows under the vendors area');
+    });
+  },
+});
+
 export const tests = [
   feedTest('light', 1440), feedTest('dark', 820), linkTest('light', 1440), linkTest('dark', 820),
+  calendarTest('light', 1440), calendarTest('dark', 820),
   trackerTest('light', 1440), trackerTest('dark', 820),
 ];

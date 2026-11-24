@@ -6,7 +6,7 @@ import type { ModuleContext, Row, SessionUser } from '../../core/module.ts';
 import { AccessError, runReport, type ReportResult } from './query.ts';
 import { SpecError, type FilterGroup, type GlobalFilters, type ReportSpec } from './spec.ts';
 
-export const WIDGET_KINDS = ['report', 'number', 'gauge', 'progress', 'chart', 'table', 'list', 'countdown', 'calendar', 'text'] as const;
+export const WIDGET_KINDS = ['report', 'number', 'gauge', 'progress', 'chart', 'table', 'list', 'countdown', 'calendar', 'text', 'figure'] as const;
 
 export interface Widget {
   id: string;
@@ -45,6 +45,8 @@ export interface WidgetRunOptions {
   month?: string;
   /** Looks up a saved report the viewer may run from this dashboard. */
   loadReport?: (id: string) => Promise<Row | undefined>;
+  /** Figures over time (E41-04): a recorded figure the viewer may see, over the last `months` months. */
+  loadFigure?: (id: string, months: number) => Promise<ReportResult | null>;
 }
 
 export async function runWidget(ctx: ModuleContext, user: SessionUser | null, widget: Widget, opts: WidgetRunOptions = {}): Promise<WidgetData> {
@@ -53,6 +55,12 @@ export async function runWidget(ctx: ModuleContext, user: SessionUser | null, wi
   try {
     if (widget.kind === 'text') return { status: 'ok' };
     if (widget.kind === 'countdown' && !cfg.spec) return { status: 'ok' };
+    if (widget.kind === 'figure') {
+      // A recorded figure over time (E41-04): the same values for everyone, drawn as a line by default.
+      const result = cfg.figureId ? await opts.loadFigure?.(String(cfg.figureId), Number(cfg.months) || 12) : null;
+      if (!result) return { status: 'unavailable', message: 'This figure has been removed, or it is not available to you here.' };
+      return { status: 'ok', result, chart: (cfg.chart as Row | undefined) ?? { kind: 'line' } };
+    }
 
     let spec = cfg.spec as ReportSpec | undefined;
     let chart = cfg.chart as Row | undefined;

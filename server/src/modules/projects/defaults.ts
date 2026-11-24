@@ -59,6 +59,33 @@ export async function seedProjectDefaults(ctx: ModuleContext): Promise<void> {
     { value: 'reopened', label: 'Reopened', color: 'purple', sort: 50 },
   ], { module: 'projects' });
 
+  // E41-08: safety and security certification.
+  await ctx.lookups.ensure('cert_item_category', [
+    { value: 'vehicles', label: 'Vehicles and rolling stock', color: 'blue', sort: 10 },
+    { value: 'systems', label: 'Systems and equipment', color: 'purple', sort: 20 },
+    { value: 'facilities', label: 'Stations and facilities', color: 'teal', sort: 30 },
+    { value: 'infrastructure', label: 'Track and infrastructure', color: 'orange', sort: 40 },
+    { value: 'operations', label: 'Operations and training', color: 'amber', sort: 50 },
+    { value: 'other', label: 'Other', color: 'gray', sort: 90 },
+  ], { module: 'projects' });
+  await ctx.lookups.ensure('cert_item_status', [
+    { value: 'open', label: 'Open', color: 'blue', sort: 10 },
+    { value: 'verified', label: 'Verified', color: 'green', sort: 20 },
+  ], { module: 'projects' });
+  await ctx.lookups.ensure('cert_requirement_status', [
+    { value: 'open', label: 'Open', color: 'blue', sort: 10 },
+    { value: 'in_progress', label: 'Verification under way', color: 'amber', sort: 20 },
+    { value: 'verified', label: 'Verified', color: 'green', sort: 30 },
+    { value: 'not_applicable', label: 'Not applicable', color: 'gray', sort: 40 },
+  ], { module: 'projects' });
+  await ctx.lookups.ensure('cert_verification_method', [
+    { value: 'inspection', label: 'Inspection', color: 'blue', sort: 10 },
+    { value: 'test', label: 'Test', color: 'purple', sort: 20 },
+    { value: 'analysis', label: 'Analysis', color: 'teal', sort: 30 },
+    { value: 'demonstration', label: 'Demonstration', color: 'orange', sort: 40 },
+    { value: 'document_review', label: 'Document review', color: 'gray', sort: 50 },
+  ], { module: 'projects' });
+
   for (const [i, g] of DEFAULT_GATES.entries()) {
     const made = await ctx.db.one<{ id: string }>(
       `insert into project_gate_defs (key, name, from_stage, to_stage, sort, required_documents, approvers, wants_change)

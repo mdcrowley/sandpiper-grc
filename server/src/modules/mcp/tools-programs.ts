@@ -302,7 +302,7 @@ const recordsRequestsSummary: ToolSpec = {
 
 const vendorLifecycleSummary: ToolSpec = {
   name: 'vendor_lifecycle_summary', title: 'Vendor lifecycle summary', group: 'Work and insight', idempotent: true,
-  description: 'Vendor risk lifecycle figures: reassessments and exclusion-list checks overdue, open vendor issues and offboardings under way. Figures only.',
+  description: 'Vendor risk lifecycle figures: reassessments and exclusion-list checks overdue, open vendor issues, offboardings under way and vendors with required checks outstanding. Figures only.',
   available: (a) => a.sees('vendor'),
   input: {},
   async run(_args, t) {
@@ -310,11 +310,11 @@ const vendorLifecycleSummary: ToolSpec = {
     if (!s) return notAvailable('Vendor lifecycle figures');
     const data = {
       reassessments_overdue: num(s.reassessments_overdue), exclusion_checks_overdue: num(s.exclusion_checks_overdue),
-      open_issues: num(s.open_issues), offboardings_open: num(s.offboardings_open), url: t.link('/vendors'),
+      open_issues: num(s.open_issues), offboardings_open: num(s.offboardings_open), checks_outstanding: num(s.checks_outstanding), url: t.link('/vendors'),
     };
     return {
       text: `Vendors: ${data.reassessments_overdue} reassessments overdue, ${data.exclusion_checks_overdue} exclusion checks overdue, `
-        + `${data.open_issues} open issues, ${data.offboardings_open} offboardings under way.`,
+        + `${data.open_issues} open issues, ${data.offboardings_open} offboardings under way, ${data.checks_outstanding} vendors with required checks outstanding.`,
       data,
     };
   },

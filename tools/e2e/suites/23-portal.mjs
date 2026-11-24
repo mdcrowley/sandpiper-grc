@@ -253,4 +253,127 @@ const portalTest = (theme, width) => ({
   },
 });
 
-export const tests = [portalTest('light', 390), portalTest('dark', 1440)];
+/**
+ * E41-05: a requester reports a safety concern and asks to stay confidential. The safety team sees the
+ * event without a reporter; a person named under Administration > Confidential safety reports looks
+ * (and the look is on the history); closing the event tells the reporter, who reads what was done.
+ */
+const confidentialTest = (theme, width) => ({
+  name: `portal: a confidential safety report, a named person's look, and telling the reporter (${theme}, ${width})`,
+  theme, width,
+  async run(t) {
+    const { page } = t;
+    const admin = t.api();
+    const stamp = `${width}-${Date.now().toString(36)}`;
+    const title = `E2E told to skip the walk-round check ${stamp}`;
+
+    await t.step('switch the portal on and enable the Requester role', () => portalOn(t));
+    const person = await t.step('make a requester', () => t.app.newUser(`e2e.quiet-${stamp}`, ['requester']));
+    const named = await t.step('make a safety manager and name them', async () => {
+      const u = await t.app.newUser(`e2e.named-${stamp}`, ['safety_manager']);
+      await admin.must('POST', '/api/auth/confirm', { password: PASSWORD });
+      await admin.must('PUT', '/api/safety/confidential-viewers', { viewers: [u.id] });
+      return u;
+    });
+
+    await page.setSession(person.token);
+    const eventId = await t.step('report a safety concern, keeping the name confidential', async () => {
+      await page.goto('/portal/safety');
+      await page.waitFor({ label: 'What happened, in a few words?' }, { timeout: 10000 });
+      await page.fill({ label: 'What happened, in a few words?' }, title);
+      await page.click({ text: 'Unsafe condition', tag: 'label' });
+      await page.click({ text: 'Nobody was hurt and nothing was damaged', tag: 'label' });
+      await page.fill({ label: 'Describe what happened' }, 'E2E: the early shift was told to leave without the walk-round check.');
+      await page.click({ label: 'Keep my name confidential' });
+      await page.click({ text: 'Send report', tag: 'button' });
+      await page.waitFor(mainHas('sent to the safety team'), { timeout: 15000 });
+      t.soft((await page.text('main')).includes('your name is kept confidential'), 'My safety reports does not say the name is kept confidential');
+      const mine = await t.app.api(person.token).must('GET', '/api/portal/safety-reports');
+      const row = mine.rows.find((r) => r.title === title);
+      if (!row) throw new Error('the report is not listed under My safety reports');
+      const event = await admin.must('GET', `/api/safety-events/${row.id}`);
+      t.soft(event.confidential_reporter === true && event.reported_by_id === null && event.created_by === null, 'the event holds the reporter');
+      t.clean('confidential report');
+      return row.id;
+    });
+
+    await t.step('a named person looks, and the look is on the history', async () => {
+      await page.setSession(named.token);
+      await page.goto(`/safety/events/${eventId}`);
+      await page.waitFor({ text: 'Show who reported it', tag: 'button' }, { timeout: 10000 });
+      await page.click({ text: 'Show who reported it', tag: 'button' });
+      await page.click({ text: 'Show', tag: 'button', within: '[role="dialog"]' });
+      await page.waitFor(mainHas(`Test e2e.quiet-${stamp}`), { timeout: 10000 });
+      const history = await admin.must('GET', `/api/history?record_type=safety_event&record_id=${eventId}`);
+      t.soft(history.some((h) => h.action === 'safety_event.reporter_view'), 'the look is not on the history');
+      t.soft(!JSON.stringify(history).includes(person.id), 'the history names the reporter');
+      t.clean('named look');
+    });
+
+    await t.step('closing tells the reporter what was done', async () => {
+      const outcome = `E2E: the shift start moved ten minutes earlier so the check is never skipped (${stamp}).`;
+      await t.app.api(named.token).must('PATCH', `/api/safety-events/${eventId}`, { status: 'closed', root_cause: 'Timetable pressure.', reporter_outcome: outcome });
+      await page.setSession(person.token);
+      await page.goto('/portal/safety');
+      await page.waitFor(mainHas(outcome), { timeout: 10000 });
+      if (width < 600) t.soft(await page.fn(noSideScroll), `My safety reports scrolls sideways at ${width} px`);
+      t.clean('told the reporter');
+    });
+  },
+});
+
+
+/**
+ * E41-07: a requester who chose Spanish sees the portal in Spanish, reads a policy's Spanish
+ * translation, and the acknowledgment records the language read.
+ */
+const languageTest = (theme, width) => ({
+  name: `portal: shown in the person's language, and a translated policy acknowledged in it (${theme}, ${width})`,
+  theme, width,
+  async run(t) {
+    const { page } = t;
+    const admin = t.api();
+    const stamp = `${width}-${Date.now().toString(36)}`;
+    await t.step('switch the portal on and enable the Requester role', () => portalOn(t));
+    const person = await t.step('make a requester who chose Spanish', async () => {
+      const u = await t.app.newUser(`e2e.idioma-${stamp}`, ['requester']);
+      await t.app.api(u.token).must('PUT', '/api/me/preferences/language', { value: 'es' });
+      return u;
+    });
+    const policy = await t.step('publish a policy and translate it into Spanish', async () => {
+      const p = await publishPolicy(t, `E2E cab tablet use ${stamp}`);
+      const [v] = await admin.must('GET', `/api/policies/${p.id}/versions`);
+      await t.api('security_lead').must('PUT', `/api/policies/${p.id}/versions/${v.id}/translations/es`, {
+        title: `Uso de la tableta de cabina ${stamp}`,
+        body: '## Propósito\n\nTexto inventado: bloquee la tableta de la cabina siempre que deje el asiento del conductor.',
+      });
+      return p;
+    });
+    await page.setSession(person.token);
+
+    await t.step('the portal is in Spanish', async () => {
+      await page.goto('/portal');
+      await page.waitFor({ text: 'Mis solicitudes', tag: 'h2' }, { timeout: 10000 });
+      t.soft(await page.fn(() => document.documentElement.lang === 'es'), 'the page language is not es');
+      if (width < 600) t.soft(await page.fn(noSideScroll), `the Spanish portal scrolls sideways at ${width} px`);
+      t.clean('Spanish home');
+    });
+
+    await t.step('the policy is read in Spanish and the acknowledgment records it', async () => {
+      await page.waitFor({ text: `Uso de la tableta de cabina ${stamp}`, tag: 'a' }, { timeout: 10000 });
+      await page.click({ text: `Uso de la tableta de cabina ${stamp}`, tag: 'a' });
+      await page.waitFor(mainHas('bloquee la tableta'), { timeout: 10000 });
+      await page.click({ text: 'La he leído y entendido', tag: 'button' });
+      await page.waitFor(() => location.pathname === '/portal', { timeout: 10000 });
+      const tracking = await admin.must('GET', `/api/policies/${policy.id}/acknowledgments`);
+      const row = (tracking.rows ?? []).find((r) => r.user_id === person.id);
+      t.soft(row?.state === 'acknowledged' && row?.language === 'es', `the tracking shows ${row ? `${row.state} in ${row.language}` : 'no row'}`);
+      t.clean('Spanish acknowledgment');
+    });
+  },
+});
+
+export const tests = [
+  portalTest('light', 390), portalTest('dark', 1440), confidentialTest('light', 390), confidentialTest('dark', 1440),
+  languageTest('light', 390), languageTest('dark', 1440),
+];

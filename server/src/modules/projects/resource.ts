@@ -1,4 +1,5 @@
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { departmentPrepare } from '../../core/scope.ts';
 import { takeForced, type ProjectService } from './service.ts';
 
 /** The `project` record type: generic CRUD plus the hooks that keep tier, score and gates right. */
@@ -10,6 +11,8 @@ export function defineProject(ctx: ModuleContext, svc: ProjectService): void {
     label: 'Project',
     plural: 'Projects',
     path: '/api/projects',
+    // Role grants scoped to departments or sites (E41-01, core/scope.ts).
+    scope: { department: 'department_id' },
     route: '/projects',
     titleField: 'name',
     ref: { field: 'ref', prefix: 'PRJ-' },
@@ -25,7 +28,9 @@ export function defineProject(ctx: ModuleContext, svc: ProjectService): void {
       project_manager_id: { label: 'Project manager', type: 'user' },
       system_owner: { label: 'System owner', type: 'text' },
       system_owner_id: { label: 'System owner (user)', type: 'user' },
-      department: { label: 'Department', type: 'text' },
+      // E41-01: a reference to the organization's departments; `department` keeps its name (set by the database).
+      department_id: { label: 'Department', type: 'ref', to: 'department' },
+      department: { label: 'Department name', type: 'text', readOnly: true },
       tier: { label: 'Tier', type: 'lookup', list: 'project_tier', readOnly: true },
       tier_computed: { label: 'Tier by the rules', type: 'lookup', list: 'project_tier', readOnly: true },
       tier_override: { label: 'Tier override', type: 'lookup', list: 'project_tier' },
@@ -56,6 +61,8 @@ export function defineProject(ctx: ModuleContext, svc: ProjectService): void {
       last_report_on: { label: 'Last status report', type: 'date', readOnly: true },
     },
     hooks: {
+      // A department may still be given by name (`department` or `department_id`), as before E41-01.
+      prepare: departmentPrepare(ctx.db),
       async beforeCreate(req, data) {
         data.stage ??= 'idea'; // intake: a new request starts as an idea
         if (req?.user) data.requested_by = req.user.id;
@@ -74,6 +81,12 @@ export function defineProject(ctx: ModuleContext, svc: ProjectService): void {
           await auditOverride(req, before, after);
         }
         if (before.stage !== after.stage) await svc.openGate(after, req);
+        // E41-08: the project's certifiable items and requirements carry its department (access scope).
+        if ((before.department_id ?? null) !== (after.department_id ?? null)) {
+          for (const table of ['project_cert_items', 'project_cert_requirements']) {
+            await ctx.db.query(`update ${table} set department_id = $2 where project_id = $1`, [after.id, after.department_id ?? null]);
+          }
+        }
         if (after.rag_overall === 'red' && before.rag_overall !== 'red') await svc.notifyTurnedRed(after);
       },
     },

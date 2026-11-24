@@ -49,3 +49,13 @@
 .bc-log time { color: var(--text-muted); font-size: 0.875rem; font-variant-numeric: tabular-nums; }
 .bc-log-entry { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 @media (max-width: 640px) { .bc-log li { grid-template-columns: 1fr; gap: 0.25rem; } }
+
+/* Call-tree messages (E41-14). */
+.bc-callout-ways { display: flex; flex-wrap: wrap; gap: var(--s-4); }
+.bc-callout-message { white-space: pre-wrap; margin: 0; overflow-wrap: anywhere; }
+.bc-wrap { white-space: normal; min-width: 10rem; }
+.bc-ack { max-width: 720px; margin: 0 auto; padding: var(--s-5) var(--s-4); display: grid; gap: var(--s-4); }
+.bc-ack-head { display: grid; gap: var(--s-1); }
+.bc-ack-head h1 { margin: 0; font-size: var(--fs-xl, 1.5rem); }
+.bc-ack-head p { margin: 0; }
+.bc-ack-org { display: flex; align-items: center; gap: var(--s-2); color: var(--text-muted); font-weight: 600; }

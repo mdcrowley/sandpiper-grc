@@ -22,7 +22,7 @@ export const INTAKE_CHOICES = ['create', 'view', 'everyone'];
 export const DEFAULT_REPORT_DAYS = 30;
 /** What a request form may set; everything else is decided later by the project team. */
 export const REQUEST_FIELDS = [
-  'name', 'description', 'expected_benefits', 'sponsor', 'department', 'budget', 'funding_source', 'target_on',
+  'name', 'description', 'expected_benefits', 'sponsor', 'department_id', 'department', 'budget', 'funding_source', 'target_on',
   'touches_payment', 'touches_personal_data', 'touches_operational_systems', 'systems_affected',
 ];
 
@@ -359,6 +359,7 @@ export function makeService(ctx: ModuleContext) {
       from_stage: def.from_stage, to_stage: def.to_stage, sort: def.sort,
       documents: templateDocuments(def.required_documents).map((d) => ({ ...d, received: false, reference: '' })),
       approvers: def.approvers ?? {}, wants_change: def.wants_change === true,
+      requires_certificate: def.requires_certificate === true,
       created_by: req?.user?.id ?? null, updated_by: req?.user?.id ?? null,
     });
     await db.query(
@@ -401,12 +402,13 @@ export function makeService(ctx: ModuleContext) {
     const named = await gateTemplateWorkflows(gates.map((g) => g.gate_def_id).filter(Boolean));
     const engine = approvalEngine(ctx.app);
     const latest = engine ? await engine.latest(GATE_KIND, project.id) : null;
+    const certificate = gates.some((g) => g.requires_certificate === true) ? await certificateMissing(project.id) : null;
     return gates.map((g) => {
       const own = items.filter((i) => i.project_gate_id === g.id);
       const outstanding = own.filter((i) => !i.checked).map((i) => i.label);
       const isCurrent = g.from_stage === project.stage && g.status !== 'approved';
       const blockers = isCurrent
-        ? approvalBlockers({ projectStatus: project.status, statusLabel, outstanding, documents: g.documents })
+        ? approvalBlockers({ projectStatus: project.status, statusLabel, outstanding, documents: g.documents, certificate: g.requires_certificate === true ? certificate : null })
         : [];
       return {
         ...g,
@@ -521,13 +523,25 @@ export function makeService(ctx: ModuleContext) {
     };
   }
 
+  /**
+   * E41-08: why a gate that requires a certificate of readiness cannot pass yet, or null. Only a
+   * project that carries certifiable items needs one; a project without any passes without it.
+   */
+  async function certificateMissing(projectId: string): Promise<string | null> {
+    const items = await db.one<{ c: number }>('select count(*)::int c from project_cert_items where project_id = $1 and deleted_at is null', [projectId]);
+    if (!items?.c) return null;
+    const cert = await db.one('select 1 from project_certificates where project_id = $1 and status = $2', [projectId, 'issued']);
+    return cert ? null : 'Certificate of readiness not issued';
+  }
+
   /** True when the gate has nothing left to do except the decision itself. */
   async function gateReady(project: Row, gateId: string): Promise<boolean> {
     if (project.status !== 'active') return false;
     const gate = await db.one<Row>('select * from project_gates where id = $1', [gateId]);
     if (!gate || gate.status === 'approved' || gate.from_stage !== project.stage) return false;
     const open = await db.one<{ c: number }>('select count(*)::int c from gate_checklist_items where project_gate_id = $1 and not checked', [gateId]);
-    return (open?.c ?? 0) === 0 && missingDocuments(gate.documents).length === 0;
+    return (open?.c ?? 0) === 0 && missingDocuments(gate.documents).length === 0
+      && !(gate.requires_certificate === true && (await certificateMissing(project.id)));
   }
 
   // ---------- notifications (only when the notifications module is loaded) ----------
@@ -810,6 +824,14 @@ export function makeService(ctx: ModuleContext) {
           { documents: `${missing.length} required ${missing.length === 1 ? 'document is' : 'documents are'} missing.` },
         );
       }
+      // E41-08: a gate that requires a certificate of readiness passes only while one is in force.
+      if (gate.requires_certificate === true && (await certificateMissing(project.id))) {
+        ctx.fail(
+          400, 'gate_blocked',
+          'This gate requires a certificate of readiness, and none is in force. Verify the required certifiable items and issue the certificate on the Certification tab.',
+          { certificate: 'No certificate of readiness is in force.' },
+        );
+      }
     }
 
     await insertRow('project_gate_decisions', {
@@ -872,6 +894,7 @@ export function makeService(ctx: ModuleContext) {
       else documents = templateDocuments(list);
     }
     if (body.wants_change !== undefined && typeof body.wants_change !== 'boolean') errors.wants_change = 'Choose yes or no.';
+    if (body.requires_certificate !== undefined && typeof body.requires_certificate !== 'boolean') errors.requires_certificate = 'Choose yes or no.';
     let approvers: Row | undefined;
     if (body.approvers !== undefined) {
       if (typeof body.approvers !== 'object' || body.approvers === null || Array.isArray(body.approvers)) errors.approvers = 'Approvers must be listed by tier.';
@@ -898,7 +921,12 @@ export function makeService(ctx: ModuleContext) {
     if (documents) patch.required_documents = documents;
     if (approvers) patch.approvers = approvers;
     if (body.wants_change !== undefined) patch.wants_change = body.wants_change;
+    if (body.requires_certificate !== undefined) patch.requires_certificate = body.requires_certificate;
     if (Object.keys(patch).length) await updateRow('project_gate_defs', before.id, patch, req);
+    // E41-08: gates still open on projects follow the template's certificate rule at once.
+    if (body.requires_certificate !== undefined && body.requires_certificate !== (before.requires_certificate === true)) {
+      await db.query(`update project_gates set requires_certificate = $2, updated_at = now() where gate_def_id = $1 and status <> 'approved'`, [before.id, body.requires_certificate]);
+    }
     if (checklist) {
       await db.query('delete from project_gate_def_items where gate_def_id = $1', [before.id]);
       for (const [i, label] of checklist.entries()) {
@@ -906,7 +934,7 @@ export function makeService(ctx: ModuleContext) {
       }
     }
     const after = (await gateDefinitions()).find((d) => d.key === key)!;
-    const pick = (d: Row) => ({ name: d.name, checklist: d.checklist, required_documents: d.required_documents, approvers: d.approvers, wants_change: d.wants_change, approval_workflow_id: d.approval_workflow_id ?? null });
+    const pick = (d: Row) => ({ name: d.name, checklist: d.checklist, required_documents: d.required_documents, approvers: d.approvers, wants_change: d.wants_change, requires_certificate: d.requires_certificate === true, approval_workflow_id: d.approval_workflow_id ?? null });
     if (JSON.stringify(pick(before)) !== JSON.stringify(pick(after))) {
       await ctx.audit(req, {
         action: 'project.gate_definition', recordType: 'project_gate_def', recordId: before.id,
@@ -1093,6 +1121,7 @@ export function makeService(ctx: ModuleContext) {
     for (const n of ['impact', 'inherent_impact']) await put(n, item.impact);
     await put('owner_id', item.owner_id ?? project.project_manager_id);
     await put('owner', item.owner);
+    await put('department_id', project.department_id);
     await put('department', project.department);
     await put('source', 'project');
     await put('source_type', 'project');
@@ -1230,7 +1259,12 @@ export function makeService(ctx: ModuleContext) {
 
   // ---------- portfolio ----------
 
-  async function portfolio() {
+  /**
+   * The portfolio. Its figures (funnel, work in progress, totals) count every project, the same for
+   * everyone; the register and the gates due list only the projects `user` may see (E41-01: a role
+   * scoped to departments). No user: system work, every project.
+   */
+  async function portfolio(user?: SessionUser | null) {
     const { wipLimit, criteria } = await getSettings();
     const stages = await stageList();
     const projects = await db.query<Row>(
@@ -1249,10 +1283,15 @@ export function makeService(ctx: ModuleContext) {
        where project_id = any($1::uuid[]) and deleted_at is null order by due_on, sort, name`, [ids]) : [];
     const gates = ids.length ? await db.query<Row>(
       `select g.id, g.project_id, g.gate_key, g.name, g.from_stage, g.to_stage, g.status, g.decided_on, g.opened_at, g.documents,
-              count(i.id)::int as total, (count(i.id) filter (where i.checked))::int as checked
+              g.requires_certificate, count(i.id)::int as total, (count(i.id) filter (where i.checked))::int as checked
        from project_gates g left join gate_checklist_items i on i.project_gate_id = g.id
        where g.project_id = any($1::uuid[]) and g.status <> 'approved'
        group by g.id`, [ids]) : [];
+    // E41-08: projects that carry certifiable items but have no certificate of readiness in force.
+    const uncertified = new Set(ids.length ? (await db.query<{ project_id: string }>(
+      `select distinct i.project_id from project_cert_items i
+       where i.project_id = any($1::uuid[]) and i.deleted_at is null
+         and not exists (select 1 from project_certificates c where c.project_id = i.project_id and c.status = 'issued')`, [ids])).map((r) => r.project_id) : []);
 
     const register = projects.map((p): Row => {
       const gate = gates.find((g) => g.project_id === p.id && g.from_stage === p.stage) ?? null;
@@ -1268,7 +1307,8 @@ export function makeService(ctx: ModuleContext) {
           id: gate.id, key: gate.gate_key, name: gate.name, status: gate.status, to_stage: gate.to_stage,
           checked: gate.checked, total: gate.total,
           documents_missing: missingDocuments(gate.documents).length,
-          ready: gate.total === gate.checked && missingDocuments(gate.documents).length === 0,
+          ready: gate.total === gate.checked && missingDocuments(gate.documents).length === 0
+            && !(gate.requires_certificate === true && uncertified.has(p.id)),
         },
       };
     });
@@ -1299,12 +1339,17 @@ export function makeService(ctx: ModuleContext) {
         checked: p.gate.checked, total: p.gate.total, ready: p.gate.ready,
       }));
 
+    const seen = user
+      ? new Set((await db.query<{ id: string }>(`select p.id from projects p where p.deleted_at is null and ${ctx.resources.visibleWhere('project', user, 'p')}`)).map((r) => r.id))
+      : null;
+    const shown = <T extends Row>(rows: T[], key: string) => (seen ? rows.filter((r) => seen.has(r[key])) : rows);
+
     return {
-      register,
+      register: shown(register, 'id'),
       funnel,
       wip: { limit: wipLimit, inDelivery, exceeded, stage: DELIVERY_STAGE },
       wipWarning,
-      gatesDue,
+      gatesDue: shown(gatesDue, 'project_id'),
       totals: {
         projects: live.length,
         active: live.filter((p) => p.status === 'active').length,
@@ -1330,7 +1375,7 @@ export function makeService(ctx: ModuleContext) {
     listReports, addReport, updateReport, statusTrend, refreshRag,
     listItems, addItem, updateItem, escalateItem,
     listMilestones, addMilestone, updateMilestone,
-    removeChild, portfolio,
+    removeChild, portfolio, gateReady, notifyGateReady, certificateMissing,
   };
 }
 

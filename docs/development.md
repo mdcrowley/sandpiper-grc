@@ -106,7 +106,11 @@ Everything goes through `grc.ps1` (it puts the portable Node on PATH):
 .\grc.ps1 audit-deps # dependency advisories (fails only on a fixable high or critical one)
 .\grc.ps1 secret-key show | rotate   # where the secret key comes from; a new key (restarts the server)
 ./grc.sh service install | remove | status | print   # macOS and Linux: a launchd or systemd user service
+.\grc.ps1 audit-archive [-Folder <dir>]   # the audit archive as the database owner (least-privilege role)
 .\grc.ps1 npm <args> # any npm command with the portable Node
+npm run cli -- audit-archive [--folder <dir>]   # the audit archive as the database owner (least-privilege role)
+powershell -ExecutionPolicy Bypass -File tools\installer\build.ps1 [-OutDir dir] [-Version x.y.z] [-Instance name] [-BrokenMigration]   # builds the Windows installer (needs Inno Setup 6)
+powershell -ExecutionPolicy Bypass -File tools\installer\test-install.ps1   # tests the installer end to end, as an administrator
 ```
 
 `.\grc.ps1` with no command prints the full list.
@@ -238,6 +242,8 @@ Read them in code with `ctx.settings.get(key, fallback)`, using the same fallbac
 | `vendors.reassessment_reminder_days` | `30` | Days before a vendor's reassessment or exclusion-list check that its owner is reminded |
 | `vendors.exclusion_check_months` | `12` | Months after which a vendor's exclusion-list check is due again |
 | `vendors.exclusion_check_before_contract` | `false` | A match, or no check within `vendors.exclusion_check_months`, stops the vendor's contracts from becoming active |
+| `vendors.intake` | starter questionnaire | The vendor intake questionnaire, its tier rules, the default tier and the checks each tier needs (Vendors > Intake questions) |
+| `vendors.intake_before_contract` | `false` | A contract can become active only after its vendor has a completed intake |
 | `funding.subrecipient_reminder_days` | `30` | Days before sub-recipient monitoring is due that the monitor is reminded |
 | `records.request_due_days` | `{ "*": 20 }` | Days to answer a records request, by request kind (`*` is every kind not named); no jurisdiction's deadline is built in |
 | `records.business_days` | `false` | Count working days on the organization's working calendar (the service desk's Business hours calendar: its open weekdays and holidays, `core/working-days.ts`) instead of calendar days |
@@ -341,7 +347,7 @@ web/src/core/                 shell, design system, generic list/detail/form, ap
 web/src/modules/<key>/        one folder per module: index.tsx (+ pages)
 shared/                       code the server, the web and the mobile app share: tag values and formats
                               (tag-format.ts), inspection completion rules (inspection-rules.ts), calendar-date helpers (dates.ts), working-day
-                              arithmetic (working-days.ts), project scoring (project-scoring.ts), the CSV formula guard (csv-guard.ts), API shapes (asset-tags-api.ts, mobile-api.ts, push-api.ts); no imports
+                              arithmetic (working-days.ts), project scoring (project-scoring.ts), the CSV formula guard (csv-guard.ts), languages, translate and the missing-keys check (i18n.ts), API shapes (asset-tags-api.ts, mobile-api.ts, push-api.ts); no imports
                               beyond shared/, tested by the root vitest
 mobile/                       the iPhone and Android app (Expo, React Native): its own package.json and
                               lockfile, not part of the root install, typecheck or tests (see below)
@@ -495,7 +501,12 @@ Services other modules may offer are Fastify decorators; check before use:
   the organization's name and address in every page's footer, its logo on the first page or
   cover, its brand color for rules. Pass it in every new PDF. Emails get the organization's
   logo (inline, `MAIL_LOGO_CID`), name and footer by themselves; HTML documents use
-  `printBranding().logoDataUri`.
+  `printBranding().logoDataUri`. Every PDF is tagged for PDF/UA (E41-13): use `PdfBuilder`, or for
+  pages drawn by hand `taggedDocument`, `setBaseFont`, `structOf` and `asArtifact` from
+  `core/export/pdf.ts`. Never use the standard fonts (not embedded). Check new PDFs in tests with
+  `checkPdfUa(buffer)` from `core/export/pdfua.ts` (pdf.js); `pdfText` reads
+  embedded-font text. `pdfjs-dist` is a runtime dependency since wave 22 (it also reads the text of
+  attached files, E41-16), not only the PDF/UA test check.
 - `app.sendMail({ userIds, template, purpose, data, record?, attachments? })` and
   `app.mailEnabled()` (`core/mail`): email through the job queue. Off until an
   administrator sets up a mail server (Administration > Email), so always guard with
@@ -620,6 +631,18 @@ field.
 records new files there as evidence (`evidence: false` turns it off). The default list is
 `EVIDENCE_TYPES` in `core/resource.ts`.
 
+`scope: { department?: col | (col) => sql, site?: … }` says where a record belongs, for role grants
+scoped to departments or sites (E41-01, `core/scope.ts`); core adds the rule to `visibleWhere`, never
+to figures. `directory: true` lets every signed-in person pick and read a type's names (departments).
+A type that used to keep its department as text uses `departmentPrepare(ctx.db)` as its `prepare`
+hook and a module migration that adds `department_id`, converts the text and adds the
+`grc_department_name` trigger (core migration 031).
+
+Record types defined while the application runs (registers, E41-06) use `ResourceDef.partition`
+(several types sharing one table, each seeing only its own rows, search included) and are held in
+`app.runtimeResources`; `resolveRecordRoutes` serves their generated routes under one path
+(`/api/registers/:register`), and `defineRuntimeArea` gives each its own feature switch.
+
 Generated routes:
 
 | Route | Notes |
@@ -730,10 +753,11 @@ Module keys (fixed, `MODULE_KEYS` in `server/src/modules/admin/shared.ts`): `tic
 `audit`, `admin`, `portal`, `fleet`, `safety`, `audits`, `controls`, `funding`, `governance`,
 `people`, `continuity`, `legal`, `records`, `privacy`, `tags`. A new key is added there and here. The last four
 belong to the wave 11 parts (business continuity, legal holds, records requests, privacy
-assessments). Asset condition shares `assets`, `sites` and `fleet`, and OT security shares `systems`.
+assessments). Asset condition shares `assets`, `sites` and `fleet`, and OT security and user access reviews share `systems`.
 A module may also offer actions of its own (`MODULE_ACTIONS` in the same file): asset tags have
 `tags.manage` and `tags.count` besides `tags.view`; the role editor shows those columns only in that
-module's row, and `isValidGrant` accepts them only there.
+module's row, and `isValidGrant` accepts them only there. A register's key (E41-06) is a permission
+module of its own, added while the application runs.
 
 Default roles (`server/src/core/services.ts`): Administrator, Agent, Security lead,
 Project manager, Safety manager, Compliance officer, Audit lead, Training coordinator, Continuity
@@ -750,6 +774,14 @@ invisible without `security.view` in lists, counts, search, links, exports and s
 and inherit the flag from their source record. Sensitive administrative routes call
 `sensitive(ctx, req, what)` (`modules/admin/shared.ts`), which needs a recent password
 confirmation (`POST /api/auth/confirm`).
+
+### Outside reviewer accounts
+
+Module `outsidereviews` (not an area) confines accounts listed in `outside_reviewers` with an
+`onRequest` hook (`gate.ts`): they hold no roles and reach only `REVIEWER_ROUTES`. A new route needs
+nothing to stay out of their reach. Kinds of invitation are listed in `subjects.ts`
+(`audit_engagement`, `compliance_review`); their staff routes hang under the record type's path, so
+they follow its area. The state grant `outsidereviews.reviewer` makes `App.tsx` show `ReviewerApp`.
 
 ### Feature switches (optional areas)
 
@@ -810,7 +842,10 @@ hold must never lapse because a part was switched off. Of the wave 11 areas, `co
 the inventory and fleet permissions, so they hide their record types and fields by name (`types`,
 `fields`). Wave 13 adds `tags` (Asset tags, on by default; it also hides the `tag_number` field of
 vehicles, sites and systems) and `mobile` (Mobile app, off by default; no permission module: its module
-folder `mobile` and the OAuth client kind `mobile`).
+folder `mobile` and the OAuth client kind `mobile`). Wave 20 adds `accessreviews` (User access
+reviews, on by default; shares the systems permissions, so its types are hidden by name). Wave 22
+adds `recordsretention` (Records retention schedule, on by default; shares the records permissions,
+so its types are hidden by name).
 
 ### Tests
 
@@ -927,6 +962,9 @@ The wave 10 plan's keys: `actions.overdue`, `actions.caps_overdue`,
 `ot.zones_below_target` (current state, no history), `records.requests_overdue`,
 `vendors.reassessments_overdue` and `vendors.open_issues`.
 
+Figures over time (E41-04, `modules/reports/figures.ts`) record metrics and counts monthly;
+`GET /api/figures`.
+
 ### Legal holds (hook points)
 
 A record under an active legal hold must not be deleted, removed for good, anonymized or lose its
@@ -971,6 +1009,21 @@ defineCalendarSource(ctx.app, {
 switched on, permission held), sorted by key. A source is a list, not a figure: `events` returns only
 what that person may see (`visibleWhere(type, user)` in every query) and is involved in, between
 `from` and `to` (`YYYY-MM-DD`). Keys are `<module>.<name>` and unique.
+
+A source is also how a module puts due work in **My work** and the **compliance calendar**
+(E41-03): `work: true` lists it in My work (web widget, `GET /api/work/mine`, the mobile app and the
+assistant's `my_work`), overdue items included, so its `events` must return open items whatever
+their date; `anyone: true` means `events(ctx, user, from, to, scope)` honors `scope.person` (another
+user's id, or null for everyone the asker may see; `whoFor(user, scope)` gives the id to match, so
+queries read `($1::uuid is null or t.owner_id = $1)`); `kind` names one kind of item ("Evidence
+requests"). `named: true` offers a source to a person without its permission because each item
+names them (E41-02: an access review's reviewer); its `events` must return only items naming the
+asker, and it cannot be `anyone`. Events carry `personId` and `ref`.
+`checkedEvents(ctx, user, sources, from, to, scope?)` re-checks each record with `visibleWhere`
+(feeds and the `work` module use it); `areaOf(source, resources)` gives the feature area for
+filters. Wave 21 adds `projects.certification` (open certification requirements, for their
+verifier). The `work` module (`server/src/modules/work`, `web/src/modules/work`, shapes in
+`shared/work-api.ts`) has no data of its own.
 
 ### Taggable types (shared registry)
 
@@ -1060,6 +1113,16 @@ Field work (wave 15, E38-11, E38-12) is in `modules/mobile/fieldwork.ts` (sync k
 `app/fieldwork/`. The inspection completion rules are `shared/inspection-rules.ts`, used by both the
 audits module and the app. The flows are `mobile/test/maestro/run-fieldwork.sh`.
 
+### Translations
+
+Portal and kiosk texts (E41-07) are keys in `web/src/core/i18n/locales/<code>.json` read with
+`useI18n().t(key, vars)`; plural forms are `key_one`/`key_other` with `count`. App screens wrap their
+texts as `export const TEXT = localized('<screen>', {...})`, with translations in
+`mobile/src/i18n/<code>.ts`. Adding a language means an entry in `shared/i18n.ts` `LANGUAGES` plus
+both files. `web/src/core/i18n/i18n.test.ts`, `mobile/src/i18n/i18n.test.ts` and
+`npx tsx tools/i18n-missing.ts` report missing keys. A new English text in those screens needs its
+Spanish in the same change.
+
 ### Approval workflows (shared engine)
 
 The `workflows` module (E14-06) runs administrator-defined approval workflows on any record
@@ -1098,8 +1161,8 @@ carry `principals` and `standins`; decisions carry `on_behalf_of`. Change approv
 requests, asset disposal, risk acceptance, project gates, corrective action plans and their due-date
 extensions, audit reports, funding certifications, meeting minutes, annual plan reviews, safety
 performance targets (`safety_targets`), continuity plans, impact analysis sign-off (`bia_signoff`, by the process owner), asset condition targets, legal hold
-releases (`legal_hold_release`), privacy impact assessments and vendor offboarding sign-off
-(`vendor_offboarding`) are approval kinds. A committee decision may be applied through
+releases (`legal_hold_release`), privacy impact assessments, vendor offboarding sign-off
+(`vendor_offboarding`) and records destruction (`records_destruction`) are approval kinds. A committee decision may be applied through
 `decide` with `opts.userId` set to the chair (E28-06), only when the chair may decide the current step.
 
 A step may have `branches` (2 to 5 units run side by side; step rows carry `branch` and
@@ -1187,7 +1250,7 @@ has filter, sort, saved view and export; every record shows its history.
 | `secincidents` | `security_incident` → security_incidents (restricted), `notification_task` → notification_tasks |
 | `policies` | `policy` → policies, `policy_exception` → policy_exceptions; tables `policy_person_acknowledgements`, `policy_plan_elements`, `policy_plan_reviews` |
 | `training` | `course` → courses, `exercise` → exercises, `certification` → certifications |
-| `people` | `person` → people, `position` → positions (always on, not a feature area) |
+| `people` | `person` → people, `position` → positions, `department` → departments (always on, not a feature area) |
 | `audits` | `audit_area` → audit_areas, `audit_engagement` → audits (flag), `checklist_template` → checklist_templates, `inspection_schedule` → inspection_schedules, `inspection` → inspections, `audit_finding` → audit_findings (flag, inherited from its audit), `audit_request` → audit_requests (flag, inherited). The type is `audit_engagement` because `audit` would clash with the audit log (`GET /api/audit`, `audit.export`) |
 | `controls` | `control` → controls, `control_test` → control_tests (child table `control_test_samples`) |
 | `funding` | `funding_award` → funding_awards, `funding_certification` → funding_certifications, `compliance_review` → compliance_reviews, `review_deficiency` → review_deficiencies, `subrecipient` → subrecipients (child table subrecipient_monitoring) |
@@ -1195,17 +1258,20 @@ has filter, sort, saved view and export; every record shows its history.
 | `continuity` | `business_process` → business_processes, `bia` → bia_assessments, `continuity_plan` → continuity_plans, `emergency_activation` → emergency_activations; tables process_dependencies (source of the `depends_on` links), continuity_plan_processes, call_tree_nodes, continuity_checklist_items, activation_log_entries, activation_roles, activation_checklist (no record type) |
 | `condition` | `asset_class` → asset_classes, `condition_assessment` → condition_assessments (row rule: a vehicle's needs fleet.view, a site's sites.view); tables condition_targets, condition_reminders |
 | `ot` | `ot_zone` → ot_zones (flag), `ot_conduit` → ot_conduits (flag, set from its two zones) |
+| `accessreviews` | `system_account` → system_accounts, `access_review` → access_reviews (evidence); tables access_review_systems, access_review_items (no record type) |
 | `holds` | `legal_hold` → legal_holds (core tables, migration 025; always on) |
+| `registers` | `reg_<key>` → view `reg_<key>` of `register_records` (one per register an administrator defines; table `register_definitions`) |
+| `recordsretention` | `record_series` → record_series, `records_destruction` → records_destructions (evidence) |
 | `records` | `records_request` → records_requests (row rule: personal-data kinds need privacy.view; child table records_request_items), `privacy_assessment` → privacy_assessments |
 | `vulnerabilities` | `vulnerability` → vulnerability_records (restricted) |
-| `projects` | `project` → projects |
+| `projects` | `project` → projects, `cert_item` → project_cert_items, `cert_requirement` → project_cert_requirements (flag, inherited from its source: restricted when derived from a threat kept as a risk) |
 | `fleet` | `vehicle` → vehicles, `service` → services |
 | `tags` | `inventory_count` → inventory_counts (child table inventory_count_items); tables tag_formats, tag_series, tag_ranges, tag_range_values, tag_stock_marks, tag_assignments, tag_lookups, tag_label_layouts, tag_verifications (no record type) |
 | `mobile` | no record type: the mobile app's devices, My work, settings, the offline package and the outbox answers (`mobile_sync_items`) (waves 13 and 14, area `mobile`) |
 | `push` | no record type: push notifications to the mobile app (tables `push_config`, `push_registrations`, `push_cursor`; part of the `mobile` area; `app.pushNotify(userIds)`, called by the notifications service) |
 | `safety` | `hazard` → hazards, `safety_event` → safety_events (flag), `safety_indicator` → safety_indicators; tables safety_event_people, safety_event_timeline, safety_event_statements, safety_report_rules, safety_notifications, safety_indicator_values, safety_indicator_targets (no record type) |
 | `reports` | `report_definition` → report_definitions, `dashboard` → dashboards, `report_schedule` → report_schedules, `report_pack` → report_packs |
-| `attachments` | no record type: files on any record (table `attachments`; `AttachmentsPanel`; stored in `<data>/files`), and links to documents kept elsewhere (`storage_driver = 'link'`, never fetched) |
+| `attachments` | no record type: files on any record (table `attachments`; `AttachmentsPanel`; stored in `<data>/files`), links to documents kept elsewhere (`storage_driver = 'link'`, never fetched), and the text of PDF, .docx and plain-text files for search (table `attachment_texts`, job `attachments.text_index`, `text.ts`/`text-worker.mjs`); `GET /api/attachments/:id/preview` |
 | `feeds` | no record type: calendar feeds (calendar_feeds), calendar sources of earlier modules (sources.ts), work-tracker bridge (tables ticket_connectors, external_ticket_links) |
 | `integrations` | no record type: user provisioning over SCIM 2.0 (scim_tokens, scim_group_roles, scim_group_members, scim_role_grants, user_external_ids), audit-log forwarding (audit_forwarders, audit_forward_log) and sealed webhook addresses (always on) |
 | `portal` | no record type: the self-service portal's settings and pages (portal requests are tickets, scoped to their requester) |
@@ -1214,6 +1280,7 @@ has filter, sort, saved view and export; every record shows its history.
 | `admin` | users, roles, second factor, audit viewer, lookups, settings, custom fields, tokens, webhooks, retention screens |
 | `lifecycles` | no record type: Administration > Lifecycles routes (`/api/admin/lifecycles`); rules and enforcement are core (`core/lifecycle.ts`, table `lifecycle_rules`) |
 | `workflows` | no record type: approval workflows (tables `workflow_definitions`, `workflow_instances`, `workflow_steps`, `workflow_decisions`, `workflow_department_heads`; `/api/workflows`; the record page's approval panel `WorkflowPanel`) |
+| `work` | no record type: My work and the compliance calendar, read from the calendar sources (E41-03) |
 | `home` | the Overview page (web only) |
 | `help` | the user guide, rendered from `docs/user/*.md` (web only) |
 
@@ -1226,14 +1293,15 @@ policy → `policies`; policy_exception → `exceptions`; course → `training`;
 `exercises`; vulnerability → `vulnerabilities`; project → `projects`; report_definition,
 report_schedule, report_pack → `reports`; dashboard → `dashboards`; vehicle, service →
 `fleet`; hazard, safety_event, safety_indicator → `safety`; cap → `actions`; regulatory_change →
-`obligations`; kri → `risks`; certification → `training`; person, position → `people`; audit_area,
+`obligations`; kri → `risks`; certification → `training`; person, position, department → `people`; audit_area,
 audit_engagement, checklist_template, inspection_schedule, inspection, audit_finding, audit_request →
 `audits`; control, control_test → `controls`; funding_award, funding_certification, compliance_review,
 review_deficiency, subrecipient → `funding`; committee, meeting, meeting_decision → `governance`;
 vendor_issue, vendor_offboarding → `vendors`; business_process, bia, continuity_plan,
 emergency_activation → `continuity`; asset_class, condition_assessment → `assets`; ot_zone,
-ot_conduit → `systems`; legal_hold → `legal`; records_request → `records`; privacy_assessment →
-`privacy`; inventory_count → `tags`.
+ot_conduit, system_account, access_review → `systems`; legal_hold → `legal`; records_request → `records`; privacy_assessment →
+`privacy`; inventory_count → `tags`; cert_item, cert_requirement → `projects`; record_series,
+records_destruction → `records`; `reg_<key>` → the register's key (`<key>`).
 
 Core refuses a ref field that names a record the caller cannot see (`checkRefsVisible` in
 core/resource.ts); unchanged values are not checked again and system work is exempt.

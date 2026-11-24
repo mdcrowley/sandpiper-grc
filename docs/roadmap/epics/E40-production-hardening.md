@@ -1,6 +1,6 @@
 # E40 Production hardening (wave 19 engineering gap analysis)
 
-**Status:** in progress (13 of 14 issues done)
+**Status:** done (14 of 14 issues done)
 
 ## Goal
 
@@ -26,7 +26,7 @@ that hold up at an organization's real size.
 | E40-11 | Backup and recovery: runbook, targets, PostgreSQL backups, no request timeout | done | P2 |
 | E40-12 | Smaller fixes: pool exhaustion, safety alerts once, scoring preview, shared date helpers, web tests, docs | done | P3 |
 | E40-13 | Reference checks by module permission, and token scope for background model changes | done | P2 |
-| E40-14 | Rotating secrets, and archiving the audit log under a least-privilege role | open | P3 |
+| E40-14 | Rotating secrets, and archiving the audit log under a least-privilege role | done | P3 |
 
 ### E40-01 Several server processes on one database
 
@@ -160,9 +160,9 @@ Left from E18-66.
 
 ### E40-14 Rotating secrets, and archiving the audit log under a least-privilege role
 
-**Status:** open · **Priority:** P3 · **Type:** docs
+**Status:** done · **Priority:** P3 · **Type:** docs · **Implemented in:** `docs/operations.md` ("Rotating secrets": a table of every secret the application uses, where it is kept and how to change it, with procedures for the database passwords of the run-time and owner accounts, the secret key, the backup key or passphrase, the metrics token, personal API tokens and AI assistant connections, provisioning tokens, and the secrets shared with other systems: webhooks, sign-in providers, email, push, work trackers, log forwarders, the text-message webhook, the object store and the HTTPS certificate; "Audit log archive" for the owner command); `server/src/ops/audit-archive-owner.ts` and `server/src/cli.ts` (`audit-archive [--folder <dir>]`, also `grc audit-archive` in the container: the same archive on a connection as the owner, `GRC_DATABASE_MIGRATE_URL`, with the settings chosen on the page; refused with the reason when the archive is off or the account may not delete), `core/audit-archive.ts` (with a least-privilege role the daily job only watches and tells the administrators once when events wait more than 31 days past the cut-off; the audit event names who ran it), `web/src/modules/admin/AuditArchive.tsx` (the card shows the command and drops **Archive now**); test `ops/audit-archive-owner.test.ts` (the run-time role, taken with `set local role`, may not delete or archive; the owner command archives, checked and audited). Each procedure the criteria name was carried out once on a test installation: the secret key, the backup passphrase, the metrics token, an API token, a provisioning token and a webhook secret on the embedded database with a real server process; the run-time and owner database passwords and the owner's audit archive on PostgreSQL 17 (a local container) with a least-privilege role. Not carried out end to end, only covered by unit tests: sign-in provider, email, push, work-tracker, log forwarder, object store and HTTPS certificate changes, which need the other systems (the table in `docs/operations.md` marks each).
 
 **Acceptance criteria**
 
-- [ ] `docs/operations.md` has a written procedure for rotating the database password, the secret key, SCIM and API tokens, the metrics token and the backup passphrase, each tested once
-- [ ] The audit archive can run where the application's run-time role has no delete privilege (a command run as the owner)
+- [x] `docs/operations.md` has a written procedure for rotating the database password, the secret key, SCIM and API tokens, the metrics token and the backup passphrase, each tested once
+- [x] The audit archive can run where the application's run-time role has no delete privilege (a command run as the owner)

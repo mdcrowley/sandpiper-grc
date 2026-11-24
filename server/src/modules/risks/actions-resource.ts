@@ -1,6 +1,7 @@
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { MASKED_LABEL, MASKED_SQL, MASKED_VALUE } from '../../core/resource.ts';
+import { departmentPrepare } from '../../core/scope.ts';
 import { dayInZone } from '../../core/timezone.ts';
 import type { makeActionExtras } from './actions.ts';
 import { syncCap } from './caps.ts';
@@ -32,6 +33,18 @@ export function registerActionResource(ctx: ModuleContext, extras: ActionExtras)
   const statusesWith = async (list: string, flag: string) =>
     (await ctx.lookups.values(list)).filter((v) => v.meta?.[flag]).map((v) => v.value);
 
+  /**
+   * The site of an action's source record (E41-01): the site a hazard, safety event or inspection of
+   * a site belongs to (its type's `scope.site`), so that people scoped to that site see the action.
+   */
+  async function siteOfSource(type: unknown, id: unknown): Promise<string | null> {
+    const def = typeof type === 'string' ? ctx.resources.get(type) : undefined;
+    const site = def?.scope?.site;
+    if (!def || !site || !UUID.test(String(id ?? ''))) return null;
+    const expr = typeof site === 'function' ? site((c) => c) : site;
+    return (await ctx.db.one<{ site: string | null }>(`select (${expr})::text as site from ${def.table} where id = $1`, [String(id)]))?.site ?? null;
+  }
+
   async function prepareAction(req: FastifyRequest | null, existing: Row | null, data: Row): Promise<Row> {
     const errors: Record<string, string> = {};
     // E23-01: an action added to a corrective action plan arose from the plan's source record, so it
@@ -53,6 +66,11 @@ export function registerActionResource(ctx: ModuleContext, extras: ActionExtras)
     if (data.source_id && !UUID.test(String(data.source_id))) errors.source_id = 'Source record is not a valid reference.';
     if (data.source_type && !/^[a-z_][a-z0-9_]*$/.test(String(data.source_type))) errors.source_type = 'Source record type is not valid.';
     if (Object.keys(errors).length) ctx.fail(400, 'validation', 'Check the highlighted fields.', errors);
+    // A new action takes its source record's site unless told otherwise (E41-01).
+    if (!existing && !data.site_id && data.source_type && data.source_id) {
+      const site = await siteOfSource(data.source_type, data.source_id);
+      if (site) data.site_id = site;
+    }
     const merged: Row = { ...(existing ?? {}), ...data };
 
     // E23-05: once its plan is approved, an action's due date moves through an extension request;
@@ -129,7 +147,10 @@ export function registerActionResource(ctx: ModuleContext, extras: ActionExtras)
       source_type: { label: 'Source record type', type: 'text' },
       source_id: { label: 'Source record', type: 'text' },
       external_ref: { label: 'External reference', type: 'text' },
-      department: { label: 'Department', type: 'text' },
+      // E41-01: a reference to the organization's departments; `department` keeps its name (set by the database).
+      department_id: { label: 'Department', type: 'ref', to: 'department' },
+      department: { label: 'Department name', type: 'text', readOnly: true },
+      site_id: { label: 'Site', type: 'ref', to: 'site' },
       notes: { label: 'Notes', type: 'longtext' },
       restricted: { label: 'Restricted', type: 'boolean', readOnly: true },
       // E23: corrective action plans, verification of effectiveness and due-date extensions.
@@ -146,7 +167,11 @@ export function registerActionResource(ctx: ModuleContext, extras: ActionExtras)
       original_due_on: { label: 'Original due date', type: 'date', readOnly: true },
       extension_count: { label: 'Extensions', type: 'number', readOnly: true },
     },
+    // Role grants scoped to departments or sites (E41-01).
+    scope: { department: 'department_id', site: 'site_id' },
     hooks: {
+      // A department may still be given by name (`department` or `department_id`), as before E41-01.
+      prepare: departmentPrepare(ctx.db),
       beforeCreate: (req, data) => prepareAction(req, null, data),
       beforeUpdate: (req, existing, patch) => prepareAction(req, existing, patch),
       afterCreate: async (req, row) => {
@@ -162,6 +187,20 @@ export function registerActionResource(ctx: ModuleContext, extras: ActionExtras)
     },
   });
   extras.register();
+
+  // Actions raised before E41-01 take their source record's site once (idempotent: only actions
+  // with no site whose source has one), when every module's record types are known.
+  ctx.app.addHook('onReady', async () => {
+    for (const type of ['hazard', 'safety_event', 'inspection']) {
+      const def = ctx.resources.get(type);
+      const site = def?.scope?.site;
+      if (!def || !site) continue;
+      const expr = typeof site === 'function' ? site((c) => `s.${c}`) : `s.${site}`;
+      await ctx.db.query(
+        `update actions a set site_id = (${expr}) from ${def.table} s
+         where a.site_id is null and a.source_type = $1 and a.source_id = s.id and (${expr}) is not null`, [type]);
+    }
+  });
 
   ctx.app.get('/api/actions/summary', { preHandler: ctx.requirePerm('actions.view') }, async (req) => {
     const closed = await statusesWith('action_status', 'closed');

@@ -9,7 +9,7 @@ import { currencySymbol } from './bits';
 import type { Intake, MyRequest } from './types';
 
 const BLANK = {
-  name: '', description: '', expected_benefits: '', sponsor: '', department: '', funding_source: '', target_on: '',
+  name: '', description: '', expected_benefits: '', sponsor: '', department_id: null as string | null, funding_source: '', target_on: '',
   touches_payment: false, touches_personal_data: false, touches_operational_systems: false,
 };
 
@@ -128,7 +128,7 @@ export function IntakeForm() {
               <TextArea label="Expected benefits" rows={2} value={form.expected_benefits} onChange={set('expected_benefits')} error={fields.expected_benefits} hint="What will be better afterward" />
               <div className="form-grid">
                 <TextField label="Sponsor" value={form.sponsor} onChange={set('sponsor')} error={fields.sponsor} hint="Who is asking for it" />
-                <TextField label="Department" value={form.department} onChange={set('department')} error={fields.department} />
+                <RecordPicker label="Department" type="department" value={form.department_id} onChange={(id) => set('department_id')(id)} error={fields.department_id} />
                 <NumberField label="Budget" prefix={currencySymbol()} thousands min={0} step={1000} value={budget} onChange={setBudget} error={fields.budget} hint="A rough estimate is fine" />
                 <Select label="Funding source" value={form.funding_source} onChange={set('funding_source')} options={data.funding_sources} error={fields.funding_source} placeholder="Not known yet" />
                 <DateField label="Target date" value={form.target_on} onChange={set('target_on')} error={fields.target_on} hint="When it is needed by" />

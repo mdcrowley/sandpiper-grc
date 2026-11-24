@@ -1,6 +1,7 @@
 import type { ModuleContext, ModuleDef } from '../../core/module.ts';
 import { registerAwards } from './awards.ts';
 import { registerCertifications } from './certifications.ts';
+import { registerDue } from './due.ts';
 import { DEFAULT_FUNDING_CLAUSES, FUNDING_CLAUSE_STATUSES, registerClauses } from './clauses.ts';
 import { registerReviews } from './reviews.ts';
 import { seedFunding } from './seed.ts';
@@ -93,6 +94,7 @@ async function register(ctx: ModuleContext) {
   registerClauses(ctx);
   registerSummary(ctx);
   await registerSubrecipients(ctx);
+  registerDue(ctx); // certifications to sign or confirm in My work and the calendars (E41-03)
 }
 
 const mod: ModuleDef = {

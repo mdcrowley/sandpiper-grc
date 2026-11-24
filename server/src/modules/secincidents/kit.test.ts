@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createSession, SESSION_COOKIE } from '../../core/auth.ts';
+import { checkPdfUa } from '../../core/export/pdfua.ts';
 import { pdfPageCount, pdfText } from '../../core/export/testing.ts';
 import type { ModuleDef } from '../../core/module.ts';
 import { ADMIN, testApp } from '../../test/helpers.ts';
@@ -63,6 +64,8 @@ describe('PDF copies of the offline kit (E09-16)', () => {
     const pages = pdfPageCount(file.body);
     expect(pages).toBe(first.pages);
     const text = pdfText(file.body);
+    // E41-13: the kit is tagged for PDF/UA like every server PDF.
+    expect((await checkPdfUa(file.body)).failures).toEqual([]);
     for (const words of ['Security incident kit', 'First hour', 'Incident roles and contacts', 'Invented duty officer', '555-0100',
       'Who must be told, and by when', 'Severity guide and ransom rule', 'Notification record sheet', 'Incident log sheet 2']) {
       expect(text).toContain(words);

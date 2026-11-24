@@ -48,7 +48,7 @@ const META: Meta = {
 function gate(patch: Partial<Gate> = {}): Gate {
   return {
     id: 'g2', gate_key: 'plan', name: 'Planning approval', from_stage: 'planning', to_stage: 'delivery', status: 'open',
-    decided_by_name: null, decided_on: null,
+    decided_by_name: null, decided_on: null, requires_certificate: false,
     items: [
       { id: 'i1', label: 'Budget confirmed', checked: true, checked_by_name: 'Pat Example', checked_at: '2026-11-02T15:00:00Z', note: null, evidence_ref: null },
       { id: 'i2', label: 'Depot access plan agreed', checked: false, checked_by_name: null, checked_at: null, note: null, evidence_ref: null },

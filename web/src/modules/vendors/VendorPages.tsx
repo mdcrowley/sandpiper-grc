@@ -9,6 +9,7 @@ import type { IconName, ListResult, Row } from '../../core';
 import { AssessmentTab, ScoreRing, scoreColor, scoreWord } from './Assessment';
 import { Checklist } from './Checklist';
 import { Contacts } from './Contacts';
+import { IntakeTab, RiskTierChip } from './Intake';
 import { LifecycleTab } from './Lifecycle';
 import { AddEvidence } from './EvidenceForm';
 import {
@@ -27,7 +28,7 @@ export function VendorList() {
       type="vendor"
       title="Vendors"
       columns={[
-        'ref', 'name', 'criticality', 'status',
+        'ref', 'name', 'criticality', 'risk_tier', 'status',
         ...(seesContracts ? [
           {
             field: 'security_terms', label: 'Security terms',
@@ -49,7 +50,7 @@ export function VendorList() {
         { field: 'remote_access_method', hidden: true }, { field: 'incident_contact_name', hidden: true },
         { field: 'incident_contact_phone', hidden: true }, { field: 'updated_at', hidden: true },
       ]}
-      filters={['criticality', 'status', 'owner_id', 'next_assessment_due']}
+      filters={['criticality', 'risk_tier', 'status', 'owner_id', 'next_assessment_due']}
       bulkFields={['criticality', 'status', 'owner_id']}
       createFields={[
         'name', 'services', 'criticality', 'status', 'owner_id', 'remote_access_method',
@@ -59,6 +60,7 @@ export function VendorList() {
         <>
           {/* Everyone who views vendors may read the questions; changing them needs administer (Questions.tsx). */}
           {can('vendors.view') && <Link className="btn btn-secondary" to="/vendors/questions">Assessment questions</Link>}
+          {can('vendors.view') && <Link className="btn btn-secondary" to="/vendors/intake">Intake questions</Link>}
           {seesContracts && <Link className="btn btn-secondary" to="/vendors/terms">Security terms matrix</Link>}
         </>
       )}
@@ -335,6 +337,7 @@ export function VendorDetail() {
       status={(row) => (
         <span className="row">
           {row.criticality && <LookupChip list="vendor_criticality" value={row.criticality} />}
+          <RiskTierChip value={row.risk_tier} />
           <LookupChip list="vendor_status" value={row.status} />
         </span>
       )}
@@ -366,6 +369,7 @@ export function VendorDetail() {
         { key: 'terms', label: 'Security terms', content: ({ row }) => <TermsTab vendorId={row.id} onChanged={changed} /> },
         { key: 'evidence', label: 'Evidence', content: ({ row }) => <EvidenceTab vendorId={row.id} onChanged={changed} /> },
         { key: 'assessment', label: 'Assessment', content: ({ row }) => <AssessmentTab vendorId={row.id} onChanged={changed} /> },
+        { key: 'intake', label: 'Intake and checks', content: ({ row }) => <IntakeTab vendorId={row.id} onChanged={changed} /> },
         { key: 'lifecycle', label: 'Lifecycle', content: ({ row }) => <LifecycleTab row={row} onChanged={changed} /> },
         { key: 'contacts', label: 'Contacts', content: ({ row }) => <Contacts vendorId={row.id} onChanged={changed} /> },
         { key: 'systems', label: 'Systems supplied', content: ({ row }) => <SystemsTab vendorId={row.id} /> },

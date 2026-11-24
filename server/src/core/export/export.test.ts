@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createSession, SESSION_COOKIE } from '../auth.ts';
 import { testApp } from '../../test/helpers.ts';
 import { readXlsx } from '../import/xlsx.ts';
+import { checkPdfUa } from './pdfua.ts';
 import { gizmos, pdfPageCount, pdfText, xlsxParts } from './testing.ts';
 import { columnName, sheetName, writeXlsx } from './xlsx.ts';
 import { PdfBuilder, printable } from './pdf.ts';
@@ -133,6 +134,11 @@ describe('list export to PDF', () => {
     // The header row is printed again on every page of the table.
     expect(text.split('\n').filter((l) => l === 'Reference').length).toBe(pages);
     expect(text).not.toContain('RESTRICTED');
+    // E41-13: tagged for PDF/UA; the header repeated on later pages is an artifact, so the table has one header row.
+    const ua = await checkPdfUa(res.body);
+    expect(ua.failures).toEqual([]);
+    expect(ua.title).toBe('Gizmos');
+    expect(res.body.toString('latin1').match(/\/S \/THead\b/g)).toHaveLength(1);
   });
 
   it('watermarks restricted content on every page', async () => {
@@ -140,6 +146,7 @@ describe('list export to PDF', () => {
     const text = pdfText(res.body);
     expect(text).toContain('RESTRICTED');
     expect(text).toMatch(/Restricted export by Test Admin at /);
+    expect((await checkPdfUa(res.body)).failures).toEqual([]);
     const audit = await t.db.one<{ summary: string }>("select summary from audit_events where action = 'gizmo.export' order by id desc limit 1");
     expect(audit!.summary).toBe('Exported 1 gizmos to PDF (includes restricted records)');
   });
@@ -173,6 +180,7 @@ describe('record fact sheet', () => {
     expect(text).toContain('Test Admin');
     expect(text).toContain('Mar 14, 2026');
     expect(text).toContain('Recent history');
+    expect((await checkPdfUa(res.body)).failures).toEqual([]);
     const audit = await t.db.one<{ summary: string }>("select summary from audit_events where action = 'gizmo.export' and record_id = $1", [row.id]);
     expect(audit!.summary).toContain('Fact sheet of gizmo');
   });

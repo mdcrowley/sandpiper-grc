@@ -11,6 +11,7 @@ import { AudienceCard } from './AudienceCard';
 import { OutcomesPanel } from './OutcomesPanel';
 import { PolicyActions } from './PolicyActions';
 import { ExpiryChip, PolicyBody, ReviewChip, VERSION_STATUS, VersionChip, type PolicyVersion } from './shared';
+import { TranslationsPanel } from './TranslationsPanel';
 import { VersionMeta, VersionsPanel } from './VersionsPanel';
 
 // The plan panel (E28, GOVERNANCE): the element map and annual review of a policy whose document type
@@ -149,6 +150,7 @@ export function PolicyDetail() {
       tabs={[
         { key: 'policy', label: 'Policy', content: (rec) => <Summary rec={rec} versions={versions} /> },
         { key: 'versions', label: 'Versions', count: list.length || undefined, content: () => (versions.data ? <VersionsPanel versions={versions.data} /> : <Card><Loading /></Card>) },
+        { key: 'translations', label: 'Translations', content: ({ row }) => (versions.data ? <TranslationsPanel row={row} versions={versions.data} /> : <Card><Loading /></Card>) },
         { key: 'acknowledgements', label: 'Acknowledgments', content: ({ row }) => (versions.data ? <AckTracking row={row} versions={versions.data} /> : <Card><Loading /></Card>) },
         { key: 'outcomes', label: 'Mapped outcomes', content: ({ row }) => <OutcomesPanel row={row} /> },
         { key: 'exceptions', label: 'Exceptions', content: ({ row }) => <PolicyExceptions row={row} /> },

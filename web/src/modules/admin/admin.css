@@ -374,3 +374,6 @@
 /* Audit log > Archive old events (E40-06) */
 .adm-archive-job { margin: var(--s-3) 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-1); }
 .adm-archive-runs { margin: var(--s-3) 0 0; padding-left: 1.2em; display: grid; gap: var(--s-1); overflow-wrap: anywhere; }
+
+/* E41-01: which records each scoped area reaches. */
+.adm-scopes { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: var(--s-3) var(--s-4); }

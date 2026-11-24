@@ -20,13 +20,31 @@ regulator, and nothing in it is specific to one organization.
   OT and rail-systems security zones and conduits
 - **Change enablement**: risk-scored changes, approvals, a change calendar with blackout periods
 - **Vendors and contracts**: security-terms checklist, evidence with expiry, assessments, renewals,
-  reassessment on a cadence, exclusion-list checks, vendor issues and offboarding
+  reassessment on a cadence, exclusion-list checks, vendor issues and offboarding; vendor intake
+  questionnaires that set a risk tier and the checks needed before a contract becomes active;
+  contractor performance measures with targets, periodic scores and trends
 - **Business continuity**: business processes, impact analyses, continuity and emergency plans
-  with call trees, a recovery gap report and emergency activations
+  with call trees, a recovery gap report and emergency activations; call-tree messages by email and
+  text message, acknowledged through each person's own link
 - **Legal holds, records requests and privacy**: holds that stop deletion and anonymizing
-  everywhere, records and personal-data requests against a deadline, privacy impact assessments
+  everywhere, records and personal-data requests against a deadline, privacy impact assessments, a
+  records retention schedule and destruction log; search inside attached files, with previews of
+  images and PDFs
 - **Risk, safety and compliance**: risk register and heat map, a safety hazard log and safety
-  events, NIST CSF 2.0 outcomes, obligations, policies, training and vulnerabilities
+  events (reported confidentially if the reporter asks), NIST CSF 2.0 outcomes, obligations,
+  policies, training and vulnerabilities; written test steps per control and coverage imported from
+  a spreadsheet; safety and security certification of capital projects
+- **User access reviews**: the accounts on each system matched to the staff roster, and owner
+  review campaigns with removals tracked to done
+- **My work and the compliance calendar**: a compliance calendar and one "My work" list of
+  everything due across every area: evidence requests, control tests, verifications, inspections,
+  attestations, reassessments and certifications
+- **Registers**: administrators define their own kinds of record (lost property, keys issued,
+  visitors) with fields, numbering, permissions and a switch
+- **Outside reviewers**: give an external auditor or a funder's reviewer time-limited access to
+  one audit or funder review, and nothing else
+- **English and Spanish**: the self-service portal, the acknowledgment kiosk and the mobile app's
+  employee screens in English or Spanish, with translated policies
 - **Security incidents**: a restricted workspace with notification clocks you configure
 - **Approval workflows**: approval steps on any kind of record (change approval, catalog
   requests, asset disposal, risk acceptance and project gates included), run in order or side by
@@ -35,13 +53,14 @@ regulator, and nothing in it is specific to one organization.
   approval, set per record type
 - **Projects and reporting**: portfolio and stage gates, dashboards, a report builder,
   exports to Excel, CSV and PDF
+- **Board reporting**: figures over time, and accessible (PDF/UA-tagged) PDFs
 - **Asset tags and the mobile app**: tag numbers, barcodes and QR or Data Matrix codes on assets,
   vehicles, sites and systems, printed labels and inventory counts; an iPhone and Android app (beta)
   that reads tags with the camera, reports problems and hazards with photos, runs inspections,
   condition assessments and counts offline, decides approvals and sends push notifications (off
   until switched on)
 - **Sign-in and security**: single sign-on (OpenID Connect, SAML 2.0 or a directory over LDAP), passkeys, second factor,
-  roles, restricted records and a full audit log
+  roles (optionally limited to departments or sites), restricted records and a full audit log
 - **Integrations**: a REST API with an OpenAPI description, webhooks (also as chat messages),
   user provisioning over SCIM 2.0, audit-log forwarding, personal calendar feeds, a two-way
   bridge to an outside work-tracking tool, evidence links to documents kept elsewhere, and AI
@@ -63,6 +82,9 @@ git clone https://github.com/mdcrowley/sandpiper-grc.git && cd sandpiper-grc
 docker compose up -d
 # open http://127.0.0.1:8080 and complete the setup wizard
 ```
+
+On Windows: download `SandpiperGRC-Setup-<version>.exe` from the releases page
+([Installation, Windows installer](docs/installation.md#windows-installer)).
 
 From source: install Node.js 24 with `tools/install-node.ps1` (Windows) or
 `tools/install-node.sh` (macOS, Linux), then `.\grc.ps1 start` or `./grc.sh start`. Step by

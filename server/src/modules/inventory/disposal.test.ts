@@ -237,17 +237,23 @@ describe.runIf(wfLoaded)('routed disposal approval', () => {
 });
 
 describe('department list on assets', () => {
-  it('offers the organization departments, spells a match their way and refuses anything else', async () => {
-    // No departments yet: free text is kept, as before.
-    expect((await t.api.post('/api/assets', { name: 'Free text desk', department: 'Wherever' })).body.department).toBe('Wherever');
+  it('points at the organization departments, accepts a name (any case) and refuses anything else', async () => {
+    // E41-01: a department is a reference; a name that is not in the list is refused for a person.
+    expect((await t.api.post('/api/assets', { name: 'Free text desk', department: 'Wherever' })).body.error.fields.department_id).toMatch(/not in the department list/);
     await t.db.query(`insert into departments (name) values ('Planning'), ('Customer Service')`);
     expect((await t.api.get('/api/inventory/departments')).body.map((d: any) => d.name)).toEqual(['Customer Service', 'Planning']);
 
     const made = await t.api.post('/api/assets', { name: 'Plotter', department: 'planning' });
     expect(made.body.department).toBe('Planning');
+    const planning = (await t.db.one<{ id: string }>(`select id from departments where name = 'Planning'`))!.id;
+    expect(made.body.department_id).toBe(planning);
     const bad = await t.api.patch(`/api/assets/${made.body.id}`, { department: 'Plannning' });
     expect(bad.status).toBe(400);
-    expect(bad.body.error.fields.department).toMatch(/not in the department list/);
+    expect(bad.body.error.fields.department_id).toMatch(/not in the department list/);
+    // Renaming the department renames it on the asset too.
+    await t.api.patch(`/api/departments/${planning}`, { name: 'Planning and scheduling' });
+    expect((await t.api.get(`/api/assets/${made.body.id}`)).body.department).toBe('Planning and scheduling');
+    await t.api.patch(`/api/departments/${planning}`, { name: 'Planning' });
     expect((await t.api.post(`/api/assets/${made.body.id}/check-out`, { assignee_name: 'Sam Invented', department: 'customer service' })).status).toBe(201);
     expect((await t.api.get(`/api/assets/${made.body.id}`)).body.department).toBe('Customer Service');
 

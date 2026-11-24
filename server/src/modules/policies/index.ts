@@ -9,6 +9,7 @@ import { registerOutcomeRoutes } from './outcomes.ts';
 import { registerPersonAcks } from './personAcks.ts';
 import { registerPlans } from './plans.ts';
 import { seedPolicies } from './seed.ts';
+import { registerTranslations } from './translations.ts';
 import { registerVersionRoutes } from './versions.ts';
 
 export { runPolicyReminders } from './acknowledgments.ts';
@@ -155,6 +156,8 @@ const mod: ModuleDef = {
     // Acknowledgments by roster people (E29) and plans (E28).
     registerPersonAcks(ctx);
     registerPlans(ctx);
+    // Translations of versions, read in the portal, on the kiosk and in the app (E41-07).
+    registerTranslations(ctx);
 
     // ---------- settings: the acknowledgment reminder interval ----------
 

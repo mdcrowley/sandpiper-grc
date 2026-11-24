@@ -27,6 +27,9 @@ const RANKED = 8;
  * list. What the heat map shows (scale, basis, chosen cell, movement, closed risks) lives in the
  * page address, so a view can be bookmarked, sent to a colleague or printed for a board pack.
  */
+/** The heat map's choice that shows every scale at the common level (GET /api/risks/heatmap/common). */
+const COMMON = '_common';
+
 export function RiskRegister() {
   const { can } = useAuth();
   const { data: scales, error, reload } = useScales();
@@ -35,14 +38,18 @@ export function RiskRegister() {
 
   // The heat map offers the scales that may be chosen; a scale of a switched-off area is not one (E18-64).
   const offered = useMemo(() => scales?.filter((s) => s.offered !== false), [scales]);
-  const scaleKey = offered?.find((s) => s.key === params.get('scale'))?.key ?? offered?.[0]?.key ?? '';
+  // E41-17: with more than one scale, "All scales" puts every scale on one grid at the common level.
+  const choices = useMemo(() => (offered && offered.length > 1 ? [...offered, { key: COMMON, name: 'All scales (common levels)' }] : offered), [offered]);
+  const scaleKey = choices?.find((s) => s.key === params.get('scale'))?.key ?? offered?.[0]?.key ?? '';
+  const common = scaleKey === COMMON;
   const basis = params.get('basis') === 'inherent' ? 'inherent' : 'residual';
   const movement = params.get('movement') === '1';
   const closed = params.get('closed') === '1';
   const cell = params.get('cell');
 
   const heat = useFetch<HeatMapData>(
-    scaleKey ? `/api/risks/heatmap?scale=${encodeURIComponent(scaleKey)}&basis=${basis}${closed ? '&include_closed=true' : ''}` : null,
+    !scaleKey ? null : common ? `/api/risks/heatmap/common?basis=${basis}${closed ? '&include_closed=true' : ''}`
+      : `/api/risks/heatmap?scale=${encodeURIComponent(scaleKey)}&basis=${basis}${closed ? '&include_closed=true' : ''}`,
     { keepPrevious: true },
   );
   const set = (patch: Record<string, string | null>) => setParams((prev) => {
@@ -52,7 +59,7 @@ export function RiskRegister() {
     return next;
   });
 
-  const scale = scales?.find((s) => s.key === scaleKey);
+  const scale = common ? (heat.data?.scale.key === COMMON ? heat.data.scale : undefined) : scales?.find((s) => s.key === scaleKey);
   const chosen: HeatCell | undefined = heat.data?.scale.key === scaleKey ? heat.data.cells.find((c) => cellKey(c) === cell && c.count > 0) : undefined;
   // Drill-down: the list shows exactly the risks counted in the chosen cell.
   const baseFilter = useMemo(() => (chosen ? { id: chosen.risk_ids.join(',') } : undefined), [chosen]);
@@ -73,7 +80,7 @@ export function RiskRegister() {
     </>
   );
   if (error) return <>{header}<ErrorState error={error} onRetry={reload} /></>;
-  if (!scales || !offered) return <>{header}<Loading /></>;
+  if (!scales || !offered || !choices) return <>{header}<Loading /></>;
 
   const scaleOf = (row: Row) => scales.find((s) => s.key === row.scale_key);
   const levelName = (levels: { value: number; label: string }[] | undefined, v: number) => levels?.find((l) => l.value === v)?.label ?? String(v);
@@ -108,14 +115,14 @@ export function RiskRegister() {
         className="rk-heat-card"
         actions={(
           <div className="rk-heat-tools">
-            {offered.length <= 1 ? null : offered.length <= 3 ? (
+            {choices.length <= 1 ? null : choices.length <= 3 ? (
               <SegmentedControl
                 size="xs" aria-label="Scale" value={scaleKey}
-                data={offered.map((x) => ({ value: x.key, label: x.name.replace(/\s*\(.*\)$/, '') }))}
+                data={choices.map((x) => ({ value: x.key, label: x.name.replace(/\s*\(.*\)$/, '') }))}
                 onChange={(v) => set({ scale: v, cell: null })}
               />
             ) : (
-              <Select hideLabel label="Scale" size="xs" required value={scaleKey} options={offered.map((x) => ({ value: x.key, label: x.name }))} onChange={(v) => set({ scale: v || null, cell: null })} />
+              <Select hideLabel label="Scale" size="xs" required value={scaleKey} options={choices.map((x) => ({ value: x.key, label: x.name }))} onChange={(v) => set({ scale: v || null, cell: null })} />
             )}
             <SegmentedControl
               size="xs" aria-label="Show" value={basis}
@@ -147,10 +154,10 @@ export function RiskRegister() {
                   <h3>{chosen ? chosenName : `Highest ${basis} risks`}</h3>
                   {chosen
                     ? <Button size="sm" variant="ghost" icon="x" onClick={() => set({ cell: null })}>Show all risks</Button>
-                    : <span className="muted">{heat.data.total} on this scale</span>}
+                    : <span className="muted">{heat.data.total} {common ? 'on every scale' : 'on this scale'}</span>}
                 </div>
                 {ranked.length === 0 ? (
-                  <EmptyState icon="shield" title={heat.data.total === 0 ? 'No open risks on this scale' : 'Nothing scored yet'} message="Risks appear here once they are scored." />
+                  <EmptyState icon="shield" title={heat.data.total === 0 ? (common ? 'No open risks' : 'No open risks on this scale') : 'Nothing scored yet'} message="Risks appear here once they are scored." />
                 ) : (
                   <ol className="rk-ranked-list">
                     {ranked.slice(0, chosen ? 50 : RANKED).map((r, index) => (

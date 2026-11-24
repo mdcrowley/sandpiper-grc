@@ -1,6 +1,7 @@
 import { addStateGrant } from '../../core/auth.ts';
 import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleDef } from '../../core/module.ts';
+import { registerCertification } from './certification.ts';
 import { seedProjectDefaults } from './defaults.ts';
 import { registerGateApproval } from './gate-approval.ts';
 import { runOverdueReminders } from './overdue-reminders.ts';
@@ -20,6 +21,8 @@ const mod: ModuleDef = {
     const svc = makeService(ctx);
     defineProject(ctx, svc);
     registerProjectRoutes(ctx, svc);
+    // Safety and security certification: certifiable items, requirements, the certificate of readiness (E41-08).
+    registerCertification(ctx, svc);
     // The web app shows "New project request" only to people who may send one (BW-06).
     addStateGrant(ctx.app, async (user) => ((await svc.mayRequest(user)) ? ['projects.request'] : []));
     // Gate decisions may run on the shared approval workflows (E11-25).

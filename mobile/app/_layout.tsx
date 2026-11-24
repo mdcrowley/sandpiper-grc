@@ -9,6 +9,8 @@ import { useAuthState } from '../src/api/client';
 import { LockScreen } from '../src/auth/LockScreen';
 import { start } from '../src/auth/session';
 import { startPush } from '../src/push';
+import { setLanguage, useLanguage } from '../src/i18n';
+import { loadLanguage } from '../src/i18n/preference';
 import { commonText } from '../src/text/common';
 import { notificationsText } from '../src/text/notifications';
 import { HEADER_TITLE_SIZE, useTheme } from '../src/theme';
@@ -19,11 +21,17 @@ export default function RootLayout() {
   const { colors, scheme } = useTheme();
   const segments = useSegments();
   const router = useRouter();
+  // E41-07: the screens are drawn again in the person's language when it changes.
+  const lang = useLanguage();
 
   useEffect(() => {
     void start();
     startPush();
   }, []);
+  useEffect(() => {
+    if (auth.status === 'signed-in') void loadLanguage();
+    else if (auth.status === 'signed-out') setLanguage(null);
+  }, [auth.status]);
 
   const inAuth = segments[0] === '(auth)';
   const covered = auth.status === 'loading' || (auth.status === 'signed-in' && auth.locked);
@@ -38,7 +46,7 @@ export default function RootLayout() {
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       <View style={{ flex: 1, backgroundColor: colors.bg }}>
         {/* While the app is locked or loading, the screens under the cover are hidden from VoiceOver and TalkBack and take no touch, key or Switch Access input. */}
-        <View style={{ flex: 1 }} pointerEvents={covered ? 'none' : 'auto'} importantForAccessibility={covered ? 'no-hide-descendants' : 'auto'} accessibilityElementsHidden={covered}>
+        <View key={lang} style={{ flex: 1 }} pointerEvents={covered ? 'none' : 'auto'} importantForAccessibility={covered ? 'no-hide-descendants' : 'auto'} accessibilityElementsHidden={covered}>
         <Stack
           screenOptions={{
             headerShown: false,

@@ -309,7 +309,7 @@ describe('figures, calendar and the switched-off area', () => {
     const events = await src.events(t.ctx, user, dayInZone(-1), dayInZone(1));
     expect(events.map((e) => e.recordId)).toContain(v.id);
     const summary = (await agent.get('/api/vendors/lifecycle-summary')).body;
-    expect(Object.keys(summary).sort()).toEqual(['exclusion_checks_overdue', 'offboardings_open', 'open_issues', 'reassessments_overdue']);
+    expect(Object.keys(summary).sort()).toEqual(['checks_outstanding', 'exclusion_checks_overdue', 'offboardings_open', 'open_issues', 'reassessments_overdue']);
   });
 
   it('disappears with the vendors area', async () => {

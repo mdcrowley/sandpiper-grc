@@ -130,7 +130,7 @@ export async function renderKitPdf(kit: Kit, appName: string, branding: PrintBra
     appName, cover: true, author: appName, branding,
   });
   const page = (title: string, n: number) => {
-    if (n > 1) pdf.doc.addPage();
+    if (n > 1) pdf.newPage();
     pdf.heading(`${n}. ${title}`);
   };
 

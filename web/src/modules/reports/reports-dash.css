@@ -145,3 +145,15 @@
 /* A dashboard inside the Overview (E12-07), and the note shown while editing on a narrow screen. */
 .rp-embedded { display: block; }
 .rp-grid-narrow-note { margin: 0 0 var(--s-3); }
+
+/* Figures over time (E41-04) */
+.rp-fig-grid { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-4); grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); }
+.rp-fig-grid > li { min-width: 0; }
+.rp-fig-latest { margin: 0 0 var(--s-2); display: flex; flex-wrap: wrap; gap: var(--s-1); align-items: baseline; }
+.rp-fig-latest strong { font-size: var(--fs-xl, 1.5rem); font-variant-numeric: tabular-nums; }
+.rp-fig-what { font-size: var(--fs-sm); margin: var(--s-2) 0 0; }
+.rp-fig-paused { display: inline-flex; gap: var(--s-1); align-items: center; font-size: var(--fs-sm); }
+.rp-fig-tools { display: flex; flex-wrap: wrap; gap: var(--s-3); justify-content: space-between; align-items: flex-end; margin-bottom: var(--s-3); }
+.rp-fig-pick { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.rp-fig-pick > * { min-width: 180px; }
+.rp-fig-notes { font-size: var(--fs-sm); margin: var(--s-3) 0 0; padding-left: var(--s-4); }

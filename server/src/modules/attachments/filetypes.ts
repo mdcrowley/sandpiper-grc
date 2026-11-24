@@ -187,9 +187,39 @@ export function checkContent(ext: string, head: Buffer): ContentVerdict {
   };
 }
 
-/** `Content-Disposition` for a download: always an attachment, with a plain and a UTF-8 name. */
-export function contentDisposition(fileName: string): string {
+/**
+ * `Content-Disposition` for a download: an attachment, with a plain and a UTF-8 name. `inline` only
+ * for a preview of a type that `previewKind` accepts (E41-16); every other file is always an attachment.
+ */
+export function contentDisposition(fileName: string, inline = false): string {
   const ascii = fileName.replace(/[^\x20-\x7e]/g, '_').replace(/["\\;%]/g, '_');
   const utf8 = encodeURIComponent(fileName).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
-  return `attachment; filename="${ascii}"; filename*=UTF-8''${utf8}`;
+  return `${inline ? 'inline' : 'attachment'}; filename="${ascii}"; filename*=UTF-8''${utf8}`;
+}
+
+/**
+ * The types a browser may show in place (E41-16): raster images it draws itself and PDFs, which the
+ * web application draws with pdf.js (no scripts, no plugin). Never SVG, HTML or anything a browser
+ * could run as a page. The stored content type must agree with the extension (both set by the
+ * server at upload, and the content was checked against the extension then).
+ */
+const PREVIEW: Record<string, { kind: 'image' | 'pdf'; mime: string }> = {
+  png: { kind: 'image', mime: 'image/png' },
+  jpg: { kind: 'image', mime: 'image/jpeg' },
+  jpeg: { kind: 'image', mime: 'image/jpeg' },
+  gif: { kind: 'image', mime: 'image/gif' },
+  webp: { kind: 'image', mime: 'image/webp' },
+  bmp: { kind: 'image', mime: 'image/bmp' },
+  pdf: { kind: 'pdf', mime: 'application/pdf' },
+};
+
+/** 'image' or 'pdf' when a file of this extension and stored type may be previewed, else null. */
+export function previewKind(ext: string, storedType: string): 'image' | 'pdf' | null {
+  const p = PREVIEW[String(ext ?? '').toLowerCase()];
+  return p && String(storedType ?? '').split(';')[0].trim().toLowerCase() === p.mime ? p.kind : null;
+}
+
+/** The content type a preview is served with (the fixed type for its extension), or null when it may not be. */
+export function previewContentType(ext: string, storedType: string): string | null {
+  return previewKind(ext, storedType) ? PREVIEW[ext.toLowerCase()].mime : null;
 }

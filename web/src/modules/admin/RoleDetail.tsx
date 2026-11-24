@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   ApiError, Button, Card, Checkbox, EmptyState, ErrorState, errorMessage, humanize, Icon, Loading, NotFound, PageHeader,
-  StatusChip, TableWrap, TextArea, TextField, useAuth, useFetch, useToast,
+  Select, StatusChip, TableWrap, TextArea, TextField, useAuth, useFetch, useToast,
 } from '../../core';
 import { Notice } from './common';
 import type { Role, RolesResponse } from './common';
@@ -36,6 +36,7 @@ export function RoleDetailPage() {
   const { data: role, error, reload } = useFetch<Role>(`/api/admin/roles/${id}`);
   const [form, setForm] = useState({ name: '', description: '', requiresMfa: false, enabled: true });
   const [grants, setGrants] = useState<Set<string>>(new Set());
+  const [scopes, setScopes] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [find, setFind] = useState('');
@@ -49,6 +50,7 @@ export function RoleDetailPage() {
     if (!role) return;
     setForm({ name: role.name, description: role.description ?? '', requiresMfa: role.requires_mfa, enabled: role.enabled });
     setGrants(new Set(role.grants));
+    setScopes({ ...(role.scopes ?? {}) });
     setErrors({});
   };
   useEffect(reset, [role]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -75,7 +77,8 @@ export function RoleDetailPage() {
   const has = (m: string, a: string) => everything || grants.has(`${m}.*`) || grants.has(`${m}.${a}`);
   const countFor = (m: string) => actionsFor(m).filter((a) => has(m, a)).length;
   const dirty = form.name !== role.name || form.description !== (role.description ?? '') || form.requiresMfa !== role.requires_mfa
-    || form.enabled !== role.enabled || [...grants].sort().join() !== [...role.grants].sort().join();
+    || form.enabled !== role.enabled || [...grants].sort().join() !== [...role.grants].sort().join()
+    || scopeKey(scopes) !== scopeKey(role.scopes ?? {});
 
   const toggle = (m: string, a: string) => setGrants((old) => {
     const next = new Set(old);
@@ -98,7 +101,7 @@ export function RoleDetailPage() {
     setBusy(true);
     setErrors({});
     try {
-      await adminApi.patch(`/api/admin/roles/${role.id}`, { ...form, name: form.name.trim(), grants: [...grants] });
+      await adminApi.patch(`/api/admin/roles/${role.id}`, { ...form, name: form.name.trim(), grants: [...grants], scopes });
       toast.success('Role saved. Changes apply at once.');
       reload();
       vocab.reload();
@@ -117,6 +120,9 @@ export function RoleDetailPage() {
   const shown = modules.filter((m) => !switchedOff(`${m}.view`)
     && (!needle || m.includes(needle) || moduleLabel(m).toLowerCase().includes(needle)) && (!onlyGranted || countFor(m) > 0));
   const areasGranted = modules.filter((m) => !switchedOff(`${m}.view`) && countFor(m) > 0).length;
+  // E41-01: the areas this role grants whose records carry a department or a site.
+  const scopable = vocab.data.scopable ?? {};
+  const scopeRows = modules.filter((m) => scopable[m]?.length && !switchedOff(`${m}.view`) && (countFor(m) > 0 || scopes[m]));
 
   return (
     <>
@@ -267,7 +273,39 @@ export function RoleDetailPage() {
             </p>
           )}
         </Card>
+
+        {!everything && scopeRows.length > 0 && (
+          <Card title="Which records">
+            <div className="stack">
+              <p className="muted">
+                Limit an area to the records of the members' own departments or sites, and those below them: a depot manager sees
+                the hazards, inspections and actions of their depot. Members always see the records they created. Their departments
+                are the one on their account, their department on the staff roster and the departments they manage; their sites are
+                their work site on the roster and the sites they manage. Another role that grants the same area without a limit lifts
+                it. Figures (counts and charts) still count every record.
+              </p>
+              {errors.scopes && <p className="form-error" role="alert">{errors.scopes}</p>}
+              <div className="adm-scopes">
+                {scopeRows.map((m) => (
+                  <Select
+                    key={m} label={moduleLabel(m)} value={scopes[m] ?? ''}
+                    onChange={(v) => setScopes((old) => { const next = { ...old }; if (v) next[m] = v; else delete next[m]; return next; })}
+                    options={[
+                      { value: '', label: 'All records' },
+                      ...(scopable[m] ?? []).map((k) => ({ value: k, label: k === 'department' ? 'Their departments' : 'Their sites' })),
+                    ]}
+                  />
+                ))}
+              </div>
+            </div>
+          </Card>
+        )}
       </div>
     </>
   );
+}
+
+/** Scopes compared regardless of key order. */
+function scopeKey(s: Record<string, string>): string {
+  return Object.keys(s).sort().map((k) => `${k}=${s[k]}`).join();
 }

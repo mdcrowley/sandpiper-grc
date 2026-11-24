@@ -40,7 +40,7 @@ export function toCsv(r: ReportResult, who: string): string {
     const p = r.pivot;
     lines.push([r.columns[0].label, ...p.cols.map((c) => c.label), 'Total'].map(csvCell).join(','));
     p.rows.forEach((row, i) => lines.push([row.label, ...p.cells[i].map((c) => c?.v ?? ''), p.rowTotals[i] ?? ''].map(csvCell).join(',')));
-    lines.push(['Total', ...p.colTotals.map((v) => v ?? ''), p.grand ?? ''].map(csvCell).join(','));
+    if (p.colTotals.some((v) => v !== null)) lines.push(['Total', ...p.colTotals.map((v) => v ?? ''), p.grand ?? ''].map(csvCell).join(','));
   } else {
     lines.push(r.columns.map((c) => csvCell(c.label)).join(','));
     // Numbers stay raw in CSV so that a spreadsheet can add them up.
@@ -126,7 +126,7 @@ function table(r: ReportResult): string {
     const p = r.pivot;
     return `<table><thead><tr><th>${esc(r.columns[0].label)}</th>${p.cols.map((c) => `<th class="n">${esc(c.label)}</th>`).join('')}<th class="n">Total</th></tr></thead><tbody>${
       p.rows.map((row, i) => `<tr><th>${esc(row.label)}</th>${p.cells[i].map((c) => `<td class="n">${c ? esc(num(c.v)) : ''}</td>`).join('')}<td class="n t">${esc(num(p.rowTotals[i]))}</td></tr>`).join('')
-    }</tbody><tfoot><tr><th>Total</th>${p.colTotals.map((v) => `<td class="n">${esc(num(v))}</td>`).join('')}<td class="n">${esc(num(p.grand))}</td></tr></tfoot></table>`;
+    }</tbody>${p.colTotals.some((v) => v !== null) ? `<tfoot><tr><th>Total</th>${p.colTotals.map((v) => `<td class="n">${esc(num(v))}</td>`).join('')}<td class="n">${esc(num(p.grand))}</td></tr></tfoot>` : ''}</table>`;
   }
   const numeric = (c: ResultColumn) => c.role === 'agg' || c.type === 'number' || c.type === 'currency';
   return `<table><thead><tr>${r.columns.map((c) => `<th${numeric(c) ? ' class="n"' : ''}>${esc(c.label)}</th>`).join('')}</tr></thead><tbody>${

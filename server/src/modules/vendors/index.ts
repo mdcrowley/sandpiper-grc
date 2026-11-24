@@ -13,6 +13,8 @@ import { ensureIssueLists, registerIssues } from './issues.ts';
 import {
   activationBlock, cadence, ensureLifecycleLists, nextDue, recomputeAll, registerLifecycle, runLifecycleReminders,
 } from './lifecycle.ts';
+import { checksBlock, ensureIntake, registerIntake } from './intake.ts';
+import { registerPerformance } from './performance.ts';
 import { endedStatuses, ensureOffboardingLists, registerOffboarding, startEndedContracts, startForContract } from './offboarding.ts';
 import { seedVendors } from './seed.ts';
 
@@ -98,6 +100,8 @@ const mod: ModuleDef = {
     await ensureLifecycleLists(ctx);
     await ensureIssueLists(ctx);
     await ensureOffboardingLists(ctx);
+    // Intake with risk tiers and required checks (E41-10).
+    await ensureIntake(ctx);
   },
 
   async register(ctx) {
@@ -136,6 +140,9 @@ const mod: ModuleDef = {
         last_assessed_on: { label: 'Last assessed on', type: 'date', readOnly: true },
         next_assessment_due: { label: 'Next assessment due', type: 'date', readOnly: true },
         last_exclusion_check_on: { label: 'Last exclusion-list check', type: 'date', readOnly: true },
+        // Set by the latest intake questionnaire (E41-10).
+        risk_tier: { label: 'Risk tier', type: 'lookup', list: 'vendor_risk_tier', readOnly: true },
+        risk_tier_on: { label: 'Risk tier set on', type: 'date', readOnly: true },
       },
       hooks: {
         beforeCreate: async (_req, data) => {
@@ -243,10 +250,13 @@ const mod: ModuleDef = {
       },
     });
 
-    /** While the setting is on, a person may make a contract active only after an exclusion-list check (E35-02). */
+    /**
+     * A person may make a contract active only after an exclusion-list check while that setting is on
+     * (E35-02), and only once every check the vendor's risk tier needs is done or waived (E41-10).
+     */
     async function checkActivation(req: FastifyRequest | null, vendorId: string, activating: boolean) {
       if (!req || !activating) return; // system work (imports of the register, samples) is not held up
-      const block = await activationBlock(ctx, vendorId);
+      const block = (await activationBlock(ctx, vendorId)) ?? (await checksBlock(ctx, vendorId));
       if (block) ctx.fail(400, 'validation', 'Check the highlighted fields.', { status: block });
     }
 
@@ -750,11 +760,19 @@ const mod: ModuleDef = {
     registerLifecycle(ctx);
     registerIssues(ctx);
     registerOffboarding(ctx);
+    registerIntake(ctx);        // E41-10
+    registerPerformance(ctx);   // E41-11
     // Anonymizing a vendor at the end of its retention period also clears its contacts and the people
     // and notes of its exclusion-list checks.
     onAnonymize('vendor', async (tx, id) => {
       await tx.query('update vendor_contacts set name = $2, email = null, phone = null, role = null where vendor_id = $1', [id, ANONYMIZED_TEXT]);
       await tx.query('update vendor_exclusion_checks set checked_by = null, note = case when note is null then null else $2 end where vendor_id = $1', [id, ANONYMIZED_TEXT]);
+      await tx.query('update vendor_checks set recorded_by = null, created_by = null, updated_by = null, note = case when note is null then null else $2 end where vendor_id = $1', [id, ANONYMIZED_TEXT]);
+      await tx.query('update vendor_intakes set completed_by = null, created_by = null, updated_by = null, notes = case when notes is null then null else $2 end where vendor_id = $1', [id, ANONYMIZED_TEXT]);
+    });
+    // And a contract's performance comments and who recorded them (E41-11).
+    onAnonymize('contract', async (tx, id) => {
+      await tx.query('update contract_scores set recorded_by = null, created_by = null, updated_by = null, comment = case when comment is null then null else $2 end where contract_id = $1', [id, ANONYMIZED_TEXT]);
     });
 
     // ---------- reminders, hourly on the job queue (Administration > Background jobs) ----------

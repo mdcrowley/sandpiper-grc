@@ -14,8 +14,9 @@ import { addNote, countFound, openOnWeb, photoSource } from '../calls';
 import * as handoff from '../handoff';
 import { OFFLINE_MATCH } from '../offline';
 import type { TagAction, TagCard } from '../../../../shared/asset-tags-api.ts';
+import { localized } from '../../i18n';
 
-export const TEXT = {
+export const TEXT = localized('tagCard', {
   missing: 'This tag card is no longer available. Read the tag again.',
   tag: 'Tag number', status: 'Status', site: 'Site', location: 'Location', lastSeen: 'Last seen',
   held: 'This record is under a legal hold: changes are not available.',
@@ -28,7 +29,7 @@ export const TEXT = {
   counted: 'Counted.',
   onWeb: '(opens on the web)',
   working: 'Working…',
-};
+});
 
 /** Actions the app does itself; the rest open on the web. */
 const IN_APP = new Set(['open', 'edit', 'quick_update', 'add_photo', 'add_note', 'report_problem', 'report_hazard', 'count', 'replace_tag', 'attach', 'record_condition']);

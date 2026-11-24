@@ -9,10 +9,14 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
-  api, ApiError, Button, DateField, errorMessage, ErrorState, Icon, Loading, qs, TextArea, TextField, useDebounced, useFetch, useToast,
+  api, ApiError, Button, DateField, errorMessage, Icon, Loading, qs, TextArea, TextField, useDebounced, useFetch, useToast,
 } from '../../core';
+import { useI18n } from '../../core/i18n';
 import { itemIcon } from './Home';
-import { FilePicker, sendFile, Suggestions, useFocusFirstProblem, usePortal, usePortalTitle, useSuggestions, type CatalogItem, type Choice } from './parts';
+import {
+  FilePicker, PortalError, sendFile, Suggestions, useFocusFirstProblem, usePortal, usePortalTitle, useServerText, useSuggestions,
+  type CatalogItem, type Choice,
+} from './parts';
 
 /** Big tappable choices (radio buttons drawn as cards). */
 export function ChoiceCards({ name, label, options, value, onChange, error, required, hint }: {
@@ -46,6 +50,7 @@ export interface ForWhomState { mode: 'me' | 'other'; colleague: Colleague | nul
 /** E15-12: "Who is this for?": me, or a colleague the portal lets me raise it for. */
 function ForWhom({ value, onChange, error }: { value: ForWhomState; onChange: (v: ForWhomState) => void; error?: string }) {
   const { on_behalf: rule } = usePortal();
+  const { t } = useI18n();
   const [q, setQ] = useState('');
   const query = useDebounced(q.trim(), 250);
   const [found, setFound] = useState<Colleague[] | null>(null);
@@ -59,19 +64,19 @@ function ForWhom({ value, onChange, error }: { value: ForWhomState; onChange: (v
   if (!rule || rule === 'nobody') return null;
   return (
     <div className="pt-for-whom">
-      <ChoiceCards name="for_whom" label="Who is this for?" value={value.mode}
-        hint={rule === 'department' ? 'You can raise it for a colleague in your own department. They will be told, and can follow it too.' : 'They will be told, and can follow it too.'}
-        options={[{ value: 'me', label: 'Me' }, { value: 'other', label: 'A colleague' }]}
+      <ChoiceCards name="for_whom" label={t('portal.forWhom.label')} value={value.mode}
+        hint={rule === 'department' ? t('portal.forWhom.hintDepartment') : t('portal.forWhom.hint')}
+        options={[{ value: 'me', label: t('portal.forWhom.me') }, { value: 'other', label: t('portal.forWhom.colleague') }]}
         onChange={(m) => onChange({ mode: m as ForWhomState['mode'], colleague: m === 'me' ? null : value.colleague })} />
       {value.mode === 'other' && (value.colleague ? (
         <div className="pt-picked">
           <Icon name="user" size={20} />
           <span><strong>{value.colleague.label}</strong>{value.colleague.department && <span className="muted"> · {value.colleague.department}</span>}</span>
-          <button type="button" className="pt-link-btn" onClick={() => { onChange({ ...value, colleague: null }); setQ(''); }}>Change</button>
+          <button type="button" className="pt-link-btn" onClick={() => { onChange({ ...value, colleague: null }); setQ(''); }}>{t('portal.forWhom.change')}</button>
         </div>
       ) : (
         <div className="pt-colleague-search">
-          <TextField label="Colleague’s name" size="md" value={q} onChange={setQ} error={error} placeholder="Type at least two letters" autoComplete="off" />
+          <TextField label={t('portal.forWhom.name')} size="md" value={q} onChange={setQ} error={error} placeholder={t('portal.forWhom.placeholder')} autoComplete="off" />
           <div aria-live="polite">
             {found && (found.length ? (
               <ul className="pt-colleagues">
@@ -83,7 +88,7 @@ function ForWhom({ value, onChange, error }: { value: ForWhomState; onChange: (v
                   </li>
                 ))}
               </ul>
-            ) : <p className="muted pt-none">Nobody found{rule === 'department' ? ' in your department' : ''} with that name.</p>)}
+            ) : <p className="muted pt-none">{rule === 'department' ? t('portal.forWhom.nobodyDepartment') : t('portal.forWhom.nobody')}</p>)}
           </div>
         </div>
       ))}
@@ -95,10 +100,11 @@ const forBody = (w: ForWhomState) => (w.mode === 'other' && w.colleague ? { for_
 const forMissing = (w: ForWhomState) => w.mode === 'other' && !w.colleague;
 
 function Page({ title, intro, icon, children }: { title: string; intro?: ReactNode; icon: Parameters<typeof Icon>[0]['name']; children: ReactNode }) {
+  const { t } = useI18n();
   usePortalTitle(title);
   return (
     <div className="pt-page pt-form-page">
-      <nav className="pt-back"><Link to="/portal"><Icon name="chevron-left" size={18} /> Home</Link></nav>
+      <nav className="pt-back"><Link to="/portal"><Icon name="chevron-left" size={18} /> {t('portal.nav.home')}</Link></nav>
       <div className="pt-form-head">
         <span className="pt-tile-icon"><Icon name={icon} size={24} /></span>
         <div><h1>{title}</h1>{intro && <p className="pt-intro">{intro}</p>}</div>
@@ -112,6 +118,7 @@ function Page({ title, intro, icon, children }: { title: string; intro?: ReactNo
 function useSubmit() {
   const navigate = useNavigate();
   const toast = useToast();
+  const { t } = useI18n();
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState('');
@@ -126,8 +133,8 @@ function useSubmit() {
       for (const f of files) {
         try { await sendFile(made.id, f); } catch (err) { failed.push(errorMessage(err)); }
       }
-      toast.success(`Sent. Your reference is ${made.ref}.`);
-      if (failed.length) toast.error(`Some files were not added: ${failed.join(' ')}`);
+      toast.success(t('portal.form.sent', { ref: made.ref }));
+      if (failed.length) toast.error(t('portal.form.filesFailed', { problems: failed.join(' ') }));
       navigate(`/portal/requests/${made.id}`, { state: { created: true } });
     } catch (err) {
       if (err instanceof ApiError && err.fields) setErrors(err.fields);
@@ -142,12 +149,13 @@ function useSubmit() {
 
 function FormEnd({ busy, label, files, setFiles }: { busy: boolean; label: string; files: File[]; setFiles: (f: File[]) => void }) {
   const { files: canAttach } = usePortal();
+  const { t } = useI18n();
   return (
     <>
       {canAttach && <FilePicker files={files} onChange={setFiles} />}
       <div className="pt-form-actions">
         <Button type="submit" variant="primary" loading={busy} className="pt-submit">{label}</Button>
-        <Link to="/portal" className="pt-link-btn">Cancel</Link>
+        <Link to="/portal" className="pt-link-btn">{t('common.cancel')}</Link>
       </div>
     </>
   );
@@ -155,6 +163,7 @@ function FormEnd({ busy, label, files, setFiles }: { busy: boolean; label: strin
 
 export function RequestForm() {
   const { itemId } = useParams();
+  const { t } = useI18n();
   const { data: items, error, reload } = useFetch<CatalogItem[]>('/api/portal/catalog');
   const item = items?.find((i) => i.id === itemId);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -166,28 +175,28 @@ export function RequestForm() {
   const { submit, busy, errors, formError } = useSubmit();
   const articles = useSuggestions(item ? `${item.name} ${details}`.slice(0, 120) : '');
   // The form's own Page sets the title once it shows; until then, and when the item is not offered, these do.
-  usePortalTitle(items && !item ? 'That request is not offered here' : null);
+  usePortalTitle(items && !item ? t('portal.form.notOffered') : null);
 
-  if (error) return <ErrorState error={error} onRetry={reload} />;
-  if (!items) return <Loading lines={6} label="Loading the form" />;
+  if (error) return <PortalError error={error} onRetry={reload} />;
+  if (!items) return <Loading lines={6} label={t('portal.form.loading')} />;
   if (!item) {
     return (
       <div className="pt-empty-page">
-        <h1>That request is not offered here</h1>
-        <p className="muted">It may have been withdrawn. <Link to="/portal/catalog">See what you can ask for</Link>.</p>
+        <h1>{t('portal.form.notOffered')}</h1>
+        <p className="muted">{t('portal.form.withdrawn')} <Link to="/portal/catalog">{t('portal.form.seeCatalog')}</Link>.</p>
       </div>
     );
   }
   const set = (key: string, v: string) => setAnswers((a) => ({ ...a, [key]: v }));
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (forMissing(forWhom)) { setForErr('Choose the colleague this is for.'); return; }
+    if (forMissing(forWhom)) { setForErr(t('portal.forWhom.choose')); return; }
     void submit({ catalog_item_id: item.id, answers, details, where, ...forBody(forWhom) }, files);
   };
 
   return (
     <Page title={item.name} intro={item.description} icon={itemIcon(item)}>
-      {item.requires_approval && <p className="pt-callout"><Icon name="info" size={18} /> This needs a manager’s approval before work starts. We will ask them for you.</p>}
+      {item.requires_approval && <p className="pt-callout"><Icon name="info" size={18} /> {t('portal.form.needsApproval')}</p>}
       <form className="pt-form" onSubmit={onSubmit} noValidate>
         {formError && <p className="pt-form-error" role="alert" tabIndex={-1}>{formError}</p>}
         {item.questions.map((q) => {
@@ -197,17 +206,18 @@ export function RequestForm() {
             return <ChoiceCards key={q.key} name={q.key} {...common} options={(q.options ?? []).map((o) => ({ value: o, label: o }))} value={answers[q.key] ?? ''} onChange={(v) => set(q.key, v)} />;
           }
           if (q.type === 'yes_no') {
-            return <ChoiceCards key={q.key} name={q.key} {...common} options={[{ value: 'Yes', label: 'Yes' }, { value: 'No', label: 'No' }]} value={answers[q.key] ?? ''} onChange={(v) => set(q.key, v)} />;
+            // The answer is stored in English ("Yes" or "No"), whatever language it was given in.
+            return <ChoiceCards key={q.key} name={q.key} {...common} options={[{ value: 'Yes', label: t('common.yes') }, { value: 'No', label: t('common.no') }]} value={answers[q.key] ?? ''} onChange={(v) => set(q.key, v)} />;
           }
           if (q.type === 'date') return <DateField key={q.key} {...common} size="md" value={answers[q.key] ?? ''} onChange={(v) => set(q.key, v)} />;
           if (q.type === 'longtext') return <TextArea key={q.key} {...common} size="md" rows={3} value={answers[q.key] ?? ''} onChange={(v) => set(q.key, v)} />;
           return <TextField key={q.key} {...common} size="md" value={answers[q.key] ?? ''} onChange={(v) => set(q.key, v)} />;
         })}
-        <TextArea label="Anything else we should know?" size="md" rows={3} value={details} onChange={setDetails} error={errors.details} />
-        <TextField label="Where are you?" hint="Site, depot, station or vehicle number, if it matters." size="md" value={where} onChange={setWhere} />
+        <TextArea label={t('portal.form.anythingElse')} size="md" rows={3} value={details} onChange={setDetails} error={errors.details} />
+        <TextField label={t('portal.form.whereAreYou')} hint={t('portal.form.whereAreYouHint')} size="md" value={where} onChange={setWhere} />
         <ForWhom value={forWhom} onChange={(v) => { setForWhom(v); setForErr(''); }} error={forErr || errors.for_user_id} />
-        <Suggestions articles={articles} title="Before you send: these might help" />
-        <FormEnd busy={busy} label="Send request" files={files} setFiles={setFiles} />
+        <Suggestions articles={articles} title={t('portal.form.beforeSend')} />
+        <FormEnd busy={busy} label={t('portal.form.sendRequest')} files={files} setFiles={setFiles} />
       </form>
     </Page>
   );
@@ -215,6 +225,8 @@ export function RequestForm() {
 
 export function ReportProblem() {
   const config = usePortal();
+  const { t } = useI18n();
+  const text = useServerText();
   const [params] = useSearchParams();
   const [title, setTitle] = useState(params.get('what') ?? '');
   const [details, setDetails] = useState('');
@@ -229,21 +241,21 @@ export function ReportProblem() {
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (forMissing(forWhom)) { setForErr('Choose the colleague this is for.'); return; }
+    if (forMissing(forWhom)) { setForErr(t('portal.forWhom.choose')); return; }
     void submit({ title, details, where, affects, how_urgent: urgent, ...forBody(forWhom) }, files);
   };
   return (
-    <Page title="Report a problem" intro="Tell us what is wrong in your own words. A few lines is plenty." icon="alert">
+    <Page title={t('portal.report.title')} intro={t('portal.report.intro')} icon="alert">
       <form className="pt-form" onSubmit={onSubmit} noValidate>
         {formError && <p className="pt-form-error" role="alert" tabIndex={-1}>{formError}</p>}
-        <TextField label="What is wrong?" required size="md" placeholder="For example: bus 3310 validator error" value={title} onChange={setTitle} error={errors.title} maxLength={200} />
-        <Suggestions articles={articles} title="These might fix it straight away" />
-        <TextArea label="More detail" hint="What happened, any error message, and what you have tried." size="md" rows={4} value={details} onChange={setDetails} />
-        <TextField label="Where?" hint="Site, depot, station, or vehicle or fleet number." size="md" value={where} onChange={setWhere} />
-        <ChoiceCards name="affects" label="Who is affected?" required options={config.affects} value={affects} onChange={setAffects} error={errors.affects} />
-        <ChoiceCards name="how_urgent" label="How urgent is it?" required options={config.urgency} value={urgent} onChange={setUrgent} error={errors.how_urgent} />
+        <TextField label={t('portal.report.what')} required size="md" placeholder={t('portal.report.whatPlaceholder')} value={title} onChange={setTitle} error={errors.title} maxLength={200} />
+        <Suggestions articles={articles} title={t('portal.report.mightFix')} />
+        <TextArea label={t('portal.report.detail')} hint={t('portal.report.detailHint')} size="md" rows={4} value={details} onChange={setDetails} />
+        <TextField label={t('portal.report.where')} hint={t('portal.report.whereHint')} size="md" value={where} onChange={setWhere} />
+        <ChoiceCards name="affects" label={t('portal.report.affects')} required options={config.affects.map((o) => ({ value: o.value, label: text(`portal.affects.${o.value}`, o.label) }))} value={affects} onChange={setAffects} error={errors.affects} />
+        <ChoiceCards name="how_urgent" label={t('portal.report.urgent')} required options={config.urgency.map((o) => ({ value: o.value, label: text(`portal.urgency.${o.value}`, o.label) }))} value={urgent} onChange={setUrgent} error={errors.how_urgent} />
         <ForWhom value={forWhom} onChange={(v) => { setForWhom(v); setForErr(''); }} error={forErr || errors.for_user_id} />
-        <FormEnd busy={busy} label="Send" files={files} setFiles={setFiles} />
+        <FormEnd busy={busy} label={t('portal.report.send')} files={files} setFiles={setFiles} />
       </form>
     </Page>
   );

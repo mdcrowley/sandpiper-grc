@@ -78,7 +78,7 @@ export function ActionsPanel({ sourceType, sourceId, source }: ActionsPanelProps
       <Modal open={adding} title="Add action" onClose={() => setAdding(false)}>
         <ResourceForm
           type="action"
-          fields={['title', 'description', 'priority', 'owner_id', 'due_on', 'department']}
+          fields={['title', 'description', 'priority', 'owner_id', 'due_on', 'department_id']}
           initial={initial}
           onCancel={() => setAdding(false)}
           onSaved={() => { setAdding(false); toast.success('Action added.'); reload(); }}

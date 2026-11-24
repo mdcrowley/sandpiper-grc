@@ -2,7 +2,9 @@
 // card uses the server's prefill (where to post, the record type, the values that link the record,
 // and `link`: a record to link the new one to afterward); one started from scratch posts a ticket or a
 // safety event with the person's answers. People who report through the self-service portal get the
-// portal's forms (`/api/portal/requests`, `/api/portal/safety-reports`), which take plainer fields.
+// portal's forms (`/api/portal/requests`, `/api/portal/safety-reports`), which take plainer fields,
+// from a tag card or from scratch (E41-17).
+import { localized } from '../../i18n';
 import type { ReportStart } from '../../tags/handoff';
 
 export interface ReportAnswers {
@@ -20,6 +22,8 @@ export interface ReportAnswers {
   howUrgent?: string | null;
   /** Portal safety reports: how bad it was. */
   harm?: string | null;
+  /** Portal safety reports: keep the reporter's name confidential (E41-05). */
+  confidential?: boolean;
 }
 
 export interface ReportRequest {
@@ -35,17 +39,24 @@ export const DEFAULT_TARGET = {
   hazard: { path: '/api/safety-events', type: 'safety_event' },
 } as const;
 
-/** The portal's own choices (server/src/modules/portal/words.ts and safety/portal-intake.ts). */
-export const PORTAL_AFFECTS = [
-  { id: 'me', label: 'Just me' },
-  { id: 'team', label: 'My team, depot or station' },
-  { id: 'service', label: 'Passengers, safety or the whole service' },
-];
-export const PORTAL_URGENCY = [
-  { id: 'stopped', label: 'I cannot work at all' },
-  { id: 'slowed', label: 'I can work, but it slows me down' },
-  { id: 'can_wait', label: 'It can wait' },
-];
+/** Where a portal user's report is created from scratch (E41-17). */
+export const PORTAL_TARGET = {
+  problem: { path: '/api/portal/requests', type: 'ticket' },
+  hazard: { path: '/api/portal/safety-reports', type: 'safety_event' },
+} as const;
+
+/** The portal's own choices (server/src/modules/portal/words.ts and safety/portal-intake.ts), in the person's language (E41-07). */
+export const CHOICE_TEXT = localized('reportChoices', {
+  me: 'Just me',
+  team: 'My team, depot or station',
+  service: 'Passengers, safety or the whole service',
+  stopped: 'I cannot work at all',
+  slowed: 'I can work, but it slows me down',
+  can_wait: 'It can wait',
+});
+const choice = (id: keyof typeof CHOICE_TEXT) => ({ id, get label() { return CHOICE_TEXT[id]; } });
+export const PORTAL_AFFECTS = [choice('me'), choice('team'), choice('service')];
+export const PORTAL_URGENCY = [choice('stopped'), choice('slowed'), choice('can_wait')];
 
 type Prefill = NonNullable<ReportStart['prefill']> & { link?: { type: string; id: string } | null };
 
@@ -71,18 +82,18 @@ function place(a: ReportAnswers): string {
   return [a.site?.label, a.locationDetail.trim()].filter(Boolean).join(', ');
 }
 
-export function buildReport(kind: 'problem' | 'hazard', a: ReportAnswers, start: ReportStart | null): ReportRequest {
+export function buildReport(kind: 'problem' | 'hazard', a: ReportAnswers, start: ReportStart | null, opts: { portal?: boolean } = {}): ReportRequest {
   const prefill = (start?.prefill ?? null) as Prefill | null;
-  const target = prefill ? { path: prefill.path, type: prefill.type } : DEFAULT_TARGET[kind];
+  const target = prefill ? { path: prefill.path, type: prefill.type } : opts.portal ? PORTAL_TARGET[kind] : DEFAULT_TARGET[kind];
   const link = prefill?.link ?? null;
   const title = a.title.trim();
   const description = a.description.trim();
 
-  if (isPortal(start)) {
+  if (isPortal(start) || (!prefill && opts.portal)) {
     const where = place(a).slice(0, 200) || str(prefill?.values.where);
     const body: Record<string, unknown> = kind === 'problem'
       ? { title, details: description, where, affects: a.affects ?? 'me', how_urgent: a.howUrgent ?? 'slowed' }
-      : { title, description, event_type: a.eventType, harm: a.harm ?? 'none', occurred_at: a.occurredAt, where };
+      : { title, description, event_type: a.eventType, harm: a.harm ?? 'none', occurred_at: a.occurredAt, where, ...(a.confidential ? { confidential: true } : {}) };
     return { path: target.path, recordType: target.type, body, link: null };
   }
 

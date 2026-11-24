@@ -39,6 +39,8 @@ export function registerZones(ctx: ModuleContext) {
   ctx.defineResource({
     type: 'ot_zone', table: 'ot_zones', module: 'systems', label: 'Security zone', plural: 'Security zones',
     path: '/api/ot-zones', route: '/ot/zones', titleField: 'name',
+    // Role grants scoped to departments or sites (E41-01, core/scope.ts).
+    scope: { site: 'site_id' },
     ref: { field: 'ref', prefix: 'ZON-' },
     restricted: 'flag',
     searchable: ['name', 'description', 'notes'],

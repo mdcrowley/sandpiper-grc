@@ -145,3 +145,10 @@
 .att-removed td:nth-child(2) { min-width: 180px; max-width: 320px; overflow-wrap: anywhere; }
 .att-removed td:nth-child(2) a { white-space: normal; overflow: visible; text-overflow: clip; }
 .att-removed td:last-child { white-space: nowrap; }
+
+/* E41-16: previews of images and PDFs (the dialog scrolls; the pages do not scroll on their own) */
+.att-preview { display: grid; gap: var(--s-3); min-width: 0; }
+.att-preview-image { display: block; max-width: 100%; max-height: 70vh; margin: 0 auto; object-fit: contain; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
+.att-preview-pages { display: grid; justify-items: center; gap: var(--s-3); min-width: 0; }
+.att-preview-page { max-width: 100%; height: auto; border: 1px solid var(--border); background: #fff; }
+.att-preview-note { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); }

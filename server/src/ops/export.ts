@@ -73,6 +73,7 @@ export const SECRET_COLUMNS: Record<string, Record<string, unknown>> = {
   vendor_assessment_links: { token_hash: unusable },
   scim_tokens: { token_hash: unusable },
   calendar_feeds: { token_hash: unusable },
+  activation_callout_recipients: { token_hash: unusable },
   // The work-tracker bridge (feeds module): its address and both secrets are sealed; a copy without secrets
   // keeps the connector switched off and empty, to be entered again.
   ticket_connectors: { url_sealed: '', secret_sealed: '', inbound_secret_sealed: '', active: false },

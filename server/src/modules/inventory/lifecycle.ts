@@ -3,6 +3,7 @@ import { approvalEngine } from '../../core/approval-kinds.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { featureState, optionOn } from '../../core/features.ts';
 import { dayInZone } from '../../core/timezone.ts';
+import { wipeProblems } from './fields-wiping.ts';
 
 const ROUTED_ONLY = 'inventory.disposal_routed_only'; // same key as disposal.ts (which imports nothing from here)
 
@@ -42,6 +43,15 @@ export function disposalProblem(asset: Row, routedOnly = false, funderRule = tru
       fields: { ...fields, disposal_approval_ref: 'Enter the reference of the funder\'s approval to dispose of this equipment.' },
     };
   }
+  // E41-17: an asset that holds data needs its wiping recorded (method, date, who, certificate).
+  const wipe = wipeProblems(asset);
+  if (Object.keys(wipe).length && !Object.keys(fields).length) {
+    return {
+      status: 400, code: 'data_wipe_required', fields: wipe,
+      message: 'This asset holds data: record how its data was wiped, when, by whom and the certificate reference before it is disposed of.',
+    };
+  }
+  Object.assign(fields, wipe);
   if (Object.keys(fields).length) {
     return { status: 400, code: 'disposal_approval_required', message: 'A disposal needs a recorded approval: who approved it and when.', fields };
   }
@@ -119,15 +129,17 @@ export function registerLifecycle(ctx: ModuleContext) {
     }
 
     const patch: Row = { user_id: userId, assigned_to_name: userId ? null : name, status: 'in_use' };
-    if (text(body.department)) patch.department = text(body.department);
+    // The department: an id, or a name as before E41-01 (the asset's `prepare` hook resolves it).
+    const department = text(body.department_id) ?? text(body.department);
+    if (department) patch.department_id = department;
     if (siteId) patch.site_id = siteId;
     if (text(body.location)) patch.location = text(body.location);
-    await ctx.resources.update('asset', asset.id, patch, req);
+    const updated = await ctx.resources.update('asset', asset.id, patch, req);
 
     const row = await db.one<Row>(
       `insert into asset_assignments (asset_id, user_id, assignee_name, department, site_id, location, due_back_on, notes, checked_out_by)
        values ($1,$2,$3,$4,$5,$6,$7,$8,$9) returning *`,
-      [asset.id, userId, userId ? null : name, text(body.department) ?? asset.department, siteId ?? asset.site_id,
+      [asset.id, userId, userId ? null : name, updated.department ?? null, siteId ?? asset.site_id,
         text(body.location) ?? asset.location, due, text(body.notes), req.user!.id],
     );
     await ctx.audit(req, {
@@ -170,7 +182,8 @@ export function registerLifecycle(ctx: ModuleContext) {
     const body = (req.body ?? {}) as Row;
     if (asset.status === 'disposed') ctx.fail(409, 'already_disposed', 'This asset is already disposed.');
     const patch: Row = { status: 'disposed' };
-    for (const f of ['disposal_approved_by', 'disposal_approved_on', 'disposal_approval_ref', 'disposal_method', 'disposed_on']) {
+    for (const f of ['disposal_approved_by', 'disposal_approved_on', 'disposal_approval_ref', 'disposal_method', 'disposed_on',
+      'data_bearing', 'data_wipe_method', 'data_wiped_on', 'data_wiped_by', 'data_wipe_certificate']) {
       if (body[f] !== undefined) patch[f] = body[f];
     }
     // An approval decided in the application stands as recorded: the name and date cannot be retyped.
@@ -183,7 +196,8 @@ export function registerLifecycle(ctx: ModuleContext) {
     const problem = disposalProblem({ ...asset, ...patch }, routedOnly, funderRule);
     if (problem) {
       const why = problem.code === 'funder_interest_block' ? 'funder interest, no approval reference'
-        : problem.code === 'approval_required' ? 'no approval decided in the application' : 'no recorded approval';
+        : problem.code === 'approval_required' ? 'no approval decided in the application'
+        : problem.code === 'data_wipe_required' ? 'holds data, no wiping recorded' : 'no recorded approval';
       await ctx.audit(req, {
         action: 'asset.dispose_blocked', recordType: 'asset', recordId: asset.id,
         summary: `Disposal of ${asset.tag ?? asset.name} blocked: ${why}`,
@@ -212,7 +226,8 @@ export function registerLifecycle(ctx: ModuleContext) {
     await ctx.audit(req, {
       action: 'asset.dispose', recordType: 'asset', recordId: asset.id,
       summary: `Asset ${asset.tag ?? asset.name} disposed; approved by ${row.disposal_approved_by} on ${row.disposal_approved_on}`
-        + (funderRule && row.funder_interest ? ` (funder interest, approval reference ${row.disposal_approval_ref})` : ''),
+        + (funderRule && row.funder_interest ? ` (funder interest, approval reference ${row.disposal_approval_ref})` : '')
+        + (row.data_bearing ? `; data wiped on ${String(row.data_wiped_on).slice(0, 10)} by ${row.data_wiped_by} (${row.data_wipe_method}, certificate ${row.data_wipe_certificate})` : ''),
     });
     return row;
   });

@@ -2,6 +2,7 @@ import type { ModuleContext, ModuleDef } from '../../core/module.ts';
 import { ANONYMIZED_TEXT, onAnonymize } from '../../core/retention.ts';
 import { registerCommittees } from './committees.ts';
 import { registerDecisions } from './decisions.ts';
+import { registerInvitations } from './invitations.ts';
 import { registerMeetings } from './meetings.ts';
 import { registerGovernanceReminders } from './reminders.ts';
 import { seedGovernance } from './seed.ts';
@@ -87,6 +88,7 @@ async function register(ctx: ModuleContext) {
   registerCommittees(ctx);
   registerMeetings(ctx);
   registerDecisions(ctx);
+  registerInvitations(ctx);
   await registerGovernanceReminders(ctx);
   registerGovernanceSummary(ctx);
   // E28-12: anonymizing a committee at the end of retention also clears the names typed for members

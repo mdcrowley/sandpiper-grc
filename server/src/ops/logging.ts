@@ -67,7 +67,7 @@ const SECRET_KEY = /pass(word|phrase)?|secret|token|authorization|cookie|csrf|to
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Path segments that are themselves secrets: the token of a link sent to someone outside. */
-const SECRET_SEGMENT_AFTER = /(\/(?:api\/(?:v\d+\/)?)?vendor-response\/)[^/?#\s"']+/gi;
+const SECRET_SEGMENT_AFTER = /(\/(?:api\/(?:v\d+\/)?)?(?:vendor-response|call-out)\/)[^/?#\s"']+/gi;
 /** A calendar feed's secret address, `/api/calendar/grc_cal_....ics` (W17-3b: the `.ics` ending kept it from the length rule). */
 const CALENDAR_FEED = /(\/api\/(?:v\d+\/)?calendar\/)[^/?#\s"']+/gi;
 

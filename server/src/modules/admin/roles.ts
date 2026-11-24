@@ -3,10 +3,11 @@ import { dropAdminProvisioningPermits } from '../../core/identity/accounts.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { featureState, ownedOff, permissionOff, SWITCHED_OFF, type FeatureState } from '../../core/features.ts';
 import { defaultGrantDifferences, roleDescription, syncDefaultGrants } from '../../core/services.ts';
+import { SCOPE_KINDS, scopableModules, type ScopeKind } from '../../core/scope.ts';
 import { ACTIONS, adminRoute, MODULE_ACTIONS, body, guardAdministrators, idParam, invalid, isValidGrant, MODULE_KEYS, sensitive } from './shared.ts';
 
 const ROLE_SELECT = `
-  select r.id, r.key, r.name, r.description, r.enabled, r.requires_mfa, r.created_at, r.updated_at,
+  select r.id, r.key, r.name, r.description, r.enabled, r.requires_mfa, r.scopes, r.created_at, r.updated_at,
     coalesce((select json_agg(rp.permission order by rp.permission) from role_permissions rp where rp.role_id = r.id), '[]'::json) as grants,
     (select count(*)::int from user_roles ur join users u on u.id = ur.user_id and u.deleted_at is null where ur.role_id = r.id) as members
   from roles r`;
@@ -35,7 +36,7 @@ export function registerRoles(ctx: ModuleContext) {
   /** Validates the fields present in `b`. Grants already held by the role are kept even if no longer in the vocabulary. */
   function clean(b: Row, existing?: Row) {
     const fields: Record<string, string> = {};
-    const out: { name?: string; description?: string; grants?: string[]; requires_mfa?: boolean; enabled?: boolean } = {};
+    const out: { name?: string; description?: string; grants?: string[]; requires_mfa?: boolean; enabled?: boolean; scopes?: Record<string, ScopeKind> } = {};
     if (b.name !== undefined || !existing) {
       out.name = String(b.name ?? '').trim();
       if (!out.name || out.name.length > 60) fields.name = 'Enter a name of up to 60 characters.';
@@ -48,6 +49,24 @@ export function registerRoles(ctx: ModuleContext) {
         const held: string[] = existing?.grants ?? [];
         const bad = out.grants.filter((g) => !isValidGrant(g) && !held.includes(g));
         if (bad.length) fields.grants = `Unknown permission: ${bad.slice(0, 3).join(', ')}.`;
+      }
+    }
+    // E41-01: grants of a module scoped to the members' departments or sites, for modules whose
+    // record types carry one. A scope the role already holds is kept even if no longer offered.
+    if (b.scopes !== undefined) {
+      const scopable = scopableModules(ctx.resources.all());
+      const held: Record<string, string> = existing?.scopes ?? {};
+      if (b.scopes === null || typeof b.scopes !== 'object' || Array.isArray(b.scopes)) fields.scopes = 'Scopes must be an object of module and scope.';
+      else {
+        const scopes: Record<string, ScopeKind> = {};
+        for (const [m, v] of Object.entries(b.scopes as Row)) {
+          if (v === null || v === '' || v === 'all') continue;
+          const ok = (SCOPE_KINDS as readonly string[]).includes(String(v))
+            && ((scopable[m] ?? []).includes(v as ScopeKind) || held[m] === v);
+          if (!ok) { fields.scopes = `"${m}" cannot be scoped to ${String(v)}.`; break; }
+          scopes[m] = v as ScopeKind;
+        }
+        out.scopes = Object.fromEntries(Object.entries(scopes).sort(([a], [z]) => a.localeCompare(z)));
       }
     }
     for (const [key, col] of [['requiresMfa', 'requires_mfa'], ['enabled', 'enabled']] as const) {
@@ -67,6 +86,8 @@ export function registerRoles(ctx: ModuleContext) {
     actions: ACTIONS,
     // Actions only some modules offer (tags.manage, tags.count); the others are offered by every module.
     moduleActions: MODULE_ACTIONS,
+    // E41-01: modules whose grants can be scoped, with the kinds of place their record types carry.
+    scopable: scopableModules(ctx.resources.all()),
   }));
 
   adminRoute(ctx, 'GET', '/api/admin/roles/:id', async (req) => {
@@ -88,13 +109,14 @@ export function registerRoles(ctx: ModuleContext) {
       fields.name = 'A role with that name already exists.';
     }
     if (out.grants?.includes('*')) fields.grants = 'Only the Administrator role may hold every permission.';
+    if (out.scopes && out.grants?.includes('*') && Object.keys(out.scopes).length) fields.scopes = 'A role that holds every permission cannot be scoped.';
     if (Object.keys(fields).length) invalid(fields);
     await sensitive(ctx, req, 'creating a role');
 
     const id = await db.tx(async (tx) => {
       const row = await tx.one<{ id: string }>(
-        'insert into roles (key, name, description, enabled, requires_mfa) values ($1,$2,$3,$4,$5) returning id',
-        [key, out.name, out.description ?? '', out.enabled ?? true, out.requires_mfa ?? false],
+        'insert into roles (key, name, description, enabled, requires_mfa, scopes) values ($1,$2,$3,$4,$5,$6) returning id',
+        [key, out.name, out.description ?? '', out.enabled ?? true, out.requires_mfa ?? false, JSON.stringify(out.scopes ?? {})],
       );
       for (const g of out.grants ?? []) await tx.query('insert into role_permissions (role_id, permission) values ($1,$2)', [row!.id, g]);
       return row!.id;
@@ -102,7 +124,7 @@ export function registerRoles(ctx: ModuleContext) {
     const role = await getRole(id);
     await ctx.audit(req, {
       action: 'role.create', recordType: 'role', recordId: id, summary: `Role "${role.name}" created`,
-      after: { key, name: role.name, description: role.description, enabled: role.enabled, requires_mfa: role.requires_mfa, grants: role.grants },
+      after: { key, name: role.name, description: role.description, enabled: role.enabled, requires_mfa: role.requires_mfa, grants: role.grants, scopes: role.scopes },
     });
     reply.code(201);
     return role;
@@ -117,6 +139,7 @@ export function registerRoles(ctx: ModuleContext) {
     if (before.key === 'administrator') {
       if (out.grants && !out.grants.includes('*')) fields.grants = 'The Administrator role always holds every permission (*).';
       if (out.enabled === false) fields.enabled = 'The Administrator role cannot be switched off.';
+      if (out.scopes && Object.keys(out.scopes).length) fields.scopes = 'The Administrator role always sees every record.';
     } else if (out.grants?.includes('*') && !before.grants.includes('*')) {
       fields.grants = 'Only the Administrator role may hold every permission.';
     }
@@ -125,12 +148,13 @@ export function registerRoles(ctx: ModuleContext) {
     }
     if (Object.keys(fields).length) invalid(fields);
     // Grants, the on/off switch and the second-factor flag decide what people can do.
-    if (out.grants || out.enabled !== undefined || out.requires_mfa !== undefined) await sensitive(ctx, req, `changing the role "${before.name}"`);
+    if (out.grants || out.scopes || out.enabled !== undefined || out.requires_mfa !== undefined) await sensitive(ctx, req, `changing the role "${before.name}"`);
 
     await db.tx(async (tx) => {
       await tx.query(
-        'update roles set name = $2, description = $3, enabled = $4, requires_mfa = $5, updated_at = now() where id = $1',
-        [id, out.name ?? before.name, out.description ?? before.description, out.enabled ?? before.enabled, out.requires_mfa ?? before.requires_mfa],
+        'update roles set name = $2, description = $3, enabled = $4, requires_mfa = $5, scopes = $6, updated_at = now() where id = $1',
+        [id, out.name ?? before.name, out.description ?? before.description, out.enabled ?? before.enabled, out.requires_mfa ?? before.requires_mfa,
+          JSON.stringify(out.scopes ?? before.scopes ?? {})],
       );
       if (out.grants) {
         await tx.query('delete from role_permissions where role_id = $1', [id]);
@@ -141,7 +165,7 @@ export function registerRoles(ctx: ModuleContext) {
     });
 
     const after = await getRole(id);
-    const keys = ['name', 'description', 'requires_mfa', 'grants'];
+    const keys = ['name', 'description', 'requires_mfa', 'grants', 'scopes'];
     const changed = keys.filter((k) => JSON.stringify(before[k]) !== JSON.stringify(after[k]));
     if (changed.length) {
       const added = (after.grants as string[]).filter((g) => !before.grants.includes(g));

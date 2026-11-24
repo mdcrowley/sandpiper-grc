@@ -1,6 +1,8 @@
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { dayInZone } from '../../core/timezone.ts';
+import { isEnabled as portalOn, readSettings as portalSettings } from '../portal/settings.ts';
+import { keepReporterApart, reporterOf } from './confidential.ts';
 import { peopleCounts } from './event-detail.ts';
 import type { Reporting } from './reporting.ts';
 
@@ -24,6 +26,8 @@ export async function openActions(ctx: ModuleContext, eventId: string): Promise<
 
 export function registerEvents(ctx: ModuleContext, reporting: Reporting) {
   const { app, db } = ctx;
+  /** The reporter of a confidential report entered by someone else, between the checks and the save (E41-05). */
+  const apart = new WeakMap<FastifyRequest, string | null>();
   const invalid = (fields: Record<string, string>): never => ctx.fail(400, 'validation', 'Check the highlighted fields.', fields);
   const metaOf = async (list: string, value: unknown) => (await ctx.lookups.values(list)).find((v) => v.value === value)?.meta ?? {};
 
@@ -33,12 +37,49 @@ export function registerEvents(ctx: ModuleContext, reporting: Reporting) {
     await app.notify({
       permission: 'safety.view', userIds: [row.investigator_id], kind: 'safety',
       title: `${sev?.label ?? 'Serious'} safety event: ${row.ref} ${row.title}`,
-      body: req?.user ? `Reported by ${req.user.displayName}.` : null,
+      body: row.confidential_reporter ? 'The reporter asked for their identity to be kept confidential.' : req?.user ? `Reported by ${req.user.displayName}.` : null,
       recordType: 'safety_event', recordId: row.id,
     });
   }
 
-  async function check(merged: Row, patch: Row, existing: Row | null): Promise<Row> {
+  /**
+   * Tells the reporter, in plain words, what was done about their report when it closes (E41-05). A
+   * confidential reporter's notification names neither the event nor what it was about; they read
+   * the words in the portal's "My safety reports" (or in the notification when the portal is off).
+   */
+  async function tellReporter(req: FastifyRequest | null, row: Row) {
+    const userId = await reporterOf(db, row);
+    if (!userId || !app.hasDecorator('notify')) return;
+    const outcome = String(row.reporter_outcome ?? '').trim();
+    const portal = (await portalOn(ctx)) && (await portalSettings(ctx)).safety_reports;
+    const confidential = row.confidential_reporter === true;
+    await app.notify({
+      userIds: [userId], kind: 'general',
+      title: confidential ? 'A safety report you made has been closed' : `Your safety report ${row.ref} is closed`,
+      body: confidential && portal ? 'Read what was done under My safety reports in the portal.' : outcome || 'The safety team has finished looking into it.',
+      route: portal ? '/portal/safety' : confidential ? '/notifications' : `/safety/events/${row.id}`,
+    });
+    await ctx.audit(req, { action: 'safety_event.reporter_told', recordType: 'safety_event', recordId: row.id, summary: 'Reporter told what was done about their report' });
+  }
+
+  async function check(req: FastifyRequest | null, merged: Row, patch: Row, existing: Row | null): Promise<Row> {
+    // Confidential reporting (E41-05): the event never holds a confidential reporter.
+    if (!existing && patch.confidential_reporter === true) {
+      const reporter = typeof patch.reported_by_id === 'string' ? patch.reported_by_id : null;
+      if (reporter && req?.user && reporter === req.user.id) {
+        invalid({ confidential_reporter: 'Your name is recorded as the person who entered this event, so it cannot be kept confidential here. Use "Report a safety concern" in the portal instead.' });
+      }
+      if (req) apart.set(req, reporter);
+      patch.reported_by_id = null;
+    }
+    if (existing) {
+      if ('confidential_reporter' in patch && Boolean(patch.confidential_reporter) !== Boolean(existing.confidential_reporter)) {
+        invalid({ confidential_reporter: 'Whether the reporter stays confidential is chosen when the report is made.' });
+      }
+      if (existing.confidential_reporter && patch.reported_by_id) {
+        invalid({ reported_by_id: 'The reporter of this event asked to stay confidential, so their name is kept apart from the event.' });
+      }
+    }
     if (patch.occurred_at !== undefined && patch.occurred_at !== null) {
       const at = Date.parse(String(patch.occurred_at));
       if (Number.isNaN(at)) invalid({ occurred_at: 'Enter the date and time.' });
@@ -81,6 +122,15 @@ export function registerEvents(ctx: ModuleContext, reporting: Reporting) {
     const wasClosed = existing ? (await metaOf('safety_event_status', existing.status)).final === true : false;
     if (closing && !wasClosed) {
       if (!String(merged.root_cause ?? '').trim()) invalid({ root_cause: 'Record the root cause before closing the event.' });
+      // The reporter is told what was done (E41-05): a person closing it writes the words.
+      const hasReporter = merged.confidential_reporter === true || Boolean(merged.reported_by_id);
+      if (hasReporter && req?.user && !String(merged.reporter_outcome ?? '').trim()) {
+        invalid({ reporter_outcome: 'Say in plain words what was done about the report: the reporter is told when the event closes.' });
+      }
+      const who = !hasReporter ? null
+        : existing ? await reporterOf(db, merged)
+        : merged.confidential_reporter === true ? (req ? apart.get(req) ?? null : null) : (merged.reported_by_id as string);
+      if (who) patch.reporter_told_at = new Date().toISOString();
       const open = existing ? await openActions(ctx, existing.id) : 0;
       if (open > 0) ctx.fail(409, 'actions_open', `${open} corrective action(s) are still open. Finish or cancel them before closing the event.`);
       if (!merged.closed_on) patch.closed_on = dayInZone();
@@ -92,6 +142,8 @@ export function registerEvents(ctx: ModuleContext, reporting: Reporting) {
   ctx.defineResource({
     type: 'safety_event', table: 'safety_events', module: 'safety', label: 'Safety event', plural: 'Safety events',
     path: '/api/safety-events', route: '/safety/events', titleField: 'title',
+    // Role grants scoped to departments or sites (E41-01, core/scope.ts).
+    scope: { site: 'site_id' },
     ref: { field: 'ref', prefix: 'SE-' },
     restricted: 'flag',
     searchable: ['title', 'description', 'location_detail', 'root_cause', 'findings'],
@@ -133,17 +185,29 @@ export function registerEvents(ctx: ModuleContext, reporting: Reporting) {
       // No default here: an event type may start it restricted (see check); the column defaults to false.
       restricted: { label: 'Restricted (holds personal information)', type: 'boolean' },
       notes: { label: 'Notes', type: 'longtext' },
+      // E41-05: the reporter's identity is kept apart from the event (confidential.ts).
+      confidential_reporter: { label: 'Reporter asked to stay confidential', type: 'boolean', default: false },
+      reporter_outcome: { label: 'What the reporter is told', type: 'longtext' },
+      reporter_told_at: { label: 'Reporter told', type: 'datetime', readOnly: true },
     },
     hooks: {
-      beforeCreate: (_req, data) => check(data, data, null),
-      beforeUpdate: (_req, existing, patch) => check({ ...existing, ...patch }, patch, existing),
+      beforeCreate: (req, data) => check(req, data, data, null),
+      beforeUpdate: (req, existing, patch) => check(req, { ...existing, ...patch }, patch, existing),
       afterCreate: async (req, row) => {
+        if (row.confidential_reporter && req && apart.has(req)) {
+          await keepReporterApart(db, row.id, apart.get(req) ?? null);
+          apart.delete(req);
+        }
+        if ((await metaOf('safety_event_status', row.status)).final === true) await tellReporter(req, row);
         if ((await metaOf('safety_event_severity', row.severity)).notify === true) await announce(req, row);
         // Reportability is worked out on every save (E25-05).
         await reporting.evaluate(req, row);
       },
       afterUpdate: async (req, before, after) => {
         await reporting.evaluate(req, after);
+        if ((await metaOf('safety_event_status', after.status)).final === true && (await metaOf('safety_event_status', before.status)).final !== true) {
+          await tellReporter(req, after);
+        }
         if (before.severity === after.severity) return;
         const was = (await metaOf('safety_event_severity', before.severity)).notify === true;
         if (!was && (await metaOf('safety_event_severity', after.severity)).notify === true) await announce(req, after);

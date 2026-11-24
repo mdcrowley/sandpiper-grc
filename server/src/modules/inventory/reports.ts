@@ -37,7 +37,8 @@ export function registerReports(ctx: ModuleContext) {
     left join users u on u.id = a.user_id`;
 
   async function assetRows(user: SessionUser | null, where: string, order: string, params: unknown[] = []): Promise<Row[]> {
-    const rows = await db.query<Row>(`select ${assetSelect} ${assetFrom} where ${where} order by ${order}`, params);
+    // A list of assets: only those the caller may see (E41-01: a role scoped to departments or sites).
+    const rows = await db.query<Row>(`select ${assetSelect} ${assetFrom} where ${where} and ${ctx.resources.visibleWhere('asset', user, 'a')} order by ${order}`, params);
     const types = await labels('asset_type');
     const statuses = await labels('asset_status');
     const showSites = ctx.can(user, 'sites.view');

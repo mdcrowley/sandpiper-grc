@@ -1,6 +1,7 @@
 // Vendor risk lifecycle (E35): an exclusion-list check recorded on the vendor's Lifecycle tab, a
 // contract ending starts an offboarding whose checklist is worked through and signed off, and a
-// sub-recipient's monitoring history. Run alone with: npm run test:e2e -- --only vendor-lifecycle.
+// sub-recipient's monitoring history; an intake that sets a risk tier, required checks holding up a contract,
+// and a contractor performance score (E41-10, E41-11). Run alone with: npm run test:e2e -- --only vendor-lifecycle.
 
 const lifecycleTest = (theme, width) => ({
   name: `vendor-lifecycle: an exclusion check, an offboarding signed off, sub-recipient monitoring (${theme}, ${width})`,
@@ -55,4 +56,55 @@ const lifecycleTest = (theme, width) => ({
   },
 });
 
-export const tests = [lifecycleTest('light', 1440), lifecycleTest('dark', 820)];
+// Intake with risk tiers and required checks (E41-10) and contractor performance (E41-11).
+const intakeTest = (theme, width) => ({
+  name: `vendor-lifecycle: an intake sets the risk tier, checks hold up a contract, a score is recorded (${theme}, ${width})`,
+  theme, width,
+  async run(t) {
+    const { page } = t;
+    const api = t.api();
+    const tag = Date.now().toString(36);
+    const vendor = await api.must('POST', '/api/vendors', { name: `E2E intake vendor ${tag}` });
+    const settings = await api.must('GET', '/api/vendors/intake-settings');
+
+    await t.step('the intake questionnaire sets the risk tier', async () => {
+      await page.goto(`/vendors/${vendor.id}?tab=intake`);
+      await page.click({ text: 'Fill in the intake', tag: 'button' });
+      for (const q of settings.config.questions) {
+        // The last answer of each starter question is the riskiest.
+        await page.click({ css: `input[name="intake-${q.key}"][value="${q.options[q.options.length - 1].value}"]` });
+      }
+      await page.waitFor({ text: 'Risk tier from these answers:' });
+      await page.click({ text: 'Save the intake', tag: 'button' });
+      await page.waitFor({ text: 'Why this tier', tag: 'h3' });
+    });
+    const tiered = await api.must('GET', `/api/vendors/${vendor.id}`);
+    t.soft(Boolean(tiered.risk_tier), 'the intake set no risk tier');
+    const checks = await api.must('GET', `/api/vendors/${vendor.id}/checks`);
+
+    const contract = await api.must('POST', '/api/contracts', { title: `E2E intake contract ${tag}`, vendor_id: vendor.id, status: 'draft' });
+    if (checks.outstanding > 0) {
+      const refused = await api.call('PATCH', `/api/contracts/${contract.id}`, { status: 'active' });
+      t.soft(refused.status === 400, 'a contract became active while required checks were missing');
+      await t.step('a draft contract says which checks stand in the way', async () => {
+        await page.goto(`/contracts/${contract.id}`);
+        await page.waitFor({ text: 'This contract cannot become active yet' });
+      });
+    }
+
+    const measure = await api.must('POST', `/api/contracts/${contract.id}/measures`, { name: `E2E availability ${tag}`, target: 99, unit: '%' });
+    await t.step('a score is recorded with a comment on the Performance tab', async () => {
+      await page.goto(`/contracts/${contract.id}?tab=performance`);
+      await page.click({ text: 'Score', tag: 'button' });
+      await page.fill({ label: 'Score (%)' }, '97.5');
+      await page.fill({ label: 'Comment' }, `E2E comment ${tag}`);
+      await page.waitFor({ text: 'Below the target' });
+      await page.click({ text: 'Record the score', tag: 'button' });
+      await page.waitFor({ text: `E2E comment ${tag}`, tag: 'td' });
+    });
+    const perf = await api.must('GET', `/api/contracts/${contract.id}/performance`);
+    t.soft(perf.measures.find((m) => m.id === measure.id)?.latest?.met === false, 'the score was not recorded as below target');
+  },
+});
+
+export const tests = [lifecycleTest('light', 1440), lifecycleTest('dark', 820), intakeTest('light', 1440), intakeTest('dark', 820)];

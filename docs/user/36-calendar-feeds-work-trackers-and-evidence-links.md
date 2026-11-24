@@ -1,6 +1,26 @@
 # Calendar feeds, work trackers and evidence links
 
-Three ways the application works with the tools around it: a **calendar feed** puts your own due dates, reviews, meetings and changes in your calendar program; the **work-tracker bridge** sends records to an outside work-tracking tool and brings their status back; and an **evidence link** points at a document kept in your document store instead of a copy. Each connection is off until an administrator switches it on. Lists and record pages work as described in [Getting started](01-getting-started.md).
+The **compliance calendar** shows everything due across the application in one place. Three ways the application works with the tools around it: a **calendar feed** puts your own due dates, reviews, meetings and changes in your calendar program; the **work-tracker bridge** sends records to an outside work-tracking tool and brings their status back; and an **evidence link** points at a document kept in your document store instead of a copy. Each connection is off until an administrator switches it on. Lists and record pages work as described in [Getting started](01-getting-started.md).
+
+## Compliance calendar
+
+**Compliance calendar** (in the top group of the left navigation, address `/calendar`) shows everything with a date across every part of the application that is switched on: evidence requests, control tests, corrective actions to verify, inspections, obligations and obligation periods to attest, risk and policy reviews, vendor reassessments, certifications coming up for renewal, funding certifications to sign, exercises, changes, meetings and the rest. Everyone has it; each person sees only records they may see, and a part an administrator has switched off under **Administration > Features** is left out entirely.
+
+- **Month** shows a month grid. Each item is colored by its area (the key is under the grid); work past its date is marked overdue, and a date to know about rather than work to do (a meeting, a change window, an exercise) has a dashed edge. Select an item to open its record, or a day's number (or "*n* more") to see that day in the list.
+- **List** shows the month as a table: due date, item, kind, person and area.
+- **My due work** lists your own work that is overdue or due in the next 60 days, overdue first, whatever month it falls in. The **My due work** list under **My work** on the Overview, and the mobile app's **My work**, show the same items.
+
+Use **Previous month**, **Today** and **Next month** to move. Filter with:
+
+| Filter | What it does |
+|---|---|
+| **Area** | Only one part of the application, for example **Audits and inspections** |
+| **Kind** | Only one kind of item, for example **Evidence requests** or **Control tests** |
+| **Whose** | **Mine** (the default: what you own, are assigned to, test, verify, sign or hold), **Everyone** (everything you may see), or **One person** (choose them under **Person**) |
+
+A few kinds give only your own items (for example records requests, continuity plan reviews and condition assessments): when you look at someone else's or everyone's work, a note names them. Your choices are kept in the page's address, so you can bookmark or share a view; someone else opening it still sees only what they may see.
+
+To have these dates in your own calendar program, make a calendar feed (below); the feed offers the same kinds.
 
 ## Calendar feeds
 
@@ -25,6 +45,11 @@ Open **Calendar feeds** from the menu under your name (top right). The entry is 
    | **Meetings of committees I sit on** | Meetings of committees you are a member of (with your account or your roster person), chair or are secretary of, at their time |
    | **Inspections assigned to me** | Inspections you are the inspector of that are not complete, on their due date |
    | **Tests of controls I own or operate** | Controls you own or operate, on their next test date, and planned tests where you are the tester |
+   | **Evidence requests asked of me** | Evidence requests you are asked for that are not provided yet, on their due date |
+   | **Corrective actions for me to verify** | Actions waiting for verification where you are the verifier (or, with no verifier, responsible for the plan), on their verification due date |
+   | **Obligation periods for me to attest** | Recorded periods of obligations you own that are not attested yet, other than the one ending on the next due date, on their due date |
+   | **My certifications due for renewal** | Your own active certifications (on the staff roster), on their expiry date |
+   | **Funding certifications for me to sign or confirm** | Funding certifications you sign, and their items you are responsible for confirming, until signed, on their due date |
 
    Other parts of the application, such as business continuity, records requests, vendor reassessments and asset condition, add their own kinds when they are switched on.
 4. Choose **What each date shows**: **Titles** (what each date is about, for example "Action due: ACT-00042 Renew the depot certificate") or **Busy only** (only the kind of date, for example "My actions due", never what it is about). Busy only suits a calendar other people can see.

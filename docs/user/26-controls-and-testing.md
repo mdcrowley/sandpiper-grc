@@ -34,11 +34,17 @@ Open **Controls**. Filter by status, domain, type, automation, how often the con
 6. Leave the **Status** as **Draft** until the control is in place, then set it to **Active**. A control that is no longer used is **Retired**: it is left out of the coverage view, the figures and the reminders.
 7. Select **Create control**.
 
-The control gets a reference such as `CTL-00001`. Its page shows the details, **Ratings and testing**, and the tabs **Coverage**, **Tests**, **Activity**, **Evidence files**, **Related** and **History**. Files attached to a control are evidence (for example the written procedure or a configuration screenshot).
+The control gets a reference such as `CTL-00001`. Its page shows the details, **Ratings and testing**, and the tabs **Coverage**, **Test steps**, **Tests**, **Activity**, **Evidence files**, **Related** and **History**. Files attached to a control are evidence (for example the written procedure or a configuration screenshot).
 
 ### Ratings and the test schedule
 
 A control's **Design rating** and **Operating rating** cannot be typed in: they come from its newest reviewed **design** test and its newest reviewed **operating** test. **Last tested** is the date of the newest reviewed test, and the **Next test due** is **Test every (months)** after that. Changing the interval moves the next test date at once. Deleting a reviewed test works the ratings out again from the tests that are left.
+
+### Written test steps
+
+The **Test steps** tab of a control holds the steps a tester follows to test it, in order, so that every tester does it the same way. Select **Add a step**, write **What the tester does** (for example "Pick ten shifts at random from the roster") and, if you like, **What they should find** (for example "Each shift has a signed lockout record"), and select **Save**. Use the arrows to change the order, the pencil to change a step and **×** to remove one. You need `controls.edit`.
+
+Each new test of the control starts with a copy of these steps. Changing the steps later does not change tests already recorded; a test started before a step was added offers a button on its own **Test steps** tab to copy the new steps from the control.
 
 ## What a control covers
 
@@ -72,13 +78,15 @@ Open **Control tests** (or a control's **Tests** tab, which fills in the control
 3. Enter **Planned for**, the **Period from** and **Period to** that an operating test covers, the **Tester** and the **Method** (**Inquiry**, **Observation**, **Inspection of records** or **Reperformance**), and describe the **Population** (everything the sample is drawn from, for example "every remote-access sign-in in the quarter").
 4. Select **Create control test**. The test gets a reference such as `CTT-00001` and the status **Planned**; set it to **In progress** when testing starts.
 
+On the **Test steps** tab, give each written step its result, **Passed**, **Failed** or **Not applicable**, and a note on what you found; the note is saved when you leave the box, and the step shows who gave the result and when. A bar shows how many steps have a result and how many failed. A test of a control with no written steps shows none.
+
 On the **Items sampled** tab, list each item the test looked at (a log entry, a ticket, a vehicle check sheet) with its result, **No exception** or **Exception**, and a note. Once there are items, **Items sampled** and **Exceptions found** follow the list. You can also type the two numbers instead; there cannot be more exceptions than items. Attach the evidence (exports, screenshots, signed sheets) on the **Evidence files** tab.
 
 ### Finish and sign off
 
-When the testing is done, set the **Result** (**Effective**, **Partly effective** or **Ineffective**), the **Performed on** date (not in the future) and the **Conclusion**, and set the status to **Awaiting review**. A result other than effective needs a conclusion.
+When the testing is done, set the **Result** (**Effective**, **Partly effective** or **Ineffective**), the **Performed on** date (not in the future) and the **Conclusion**, and set the status to **Awaiting review**. A result other than effective needs a conclusion, and every written test step needs its result first.
 
-The status **Reviewed** cannot be chosen by hand. Someone other than the tester, holding `controls.approve`, opens the test and selects **Review and sign off**, adds an optional note and selects **Sign off**. The test is then final: it cannot be changed, and its sampled items are fixed. The result rolls up to the control's ratings and next test date. The tester (or, when none is named, whoever recorded the test) cannot sign off their own test.
+The status **Reviewed** cannot be chosen by hand. Someone other than the tester, holding `controls.approve`, opens the test and selects **Review and sign off**, adds an optional note and selects **Sign off**. The test is then final: it cannot be changed, and its test steps and sampled items are fixed. The result rolls up to the control's ratings and next test date. The tester (or, when none is named, whoever recorded the test) cannot sign off their own test.
 
 ### When a test fails
 
@@ -111,7 +119,15 @@ The owner of each control in use is told when its next test is coming up and aga
 
 No standard's catalog text is shipped: load your own. On the **Controls** list, select **Import**, then **Download a template**: a CSV with a column for every field that can be imported. The useful columns are **Control**, **Objective**, **How it works**, **Type**, **Automation**, **How often it operates**, **Domain**, **Owner**, **Operated by**, **Key control**, **Status**, **Test every (months)** and **Next test due**. Lists accept their value or label (for example `Preventive` or `preventive`), people their user name, email address or name, and **Key control** yes or no. The ratings and last test date are not imported: they come from tests. Control tests can be imported the same way from the **Control tests** list (by the control's reference or name), but not as **Reviewed**. See [Importing and exporting](17-importing-and-exporting.md#importing-records).
 
-Coverage is not part of the import: add it on each control's **Coverage** tab.
+### Importing coverage
+
+To load what each control covers from a spreadsheet, open the **Coverage** tab and select **Import coverage** (you need `controls.edit`). The file (CSV or Excel, at most 5 MB and 5,000 rows) has one row for each control and a record it covers, with these columns:
+
+- **Control**: the control's reference, such as `CTL-00012`, or its exact title;
+- **Kind of record**: Risk, Hazard, Framework outcome, Obligation, Policy or OT security zone. It may be left out when the record is given by its reference;
+- **Record**: the record's reference, such as `HAZ-00031`, or its exact title.
+
+**Download a template** in the dialog gives a file with these headers. Select **Check the file**: the check lists every row with what it would do, **Will be added**, **Already there** or **Not imported** with the reason (no such control, a kind of record that is not offered, no such record, or a title that more than one record has). Then select **Add** (it names how many links) to add them. Coverage is only ever added: rows already there are left as they are, and nothing missing from the file is removed. Only records you may see can be matched; a restricted record you may not see reads exactly like one that does not exist. Each link added is in the control's history (or, for a restricted record, in that record's own history), and the import as a whole in the audit log.
 
 ## Figures for indicators
 
@@ -119,9 +135,8 @@ The control library offers two monthly figures that computed safety performance 
 
 ## Sample data
 
-The `dev` seed profile loads twenty invented controls (marked "Invented sample control"), thirty tests over the past year (three of them ineffective, each with a corrective action plan when the action tracker is installed) and coverage of the sample risks, hazards, framework outcomes, obligations and policies that match them.
+The `dev` seed profile loads twenty invented controls (marked "Invented sample control"), thirty tests over the past year (three of them ineffective, each with a corrective action plan when the action tracker is installed), written test steps for the pre-service vehicle check and the backup restore test, and coverage of the sample risks, hazards, framework outcomes, obligations and policies that match them.
 
 ## Not available yet
 
-- Importing coverage from a spreadsheet.
-- Test steps or checklists per control, and sampling from a population automatically.
+- Sampling from a population automatically.

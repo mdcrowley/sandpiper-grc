@@ -1,10 +1,13 @@
+import { localized } from '../i18n';
 // Text of the Account tab and its screens (app/(tabs)/account/*).
-export const accountText = {
+export const accountText = localized('account', {
   title: 'Account',
   signedInAs: 'Signed in as',
   username: 'Username',
   server: 'Server',
-  sections: { you: 'You', security: 'Security', devices: 'Devices', about: 'About' },
+  sections: { you: 'You', security: 'Security', devices: 'Devices', about: 'About', language: 'Language' },
+  languageDetail: 'My work, policies, tags and reports are shown in this language. It is kept on your account, so the self-service portal uses it too.',
+  languageFailed: 'The language is used on this phone, but it could not be saved on your account. It is tried again next time.',
   notifications: 'Notifications',
   notificationsUnread: (n: number) => (n === 1 ? '1 unread' : `${n} unread`),
   unlock: 'Unlock with Face ID or fingerprint',
@@ -39,4 +42,4 @@ export const accountText = {
     title: 'Open-source licenses',
     intro: 'Sandpiper GRC is open source (MIT license) and is built with these packages.',
   },
-} as const;
+} as const);

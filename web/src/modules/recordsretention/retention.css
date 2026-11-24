@@ -1,0 +1,2 @@
+/* Records retention schedule and destruction log (E41-15). */
+.rtn-actions { display: flex; flex-wrap: wrap; gap: var(--s-2); }

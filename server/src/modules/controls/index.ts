@@ -1,6 +1,8 @@
 import type { ModuleContext, ModuleDef } from '../../core/module.ts';
 import { registerControlResource } from './controls.ts';
 import { registerCoverage } from './coverage.ts';
+import { registerCoverageImport } from './coverage-import.ts';
+import { registerSteps } from './steps.ts';
 import { seedControlLists, seedSharedValues } from './lists.ts';
 import { registerReminders } from './reminders.ts';
 import { seedControls } from './seed.ts';
@@ -21,6 +23,8 @@ async function register(ctx: ModuleContext) {
   registerControlResource(ctx);
   registerTests(ctx);
   registerCoverage(ctx);
+  registerCoverageImport(ctx);
+  registerSteps(ctx);
   registerSummary(ctx);
   await registerReminders(ctx);
 }

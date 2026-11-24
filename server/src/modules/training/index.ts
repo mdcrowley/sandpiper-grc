@@ -1,6 +1,7 @@
 import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleDef, Row } from '../../core/module.ts';
 import { defineExercise, registerExercises } from './exercises.ts';
+import { registerDue } from './due.ts';
 import { registerExerciseSteps } from './exerciseSteps.ts';
 import { registerImport } from './importer.ts';
 import { notifyTraining, TRAINING_REMINDER_SETTING, trainingReminderInterval } from './notify.ts';
@@ -138,6 +139,7 @@ const mod: ModuleDef = {
     registerImport(ctx);
     registerExercises(ctx);
     registerExerciseSteps(ctx);
+    registerDue(ctx); // certification renewals in My work and the calendars (E41-03)
 
     // ---------- settings: the overdue reminder interval ----------
 

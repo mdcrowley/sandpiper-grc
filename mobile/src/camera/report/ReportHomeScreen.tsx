@@ -6,13 +6,14 @@ import { useEffect } from 'react';
 import { router } from 'expo-router';
 import { View } from 'react-native';
 import { useSession } from '../../api/client';
-import { outbox, sendNow } from '../../offline';
+import { outbox, sendNow, useOfflinePackage } from '../../offline';
 import { Banner, Body, Button, Row, Screen, Section, Title } from '../../ui';
 import { space } from '../../theme';
 import { migrateLegacyQueue, useReports } from '../reportQueue';
 import { REPORT_TEXT, type ReportView } from '../reports';
+import { localized } from '../../i18n';
 
-export const TEXT = {
+export const TEXT = localized('reportHome', {
   title: 'Report',
   problem: 'Report a problem', problemHint: 'A fault or something not working: a ticket for the service desk.',
   hazard: 'Report a hazard or close call', hazardHint: 'Something unsafe, or something that nearly went wrong: a safety report.',
@@ -26,7 +27,7 @@ export const TEXT = {
   fieldWorkHint: 'Field work that also works without signal: your inspections, condition assessments due and inventory counts.',
   sendNow: 'Send now',
   dismiss: 'Dismiss',
-};
+});
 
 export function stateText(r: ReportView): string {
   const photos = r.photos ? ` ${REPORT_TEXT.photos(r.photosSent, r.photos)}.` : '';
@@ -43,6 +44,12 @@ export default function ReportHomeScreen() {
   const reports = useReports();
   const canProblem = session.areaOn('tickets') && session.can('tickets.create');
   const canHazard = session.areaOn('safety') && session.can('safety.create');
+  // E41-17: people who report through the self-service portal report from scratch too, on the
+  // portal's plainer forms; a hazard only while the portal takes safety reports (the package says so).
+  const portal = session.areaOn('portal') && session.can('portal.create');
+  const pkg = useOfflinePackage();
+  const portalProblem = !canProblem && portal;
+  const portalHazard = !canHazard && portal && session.areaOn('safety') && Boolean(pkg?.portal);
   const attention = reports.filter((r) => r.state === 'attention').length;
   // Field work (wave 15, E38-11 and E38-12).
   const canFieldWork = (session.areaOn('audits') && session.can('audits.view'))
@@ -60,19 +67,19 @@ export default function ReportHomeScreen() {
           <Button label={TEXT.open} kind="secondary" onPress={() => router.push('/report/offline')} />
         </View>
       ) : null}
-      {canProblem ? (
+      {canProblem || portalProblem ? (
         <View style={{ gap: space[1] }}>
-          <Button label={TEXT.problem} onPress={() => router.push('/report/new?kind=problem')} />
+          <Button label={TEXT.problem} onPress={() => router.push(portalProblem ? '/report/new?kind=problem&via=portal' : '/report/new?kind=problem')} />
           <Body muted>{TEXT.problemHint}</Body>
         </View>
       ) : null}
-      {canHazard ? (
+      {canHazard || portalHazard ? (
         <View style={{ gap: space[1] }}>
-          <Button label={TEXT.hazard} kind="secondary" onPress={() => router.push('/report/new?kind=hazard')} />
+          <Button label={TEXT.hazard} kind="secondary" onPress={() => router.push(portalHazard ? '/report/new?kind=hazard&via=portal' : '/report/new?kind=hazard')} />
           <Body muted>{TEXT.hazardHint}</Body>
         </View>
       ) : null}
-      {!canProblem && !canHazard ? <Banner>{TEXT.none}</Banner> : <Body muted>{TEXT.offlineHint}</Body>}
+      {!canProblem && !canHazard && !portalProblem && !portalHazard ? <Banner>{TEXT.none}</Banner> : <Body muted>{TEXT.offlineHint}</Body>}
       {canFieldWork ? (
         <View style={{ gap: space[1] }}>
           <Button label={TEXT.fieldWork} kind="secondary" onPress={() => router.push('/fieldwork')} />

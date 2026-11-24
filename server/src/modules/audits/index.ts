@@ -1,6 +1,7 @@
 import type { ModuleContext, ModuleDef } from '../../core/module.ts';
 import { registerChecklists } from './checklists.ts';
 import { registerCoverage } from './coverage.ts';
+import { registerDue } from './due.ts';
 import { registerFindings } from './findings.ts';
 import { registerJobs } from './jobs.ts';
 import { registerMetrics } from './metrics.ts';
@@ -121,11 +122,12 @@ async function register(ctx: ModuleContext) {
   registerResources(ctx);
   registerChecklists(ctx);
   registerFindings(ctx);
-  registerRequests(ctx);
+  await registerRequests(ctx);
   registerCoverage(ctx);
   registerReport(ctx);
   registerMetrics(ctx);
   await registerJobs(ctx);
+  registerDue(ctx); // evidence requests in My work and the calendars (E41-03)
 }
 
 const mod: ModuleDef = {

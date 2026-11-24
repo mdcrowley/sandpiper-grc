@@ -9,6 +9,7 @@ import { useCallback, useContext } from 'react';
 import { DueChip, WorkCard, WorkTally, type WorkItem } from './parts';
 import { useWidgetCtx } from './sources';
 import type { WidgetDef } from './types';
+import type { MyDueWork } from '../../../../shared/work-api.ts';
 
 const ROWS = 5;
 
@@ -111,6 +112,29 @@ function MyApprovals() {
   );
 }
 
+/**
+ * Due work of every other kind, from one list (E41-03): evidence requests, control tests, verifications,
+ * inspections, obligation periods to attest, vendor reassessments, certifications and the rest. Each kind
+ * is a calendar source its module registers on the server; switched-off areas are left out there.
+ */
+function MyDueWorkCard() {
+  // Actions have a list of their own (My actions), so they are left out here.
+  const { data, error, reload } = useFetch<MyDueWork>('/api/work/mine?limit=5&skip=actions.due');
+  if (absent(error)) return null;
+  const items = data?.sections.flatMap((s) => s.items)
+    .sort((a, b) => Number(b.overdue) - Number(a.overdue) || a.start.localeCompare(b.start))
+    .slice(0, ROWS)
+    .map((i): WorkItem => ({
+      key: i.uid, to: i.url, title: i.title,
+      meta: <DueChip date={i.start.slice(0, 10)} />,
+    }));
+  return (
+    <WorkCard id="my-due-work" title="My due work" icon="calendar" to="/calendar?view=mine"
+      items={items} count={data?.total} error={error} reload={reload}
+      emptyText="Nothing of yours is overdue or due in the next 30 days." />
+  );
+}
+
 interface MineAcks { awaiting: { id: string; policy_ref: string | null; policy_title: string; due_on: string | null }[] }
 
 function MyAcknowledgments() {
@@ -197,6 +221,11 @@ export const MY_WORK_WIDGETS: WidgetDef[] = [
     id: 'my-approvals', title: 'My approvals', group: 'mywork',
     description: 'Changes, exception requests and policies waiting for an approval you can give.',
     visible: (ctx) => Object.values(approvalRights(ctx)).some(Boolean), render: () => <MyApprovals />,
+  },
+  {
+    id: 'my-due-work', title: 'My due work', group: 'mywork',
+    description: 'Evidence requests, control tests, verifications, inspections, attestations, reassessments, certifications and other work of yours that is overdue or due in the next 30 days.',
+    visible: (ctx) => ctx.hasModule('work'), render: () => <MyDueWorkCard />,
   },
   {
     id: 'my-acknowledgments', title: 'My acknowledgments', group: 'mywork', description: 'Policies you have been asked to read and acknowledge.',

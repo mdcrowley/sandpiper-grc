@@ -4,12 +4,13 @@
 // No exclusion list is built in: the list is the organization's own (lookup `exclusion_list`), and a
 // check is recorded as performed against it, with its result and reference.
 import type { FastifyRequest } from 'fastify';
-import { defineCalendarSource } from '../../core/calendar.ts';
+import { defineCalendarSource, whoFor } from '../../core/calendar.ts';
 import { UUID_RE } from '../../core/errors.ts';
 import { defineMetric } from '../../core/metrics.ts';
 import type { LookupValue, ModuleContext, Row } from '../../core/module.ts';
 import { notePermission } from '../../core/permission-use.ts';
 import { addDays, daysBetween, localDate } from './dates.ts';
+import { vendorsWithChecksOutstanding } from './intake.ts';
 import { addMonths } from '../../../../shared/dates.ts';
 export { addMonths }; // one copy for every module (E40-12)
 
@@ -185,6 +186,7 @@ export async function lifecycleFigures(ctx: ModuleContext, at: string = localDat
     exclusion_checks_overdue: vendors.filter((v) => v.status === 'active' && exclusionDue(v.last, v.added_on, months) < at).length,
     open_issues: issues,
     offboardings_open: offboardings,
+    checks_outstanding: await vendorsWithChecksOutstanding(ctx), // E41-10
   };
 }
 
@@ -421,8 +423,8 @@ export function registerLifecycle(ctx: ModuleContext): void {
   app.get('/api/vendors/lifecycle-summary', { preHandler: ctx.requirePerm('vendors.view') }, async () => lifecycleFigures(ctx));
   ctx.describeRoute({
     method: 'GET', path: '/api/vendors/lifecycle-summary', tag: 'Vendors', permission: 'vendors.view',
-    summary: 'Vendor lifecycle figures: reassessments and exclusion-list checks overdue, open vendor issues and open offboardings (counts only)',
-    response: '{ reassessments_overdue, exclusion_checks_overdue, open_issues, offboardings_open }',
+    summary: 'Vendor lifecycle figures: reassessments and exclusion-list checks overdue, open vendor issues, open offboardings and vendors whose risk tier still needs checks (counts only)',
+    response: '{ reassessments_overdue, exclusion_checks_overdue, open_issues, offboardings_open, checks_outstanding }',
   });
 
   const monthEnd = (monthStart: string) => addDays(addMonths(monthStart, 1), -1);
@@ -460,15 +462,16 @@ export function registerLifecycle(ctx: ModuleContext): void {
 
   defineCalendarSource(app, {
     key: 'vendors.reassessments', label: 'Vendor reassessments due (vendors I own)', recordType: 'vendor', permission: 'vendors.view',
-    async events(c, user, from, to) {
+    work: true, anyone: true, kind: 'Vendor reassessments', // E41-03: My work and the compliance calendar
+    async events(c, user, from, to, scope) {
       const rows = await c.db.query<Row>(
-        `select v.id, v.name, v.next_assessment_due::text as due from vendors v
-         where v.deleted_at is null and v.owner_id = $1 and coalesce(v.status, '') <> 'former'
+        `select v.id, v.name, v.next_assessment_due::text as due, v.owner_id as p from vendors v
+         where v.deleted_at is null and ($1::uuid is null or v.owner_id = $1) and coalesce(v.status, '') <> 'former'
            and v.next_assessment_due between $2::date and $3::date and ${c.resources.visibleWhere('vendor', user, 'v')}`,
-        [user.id, from, to]);
+        [whoFor(user, scope), from, to]);
       return rows.map((r) => ({
         uid: `vendors.reassessments:${r.id}:${r.due}`, title: `Reassess vendor: ${r.name}`, start: r.due, allDay: true,
-        url: `/vendors/${r.id}?tab=lifecycle`, recordType: 'vendor', recordId: r.id,
+        url: `/vendors/${r.id}?tab=lifecycle`, recordType: 'vendor', recordId: r.id, personId: r.p ?? null,
       }));
     },
   });

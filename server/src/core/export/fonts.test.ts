@@ -14,12 +14,15 @@ const fontsHere = (() => { resetPdfFonts(); return pdfFonts(); })();
 const greekFont = fontsHere.find((f) => f.regular.has(0x3b1));
 
 describe('fonts for server-made PDFs', () => {
-  it('keeps Western European text in the standard font, so nothing is embedded', async () => {
+  it('prints Western European text in the application\'s own font, embedded as a subset (E41-13: PDF/UA)', async () => {
     expect(fontFor('Depot café – “north”', false).face).toBeNull();
     const pdf = new PdfBuilder({ title: 'Plain report', meta: ['Generated today'] });
     pdf.table([{ header: 'Name' }], [['Bus garage']]);
     const file = await pdf.finish();
-    expect(file.toString('latin1')).not.toContain('/FontFile2');
+    const raw = file.toString('latin1');
+    expect(raw).toContain('/FontFile2');
+    expect(raw).toMatch(/\/BaseFont \/[A-Z]{6}\+Arimo-Regular/);
+    expect(raw).not.toMatch(/\/BaseFont \/Helvetica/);
     expect(pdfText(file)).toContain('Bus garage');
   });
 
@@ -61,7 +64,7 @@ describe('fonts for server-made PDFs', () => {
     expect(raw).toContain('/FontFile2');
     // The subset carries a map back to the characters, so the text can be searched and copied.
     expect(raw).toContain('/ToUnicode');
-    // The Latin parts are still in Helvetica.
+    // The Latin parts are in the application's own font.
     expect(pdfText(file)).toContain('Generated today');
   });
 });

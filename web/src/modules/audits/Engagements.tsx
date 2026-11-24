@@ -1,6 +1,6 @@
 // Audit engagements: the list, and one audit with its scope, checklist, evidence requests,
 // findings, report and report approval.
-import { useState } from 'react';
+import { lazy, Suspense, useState, type ComponentType } from 'react';
 import { Link } from 'react-router-dom';
 import {
   api, Button, Card, EditableSummary, errorMessage, ErrorState, IconButton, Loading, PageHeader, RecordPage, ResourceList,
@@ -9,6 +9,12 @@ import {
 import type { RecordContext } from '../../core';
 import { AuditChecklist } from './Checklist';
 import { AuditTabs } from './shared';
+
+// Outside reviewers (E41-09) live in their own module; its tab shows only when the module is in the build.
+interface ReviewersPanelProps { basePath: string; recordId: string; noun: string; restricted?: boolean }
+const reviewerLoaders = import.meta.glob<{ ReviewersPanel: ComponentType<ReviewersPanelProps> }>('../outsidereviews/ReviewersPanel.tsx');
+const loadReviewers = Object.values(reviewerLoaders)[0];
+const OutsideReviewers = loadReviewers ? lazy(() => loadReviewers().then((m) => ({ default: m.ReviewersPanel }))) : null;
 
 const STEPS = [
   { key: 'planned', label: 'Planned' }, { key: 'fieldwork', label: 'Fieldwork' },
@@ -192,6 +198,12 @@ export function AuditDetail() {
         },
         { key: 'report', label: 'Report', content: (rec) => <Report {...rec} /> },
         { key: 'approval', label: 'Approval', content: (rec) => <Approval {...rec} /> },
+        ...(OutsideReviewers ? [{
+          key: 'reviewers', label: 'Outside reviewers',
+          content: ({ row }: RecordContext) => (
+            <Suspense fallback={<Loading lines={3} />}><OutsideReviewers basePath="/api/audits" recordId={row.id} noun="audit" restricted={row.restricted === true} /></Suspense>
+          ),
+        }] : []),
       ]}
     />
   );

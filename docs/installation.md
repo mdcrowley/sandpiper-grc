@@ -1,11 +1,13 @@
 # Installation
 
-Sandpiper GRC runs in a container, or from source on Windows, macOS or Linux. Pick one:
+Sandpiper GRC runs as a Windows service from an installer, in a container, or from source on
+Windows, macOS or Linux. Pick one:
 
 | Way | Best for | Needs |
 |---|---|---|
+| [Windows installer](#windows-installer) | The easiest way: a Windows server or PC, run as a service | Windows 10 or 11, or Windows Server 2016 or later, 64-bit; administrator rights |
 | [Docker](#quick-start-with-docker) | Trying it out, and servers | Docker with Compose |
-| [Windows](#windows) | One Windows machine, no administrator rights | Windows 10 or 11, 64-bit |
+| [Windows](#windows) (from source) | One Windows machine, no administrator rights | Windows 10 or 11, 64-bit |
 | [macOS](#macos) | One Mac | macOS 13.5 or later, Intel or Apple silicon |
 | [Linux](#linux) | A workstation or a server | x64 or arm64, glibc (not Alpine) |
 
@@ -17,6 +19,90 @@ read [Server installation](#server-installation) too.
 This is a **prototype**: read [Security](security.md) and [Known gaps](known-gaps.md) before
 holding real data in it. The running application makes no outbound connections until an
 administrator switches one on; internet access is needed during installation only.
+
+## Windows installer
+
+One file installs everything Sandpiper GRC needs, with no internet access: its own copy of
+Node.js, the server, the web application and the packages it uses. The server runs as a Windows
+service that starts at boot and restarts after a crash.
+
+1. Download `SandpiperGRC-Setup-<version>.exe` and `SHA256SUMS.txt` from the
+   [releases page](https://github.com/mdcrowley/sandpiper-grc/releases).
+2. **Check the download.** The installer is not code-signed (signing costs money), so Windows
+   SmartScreen says "Windows protected your PC" and names an unknown publisher. Before you go
+   past that, compare the file's checksum with the one the release lists:
+
+   ```powershell
+   Get-FileHash .\SandpiperGRC-Setup-0.3.0.exe -Algorithm SHA256   # must equal the line in SHA256SUMS.txt
+   ```
+
+   If they match, select **More info**, then **Run anyway**. If they do not, delete the file.
+3. Run it as an administrator and answer its pages:
+   - **Port** (default 8080).
+   - **Data folder** (default `C:\ProgramData\Sandpiper GRC`): the database, attached files,
+     backups, logs, settings and the secret key, kept apart from the program files in
+     `C:\Program Files\Sandpiper GRC`.
+   - **HTTPS certificate** (optional): a certificate and its private key as PEM files. Without
+     them the server listens on this computer only (`http://localhost:<port>`); with them it
+     listens on every address, over HTTPS. To serve a team without a certificate here, put a
+     [reverse proxy](#reverse-proxy) in front later.
+   - **Windows Firewall** (only with a certificate): open the port on domain and private
+     networks.
+   - **Shortcuts**: a "Sandpiper GRC" Start menu folder (on by default) and a desktop shortcut.
+4. The installer sets up the service, starts it, waits until `/api/ready` answers and offers to
+   open the browser. There you create the first administrator in the [setup wizard](#first-sign-in).
+   With the firewall opened, do that straight away: until then anyone who can reach the port could.
+
+**What it sets up.**
+
+| What | Where |
+|---|---|
+| Program files: `node\node.exe`, `app\` (server, web application, packages), `SandpiperService.exe`, `grc-windows.ps1`, `sandpiper.cmd` and `sandpiper.ps1` | `C:\Program Files\Sandpiper GRC` |
+| Data (`GRC_DATA_DIR`), backups (`GRC_BACKUP_DIR`), seed folder (`GRC_SEED_DIR`) | `data\`, `backups\`, `seed\` in the data folder |
+| Logs: `grc.log` (the server's own), `service.log` (the service and the server's console), `setup.log` (installs, upgrades, removals) | `logs\` in the data folder |
+| Settings, read by the service at every start | `config\grc.env` in the data folder (`KEY=VALUE` lines, the [environment variables](#environment-variables)) |
+| The secret key, 32 random bytes made at install time | `config\secret.key` in the data folder (`GRC_SECRET_KEY_FILE`) |
+| The service | `SandpiperGRC` ("Sandpiper GRC"), automatic start, restarted after a failure, running as its own virtual account `NT SERVICE\SandpiperGRC` |
+| Where the installation is recorded | `HKLM\SOFTWARE\Sandpiper GRC\SandpiperGRC` |
+
+The data folder does not inherit the permissions of `C:\ProgramData`: only SYSTEM and
+Administrators have access, and the service's virtual account may change `data`, `backups`,
+`logs` and `seed` and read `config`. The secret key file is readable by SYSTEM, Administrators
+and the service only. The service account has no password and no rights anywhere else; it can
+read a certificate and key you named, and the installer grants it exactly that. Where a domain policy sets "Log on as a service" without the virtual accounts (Windows allows them by default), the service runs as Network Service instead and keeps its own service identity, so the same folder permissions apply; `logs\setup.log` says so.
+
+**Silent installation**, from an administrator's command prompt:
+
+```powershell
+.\SandpiperGRC-Setup-0.3.0.exe /VERYSILENT /SUPPRESSMSGBOXES /LOG=setup-log.txt `
+  /PORT=8080 /DATADIR="D:\Sandpiper GRC" /TLSCERT=C:\certs\grc.pem /TLSKEY=C:\certs\grc-key.pem /FIREWALL=1
+```
+
+`/DIR=` changes the program folder and `/TASKS="startmenu,desktopicon"` the shortcuts. Exit
+code 0 means the service is running and ready; 11 that it was installed but did not become
+ready (see `logs\service.log`); 12 that an upgrade failed and was undone; 13 that undoing it did not
+finish.
+
+**Managing it.** The Start menu folder has **Open Sandpiper GRC**, **Server status**, **Start
+server**, **Stop server**, **Restart server**, **Back up now**, **Check for updates**, **Open
+logs folder** and **Uninstall Sandpiper GRC**. The same commands work in a command prompt as
+`"C:\Program Files\Sandpiper GRC\sandpiper.cmd" status` (and `start`, `stop`, `restart`,
+`backup`, `check-update`, `logs`, `open`); see [Operations](operations.md#windows-service-installed-by-the-installer).
+
+**Upgrading and removing.** Run a newer installer over the installed one: it backs up the data,
+replaces the program, updates the database and starts the service, and puts the previous
+version back by itself if anything fails. An older installer refuses to run over a newer
+version. Uninstalling (Settings > Apps, or the Start menu) removes the program and the service
+and keeps the data folder unless you check the box to delete it. Details:
+[Operations](operations.md#windows-service-installed-by-the-installer).
+
+The workflow "Windows installer" builds the installer on a clean Windows Server runner and, as an
+administrator there, installs it silently, signs in, backs up, upgrades to a newer build, refuses
+an older one, rolls back a broken upgrade and uninstalls; the same test passed on a Windows 11
+workstation. A real Windows Server restart and an install clicked through by a person are still to
+be done ([E42](roadmap/epics/E42-windows-installer.md)). Other
+platforms install [from source](#macos) or with [Docker](#quick-start-with-docker); installers
+for them may follow and would reuse the same pieces.
 
 ## Quick start with Docker
 
@@ -37,7 +123,7 @@ container are in [Docker](docker.md).
 
 ## Windows
 
-No administrator rights, no Docker and no database server. Everything goes through
+From source, for one machine: no administrator rights, no Docker and no database server. Everything goes through
 `grc.ps1` in Windows PowerShell 5.1 (included with Windows), and Node.js is a portable copy
 inside the repository folder.
 

@@ -14,7 +14,9 @@ The export holds every record that matches the search and filters (not just the 
 
 **Restricted records.** People without security access never receive restricted records in any export. When an export does contain restricted records, it says so: a "Restricted export by … at …" line under the table in Excel and CSV, and the same line at the top of every PDF page with a large faint "RESTRICTED" across it. Do not pass such a file to anyone who may not see those records.
 
-**Characters in PDFs.** Western European letters print with the standard PDF fonts. Other scripts (for example Greek, Cyrillic, Hebrew, Arabic or Chinese) print with a font the server finds on its machine, and right-to-left text is put in reading order. A character that no available font has prints as `?`; your administrator can name extra fonts (see [Operations](../operations.md#fonts-for-pdf-exports)). Excel and CSV always keep every character.
+**Accessible PDFs.** Every PDF is tagged for screen readers and meets the PDF/UA standard: see [Accessible PDFs](15-dashboards-and-reports.md#accessible-pdfs).
+
+**Characters in PDFs.** Western European letters print in the application's own font, embedded in the file. Other scripts (for example Greek, Cyrillic, Hebrew, Arabic or Chinese) print with a font the server finds on its machine, and right-to-left text is put in reading order. A character that no available font has prints as `?`; your administrator can name extra fonts (see [Operations](../operations.md#fonts-for-pdf-exports)). Excel and CSV always keep every character.
 
 ## A record as a PDF
 

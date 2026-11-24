@@ -113,6 +113,8 @@ export interface AckItem {
   requested_at: string;
   due_on: string;
   acknowledged_at: string | null;
+  /** The language the person read when they acknowledged (E41-07). */
+  acknowledged_language?: string | null;
   state: 'acknowledged' | 'overdue' | 'outstanding' | 'superseded';
   days_left: number;
 }
@@ -120,4 +122,8 @@ export interface AckItem {
 export interface AckDetail extends AckItem {
   change_summary: string | null;
   body_html: string;
+  /** The language of the text given: a translation's or the original's (E41-07). */
+  language?: string;
+  original_language?: string;
+  translations?: string[];
 }

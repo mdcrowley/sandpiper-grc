@@ -18,6 +18,7 @@ function GateEditor({ gate, workflows, onClose, onSaved }: { gate: GateDefinitio
   const [checklist, setChecklist] = useState(toLines(gate.checklist));
   const [documents, setDocuments] = useState(() => gate.required_documents.map((d) => ({ ...d })));
   const [wantsChange, setWantsChange] = useState(gate.wants_change);
+  const [requiresCertificate, setRequiresCertificate] = useState(gate.requires_certificate === true);
   const setDoc = (i: number, patch: Partial<{ name: string; required: boolean }>) =>
     setDocuments((list) => list.map((d, n) => (n === i ? { ...d, ...patch } : d)));
   const [approvers, setApprovers] = useState<Record<string, string>>(
@@ -25,7 +26,7 @@ function GateEditor({ gate, workflows, onClose, onSaved }: { gate: GateDefinitio
   );
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const snapshot = () => JSON.stringify({ workflowId, name, checklist, documents, wantsChange, approvers });
+  const snapshot = () => JSON.stringify({ workflowId, name, checklist, documents, wantsChange, requiresCertificate, approvers });
   const [start] = useState(snapshot);
   const dirty = snapshot() !== start;
 
@@ -40,6 +41,7 @@ function GateEditor({ gate, workflows, onClose, onSaved }: { gate: GateDefinitio
         checklist: fromLines(checklist),
         required_documents: documents.filter((d) => d.name.trim()),
         wants_change: wantsChange,
+        requires_certificate: requiresCertificate,
         approval_workflow_id: workflowId || null,
         approvers: Object.fromEntries(tiers.map((t) => [t.value, fromLines(approvers[t.value] ?? '')])),
       });
@@ -78,6 +80,12 @@ function GateEditor({ gate, workflows, onClose, onSaved }: { gate: GateDefinitio
           hint="Shows a place on the gate to link the change that carries it. Only where change records are in use."
           checked={wantsChange}
           onChange={setWantsChange}
+        />
+        <Switch
+          label="Require a certificate of readiness"
+          hint="A project that carries certifiable items passes this gate only while its safety and security certificate of readiness is in force. Projects without certifiable items are not affected. Applies at once to gates still open."
+          checked={requiresCertificate}
+          onChange={setRequiresCertificate}
         />
         <Select
           label="Approval workflow"
@@ -136,7 +144,10 @@ export function GateTemplates() {
                     {g.required_documents.length === 0 ? 'None' : `${g.required_documents.filter((d) => d.required).length} required`}
                     {g.required_documents.some((d) => !d.required) ? `, ${g.required_documents.filter((d) => !d.required).length} optional` : ''}
                   </td>
-                  <td>{workflowName(g.approval_workflow_id) ?? 'Recorded by hand'}</td>
+                  <td>
+                    {workflowName(g.approval_workflow_id) ?? 'Recorded by hand'}
+                    {g.requires_certificate && <div className="muted">Needs a certificate of readiness</div>}
+                  </td>
                   <td><Button size="sm" icon="edit" aria-label={`Edit ${g.name}`} onClick={() => setEditing(g)}>Edit</Button></td>
                 </tr>
               ))}

@@ -34,6 +34,10 @@ export const PAGE_AREA: Record<string, string> = {
   // Wave 13 guide pages (38 and 39), named ahead of the pages.
   'asset-tags': 'tags',
   'mobile-app': 'mobile',
+  // Wave 20 (E41-02).
+  'user-access-reviews': 'accessreviews',
+  // Wave 22 (E41-15).
+  'records-retention-schedule': 'recordsretention',
 };
 
 /** Whether a guide page's part of the application is on (pages of no particular part always are). */

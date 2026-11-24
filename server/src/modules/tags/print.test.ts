@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createSession, SESSION_COOKIE } from '../../core/auth.ts';
+import { checkPdfUa } from '../../core/export/pdfua.ts';
 import { pdfPageCount, pdfText } from '../../core/export/testing.ts';
 import { testApp } from '../../test/helpers.ts';
 
@@ -63,6 +64,9 @@ describe('printing', () => {
     const text = pdfText(res.body);
     expect(text).toContain('TA-118342');
     expect(text).toContain('TA-118374');
+    const ua = await checkPdfUa(res.body);
+    expect(ua.failures).toEqual([]);
+    expect(ua.figures[0]).toBe('Barcode for TA-118342');
     expect(text).toContain('Property of the operator');
     const ev = await lastAudit('tag.print');
     expect(ev?.summary).toBe('Printed 33 tags (TA-118342 to TA-118374), reprint, as PDF on "Letter sheet, 30 labels of 2 5/8 × 1 in (66.7 × 25.4 mm)"');
@@ -143,6 +147,10 @@ describe('printing', () => {
     expect(text).toContain('AL-000041'); // the sample at position 4
     expect(text).toContain('21'); // other positions numbered
     expect(text).toContain('100 mm');
+    // E41-13: tagged for PDF/UA; the sample label's code is a figure named by its value.
+    const ua = await checkPdfUa(test.body);
+    expect(ua.failures).toEqual([]);
+    expect(ua.figures).toEqual(['Two-dimensional code for AL-000041']);
     const preview = await t.api.post('/api/asset-tags/print/preview', { from: { kind: 'series', seriesId, count: 10 }, layoutId: 'roll-50.8x25.4', code: 'code128' });
     expect(preview.status).toBe(200);
     expect(preview.body).toMatchObject({ sample: 'AL-000041', error: null, perPage: 1, printLimit: 1000 });

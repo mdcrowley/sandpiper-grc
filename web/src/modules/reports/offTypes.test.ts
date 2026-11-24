@@ -12,6 +12,10 @@ describe('dashboards and switched-off areas', () => {
     expect(widgetOff(w('a', 'ticket'), off)).toBe(true);
     expect(widgetOff(w('b', 'risk'), off)).toBe(false);
     expect(widgetOff(w('c'), off)).toBe(false);
+    // A figure over time (E41-04) about a switched-off area is left out too.
+    const fig = (type: string) => ({ ...w('f'), kind: 'figure', config: { figureId: 'x', figureType: type } } as Widget);
+    expect(widgetOff(fig('ticket'), off)).toBe(true);
+    expect(widgetOff(fig('risk'), off)).toBe(false);
   });
   it('a dashboard is off only when every widget about records is', () => {
     expect(dashboardOff([w('a', 'ticket'), w('b', 'contract'), w('t')], off)).toBe(true);

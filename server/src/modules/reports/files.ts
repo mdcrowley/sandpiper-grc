@@ -96,16 +96,23 @@ function pdfSection(pdf: PdfBuilder, s: DocSection) {
     pdf.note('No records match.');
   } else {
     const kind = r.mode === 'groups' ? chartKind(s.chart ?? 'bar') : null;
-    if (kind) pdf.chart(kind, chartPoints(r), `${r.columns.find((c) => c.role === 'agg')?.label ?? 'Count'} by ${r.columns[0]?.label ?? ''}`.trim());
+    const label = `${r.columns.find((c) => c.role === 'agg')?.label ?? 'Count'} by ${r.columns[0]?.label ?? ''}`.trim();
+    if (kind === 'line' && r.pivot) {
+      // Over time with a second field (a figure broken down by level): one line per value.
+      const p = r.pivot;
+      pdf.trend(p.rows.map((row) => row.label), p.cols.map((c, j) => ({ name: c.label, values: p.cells.map((cells) => cells[j]?.v ?? null) })), `${label} and ${r.columns[1]?.label ?? ''}`.trim());
+    } else if (kind) pdf.chart(kind, chartPoints(r), label);
     if (r.pivot) {
       const p = r.pivot;
+      // No totals row where adding up makes no sense (a figure over time).
+      const totals = p.colTotals.some((v) => v !== null);
       pdf.table(
         [{ header: r.columns[0].label }, ...p.cols.map((c) => ({ header: c.label, align: 'right' as const })), { header: 'Total', align: 'right' }],
         [
           ...p.rows.map((row, i) => [row.label, ...p.cells[i].map((c) => (c ? fmt(c.v) : '')), fmt(p.rowTotals[i])]),
-          ['Total', ...p.colTotals.map(fmt), fmt(p.grand)],
+          ...(totals ? [['Total', ...p.colTotals.map(fmt), fmt(p.grand)]] : []),
         ],
-        { boldLast: true, boldFirstColumn: true },
+        { boldLast: totals, boldFirstColumn: true },
       );
     } else {
       pdf.table(r.columns.map((c) => ({ header: c.label, align: numeric(c) ? 'right' : 'left' })), r.rows.map((row) => r.columns.map((c) => cellText(c, row))));
@@ -137,7 +144,7 @@ export async function documentPdf(doc: DocInput, opts: { kind: 'report' | 'dashb
   let group: number | undefined;
   doc.sections.forEach((s, i) => {
     const newPage = i > 0 && (opts.kind === 'pack' || (opts.kind === 'dashboard' && s.group !== group && (heavy.has(s.group) || heavy.has(group))));
-    if (newPage) pdf.doc.addPage();
+    if (newPage) pdf.newPage();
     group = s.group;
     pdfSection(pdf, s);
   });
@@ -167,7 +174,7 @@ function sheetFor(s: DocSection, who: string, at: string): Sheet | null {
     return {
       name: s.title, preface, watermark: mark,
       columns: [{ header: r.columns[0].label, type: 'text' }, ...p.cols.map((c) => ({ header: c.label, type: 'number' as const })), { header: 'Total', type: 'number' }],
-      rows: [...p.rows.map((row, i) => [row.label, ...p.cells[i].map((c) => c?.v ?? null), p.rowTotals[i]]), ['Total', ...p.colTotals, p.grand]],
+      rows: [...p.rows.map((row, i) => [row.label, ...p.cells[i].map((c) => c?.v ?? null), p.rowTotals[i]]), ...(p.colTotals.some((v) => v !== null) ? [['Total', ...p.colTotals, p.grand]] : [])],
     };
   }
   return {

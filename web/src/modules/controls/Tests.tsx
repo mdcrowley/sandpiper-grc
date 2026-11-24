@@ -8,6 +8,7 @@ import {
 } from '../../core';
 import type { RecordContext } from '../../core';
 import { capsInBuild, ControlCaps, ControlsTabs } from './shared';
+import { TestSteps } from './Steps';
 
 // The statuses and results with a meaning (Administration > Lists can rename them, not change what they mean).
 const REVIEWED = 'reviewed';
@@ -185,6 +186,7 @@ export function TestDetail() {
         </div>
       )}
       tabs={[
+        { key: 'steps', label: 'Test steps', content: (rec) => <TestSteps {...rec} /> },
         { key: 'samples', label: 'Items sampled', content: (rec) => <Samples {...rec} /> },
         ...(caps ? [{ key: 'caps', label: 'Corrective action plans', content: ({ row }: RecordContext) => <ControlCaps sourceType="control_test" sourceId={row.id} source="control" /> }] : []),
       ]}

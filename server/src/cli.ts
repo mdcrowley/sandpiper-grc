@@ -3,7 +3,7 @@ import { rm } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import { buildApp, repoRoot } from './app.ts';
 import { acquireDataLock, DataLockError } from './core/datalock.ts';
-import { openDb } from './core/db.ts';
+import { databaseUrl, openDb } from './core/db.ts';
 import { AREAS, featureState } from './core/features.ts';
 import { applyOrganizationProfile } from './core/organization.ts';
 import { DEV_ORGANIZATION, readOrganizationProfile } from './core/profile.ts';
@@ -15,6 +15,7 @@ import {
 import { exportAll, exportToArchive, importStaged, readExportManifest, unpackExport } from './ops/export.ts';
 import { appVersion, formatBytes, serverPid, timestamp } from './ops/files.ts';
 import { migrationsOnDisk, readAppliedMigrations } from './ops/migrations.ts';
+import { archiveAsOwner } from './ops/audit-archive-owner.ts';
 import { asOwner, grantRuntimeRole, migrateAsOwner, migrateUrl, runtimeRole } from './ops/db-roles.ts';
 import { runAudit, SEVERITIES, type Severity } from './ops/dependency-audit.ts';
 import { followLog, formatLogLine, LEVELS, lastLines, logSettings } from './ops/logging.ts';
@@ -29,7 +30,8 @@ const USAGE = `Usage: cli.ts <command>
   seed [--profile pilot|dev]            load data
   migrate                               bring the database up to date (as the owner when GRC_DATABASE_MIGRATE_URL is set)
   grant-runtime-role                    give the server's own database account its privileges (PostgreSQL server, as the owner)
-  version                               the installed version and commit
+  audit-archive [--folder <dir>]        archive old audit events as the database owner (a least-privilege role cannot)
+  version                              the installed version and commit
   logs [--lines n] [--follow] [--level warn] [--json]   the end of the server log (data/logs/grc.log)
   audit-deps [--level high] [--all]     known vulnerabilities in the packages; fails only when a fix exists
   status [--json]                       version, server, data size, last backup, migrations
@@ -51,7 +53,7 @@ const [command, ...args] = process.argv.slice(2);
 const dataDir = process.env.GRC_DATA_DIR ?? resolve(repoRoot, 'data');
 const backupsDir = process.env.GRC_BACKUP_DIR ? resolve(process.env.GRC_BACKUP_DIR) : resolve(repoRoot, 'backups');
 
-const VALUE_FLAGS = ['profile', 'prune', 'label', 'out', 'key-file', 'passphrase-file', 'to', 'level', 'lines'];
+const VALUE_FLAGS = ['profile', 'prune', 'label', 'out', 'key-file', 'passphrase-file', 'to', 'level', 'lines', 'folder'];
 
 function flag(name: string, fallback: string): string {
   const i = args.indexOf(`--${name}`);
@@ -175,6 +177,26 @@ async function run(): Promise<number> {
       }
     });
     console.log(`Granted "${role}" read and write on ${result.tables} tables in schema ${result.schema} (no schema changes, no audit log changes).`);
+    return 0;
+  }
+
+  if (command === 'audit-archive') {
+    // E40-14: as the owner (GRC_DATABASE_MIGRATE_URL) when it is set. On a PostgreSQL server the
+    // application may keep running; the embedded database allows one process, so stop it first.
+    if (!databaseUrl()) requireStopped();
+    const result = await asOwner(async () => {
+      const db = await openDb(dataDir);
+      try {
+        return await archiveAsOwner(db, { dataDir, folder: flag('folder', '') || undefined, onProgress: (line) => console.log(line) });
+      } finally {
+        await db.close();
+      }
+    });
+    if (result.status === 'nothing') console.log(`No audit events older than ${result.cutoff?.slice(0, 10)}: nothing to archive.`);
+    else {
+      console.log(`Archived ${result.count} audit events to ${result.file} (SHA-256 ${result.sha256}) as "${result.account}", and removed them from the database.`);
+      if (result.more) console.log('  More remain: run the command again.');
+    }
     return 0;
   }
 

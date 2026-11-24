@@ -129,6 +129,10 @@ describe('where things open', () => {
     expect(workItemTarget('inspections', { ...item, type: 'inspection', id: 'i1' }, viewable)).toEqual({ app: '/fieldwork/inspection/i1' });
     expect(workItemTarget('condition', { ...item, type: 'asset', id: 'a1', label: 'Pump 2' }, viewable))
       .toEqual({ app: '/fieldwork/condition?type=asset&id=a1&label=Pump+2' });
+    // E41-03: due work of other kinds (a section per calendar source) opens the record, else the web page.
+    expect(workItemTarget('audits.requests', { ...item, type: 'ticket', id: 'r1' }, viewable)).toEqual({ app: '/record/ticket/r1' });
+    expect(workItemTarget('vendors.reassessments', { ...item, type: 'vendor', id: 'v1', route: '/vendors/v1?tab=lifecycle' }, viewable))
+      .toEqual({ web: '/vendors/v1?tab=lifecycle' });
     expect(searchTarget({ type: 'vendor', id: 'v1', route: '/vendors/v1' }, viewable)).toEqual({ web: '/vendors/v1' });
   });
 });

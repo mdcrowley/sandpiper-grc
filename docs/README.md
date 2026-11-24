@@ -4,6 +4,23 @@ Sandpiper GRC is a governance, risk and compliance application for transit organ
 (bus, rail and paratransit operators) and their IT, cybersecurity and safety teams. It is a
 prototype. Start with the [project README](../README.md) for a one-page introduction.
 
+New in wave 20: user access reviews (the accounts on each system matched to the staff roster, and
+owner review campaigns with removals tracked to done); a compliance calendar and one "My work" list
+of everything due across every area; board reporting with figures over time and accessible
+(PDF/UA-tagged) PDFs; and roles limited to departments or sites. On Windows, download
+`SandpiperGRC-Setup-<version>.exe` from the releases page
+([Installation, Windows installer](installation.md#windows-installer)).
+
+New in waves 21 and 22: confidential safety reporting; registers administrators define
+(lost property, keys issued, visitors); the portal, the acknowledgment kiosk and the mobile app's
+employee screens in English or Spanish, with translated policies; safety and security certification
+of capital projects; outside reviewers, who give an external auditor or a funder's reviewer
+time-limited access to one audit or funder review, and nothing else; vendor intake questionnaires
+that set a risk tier and the checks needed before a contract becomes active, and contractor
+performance measures with targets, periodic scores and trends; written test steps per control and
+coverage imported from a spreadsheet; call-tree messages with acknowledgment; a records retention
+schedule and destruction log; and search inside attached files, with previews of images and PDFs.
+
 ## For people who install and run it
 
 | Document | What it covers |
@@ -60,6 +77,9 @@ The user guide is in [`user/`](user/) and is also shown inside the application u
 37. [Records requests and privacy](user/37-records-requests-and-privacy.md)
 38. [Asset tags](user/38-asset-tags.md)
 39. [The mobile app](user/39-mobile-app.md)
+40. [User access reviews](user/40-user-access-reviews.md)
+41. [Registers](user/41-registers.md)
+42. [Records retention schedule](user/42-records-retention-schedule.md)
 
 ## For people who integrate with it
 

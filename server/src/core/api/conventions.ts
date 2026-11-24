@@ -49,7 +49,19 @@ interface Deps {
   res: ReturnType<typeof makeResources>;
   settings: ReturnType<typeof makeSettings>;
 }
-type Kind = 'list' | 'create' | 'get' | 'update' | 'delete';
+export type RecordRouteKind = 'list' | 'create' | 'get' | 'update' | 'delete';
+type Kind = RecordRouteKind;
+
+/**
+ * Record routes served through a route with a parameter (E41-06: registers an administrator defines,
+ * `/api/registers/:register`), whose record type the route pattern alone does not tell: the module
+ * names the type and the kind of route, so ETags, If-Match and Idempotency-Key apply as on generated routes.
+ */
+type RecordRouteResolver = (req: FastifyRequest) => { def: ResourceDef; kind: RecordRouteKind } | undefined;
+const resolvers = new WeakMap<FastifyInstance, RecordRouteResolver[]>();
+export function resolveRecordRoutes(app: FastifyInstance, fn: RecordRouteResolver): void {
+  resolvers.set(app, [...(resolvers.get(app) ?? []), fn]);
+}
 
 const here = dirname(fileURLToPath(import.meta.url));
 const stores = new WeakMap<FastifyInstance, Db>();
@@ -134,7 +146,13 @@ export function installConventions(app: FastifyInstance) {
         routes.set(`DELETE ${def.path}/:id`, { def, kind: 'delete' });
       }
     }
-    return routes.get(`${req.method} ${unversioned(req.routeOptions.url)}`);
+    const found = routes.get(`${req.method} ${unversioned(req.routeOptions.url)}`);
+    if (found) return found;
+    for (const fn of resolvers.get(app) ?? []) {
+      const r = fn(req);
+      if (r) return r;
+    }
+    return undefined;
   }
 
   app.addHook('preHandler', async (req: FastifyRequest, reply: FastifyReply) => {

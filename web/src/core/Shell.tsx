@@ -9,7 +9,7 @@ import { CommandPalette, type PaletteLink } from './CommandPalette';
 import { useFetch, useMediaQuery } from './hooks';
 import { Icon, type IconName } from './Icon';
 import { Logo, Wordmark } from './Logo';
-import { moduleOn, modules, navAllowed, NAV_GROUPS, preloadRoute, type NavGroup, type NavItem } from './module';
+import { moduleOn, modules, navAllowed, NAV_GROUPS, preloadRoute, type CreateItem, type NavGroup, type NavItem } from './module';
 import { FilterMenu } from './overlay';
 import { createEntries } from './createMenu';
 import { formatDate } from './format';
@@ -32,6 +32,11 @@ const hasNotifications = NotificationBell !== null && modules.some((m) => m.key 
 const hasHelp = modules.some((m) => m.key === 'help');
 // Calendar feeds (web/src/modules/feeds) are a page of the person's own, offered in the account menu while an administrator has them on.
 const hasFeeds = modules.some((m) => m.key === 'feeds');
+// Menu and Create entries made while the application runs (E41-06: each register an administrator
+// defines), from a module's NavExtras.ts. A fixed list of hooks, each called on every render.
+type NavExtras = { nav: NavItem[]; create: CreateItem[] };
+const navExtraHooks = Object.values(import.meta.glob<{ useNavExtras?: () => NavExtras }>('../modules/*/NavExtras.ts', { eager: true }))
+  .map((m) => m.useNavExtras).filter((f): f is () => NavExtras => typeof f === 'function');
 
 /** Start fetching a page's code when the pointer or focus reaches its link. */
 const preload = (path: string) => ({ onMouseEnter: () => preloadRoute(path), onFocus: () => preloadRoute(path) });
@@ -205,10 +210,14 @@ export function Shell({ children }: { children: ReactNode }) {
   // After a change of page, the focus goes to the new page's heading (screen reader run, E16-15).
   useRouteFocus(mainRef);
   const rail = !small && (medium || collapsed);
+  const extras = navExtraHooks.map((use) => use());
+  const extrasKey = JSON.stringify(extras);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const extra = useMemo(() => ({ nav: extras.flatMap((e) => e.nav), create: extras.flatMap((e) => e.create) }), [extrasKey]);
 
   const nav = useMemo<NavData & { pages: PaletteLink[] }>(() => {
     // Modules of a switched-off area (Administration > Features) contribute nothing.
-    const items = modules.filter((m) => moduleOn(m.key, areaOn)).flatMap((m) => m.nav ?? []).filter((item) => navAllowed(item, can));
+    const items = [...modules.filter((m) => moduleOn(m.key, areaOn)).flatMap((m) => m.nav ?? []), ...extra.nav].filter((item) => navAllowed(item, can));
     const groups = NAV_GROUPS
       .map((group) => ({ group, items: items.filter((i) => i.group === group).sort((a, b) => (a.order ?? 100) - (b.order ?? 100)) }))
       .filter((g) => g.items.length > 0);
@@ -217,15 +226,15 @@ export function Shell({ children }: { children: ReactNode }) {
       current: activePath(location.pathname, items),
       pages: groups.flatMap((g) => g.items.map((i) => ({ label: i.label, path: i.path, icon: i.icon, group: g.group }))),
     };
-  }, [can, areaOn, location.pathname]);
+  }, [can, areaOn, location.pathname, extra]);
 
   // The Create menu is grouped like the navigation, A to Z within a group, and every entry has an
   // icon: its own, or that of the navigation page it opens (E18-63).
   const createItems = useMemo(() => createEntries(
-    modules.filter((m) => moduleOn(m.key, areaOn)),
+    [...modules.filter((m) => moduleOn(m.key, areaOn)), extra],
     nav.groups.flatMap((g) => g.items),
     NAV_GROUPS,
-  ).filter((item) => can(item.permission)), [can, areaOn, nav.groups]);
+  ).filter((item) => can(item.permission)), [can, areaOn, nav.groups, extra]);
 
   const closedRef = useRef(closed);
   closedRef.current = closed;

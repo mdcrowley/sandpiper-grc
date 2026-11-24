@@ -236,3 +236,6 @@ button.prj-gate-btn:hover { background: var(--surface-hover); }
 .prj-figures tfoot th, .prj-figures tfoot td { background: var(--surface-2); border-top: 2px solid var(--border-strong); border-bottom: 0; font-weight: 700; color: var(--text); text-transform: none; letter-spacing: 0; font-size: var(--fs-md); }
 /* Scroll boxes contain their own screen-reader-only text, so it never widens the page. */
 .prj-scroll { position: relative; }
+
+/* E41-08: requirement titles wrap rather than cut off. */
+.prj-cert-req { min-width: 240px; font-weight: 600; white-space: normal; overflow-wrap: anywhere; }

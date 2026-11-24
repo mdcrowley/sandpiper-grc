@@ -1,37 +1,97 @@
-// Test helpers for exported files: the text and page count of a PDF made with the standard
-// fonts, and the parts of an XLSX package.
+// Test helpers for exported files: the text and page count of a PDF (standard fonts, or embedded
+// fonts read back through their ToUnicode maps), and the parts of an XLSX package.
 import { inflateSync } from 'node:zlib';
 import { strFromU8, unzipSync } from 'fflate';
 import type { ModuleDef } from '../module.ts';
 
-/** Every content stream of a PDF, inflated where compressed. */
-function streams(pdf: Buffer): string[] {
-  const out: string[] = [];
+interface PdfObject { dict: string; stream: string | null }
+
+/** Every numbered object of a PDF: its dictionary and its stream (inflated where compressed). */
+function objects(pdf: Buffer): Map<number, PdfObject> {
+  const out = new Map<number, PdfObject>();
   const text = pdf.toString('latin1');
-  const re = /stream\r?\n/g;
+  const re = /(\d+) 0 obj\b/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text))) {
     const start = m.index + m[0].length;
-    const end = text.indexOf('endstream', start);
+    const end = text.indexOf('endobj', start);
     if (end < 0) break;
-    const chunk = pdf.subarray(start, end);
-    try { out.push(inflateSync(chunk).toString('latin1')); } catch { out.push(chunk.toString('latin1')); }
-    re.lastIndex = end + 'endstream'.length;
+    const body = text.slice(start, end);
+    const s = /stream\r?\n/.exec(body);
+    let stream: string | null = null;
+    let dict = body;
+    if (s) {
+      dict = body.slice(0, s.index);
+      const from = start + s.index + s[0].length;
+      const to = text.indexOf('endstream', from);
+      const chunk = pdf.subarray(from, to);
+      try { stream = inflateSync(chunk).toString('latin1'); } catch { stream = chunk.toString('latin1'); }
+    }
+    out.set(Number(m[1]), { dict, stream });
+    re.lastIndex = end + 'endobj'.length;
   }
   return out;
 }
 
-/** The text drawn on the pages, one string per text-showing operation, in order. */
+/** A ToUnicode map as PDFKit writes it: ranges of codes, each with an array of UTF-16 strings. */
+function toUnicode(cmap: string): Map<number, string> {
+  const map = new Map<number, string>();
+  for (const r of cmap.matchAll(/<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]+)>\s*\[([^\]]*)\]/g)) {
+    let code = parseInt(r[1], 16);
+    // A ligature maps to several characters: "<0066 0069>".
+    for (const h of r[3].matchAll(/<([0-9a-fA-F\s]*)>/g)) {
+      const hex = h[1].replace(/\s+/g, '');
+      const units: number[] = [];
+      for (let i = 0; i + 4 <= hex.length; i += 4) units.push(parseInt(hex.slice(i, i + 4), 16));
+      map.set(code++, String.fromCharCode(...units));
+    }
+  }
+  // The other form, one destination for a whole range, on a line of its own.
+  for (const r of cmap.matchAll(/^<([0-9a-fA-F]+)>[ \t]*<([0-9a-fA-F]+)>[ \t]*<([0-9a-fA-F]+)>[ \t]*$/gm)) {
+    const [a, b, u] = [parseInt(r[1], 16), parseInt(r[2], 16), parseInt(r[3], 16)];
+    for (let c = a; c <= b; c++) map.set(c, String.fromCharCode(u + c - a));
+  }
+  return map;
+}
+
+/**
+ * The text drawn on the pages, one string per text-showing operation, in order. Text in an
+ * embedded font (the application's own font, E41-13) is read back through the font's ToUnicode
+ * map; text in a standard font is read as Windows-1252.
+ */
 export function pdfText(pdf: Buffer): string {
+  const objs = objects(pdf);
+  // PDFKit names fonts F1, F2... once per document.
+  const fonts = new Map<string, Map<number, string> | null>();
+  for (const o of objs.values()) {
+    const block = /\/Font\s*<<([^>]*)>>/.exec(o.dict);
+    if (!block) continue;
+    for (const f of block[1].matchAll(/\/([A-Za-z0-9_.-]+)\s+(\d+) 0 R/g)) {
+      if (fonts.has(f[1])) continue;
+      const ref = /\/ToUnicode\s+(\d+) 0 R/.exec(objs.get(Number(f[2]))?.dict ?? '');
+      const cmap = ref ? objs.get(Number(ref[1]))?.stream : null;
+      fonts.set(f[1], cmap ? toUnicode(cmap) : null);
+    }
+  }
   const parts: string[] = [];
-  for (const s of streams(pdf)) {
-    for (const m of s.matchAll(/\[([^\]]*)\]\s*TJ|<([0-9a-fA-F]*)>\s*Tj|\(((?:\\.|[^\\)])*)\)\s*Tj/g)) {
-      if (m[1] !== undefined) {
+  for (const o of objs.values()) {
+    const s = o.stream;
+    if (!s || /\/Length1|\/Subtype\s*\/(?:CIDFontType0C|OpenType|XML|Image)/.test(o.dict) || s.includes('begincmap')) continue;
+    let map: Map<number, string> | null = null;
+    const hex = (h: string) => {
+      if (!map) return Buffer.from(h, 'hex').toString('latin1');
+      let out = '';
+      for (let i = 0; i + 4 <= h.length; i += 4) out += map.get(parseInt(h.slice(i, i + 4), 16)) ?? '?';
+      return out;
+    };
+    for (const m of s.matchAll(/\/([A-Za-z0-9_.-]+)\s+[\d.]+\s+Tf|\[([^\]]*)\]\s*TJ|<([0-9a-fA-F]*)>\s*Tj|\(((?:\\.|[^\\)])*)\)\s*Tj/g)) {
+      if (m[1] !== undefined) map = fonts.get(m[1]) ?? null;
+      else if (m[2] !== undefined) {
         let line = '';
-        for (const h of m[1].matchAll(/<([0-9a-fA-F]*)>|\(((?:\\.|[^\\)])*)\)/g)) line += h[1] !== undefined ? Buffer.from(h[1], 'hex').toString('latin1') : h[2];
+        for (const h of m[2].matchAll(/<([0-9a-fA-F]*)>|\(((?:\\.|[^\\)])*)\)/g)) line += h[1] !== undefined ? hex(h[1]) : h[2];
         parts.push(line);
-      } else if (m[2] !== undefined) parts.push(Buffer.from(m[2], 'hex').toString('latin1'));
-      else parts.push(m[3]);
+      } else if (m[3] !== undefined) parts.push(hex(m[3]));
+      else parts.push(m[4]);
     }
   }
   return parts.join('\n');

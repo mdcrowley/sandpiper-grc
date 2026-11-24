@@ -11,7 +11,7 @@ import type { Queryable } from '../../core/db.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { readScanner } from './config.ts';
 import {
-  BLOCKED_EXTENSIONS, checkContent, contentDisposition, contentTypeFor, downloadContentType, extensionOf, sanitizeFileName,
+  BLOCKED_EXTENSIONS, checkContent, contentDisposition, contentTypeFor, downloadContentType, extensionOf, previewContentType, sanitizeFileName,
 } from './filetypes.ts';
 import type { ScanResult } from './scanner.ts';
 import { formatBytes, Meter, readSettings, TooLargeError } from './service.ts';
@@ -200,7 +200,12 @@ export async function sendStoredFile(
   ctx: ModuleContext, reply: FastifyReply, att: Row,
   problem: (code: 'file_missing' | 'integrity', message: string, reason: string) => Promise<never>,
   beforeSend?: () => Promise<void>,
+  opts: { inline?: boolean } = {},
 ): Promise<FastifyReply> {
+  // A preview (E41-16) is served in place only for the image and PDF types `previewKind` accepts,
+  // under their fixed type; everything else is refused before any byte is read.
+  const inlineType = opts.inline ? previewContentType(att.extension, att.content_type) : null;
+  if (opts.inline && !inlineType) return ctx.fail(415, 'no_preview', 'This kind of file cannot be shown in the browser. Download it instead.');
   let storage: FileStorage;
   try {
     storage = ctx.app.attachmentStores.forDriver(att.storage_driver);
@@ -218,9 +223,9 @@ export async function sendStoredFile(
     await problem('integrity', 'This file failed its integrity check and was not sent. Tell an administrator.', 'checksum mismatch');
   }
   await beforeSend?.();
-  reply.header('content-type', downloadContentType(att.content_type));
+  reply.header('content-type', inlineType ?? downloadContentType(att.content_type));
   reply.header('content-length', stat!.size);
-  reply.header('content-disposition', contentDisposition(att.file_name));
+  reply.header('content-disposition', contentDisposition(att.file_name, Boolean(inlineType)));
   reply.header('x-content-type-options', 'nosniff');
   reply.header('cache-control', 'private, no-store');
   return reply.send(await storage.get(att.storage_key));

@@ -6,7 +6,7 @@ import {
 } from '../../core';
 import type { Row } from '../../core';
 import { RosterAcks } from './RecordAcknowledgments';
-import { ACK_STATE, type AckRow, type AckTracking as Tracking, type PolicyVersion } from './shared';
+import { ACK_STATE, readIn, type AckRow, type AckTracking as Tracking, type PolicyVersion } from './shared';
 
 const FILTERS = [
   { value: 'outstanding', label: 'Outstanding (including overdue)' },
@@ -121,7 +121,7 @@ export function AckTracking({ row, versions }: { row: Row; versions: PolicyVersi
                         />
                       </td>
                       <td>{formatDate(r.due_on)}</td>
-                      <td>{r.acknowledged_at ? formatDateTime(r.acknowledged_at) : <span className="muted">—</span>}</td>
+                      <td>{r.acknowledged_at ? `${formatDateTime(r.acknowledged_at)}${readIn(r.language)}` : <span className="muted">—</span>}</td>
                       <td>{r.reminded_at ? `${formatDate(r.reminded_at)}${r.reminder_count > 1 ? ` (${r.reminder_count} sent)` : ''}` : <span className="muted">—</span>}</td>
                     </tr>
                   ))}

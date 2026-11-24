@@ -1,5 +1,6 @@
+import { localized } from '../i18n';
 // Text used by more than one screen.
-export const commonText = {
+export const commonText = localized('common', {
   loading: 'Loading',
   retry: 'Try again',
   /** A short relative time: "just now", "5 min ago", "3 h ago", or the date. */
@@ -13,4 +14,4 @@ export const commonText = {
     if (s < 7 * 86400) return `${Math.floor(s / 86400)} d ago`;
     return new Date(t).toISOString().slice(0, 10);
   },
-} as const;
+} as const);

@@ -2,10 +2,11 @@
 // and whatever else is waiting for me (approvals, policies, training, equipment).
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ErrorState, formatDate, Icon, Loading, relativeTime, useAuth, useFetch, type IconName } from '../../core';
+import { Icon, Loading, useAuth, useFetch, type IconName } from '../../core';
+import { useI18n } from '../../core/i18n';
 import { Approvals } from './Approvals';
 import { MySafetyReports } from './SafetyReport';
-import { ServiceBanner, Section, StatusPill, usePortal, usePortalTitle, useSuggestions, type CatalogItem, type PlainStatus } from './parts';
+import { PortalError, ServiceBanner, Section, StatusPill, usePortal, usePortalTitle, useServerText, useSuggestions, type CatalogItem, type PlainStatus } from './parts';
 
 const CAT_ICON: Record<string, IconName> = { people: 'users', access: 'key', equipment: 'box', software: 'file-text', vendors: 'building' };
 export const itemIcon = (item: CatalogItem): IconName => (item.type === 'incident' ? 'alert' : CAT_ICON[item.category ?? ''] ?? 'folder');
@@ -17,18 +18,19 @@ export interface RequestRow {
 
 function Search() {
   const navigate = useNavigate();
+  const { t } = useI18n();
   const [q, setQ] = useState('');
   const found = useSuggestions(q);
   return (
     <div className="pt-search" role="search">
-      <label htmlFor="pt-search-box" className="pt-search-label">What do you need help with?</label>
+      <label htmlFor="pt-search-box" className="pt-search-label">{t('portal.search.label')}</label>
       <div className="pt-search-box">
         <Icon name="search" size={22} />
         <input id="pt-search-box" type="search" value={q} onChange={(e) => setQ(e.target.value)} autoComplete="off"
-          placeholder="For example: tablet will not log in" aria-describedby="pt-search-hint"
+          placeholder={t('portal.search.placeholder')} aria-describedby="pt-search-hint"
           onKeyDown={(e) => { if (e.key === 'Enter' && found[0]) navigate(`/portal/knowledge/${found[0].id}`); }} />
       </div>
-      <p id="pt-search-hint" className="sr-only">Matching help articles appear below as you type.</p>
+      <p id="pt-search-hint" className="sr-only">{t('portal.search.hint')}</p>
       {q.trim().length >= 3 && (
         <div className="pt-search-results" aria-live="polite">
           {found.length ? (
@@ -42,9 +44,9 @@ function Search() {
                 </li>
               ))}
             </ul>
-          ) : <p className="muted pt-search-none">No help articles match yet. You can still report it or ask below.</p>}
+          ) : <p className="muted pt-search-none">{t('portal.search.none')}</p>}
           <Link className="pt-search-report" to={`/portal/report?what=${encodeURIComponent(q.trim())}`}>
-            <Icon name="alert" size={18} /> Report “{q.trim()}” as a problem
+            <Icon name="alert" size={18} /> {t('portal.search.report', { what: q.trim() })}
           </Link>
         </div>
       )}
@@ -72,6 +74,7 @@ export function CatalogTiles({ items }: { items: CatalogItem[] }) {
 }
 
 export function RequestList({ rows }: { rows: RequestRow[] }) {
+  const { t, ago } = useI18n();
   return (
     <ul className="pt-req-list">
       {rows.map((r) => (
@@ -79,7 +82,7 @@ export function RequestList({ rows }: { rows: RequestRow[] }) {
           <Link to={`/portal/requests/${r.id}`} className={`pt-req ${r.status.waiting_on_you ? 'pt-req-you' : ''}`}>
             <span className="pt-req-main">
               <span className="pt-req-title">{r.title}</span>
-              <span className="pt-req-meta muted">{r.ref} · updated {relativeTime(r.updated_at)}</span>
+              <span className="pt-req-meta muted">{t('portal.requests.updated', { ref: r.ref, when: ago(r.updated_at) })}</span>
             </span>
             <StatusPill status={r.status} />
           </Link>
@@ -90,25 +93,27 @@ export function RequestList({ rows }: { rows: RequestRow[] }) {
 }
 
 function MyRequestsCard() {
+  const { t } = useI18n();
   const { data, error, reload } = useFetch<{ rows: RequestRow[]; open: number; waiting_on_you: number; total: number }>('/api/portal/requests?state=open');
-  if (error) return <ErrorState error={error} onRetry={reload} />;
-  if (!data) return <Loading lines={3} label="Loading your requests" />;
+  if (error) return <PortalError error={error} onRetry={reload} />;
+  if (!data) return <Loading lines={3} label={t('portal.requests.loading')} />;
   return (
-    <Section id="pt-mine" title="My requests" action={<Link to="/portal/requests" className="pt-more">See all{data.total ? ` (${data.total})` : ''}</Link>}>
+    <Section id="pt-mine" title={t('portal.requests.title')} action={<Link to="/portal/requests" className="pt-more">{data.total ? t('portal.seeAllCount', { count: data.total }) : t('portal.seeAll')}</Link>}>
       {data.waiting_on_you > 0 && (
-        <p className="pt-callout"><Icon name="message" size={18} /> {data.waiting_on_you === 1 ? 'One request is' : `${data.waiting_on_you} requests are`} waiting for your reply.</p>
+        <p className="pt-callout"><Icon name="message" size={18} /> {t('portal.requests.waiting', { count: data.waiting_on_you })}</p>
       )}
-      {data.rows.length ? <RequestList rows={data.rows.slice(0, 5)} /> : <p className="muted pt-none">You have nothing open. Anything you report or ask for will show here.</p>}
+      {data.rows.length ? <RequestList rows={data.rows.slice(0, 5)} /> : <p className="muted pt-none">{t('portal.requests.noneOpenHome')}</p>}
     </Section>
   );
 }
 
 interface Ack { id: string; policy_title: string; policy_ref: string; due_on: string; state: string; days_left: number }
 function PoliciesCard() {
-  const { data, error } = useFetch<{ awaiting: Ack[] }>('/api/policies/acknowledgments/mine');
+  const { t, lang, date } = useI18n();
+  const { data, error } = useFetch<{ awaiting: Ack[] }>(`/api/policies/acknowledgments/mine?lang=${lang}`);
   if (error || !data) return null;
   return (
-    <Section id="pt-policies" title="Policies to acknowledge">
+    <Section id="pt-policies" title={t('portal.policies.title')}>
       {data.awaiting.length ? (
         <ul className="pt-mini-list">
           {data.awaiting.map((a) => (
@@ -116,49 +121,51 @@ function PoliciesCard() {
               <Link to={`/portal/policies/${a.id}`} className="pt-mini">
                 <Icon name="file-text" size={20} />
                 <span className="pt-mini-text"><strong>{a.policy_title}</strong>
-                  <span className={a.state === 'overdue' ? 'pt-overdue' : 'muted'}>{a.state === 'overdue' ? `Overdue since ${formatDate(a.due_on)}` : `Please read by ${formatDate(a.due_on)}`}</span>
+                  <span className={a.state === 'overdue' ? 'pt-overdue' : 'muted'}>{a.state === 'overdue' ? t('portal.policies.overdue', { date: date(a.due_on) }) : t('portal.policies.readBy', { date: date(a.due_on) })}</span>
                 </span>
                 <Icon name="chevron-right" size={18} />
               </Link>
             </li>
           ))}
         </ul>
-      ) : <p className="muted pt-none">You are up to date. Nothing to read and acknowledge.</p>}
+      ) : <p className="muted pt-none">{t('portal.policies.none')}</p>}
     </Section>
   );
 }
 
 interface Training { id: string; course_title: string; due_on: string | null; completed_on: string | null; status: string }
 function TrainingCard() {
+  const { t, date } = useI18n();
   const { data, error } = useFetch<{ rows: Training[] }>('/api/training/mine');
   if (error || !data) return null;
   const todo = data.rows.filter((r) => r.status === 'due' || r.status === 'overdue');
   const done = data.rows.filter((r) => r.status === 'complete').length;
   return (
-    <Section id="pt-training" title="My training">
+    <Section id="pt-training" title={t('portal.training.title')}>
       {todo.length ? (
         <ul className="pt-mini-list">
           {todo.map((r) => (
             <li key={r.id} className="pt-mini">
               <Icon name="graduation" size={20} />
               <span className="pt-mini-text"><strong>{r.course_title}</strong>
-                <span className={r.status === 'overdue' ? 'pt-overdue' : 'muted'}>{r.status === 'overdue' ? `Overdue since ${formatDate(r.due_on)}` : r.due_on ? `Due by ${formatDate(r.due_on)}` : 'To do'}</span>
+                <span className={r.status === 'overdue' ? 'pt-overdue' : 'muted'}>{r.status === 'overdue' ? t('portal.training.overdue', { date: date(r.due_on) }) : r.due_on ? t('portal.training.dueBy', { date: date(r.due_on) }) : t('portal.training.toDo')}</span>
               </span>
             </li>
           ))}
         </ul>
-      ) : <p className="muted pt-none">No training is due.</p>}
-      {done > 0 && <p className="muted pt-note">{done} course{done === 1 ? '' : 's'} completed.</p>}
+      ) : <p className="muted pt-none">{t('portal.training.none')}</p>}
+      {done > 0 && <p className="muted pt-note">{t('portal.training.completed', { count: done })}</p>}
     </Section>
   );
 }
 
 interface Asset { id: string; tag: string | null; name: string; asset_type_label: string | null; make: string | null; model: string | null; serial: string | null }
 function AssetsCard() {
+  const { t } = useI18n();
   const { data } = useFetch<{ available: boolean; rows: Asset[] }>('/api/portal/assets');
   if (!data?.available || !data.rows.length) return null;
   return (
-    <Section id="pt-assets" title="My equipment">
+    <Section id="pt-assets" title={t('portal.assets.title')}>
       <ul className="pt-mini-list">
         {data.rows.map((a) => (
           <li key={a.id} className="pt-mini">
@@ -166,7 +173,7 @@ function AssetsCard() {
             <span className="pt-mini-text"><strong>{a.name}</strong>
               <span className="muted">{[a.tag, a.asset_type_label, [a.make, a.model].filter(Boolean).join(' ')].filter(Boolean).join(' · ')}</span>
             </span>
-            <Link className="pt-link-btn" to={`/portal/report?what=${encodeURIComponent(`Problem with ${a.name}${a.tag ? ` (${a.tag})` : ''}`)}`}>Report a problem</Link>
+            <Link className="pt-link-btn" to={`/portal/report?what=${encodeURIComponent(t('portal.assets.problemWith', { name: `${a.name}${a.tag ? ` (${a.tag})` : ''}` }))}`}>{t('portal.assets.report')}</Link>
           </li>
         ))}
       </ul>
@@ -177,8 +184,10 @@ function AssetsCard() {
 export function PortalHome() {
   const config = usePortal();
   const { user } = useAuth();
+  const { t } = useI18n();
   const { data: items, error, reload } = useFetch<CatalogItem[]>('/api/portal/catalog');
-  usePortalTitle(config.title);
+  const text = useServerText();
+  usePortalTitle(text('portal.title', config.title));
   const first = (user?.displayName ?? '').split(/\s+/)[0];
   const shown = (items ?? []).slice(0, 6);
   // "Ask for something" leads to the catalog: not offered while nothing is in it (E18-64).
@@ -187,25 +196,25 @@ export function PortalHome() {
     <div className="pt-home">
       <ServiceBanner />
       <div className="pt-hero">
-        <h1>Hello{first ? `, ${first}` : ''}</h1>
-        {config.intro && <p className="pt-intro">{config.intro}</p>}
+        <h1>{first ? t('portal.home.helloName', { name: first }) : t('portal.home.hello')}</h1>
+        {config.intro && <p className="pt-intro">{text('portal.intro', config.intro)}</p>}
         <Search />
         {config.can_create && (
           <div className={`pt-actions${config.has.safety && offersItems ? ' pt-actions-3' : ''}`}>
             <Link to="/portal/report" className="pt-action pt-action-primary">
               <Icon name="alert" size={26} />
-              <span><strong>Report a problem</strong><span>Something is broken or not working</span></span>
+              <span><strong>{t('portal.home.report')}</strong><span>{t('portal.home.reportHint')}</span></span>
             </Link>
             {offersItems && (
               <Link to="/portal/catalog" className="pt-action">
                 <Icon name="plus" size={26} />
-                <span><strong>Ask for something</strong><span>Access, equipment, a new starter</span></span>
+                <span><strong>{t('portal.home.ask')}</strong><span>{t('portal.home.askHint')}</span></span>
               </Link>
             )}
             {config.has.safety && (
               <Link to="/portal/safety" className="pt-action pt-action-safety">
                 <Icon name="shield" size={26} />
-                <span><strong>Report a safety concern</strong><span>An accident, an injury or a near miss</span></span>
+                <span><strong>{t('portal.home.safety')}</strong><span>{t('portal.home.safetyHint')}</span></span>
               </Link>
             )}
           </div>
@@ -216,11 +225,11 @@ export function PortalHome() {
         <div className="pt-col-main">
           <MyRequestsCard />
           {config.can_create && (
-            <Section id="pt-cat" title="Popular requests" action={items && items.length > shown.length ? <Link to="/portal/catalog" className="pt-more">See all ({items.length})</Link> : undefined}>
-              {error ? <ErrorState error={error} onRetry={reload} />
-                : !items ? <Loading lines={3} label="Loading the catalog" />
+            <Section id="pt-cat" title={t('portal.home.popular')} action={items && items.length > shown.length ? <Link to="/portal/catalog" className="pt-more">{t('portal.seeAllCount', { count: items.length })}</Link> : undefined}>
+              {error ? <PortalError error={error} onRetry={reload} />
+                : !items ? <Loading lines={3} label={t('portal.catalog.loading')} />
                   : shown.length ? <CatalogTiles items={shown} />
-                    : <p className="muted pt-none">Nothing to ask for here yet. Use “Report a problem” and describe what you need.</p>}
+                    : <p className="muted pt-none">{t('portal.home.nothingOffered')}</p>}
             </Section>
           )}
         </div>

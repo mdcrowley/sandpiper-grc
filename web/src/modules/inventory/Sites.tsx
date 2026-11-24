@@ -9,9 +9,9 @@ export function SiteList() {
     <ResourceList
       type="site"
       title="Sites"
-      columns={['name', 'address', 'function', 'third_parties', { field: 'network_links', hidden: true }, { field: 'power_protection', hidden: true }, { field: 'physical_security', hidden: true }, { field: 'updated_at', hidden: true }]}
+      columns={['name', 'address', 'function', 'third_parties', { field: 'parent_id', hidden: true }, { field: 'manager_id', hidden: true }, { field: 'network_links', hidden: true }, { field: 'power_protection', hidden: true }, { field: 'physical_security', hidden: true }, { field: 'updated_at', hidden: true }]}
       filters={[]}
-      createFields={['name', 'address', 'function', 'power_protection', 'physical_security', 'third_parties', 'network_links']}
+      createFields={['name', 'address', 'parent_id', 'manager_id', 'function', 'power_protection', 'physical_security', 'third_parties', 'network_links']}
       actions={<ListExtensionActions recordType="site" />}
       bulkActions={bulkActions}
     />
@@ -62,7 +62,7 @@ export function SiteDetail() {
         <>
           <EditableSummary
             type="site" row={row} onSaved={reload}
-            fields={['name', 'address', 'function', 'technology', 'power_protection', 'physical_security', 'protection_notes', 'third_parties', 'network_links', 'to_confirm', 'notes']}
+            fields={['name', 'address', 'parent_id', 'manager_id', 'function', 'technology', 'power_protection', 'physical_security', 'protection_notes', 'third_parties', 'network_links', 'to_confirm', 'notes']}
             sections={[
               { title: 'The site', fields: ['name', 'address', 'function', 'technology'] },
               { title: 'Protection', description: 'What keeps the site running and secure.', fields: ['power_protection', 'physical_security', 'protection_notes'] },

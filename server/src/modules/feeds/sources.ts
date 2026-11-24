@@ -7,7 +7,7 @@
 // Modules added in wave 11 (continuity, records, vendor lifecycle, condition) define their own sources
 // in their `register`.
 import type { FastifyInstance } from 'fastify';
-import { defineCalendarSource, type CalendarEvent } from '../../core/calendar.ts';
+import { defineCalendarSource, whoFor, type CalendarEvent, type CalendarScope } from '../../core/calendar.ts';
 import type { ModuleContext, Row, SessionUser } from '../../core/module.ts';
 
 const day = (v: unknown) => (v instanceof Date ? v.toISOString() : String(v ?? '')).slice(0, 10);
@@ -20,6 +20,15 @@ interface Spec {
   label: string;
   type: string;
   permission: string;
+  /** In My work (E41-03). */
+  work?: boolean;
+  /** Short name of the kind of item (E41-03). */
+  kind?: string;
+  /**
+   * Answers for another person or everyone (E41-03): $1 is then that user's id, or null for everyone,
+   * and the query matches `($1::uuid is null or <person column> = $1)` and returns the person as `p`.
+   */
+  anyone?: boolean;
   /** Rows of the type (alias t) the person is involved in, in the window ($1 user, $2 from, $3 to). */
   query(ctx: ModuleContext, user: SessionUser, visible: string): Promise<{ sql: string; extra?: unknown[] }>;
   /** Event title from a row (`title`, `ref`, `d` and maybe `e`). */
@@ -31,12 +40,13 @@ interface Spec {
 }
 
 /** Builds a source's events: guards, runs the query, shapes the rows. */
-async function eventsOf(spec: Spec, ctx: ModuleContext, user: SessionUser, from: string, to: string): Promise<CalendarEvent[]> {
+async function eventsOf(spec: Spec, ctx: ModuleContext, user: SessionUser, from: string, to: string, scope?: CalendarScope): Promise<CalendarEvent[]> {
   const def = ctx.resources.get(spec.type);
   if (!def) return [];
   const visible = ctx.resources.visibleWhere(spec.type, user, 't');
   const { sql, extra = [] } = await spec.query(ctx, user, visible);
-  const rows = await ctx.db.query<Row>(`${sql} limit ${MAX}`, [user.id, from, to, ...extra]);
+  const who = spec.anyone ? whoFor(user, scope) : user.id;
+  const rows = await ctx.db.query<Row>(`${sql} limit ${MAX}`, [who, from, to, ...extra]);
   return rows.map((r) => {
     const recordType = (r.record_type as string | undefined) ?? spec.type;
     const route = ctx.resources.get(recordType)?.route ?? def.route;
@@ -46,7 +56,7 @@ async function eventsOf(spec: Spec, ctx: ModuleContext, user: SessionUser, from:
       : (r.e ? day(r.e) : undefined);
     return {
       uid: `${spec.key}:${recordType}:${r.id}`, title: spec.title(r), start, end, allDay: !spec.timed,
-      url: `${route}/${r.id}`, recordType, recordId: r.id,
+      url: `${route}/${r.id}`, recordType, recordId: r.id, ref: r.ref ?? null, personId: r.p ?? (spec.anyone ? null : user.id),
     };
   });
 }
@@ -61,11 +71,11 @@ const hasPeople = (ctx: ModuleContext) => Boolean(ctx.resources.get('person'));
 
 export const SOURCE_SPECS: Spec[] = [
   {
-    key: 'actions.due', label: 'My actions due', type: 'action', permission: 'actions.view',
+    key: 'actions.due', label: 'My actions due', type: 'action', permission: 'actions.view', work: true, anyone: true, kind: 'Actions',
     async query(ctx, _u, visible) {
       return {
-        sql: `select t.id, t.ref, t.title, t.due_on as d from actions t
-              where t.deleted_at is null and ${visible} and t.owner_id = $1 and t.due_on between $2::date and $3::date
+        sql: `select t.id, t.ref, t.title, t.due_on as d, t.owner_id as p from actions t
+              where t.deleted_at is null and ${visible} and ($1::uuid is null or t.owner_id = $1) and t.due_on between $2::date and $3::date
                 and coalesce(t.status, '') <> all($4::text[]) order by t.due_on, t.id`,
         extra: [await closedActionStatuses(ctx)],
       };
@@ -73,51 +83,51 @@ export const SOURCE_SPECS: Spec[] = [
     title: (r) => `Action due: ${named(r)}`,
   },
   {
-    key: 'risks.review', label: 'Reviews of risks I own', type: 'risk', permission: 'risks.view',
+    key: 'risks.review', label: 'Reviews of risks I own', type: 'risk', permission: 'risks.view', work: true, anyone: true, kind: 'Risk reviews',
     async query(_ctx, _u, visible) {
       return {
-        sql: `select t.id, t.ref, t.title, t.review_on as d from risks t
-              where t.deleted_at is null and ${visible} and t.owner_id = $1 and t.review_on between $2::date and $3::date
+        sql: `select t.id, t.ref, t.title, t.review_on as d, t.owner_id as p from risks t
+              where t.deleted_at is null and ${visible} and ($1::uuid is null or t.owner_id = $1) and t.review_on between $2::date and $3::date
                 and coalesce(t.status, '') <> 'closed' order by t.review_on, t.id`,
       };
     },
     title: (r) => `Risk review: ${named(r)}`,
   },
   {
-    key: 'obligations.due', label: 'Obligations I own coming due', type: 'obligation', permission: 'obligations.view',
+    key: 'obligations.due', label: 'Obligations I own coming due', type: 'obligation', permission: 'obligations.view', work: true, anyone: true, kind: 'Obligations due',
     async query(_ctx, _u, visible) {
       return {
-        sql: `select t.id, t.ref, t.title, t.next_due_on as d from obligations t
-              where t.deleted_at is null and ${visible} and t.owner_id = $1 and t.next_due_on between $2::date and $3::date
+        sql: `select t.id, t.ref, t.title, t.next_due_on as d, t.owner_id as p from obligations t
+              where t.deleted_at is null and ${visible} and ($1::uuid is null or t.owner_id = $1) and t.next_due_on between $2::date and $3::date
               order by t.next_due_on, t.id`,
       };
     },
     title: (r) => `Obligation due: ${named(r)}`,
   },
   {
-    key: 'policies.review', label: 'Reviews of policies I own', type: 'policy', permission: 'policies.view',
+    key: 'policies.review', label: 'Reviews of policies I own', type: 'policy', permission: 'policies.view', work: true, anyone: true, kind: 'Policy reviews',
     async query(_ctx, _u, visible) {
       return {
-        sql: `select t.id, t.ref, t.title, t.review_date as d from policies t
-              where t.deleted_at is null and ${visible} and t.owner_id = $1 and t.review_date between $2::date and $3::date
+        sql: `select t.id, t.ref, t.title, t.review_date as d, t.owner_id as p from policies t
+              where t.deleted_at is null and ${visible} and ($1::uuid is null or t.owner_id = $1) and t.review_date between $2::date and $3::date
                 and t.status <> 'retired' order by t.review_date, t.id`,
       };
     },
     title: (r) => `Policy review: ${named(r)}`,
   },
   {
-    key: 'exercises.date', label: 'Exercises I own', type: 'exercise', permission: 'exercises.view',
+    key: 'exercises.date', label: 'Exercises I own', type: 'exercise', permission: 'exercises.view', anyone: true, kind: 'Exercises',
     async query(_ctx, _u, visible) {
       return {
-        sql: `select t.id, t.ref, t.title, t.exercise_date as d from exercises t
-              where t.deleted_at is null and ${visible} and t.owner_id = $1 and t.exercise_date between $2::date and $3::date
+        sql: `select t.id, t.ref, t.title, t.exercise_date as d, t.owner_id as p from exercises t
+              where t.deleted_at is null and ${visible} and ($1::uuid is null or t.owner_id = $1) and t.exercise_date between $2::date and $3::date
                 and coalesce(t.status, '') not in ('cancelled', 'canceled') order by t.exercise_date, t.id`,
       };
     },
     title: (r) => `Exercise: ${named(r)}`,
   },
   {
-    key: 'changes.window', label: 'Changes I own, work on or approve', type: 'change', permission: 'changes.view',
+    key: 'changes.window', label: 'Changes I own, work on or approve', type: 'change', permission: 'changes.view', kind: 'Changes',
     timed: true,
     async query(_ctx, _u, visible) {
       // The change window overlaps the feed's window; approvers are those named when it was submitted.
@@ -133,7 +143,7 @@ export const SOURCE_SPECS: Spec[] = [
     title: (r) => `Change: ${named(r)}`,
   },
   {
-    key: 'governance.meetings', label: 'Meetings of committees I sit on', type: 'meeting', permission: 'governance.view',
+    key: 'governance.meetings', label: 'Meetings of committees I sit on', type: 'meeting', permission: 'governance.view', kind: 'Meetings',
     timed: true, minutes: 60,
     async query(ctx, _u, visible) {
       const viaPerson = hasPeople(ctx)
@@ -152,30 +162,30 @@ export const SOURCE_SPECS: Spec[] = [
     title: (r) => `Meeting: ${named(r)}`,
   },
   {
-    key: 'audits.inspections', label: 'Inspections assigned to me', type: 'inspection', permission: 'audits.view',
+    key: 'audits.inspections', label: 'Inspections assigned to me', type: 'inspection', permission: 'audits.view', work: true, anyone: true, kind: 'Inspections',
     async query(_ctx, _u, visible) {
       return {
-        sql: `select t.id, t.ref, coalesce(t.title, t.target_label) as title, t.due_on as d from inspections t
-              where t.deleted_at is null and ${visible} and t.inspector_id = $1 and t.due_on between $2::date and $3::date
+        sql: `select t.id, t.ref, coalesce(t.title, t.target_label) as title, t.due_on as d, t.inspector_id as p from inspections t
+              where t.deleted_at is null and ${visible} and ($1::uuid is null or t.inspector_id = $1) and t.due_on between $2::date and $3::date
                 and coalesce(t.status, '') not in ('complete', 'missed') order by t.due_on, t.id`,
       };
     },
     title: (r) => `Inspection due: ${named(r)}`,
   },
   {
-    key: 'controls.tests', label: 'Tests of controls I own or operate', type: 'control', permission: 'controls.view',
+    key: 'controls.tests', label: 'Tests of controls I own or operate', type: 'control', permission: 'controls.view', work: true, anyone: true, kind: 'Control tests',
     async query(ctx, user, visible) {
       // A control's next test, plus planned tests where I am the tester (when they are visible to me).
       const tests = ctx.resources.get('control_test')
         ? `union all
-           select x.id, x.ref, x.title, x.planned_on as d, 'control_test' as record_type from control_tests x
-           where x.deleted_at is null and ${ctx.resources.visibleWhere('control_test', user, 'x')} and x.tester_id = $1
+           select x.id, x.ref, x.title, x.planned_on as d, 'control_test' as record_type, x.tester_id as p from control_tests x
+           where x.deleted_at is null and ${ctx.resources.visibleWhere('control_test', user, 'x')} and ($1::uuid is null or x.tester_id = $1)
              and x.performed_on is null and x.planned_on between $2::date and $3::date`
         : '';
       return {
         sql: `select * from (
-                select t.id, t.ref, t.title, t.next_test_due as d, 'control' as record_type from controls t
-                where t.deleted_at is null and ${visible} and (t.owner_id = $1 or t.operator_id = $1)
+                select t.id, t.ref, t.title, t.next_test_due as d, 'control' as record_type, coalesce(t.operator_id, t.owner_id) as p from controls t
+                where t.deleted_at is null and ${visible} and ($1::uuid is null or t.owner_id = $1 or t.operator_id = $1)
                   and t.next_test_due between $2::date and $3::date and coalesce(t.status, '') <> 'retired'
                 ${tests}) u order by d, id`,
       };
@@ -189,7 +199,8 @@ export function defineFeedSources(app: FastifyInstance): void {
   for (const spec of SOURCE_SPECS) {
     defineCalendarSource(app, {
       key: spec.key, label: spec.label, recordType: spec.type, permission: spec.permission,
-      events: (ctx, user, from, to) => eventsOf(spec, ctx, user, from, to),
+      work: spec.work, anyone: spec.anyone, kind: spec.kind,
+      events: (ctx, user, from, to, scope) => eventsOf(spec, ctx, user, from, to, scope),
     });
   }
 }

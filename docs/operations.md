@@ -8,7 +8,7 @@ start](#the-server-will-not-start). On Windows everything goes through `grc.ps1`
 repository root in Windows PowerShell; on macOS and Linux through `grc.sh`, which has the
 same commands ([below](#macos-and-linux-grcsh)); in a container through `docker compose`
 and the image's `grc` command ([Docker](#docker)). The examples in this runbook use
-`grc.ps1`. For first-time installation see [Installation](installation.md).
+`grc.ps1`. For first-time installation see [Installation](installation.md); a server installed with the\nWindows installer is managed as described in [Windows service](#windows-service-installed-by-the-installer).
 
 ## Commands
 
@@ -42,6 +42,7 @@ and the image's `grc` command ([Docker](#docker)). The examples in this runbook 
 | `.\grc.ps1 typecheck` | Type-checks the server and the web application |
 | `.\grc.ps1 ci` | Local continuous integration: typecheck, tests, tests with the clock on UTC, web build and the dependency audit, with a pass or fail summary. Run it before every commit and push |
 | `.\grc.ps1 audit-deps [-Level high]` | Known vulnerabilities in the production packages (`npm audit`); fails only when a fixed version exists. See [Dependency vulnerabilities](#dependency-vulnerabilities) |
+| `.\grc.ps1 audit-archive [-Folder <dir>]` | Runs the audit archive as the database owner, for an installation whose server uses a least-privilege database role (`npm run cli -- audit-archive [--folder <dir>]`). See [Audit log archive](#audit-log-archive) |
 | `.\grc.ps1 npm <args>` | Runs any npm command with the portable Node.js, for example `.\grc.ps1 npm install` |
 | `.\grc.ps1` or `.\grc.ps1 help` | Prints the list of commands |
 
@@ -70,6 +71,7 @@ otherwise the `node` on `PATH`, and refuses a major version other than the one i
 | `.\grc.ps1 install` | `./grc.sh install` (also fetches Node.js when no suitable one is found) |
 | `.\grc.ps1 start`, `stop`, `restart`, `health`, `status` | `./grc.sh start`, `stop`, `restart`, `health`, `status` |
 | `.\grc.ps1 logs -Lines 100 -Follow -Level warn`, `version`, `audit-deps` | `./grc.sh logs --lines 100 --follow --level warn`, `version`, `audit-deps` |
+| `.\grc.ps1 audit-archive -Folder <dir>` | `./grc.sh audit-archive --folder <dir>` |
 | (a Windows service is not provided) | `./grc.sh service install`, `remove`, `status`, `print`: run the server as a systemd (Linux) or launchd (macOS) user service ([Running as a service](#running-as-a-service-on-linux-and-macos)) |
 | `.\grc.ps1 seed -Profile dev` | `./grc.sh seed --profile dev` |
 | `.\grc.ps1 backup -Prune 14 -Encrypt -KeyFile <file>` | `./grc.sh backup --prune 14 --encrypt --key-file <file>` |
@@ -385,8 +387,25 @@ your long-term records: once removed here they are in no backup taken afterward.
 any tool, for example `gzip -dc audit-archive-20300101-030000.jsonl.gz | head`.
 
 With a [least-privilege database role](installation.md#a-least-privilege-database-role) the
-server's account may not delete audit events at all, so the archive cannot run: the page says
-so and the administrators are told once. Archiving under the owner account is not built.
+server's account may not delete audit events at all, so the server does not archive by itself
+(E40-14). Switch the archive on and choose the age and folder on the page as usual, then run the
+archive **as the database owner** from a scheduled task, for example once a week:
+
+```sh
+# GRC_DATABASE_URL and GRC_DATABASE_MIGRATE_URL (with GRC_DATABASE_MIGRATE_PASSWORD_FILE) as for the server
+npm run cli -- audit-archive                                   # grc audit-archive in the container
+npm run cli -- audit-archive --folder /srv/archive/sandpiper   # another folder for this run
+```
+
+It connects as the owner (`GRC_DATABASE_MIGRATE_URL`), uses the settings chosen on the page, and
+does exactly what the daily job does: write, read back and check, then remove those events, recorded
+as `audit.archive` with "... removed by the owner command (database account grc_owner)". The server
+may keep running (on the embedded database, stop it first). The command changes nothing else: no
+schema, no grants. Meanwhile the daily job only watches: the page shows the command, and the
+administrators are told once if events more than 31 days past the chosen age are still in the
+database (the owner's runs have stopped). Tried on PostgreSQL 17: run as `grc_app`, the archive was
+refused ("may not remove audit events"); run as the owner, with the server running, it archived and
+removed the old events.
 
 The Audit page itself no longer counts the whole log on every page: it counts at most
 10,000 matching events and then says "More than 10,000 events", paging on with **Older**.
@@ -437,8 +456,8 @@ one JSON object per line, so it can be searched or sent to a log collector.
 
 ## Fonts for PDF exports
 
-PDF exports and fact sheets print Western European text with the standard PDF fonts. For
-anything else (Greek, Cyrillic, Hebrew, Arabic, Chinese, Japanese, Korean, Indic scripts,
+PDF exports and fact sheets always print Western European text in the bundled Arimo font
+(`server/src/core/export/fonts`), embedded as a subset. For anything else (Greek, Cyrillic, Hebrew, Arabic, Chinese, Japanese, Korean, Indic scripts,
 symbols) the server embeds a font the machine already has, only the characters used. When
 `GRC_PDF_FONTS` is not set it looks for well-known system fonts: Noto and DejaVu (Linux),
 Arial Unicode (macOS), and Segoe UI, Arial, Microsoft YaHei, Yu Gothic, Malgun Gothic and
@@ -448,8 +467,8 @@ Nirmala UI (Windows). The container image installs Noto (`fonts-noto-core` and
 `GRC_PDF_FONTS` names the font files to use instead, in order of preference, separated by
 `;` on Windows and `:` elsewhere. A collection (`.ttc`) picks one font with `#` and its
 PostScript name, for example `/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc#NotoSansCJKjp-Regular`.
-`GRC_PDF_FONTS=none` switches embedding off (characters outside Western European are then
-left out). A file that cannot be read is skipped with a warning in the log.
+`GRC_PDF_FONTS=none` switches off machine fonts only (characters outside Western European are
+then left out; Arimo is still embedded). A file that cannot be read is skipped with a warning in the log.
 
 Text that mixes scripts is printed piece by piece, each piece in the first listed font that
 has it, so it helps to list one broad font first and fonts for particular scripts (Chinese,
@@ -457,6 +476,152 @@ Japanese, Korean, Arabic, Hebrew, Indic) after it. Right-to-left text is put in 
 order by the server itself (the essentials of the Unicode bidirectional algorithm, in
 `server/src/core/export/fonts.ts`); no extra package or setting is needed.
 
+## Windows service (installed by the installer)
+
+The [Windows installer](installation.md#windows-installer) runs the server as the service
+`SandpiperGRC` ("Sandpiper GRC"). This section is the runbook for it; everything else in this
+guide (backups, restore, logs, the recovery runbook) applies too, with the paths below.
+
+| What | Where |
+|---|---|
+| Program files | `C:\Program Files\Sandpiper GRC` (`node\`, `app\`, `SandpiperService.exe`, `grc-windows.ps1`, `sandpiper.cmd`, `sandpiper.ps1`) |
+| Data folder | `C:\ProgramData\Sandpiper GRC` unless chosen otherwise: `data\`, `backups\`, `logs\`, `seed\`, `config\`, `upgrade\` |
+| Settings | `config\grc.env` in the data folder: `KEY=VALUE` lines read at every start of the service |
+| Secret key | `config\secret.key` in the data folder. Keep a copy somewhere safe, apart from the backups |
+| Logs | `logs\grc.log` (the server), `logs\service.log` (the service host and the server's console, rotated at 10 MB, three kept), `logs\setup.log` (every install, upgrade, rollback and removal) |
+
+**The service.** `SandpiperService.exe` is a small service host (its source is
+`deploy\windows\SandpiperService.cs`, compiled when the installer is built with the C# compiler
+that is part of Windows' .NET Framework 4). It starts `node.exe` with the settings in `grc.env`,
+starts it again if it stops by itself (after 5 seconds, doubling to a minute while it keeps
+failing), and stops it cleanly: it creates `data\grc.stop`, which makes the server finish its
+requests, wait for a running backup and close the database, and only after 40 seconds ends it
+by force. The server cannot outlive the host. The service starts at boot, and Windows restarts the
+host after a failure (5 seconds, 10 seconds, then a minute; the count resets after a day). It
+runs as its own virtual account, `NT SERVICE\SandpiperGRC`: no password to manage, no rights
+outside the folders the installer granted. Where a domain policy sets "Log on as a service" and leaves virtual
+accounts out, the installer runs it as Network Service instead (the service keeps its own service
+identity, so the folder permissions given to `NT SERVICE\SandpiperGRC` still apply); `setup.log`
+says when that happened. `Get-CimInstance Win32_Service -Filter "Name='SandpiperGRC'"` shows the
+account in use.
+
+**Managing it.** The Start menu folder "Sandpiper GRC" holds shortcuts that run
+`sandpiper.cmd` in an ordinary console window, which waits for Enter before it closes. From a
+command prompt:
+
+```powershell
+cd "C:\Program Files\Sandpiper GRC"
+.\sandpiper.cmd status         # the service's state and the answer of /api/ready
+.\sandpiper.cmd start          # start, stop and restart ask for administrator rights (UAC) when needed
+.\sandpiper.cmd stop
+.\sandpiper.cmd restart
+.\sandpiper.cmd backup         # stops the service, takes a verified backup into backups\, starts it again
+.\sandpiper.cmd check-update   # installed version and newest release; offers to open the download page
+.\sandpiper.cmd logs           # opens the logs folder
+.\sandpiper.cmd open           # opens the application in the browser
+```
+
+`sandpiper.cmd` runs `sandpiper.ps1` with `-ExecutionPolicy Bypass -File`; start, stop, restart
+and backup are done by `grc-windows.ps1`, in a second, visible window after the Windows prompt
+when the first lacks administrator rights. Nothing runs hidden, at sign-in or on a schedule, and
+`check-update` only reads the public release list: it never downloads or runs anything.
+Windows' own tools work too: `Get-Service SandpiperGRC`, `Restart-Service SandpiperGRC`, the
+Services console. The logs folder is open to administrators only; Explorer asks to confirm the
+first time.
+
+Any command of `server/src/cli.ts` (`status`, `backups`, `verify-backup`, `restore`, `export-all`,
+`seed`, `secret-key`...) runs with the installation's settings through `grc-windows.ps1`, in an
+elevated Windows PowerShell, with the service stopped where the command needs the database to
+itself:
+
+```powershell
+$grc = "C:\Program Files\Sandpiper GRC\grc-windows.ps1"
+Stop-Service SandpiperGRC
+& $grc cli restore "C:\ProgramData\Sandpiper GRC\backups\20261124-021500"
+Start-Service SandpiperGRC
+& $grc cli status
+```
+
+**Changing a setting.** Edit `config\grc.env` (as an administrator) and restart the service.
+The installer owns the lines `GRC_PORT`, `GRC_HOST`, `GRC_TLS_CERT`, `GRC_TLS_KEY` and the
+folder settings when it installs; every other line is kept, also across upgrades. A renewed
+certificate in the same files is picked up by itself (`GRC_TLS_RELOAD_SECONDS`). Never put a
+password or key in the file directly: use the `*_FILE` settings and grant the service read
+access to the file (`icacls <file> /grant "NT SERVICE\SandpiperGRC:R"`).
+
+**Backups.** The server's own daily backups (Administration > Backups) work as usual and need
+no service stop. **Back up now** (or `sandpiper.cmd backup`) takes a stop-and-copy backup into
+`backups\`. For a daily one, add a Windows scheduled task, running as SYSTEM, of
+`"C:\Program Files\Sandpiper GRC\grc-windows.ps1" backup -Label scheduled`; the installer does not
+create one.
+
+### Updating the Windows installation
+
+Run the newer installer (after [checking its checksum](installation.md#windows-installer)). It
+shows the six steps it will take and keeps the port, data folder and certificate:
+
+1. **stop** the service;
+2. **back up** the data with the installed version (`pre-upgrade` backup in `backups\`);
+3. **replace the program files**, after copying the installed ones to `upgrade\previous` in the
+   data folder (the old `app` and `node` folders are removed first, so nothing of the old version
+   is left behind);
+4. **run the migrations** with the new version;
+5. **start** the service;
+6. **check health**: wait until `/api/ready` answers (up to five minutes).
+
+If step 4, 5 or 6 fails, the installer **rolls back** by itself, like `grc.ps1 upgrade`: it stops
+the service, copies the previous program files back, restores the pre-upgrade backup with the
+previous version (the data as the new version left it is kept as a pre-restore backup), starts the
+previous version and checks it, records the previous version again (also in Settings > Apps) and
+says so (exit code 12 when silent). If the installer stops while the files are being replaced,
+the old files are put back when it ends. If the rollback itself cannot finish, the service is
+left stopped and `logs\setup.log` gives the commands to finish by hand (exit code 13). If the
+backup in step 2 fails, nothing is changed and the service is started again.
+
+**Downgrades are refused:** an installer older than the installed version stops with a message
+(exit code 1 when silent), because an older version cannot read a database a newer one has
+changed. To go back, uninstall, install the older version and restore a backup it made.
+
+**Knowing a new version exists.** **Check for updates** in the Start menu, or Administration >
+About in the application (the [update check](#the-update-check)).
+
+### Uninstalling
+
+Settings > Apps > Sandpiper GRC, or **Uninstall Sandpiper GRC** in the Start menu. It stops and
+removes the service, the firewall rule, the shortcuts, the program files and the registry entry.
+The data folder (database, files, backups, logs, settings and the secret key) is **kept** unless
+you check **Also delete the data folder**; installing again with the same data folder carries on
+with it. Silently: `"C:\Program Files\Sandpiper GRC\unins000.exe" /VERYSILENT`, adding
+`/REMOVEDATA=1` to delete the data folder too.
+
+### The update check
+
+Administration > About shows the installed version and, when allowed, whether a newer release
+exists, with a link to its release notes. The server asks
+`https://api.github.com/repos/mdcrowley/sandpiper-grc/releases/latest` at most once a day, and
+only while an administrator has that page open. The request carries no cookie, no version, no
+host name and nothing about the organization or its people; the answer is stored and shown on
+that page only. It runs only when all of these are true: the switch on the About page is on (the
+default), outbound connections are on (Administration > Settings; off on a new installation) and
+`api.github.com` is on the allowed hosts. The connection has the same fence as every other
+outbound connection (resolved address checked, certificate verified, no redirects, ten seconds,
+256 KB). It never downloads or installs anything. Every installation, not only the Windows one,
+has it.
+
+### What has been tested
+
+The workflow "Windows installer" (`tools/installer/test-install.ps1` on GitHub's Windows Server
+runner, as an administrator; added 2026-11-24, first run on the next push) builds the installer, installs it silently, checks the service account, start mode,
+the key's permissions and the Start menu shortcuts, signs in, takes a backup through
+`sandpiper.cmd`, kills the server process and sees the service bring it back, upgrades to a newer
+build and checks the data and sign-in survived, runs an older installer and sees it refused,
+upgrades to a build with a failing migration and sees the rollback, and uninstalls, checking the
+data is kept. The same script passed, every check, on a domain-joined Windows 11 workstation with
+endpoint protection (2026-11-24), where a domain policy made the service fall back to Network
+Service. Not yet tested: a real Windows
+Server across a restart of the machine, the installer's pages clicked through by a person, HTTPS
+with a real certificate and the firewall rule from another computer, and an upgrade between two
+published releases.
 ## Running as a service on Linux and macOS
 
 `./grc.sh service install` runs the server as a **user service** of the account you are
@@ -1036,9 +1201,170 @@ real times, so their clocks are right.
    reached and anything that slowed you down, and update this runbook. Take a fresh backup
    straight away (**Back up now**, or `pg-backup.sh`).
 
-Rotating credentials after a loss (the database password, the SCIM tokens, the backup
-passphrase) is not yet a written procedure here: the secret key has `grc.ps1 secret-key rotate`
-([Security](security.md)); change the others where they are set, then in the server's settings.
+After a loss, or a restore after a break-in, change the secrets that may have been exposed: see
+[Rotating secrets](#rotating-secrets).
+
+## Rotating secrets
+
+Change a secret on a schedule, when someone who knew it leaves, and at once when it may have been
+seen by someone else (a lost laptop, a leaked file, a restore after a break-in). The table lists
+every secret the application uses; the procedures below it say how to change each one without
+losing data or locking people out. Each change is recorded in the audit log except where the
+secret lives outside the application (environment variables and files on the server), so note those
+in your change log.
+
+| Secret | Where it is kept | How to change it | Tried |
+|---|---|---|---|
+| Database password of the account the server uses | The database server, and `GRC_DATABASE_PASSWORD_FILE` (or the password in `GRC_DATABASE_URL`) | [Database passwords](#database-passwords) | Yes |
+| Database password of the owner account | The database server, and `GRC_DATABASE_MIGRATE_PASSWORD_FILE` | [Database passwords](#database-passwords) | Yes |
+| The secret key (encrypts authenticator keys, sign-in provider secrets, mail and push credentials, webhook secrets and addresses) | `<data>.secret.key` beside the data folder, or `GRC_SECRET_KEY` / `GRC_SECRET_KEY_FILE` | [The secret key](#the-secret-key) | Yes |
+| Backup key file or passphrase | `GRC_BACKUP_KEY_FILE`, `GRC_BACKUP_PASSPHRASE_FILE` or `GRC_BACKUP_PASSPHRASE` | [Backup key or passphrase](#backup-key-or-passphrase) | Yes |
+| Metrics token | `GRC_METRICS_TOKEN` or `GRC_METRICS_TOKEN_FILE` | [Metrics token](#metrics-token) | Yes |
+| Personal API tokens and AI assistant connections | Only a fingerprint in the database; the token itself with whatever uses it | [Tokens people make](#tokens-people-make) | Yes (API token) |
+| Provisioning (SCIM) tokens | Only a fingerprint in the database; the token itself at the identity provider | [Provisioning tokens](#provisioning-tokens) | Yes |
+| Webhook secrets | The database, encrypted with the secret key; and at the receiver | [Secrets shared with other systems](#secrets-shared-with-other-systems) | Yes |
+| Sign-in providers: OpenID Connect client secret, this application's SAML key and certificate, a directory's service account password | The database, encrypted | [Secrets shared with other systems](#secrets-shared-with-other-systems) | Unit tests only |
+| Email: SMTP password, Microsoft Graph secret or certificate, Gmail service account key; the email-to-ticket relay key | The database, encrypted (the relay key only as a fingerprint) | [Secrets shared with other systems](#secrets-shared-with-other-systems) | Unit tests only |
+| Push: Apple key, Firebase service account, UnifiedPush (web push) keys | The database, encrypted | [Secrets shared with other systems](#secrets-shared-with-other-systems) | Unit tests only |
+| Work-tracker signing secrets, log forwarder secrets, text-message webhook, object store keys | The database, encrypted (object store keys may also be `GRC_S3_*` variables) | [Secrets shared with other systems](#secrets-shared-with-other-systems) | Unit tests only |
+| HTTPS certificate and key | `GRC_TLS_CERT`, `GRC_TLS_KEY` | Replace the files: they are read again every `GRC_TLS_RELOAD_SECONDS` and on `SIGHUP`, with no restart ([Installation](installation.md)) | Unit tests only |
+
+"Tried" means the procedure was carried out once, start to finish, on a test installation
+(version 0.2.0 with this change, November 2026: the embedded database for the secret key, the
+backup passphrase, the metrics token and the tokens; PostgreSQL 17 with a
+[least-privilege role](installation.md#a-least-privilege-database-role) for the database
+passwords and the audit archive). "Unit tests only" means the change itself is covered by the
+automated tests, but nobody has yet carried out the whole procedure against the other system.
+
+### Database passwords
+
+PostgreSQL server installations only (the embedded database has no password). Change the
+account the server uses and the owner account one at a time.
+
+**The account the server uses** (`grc_app` in the examples):
+
+1. Choose a new password and write it to a new file beside the current one, readable only by the
+   account the service runs as (for example `/etc/sandpiper-grc/app-password.new`, mode 600).
+2. Change it in the database, as a superuser or the account that manages roles:
+   `alter role grc_app password '<new password>';`. Connections already open keep working, so the
+   application carries on; any new connection with the old password is refused.
+3. Put the new file in place of the old one (`GRC_DATABASE_PASSWORD_FILE`; or change the password in
+   `GRC_DATABASE_URL`) and restart the server in a quiet moment. It opens all its connections again
+   with the new password.
+4. Check: `/api/ready` answers `ok`, and the start-up log names the database. If the server stops at
+   once with `password authentication failed for user "grc_app"`, the file and the database
+   disagree: correct the file and start again.
+5. With several server processes, restart them one after the other; each keeps working on its open
+   connections until it restarts. A container reads the file from its secret or volume: replace it
+   there, then `docker compose up -d app`.
+
+**The owner account** (`grc_owner`, `GRC_DATABASE_MIGRATE_URL`): it is used at start-up (migrations
+and grants), by `migrate`, `grant-runtime-role`, `import-all` and `audit-archive`. Change it with
+`alter role grc_owner password '<new password>';`, put the new password in
+`GRC_DATABASE_MIGRATE_PASSWORD_FILE` wherever it is set (the server's settings, an administrator's
+session, the scheduled audit archive), and check with `npm run cli -- migrate` ("No migrations to
+apply"). If it is set on the server, restart it.
+
+Tried on PostgreSQL 17: with the old password file the server refused to start with
+`Could not connect to the database at postgres://grc_app:***@...: password authentication failed`;
+with the new one it started, ran the migrations as the owner and granted the run-time role.
+
+### The secret key
+
+`grc.ps1 secret-key rotate` (`./grc.sh secret-key rotate`, `grc secret-key rotate` in the
+container) with the server stopped:
+
+1. `secret-key show` names the key in use and its fingerprint.
+2. `secret-key rotate` writes a new key in its place and keeps the old one as a retired key
+   (`<key file>.previous`). With `GRC_SECRET_KEY` in the environment instead of a file, put the new
+   key there and the old one in `GRC_SECRET_KEY_PREVIOUS`.
+3. Start the server. Every stored secret is encrypted again with the new key at start-up.
+4. Stop it (embedded database) and run `secret-key show` again: once it says "the retired keys are no
+   longer needed", delete `<key file>.previous` (or clear `GRC_SECRET_KEY_PREVIOUS`).
+5. Back up the new key file, apart from the backups. Backups taken before the change need the old
+   key: keep the retired key with them for as long as you keep those backups.
+
+Tried: before the rotation `show` reported three stored values (an authenticator key, a webhook
+secret and a webhook address); after one start they used the new key, the administrator signed in
+with the authenticator app, and the webhook secret could be read.
+
+### Backup key or passphrase
+
+A backup is encrypted with the key or passphrase given when it is made; changing it never touches
+backups already taken.
+
+1. Make the new key (`grc.ps1 new-key D:\keys\grc-backup-2027.key`) or write a new passphrase file
+   (at least 12 characters), outside the data folder.
+2. Point `GRC_BACKUP_KEY_FILE` or `GRC_BACKUP_PASSPHRASE_FILE` (and the scheduled task, and the
+   server's environment when it takes its own backups with **Encrypt each backup**) at the new one,
+   and restart the server if it takes backups.
+3. Take a backup and check it: `verify-backup latest`.
+4. **Keep the old key or passphrase** for as long as you keep the backups made with it, labeled with
+   the dates it covers. Each backup opens only with its own: `verify-backup <name> -PassphraseFile
+   <old file>`.
+
+Tried: of two encrypted backups, one made with the old passphrase and one with the new, each was
+checked successfully with its own passphrase and refused ("the passphrase or key is wrong") with the
+other.
+
+### Metrics token
+
+1. Choose a new token of at least 24 characters and put it in `GRC_METRICS_TOKEN` (or its file,
+   `GRC_METRICS_TOKEN_FILE`).
+2. Restart the server, then change the bearer token in your monitoring system's scrape settings.
+   Scrapes between the two fail with 401; expect a short gap in the graphs.
+
+Tried: after the restart the old token was refused (401) and the new one answered (200).
+
+### Tokens people make
+
+Personal API tokens and AI assistant connections are made by people for themselves (**My account >
+API tokens**, **AI assistant access**) and shown once. To change one: make a new token, put it in
+the integration or assistant, check that it works, then **Revoke** the old one. An administrator can
+revoke anyone's under **Administration > API tokens**. Changing or resetting a password revokes all of
+that person's tokens and connections unless they choose to keep them.
+
+Tried: a new API token worked at once; after the old one was revoked it was refused (401) and the new
+one still worked.
+
+### Provisioning tokens
+
+**Administration > User provisioning > Provisioning tokens**: **Make token** (shown once), give it to
+the identity provider in place of the old one, check that its next provisioning run succeeds (the
+token's **Last used**), then **Revoke** the old token. Two tokens can be active at once, so there is
+no gap.
+
+Tried: the new token was accepted by `/api/scim/v2/Users`; after the old one was revoked it was
+refused (401) and the new one still worked.
+
+### Secrets shared with other systems
+
+These are kept encrypted in the database and changed in the application; the other system must be
+given the new value at the same moment, or it stops working until it is.
+
+- **Webhook secret**: **Administration > Webhooks**, **…** > **Replace secret** (shown once). Give it
+  to the receiver straight away: deliveries are signed with the new secret from then on. Tried: the
+  new secret was shown once and the delivery settings stayed as they were.
+- **Sign-in providers**: for OpenID Connect, make a new client secret at the identity provider, type it
+  into the provider's **Client secret** and save, then delete the old one at the identity provider. For
+  SAML, check **Make a new key and certificate for this application when saving**, then give the new
+  metadata to the identity provider at once; a new certificate of the identity provider's is added
+  beside the old one and the old one removed once it has switched. For a directory, change the service
+  account's password in the directory and type it into **Service account password**.
+- **Email**: type the new SMTP password, Microsoft Graph client secret or certificate, or Gmail service
+  account key under **Administration > Email** and send a test message. The email-to-ticket relay key:
+  **Create a relay key** again (it replaces the old one) and put it in the mail relay.
+- **Push**: under **Administration > Push notifications**, upload the new Apple key or Firebase service
+  account key and send a test push. **Make new UnifiedPush keys** removes the phones' UnifiedPush
+  registrations, and each phone registers again with the new key when the app is next opened.
+- **Work trackers**: **New secrets** on the connection (both secrets, shown once; the old ones stop at
+  once). **Log forwarders** and the **text-message webhook**: type the new secret and save. **Object
+  store**: make a new access key at the store, enter it under **Attachments** (or in `GRC_S3_*` and
+  restart), check that a file can be uploaded, then delete the old key at the store.
+
+After any suspected exposure, also change the passwords of the people concerned, sign their phones
+out (**Administration > Users > Mobile app devices**), and look through the audit log for what was done
+with the old secret.
 
 ## Export and import
 

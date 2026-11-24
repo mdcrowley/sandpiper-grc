@@ -17,6 +17,7 @@ This page is for administrators. It explains how to add people and give them acc
 | **Roles** | Roles and their permissions | [Roles and permissions](#roles-and-permissions) |
 | **Sign-in providers** | Single sign-on and the break-glass account | [Sign-in providers](#sign-in-providers-single-sign-on) |
 | **User provisioning** | Let your identity provider create and switch off accounts | [User provisioning](35-user-provisioning-and-log-forwarding.md#user-provisioning) |
+| **Outside reviewers** | Every outside auditor or funder's reviewer invited to one audit or review, and revoking their access | [Outside reviewers](25-audits-and-inspections.md#outside-reviewers) |
 | **Lists** | The choices in drop-down lists, and tags | [Lists](#lists) |
 | **Asset tags** | Tag formats, tag stock, printing tags and their settings | [Asset tags](38-asset-tags.md#tag-formats) |
 | **Organization** | The organization's names, address, contacts, logo and colors | [Organization](#organization) |
@@ -38,11 +39,13 @@ This page is for administrators. It explains how to add people and give them acc
 | **Retention** | How long records are kept | [Retention](#retention) |
 | **Legal holds** | Keep records for a matter so they cannot be deleted or anonymized | [Legal holds](33-legal-holds.md) |
 | **Audit log** | Who did what, and when | [The audit log](#the-audit-log) |
+| **About** | The version installed, and whether a newer release exists | [About and updates](#about-and-updates) |
 | **Service desk settings** | Priorities, targets, calendars, escalation, the portal and email to ticket | [Service desk settings](02-service-desk.md#service-desk-settings) |
 | **Risk scales** | The likelihood and impact scales for risks | [Editing the risk scales](06-risks-actions-obligations.md#editing-the-risk-scales) |
 | **Risk appetite** | How much risk the organization accepts, by category | [Risk appetite](06-risks-actions-obligations.md#risk-appetite) |
 | **Hazard matrix** | The levels and cell ratings of the safety hazard matrix | [Change the hazard matrix](20-safety-management.md#change-the-hazard-matrix) |
 | **Safety reporting rules** | Which safety events must be reported to whom, and by when | [Safety reporting rules](20-safety-management.md#safety-reporting-rules) |
+| **Confidential safety reports** | Who may see the identity of a safety reporter who asked to stay confidential | [Confidential reporting](20-safety-management.md#confidential-reporting) |
 | **File settings** | Upload limits, malware scanning, storage, removed files | [File settings](14-attachments-and-notifications.md#file-settings) |
 | **Backups** | Daily backups to a second location | [Backups](14-attachments-and-notifications.md#backups) |
 
@@ -158,6 +161,8 @@ When someone leaves or no longer needs access, disable the account rather than r
 
 Select **Enable account** to reverse it. Accounts cannot be deleted, so that names in records and history keep their meaning.
 
+Accounts of outside reviewers (people outside the organization invited to one audit or funder review, see [Outside reviewers](25-audits-and-inspections.md#outside-reviewers)) are listed here too. They are disabled by themselves when no review is open to them any more. Give them no roles: whatever their roles, they reach only the reviews they are invited to and their own account security. An outside reviewer's account you disable stays disabled even when someone invites them again.
+
 Two safeguards apply. You cannot disable your own account or remove your own administrator access; ask another administrator. And the application refuses any change that would leave no active administrator.
 
 ### Recent account events
@@ -263,6 +268,27 @@ The **Members** card lists who holds the role. To give a role to someone, or tak
 The **Administrator** role holds every permission (stored as a single star), so every box is checked and cannot be changed.
 
 The server tells the page which permissions something in this installation actually checks. A box for an action nothing checks (for example **Approve** on **Knowledge base**, or **Create** on **Audit log**) is grayed out and cannot be checked, because granting it would have no effect; if a role already holds such a permission, the box can still be unchecked. An area where nothing is checked at all (for example one whose part of the application is not installed) carries a small **not yet used** label. **All** still grants every action in the area, including any a later version starts to check. **Manage** and **Count** are actions of the **Asset tags** area only, so the other areas have no box in those columns. **View** on **Dashboards and overview** decides who sees the dashboards on the overview page.
+
+### Which records a role reaches
+
+A role can be limited to the records of its members' own departments or sites, so that a depot manager sees the hazards, safety events, inspections, vehicles, assets and actions of their own depot and not every depot's. Below **Permissions**, the **Which records** card lists the areas this role grants whose records carry a department or a site. For each, choose **All records**, **Their departments** or **Their sites**, then select **Save role** (this needs your password confirmed, like any change of permissions).
+
+| Records | Carry |
+|---|---|
+| People on the roster | department and work site |
+| Positions, projects, business processes | department |
+| Assets, actions | department and site (an action takes its site from the hazard, safety event or inspection it came from) |
+| Sites | the site itself |
+| Hazards, safety events, vehicles, services, security zones, inventory counts | site |
+| Inspections, inspection schedules, condition assessments | the site inspected or rated, when it is a site |
+
+- **Their departments** are the department on the person's account (**Users**), their department on the staff roster and the departments they manage, and every department below those. **Their sites** are their work site on the roster and the sites they manage, and every site within those. See [People and qualifications](29-people-and-qualifications.md#departments).
+- A record with no department or site, or another one, is hidden from them everywhere: lists, record pages, search, pickers, links, exports and the AI assistant, as restricted records are. They always see the records they created.
+- A limit applies only to records that carry that kind of place: limited to **Their sites**, a role still reaches every project, since projects have no site.
+- Another role of theirs that grants the same area with **All records** lifts the limit. The **Administrator** role cannot be limited.
+- Figures (counts, charts and dashboards) still count every record, the same for everyone.
+
+Limiting a role narrows what its members work with; it does not keep records confidential. For that, use restricted records.
 
 ### Restricted records
 
@@ -674,7 +700,7 @@ The same settings are on **Administration > File settings**. If file attachments
 
 ### Departments
 
-The **Departments** group holds the list used to group people.
+The **Departments** group holds the list used to group people. Departments are also records of their own, with the department each is part of and a manager, under **People > Departments** (see [People and qualifications](29-people-and-qualifications.md#departments)); changes made in either place show in both.
 
 - Select **Add department**, enter a name and select **Save**.
 - Select **Rename** to change a name.
@@ -713,6 +739,9 @@ Each part has a switch, a line saying what it covers, whether it is **On** or **
 | **OT and rail-systems security** | Operational technology on systems and assets, security zones and conduits with their target and achieved levels | On |
 | **Records requests and privacy** | Requests for records and personal data with their deadlines, responsive records and exemptions, and privacy impact assessments. Legal holds stay on | On |
 | **Asset tags** | Tag numbers on assets, vehicles, sites and systems (printed digits, letters, barcodes or 2D codes), tag formats and stock, printing your own tags, finding a record by its tag, and inventory counts. While it is off, the **Tag number** of vehicles, sites and systems is hidden; an asset's **Tag** stays, because it is also the asset's reference | On |
+| **User access reviews** | The accounts each system holds, matched to the staff roster with leavers and people on leave flagged, and review campaigns in which system owners keep or remove each account, with removals tracked to done ([User access reviews](40-user-access-reviews.md)) | On |
+| **Records retention schedule** | The organization's own record series, paper and electronic, with their retention periods and triggers, and the destruction log with approvals ([Records retention schedule](42-records-retention-schedule.md)). It uses the records permissions, so it is hidden while **Records requests and privacy** is off | On |
+| *Each register* | Every register an administrator defines under Administration > Registers has a switch of its own, named after the register ([Registers](41-registers.md#switching-a-register-off)) | On |
 | **Mobile app** | The Sandpiper GRC app for iPhone and Android: sign-in through the phone's browser, My work, reading asset tags with the camera, reporting problems with photos, inspections, condition assessments and counts that work offline, push notifications, and the list of signed-in devices. Switching it off signs out every device | Off |
 
 [Legal holds](33-legal-holds.md) are not a part that can be switched off: a hold must never lapse because a part of the application was switched off.
@@ -773,7 +802,7 @@ An option of a part that is switched off counts as off and cannot be changed unt
 
 ## Custom fields
 
-Custom fields are your own fields on a kind of record, added without any change to the software. Open **Administration > Custom fields**.
+Custom fields are your own fields on a kind of record, added without any change to the software. Open **Administration > Custom fields**. For a kind of record of your own (lost property, keys issued, visitors), define a register under **Administration > Registers** and give it custom fields: see [Registers](41-registers.md).
 
 Choose the kind of record under **Record type**. The table lists its custom fields in order, with **Order**, **Field** (the label, and underneath the name used in the API and exports, such as `cf_funding_source`), **Type**, **Section** and **State** (**In use** or **Switched off**).
 
@@ -956,15 +985,39 @@ A file named with today's date is downloaded, containing every event that matche
 
 Every day the application then writes the events older than that age to a compressed file in the folder, reads the file back and checks it, and only then removes those events from the log. **Archive now** runs it at once; the card shows the last run while it works. Each archive is itself an event in the log, naming the file, how many events it holds and its checksum, and the last ten are listed on the card. An archived event is no longer in the application, in exports or in backups taken afterward: keep the files safe. The person running the server can read them with ordinary tools (see the operations guide).
 
-If the database account the server uses may not remove audit events (a set-up the person running the server can choose), the card says so and archiving cannot run.
+If the database account the server uses may not remove audit events (a set-up the person running the server can choose), the card says so: the server does not archive by itself, **Archive now** is not offered and the switch reads **Archive old events (run by the database owner)**. Switch it on and choose the age and folder as above; the person running the server then runs the archive as the database owner from a scheduled task (the card shows the command, and the operations guide explains it). Each such run is in the log as usual, ending "removed by the owner command". If old events wait more than a month past the age you chose, the administrators are told once.
 
+## About and updates
+
+**Administration > About** shows the version installed here, the commit it was built from, the Node.js version, the kind of database and when the server last started. Quote the version when you report a problem.
+
+### Checking for a newer version
+
+The **Updates** card can say when a newer release of Sandpiper GRC exists, with a link to its release notes. To find out, the server asks the project's public list of releases on GitHub for the newest version, at most once a day and only while someone has the About page open. It sends nothing about your installation, your organization or its people, and it never downloads or installs anything.
+
+The check runs only when all three of these are true:
+
+1. **Check for new versions once a day** is on, on this page. It is on unless you switch it off; switching it is recorded in the audit log.
+2. Outbound connections are on (**Settings > Outbound connections**). They are off on a new installation.
+3. `api.github.com` is one of the allowed hosts under **Settings > Outbound connections**.
+
+Until then the card says which of these is missing, and nothing is sent. The result is shown on this page only; nobody else is told. A check that fails (no network, for example) is shown with the reason and tried again a day later.
+
+### Updating the server
+
+The application cannot update itself. The person who runs the server installs the new version:
+
+- **Windows installer**: download the new installer from the release page (**Check for updates** in the "Sandpiper GRC" Start menu folder on the server shows whether one exists and opens the download page) and run it over the installed version. It stops the service, takes a backup, puts the new version in place, updates the database and starts the service again; if any step fails, it puts the previous version and its data back by itself. An older installer refuses to install over a newer version.
+- **Other installations**: follow "Upgrading" in the operations guide.
+
+Everyone signed in sees the version on the Help page afterward.
 ## My account: the Account security page
 
 Every user has this page. Select your name at the top right and choose **Account security**. The same menu has **Notifications**, **Change password**, **Help**, **Keyboard shortcuts** and **Sign out**.
 
 Besides the cards described below, the page has three cards described elsewhere:
 
-- **Alerts by text message** (when security incidents are on): your mobile number for urgent alerts; see [Your mobile number and email-to-text address](14-attachments-and-notifications.md#your-mobile-number-and-email-to-text-address). An administrator sees the same card on a person's page under **Users**.
+- **Alerts by text message** (when security incidents or business continuity are on): your mobile number for urgent alerts; see [Your mobile number and email-to-text address](14-attachments-and-notifications.md#your-mobile-number-and-email-to-text-address). An administrator sees the same card on a person's page under **Users**.
 - **Stand-in for approvals**: someone to decide your approvals while you are away; see [Stand-ins](22-approval-workflows.md#stand-ins).
 - **Connect an AI assistant**: a token and ready-made configuration for an AI assistant; see [Connecting your assistant](21-ai-assistants-and-mcp.md#connecting-your-assistant).
 

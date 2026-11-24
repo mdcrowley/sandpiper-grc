@@ -76,6 +76,8 @@ export function registerMeetings(ctx: ModuleContext) {
       title: { label: 'Title', type: 'text', required: true, personal: false },
       committee_id: { label: 'Committee', type: 'ref', to: 'committee', required: true },
       scheduled_at: { label: 'Date and time', type: 'datetime', required: true },
+      // E41-17: the calendar invitation's length (an hour when empty) and when it was last emailed.
+      duration_minutes: { label: 'Length (minutes)', type: 'number' },
       location: { label: 'Location or call details', type: 'text' },
       status: { label: 'Status', type: 'lookup', list: 'meeting_status', default: 'planned' },
       chair_id: { label: 'Chair', type: 'user', readOnly: true },
@@ -84,6 +86,7 @@ export function registerMeetings(ctx: ModuleContext) {
       quorum_met: { label: 'Quorum met', type: 'boolean', readOnly: true },
       pack_snapshot_id: { label: 'Frozen pack', type: 'text', readOnly: true },
       pack_frozen_at: { label: 'Pack frozen', type: 'datetime', readOnly: true },
+      invited_at: { label: 'Invitations sent', type: 'datetime', readOnly: true },
     },
     hooks: { beforeCreate, beforeUpdate },
   });

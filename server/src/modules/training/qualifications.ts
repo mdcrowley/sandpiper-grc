@@ -314,7 +314,8 @@ export function registerQualifications(ctx: ModuleContext) {
   app.get('/api/training/qualifications', viewRoster, async (req) => {
     if (!roster) ctx.fail(404, 'not_found', 'The roster is not available.');
     const q = req.query as Record<string, string>;
-    const where: string[] = [];
+    // Only the people the caller may see on the roster (E41-01: a role scoped to departments or sites).
+    const where: string[] = [ctx.resources.visibleWhere('person', req.user, 'p')];
     const params: unknown[] = [];
     const add = (v: unknown) => { params.push(v); return `$${params.length}`; };
     for (const [key, col] of [['position', 'p.position_id'], ['department', 'p.department_id'], ['site', 'p.work_site_id']] as const) {

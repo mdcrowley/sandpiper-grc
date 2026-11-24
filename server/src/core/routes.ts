@@ -130,7 +130,8 @@ export function registerCoreRoutes({ app, db, audit, lookups, res, custom, gate,
   app.get('/api/records/lookup', async (req) => {
     const { type, q = '' } = req.query as Record<string, string>;
     const def = registry.get(type);
-    if (!def || !mayAccess(req.user, def, 'view')) return [];
+    // A directory (departments) can be picked by everyone signed in (E41-01).
+    if (!def || !res.mayLink(req.user, def)) return [];
     const cols = [def.titleField, ...(def.ref ? [def.ref.field] : [])];
     return db.query(
       `select id, ${def.titleField}::text as label, ${def.ref ? def.ref.field : 'null'} as ref from ${def.table}
@@ -152,7 +153,7 @@ export function registerCoreRoutes({ app, db, audit, lookups, res, custom, gate,
     for (const [type, ids] of Object.entries(wanted as Record<string, unknown>)) {
       out[type] = {};
       const def = registry.get(type);
-      if (!def || !mayAccess(req.user, def, 'view') || !Array.isArray(ids)) continue;
+      if (!def || !res.mayLink(req.user, def) || !Array.isArray(ids)) continue;
       const list = ids.filter((i): i is string => typeof i === 'string').slice(0, Math.max(0, budget));
       budget -= list.length;
       for (const [id, l] of await labelsFor(type, list, req.user)) {

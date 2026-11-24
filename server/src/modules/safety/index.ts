@@ -1,5 +1,6 @@
 import type { ModuleContext, ModuleDef } from '../../core/module.ts';
 import { registerChangeAssessment } from './change-assessment.ts';
+import { forgetConfidentialReporter, registerConfidential } from './confidential.ts';
 import { anonymizeEventDetails, registerEventDetail } from './event-detail.ts';
 import { onAnonymize } from '../../core/retention.ts';
 import { registerEvents } from './events.ts';
@@ -22,6 +23,10 @@ import { seedSafety } from './seed.ts';
  * statements always need `security.view`); the organization's own reporting rules and the
  * notification clocks they start; indicators entered by hand, computed from other modules' metrics
  * or measured as distance between failures; yearly targets with approval (kind `safety_targets`).
+ *
+ * E41-05: a reporter may ask to stay confidential (their identity is kept apart from the event and
+ * only named people may see it, each look audited), and is told what was done when the event closes
+ * (confidential.ts).
  */
 
 async function seedDefaults(ctx: ModuleContext) {
@@ -142,6 +147,9 @@ async function register(ctx: ModuleContext) {
   registerEventDetail(ctx);
   // Anonymizing an event at the end of retention also clears its people involved, statements and timeline (E25-15).
   onAnonymize('safety_event', (tx, id) => anonymizeEventDetails(tx as never, id));
+  // ... and the confidential reporter kept apart from it (E41-05).
+  onAnonymize('safety_event', async (tx, id) => { await forgetConfidentialReporter(tx as never, id); }, 'confidential_reporter');
+  registerConfidential(ctx);
   registerIndicators(ctx);
   registerTargets(ctx);
   registerChangeAssessment(ctx);

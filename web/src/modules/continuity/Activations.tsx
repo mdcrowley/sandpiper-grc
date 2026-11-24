@@ -8,6 +8,7 @@ import {
   useResource, useToast, UserPicker,
 } from '../../core';
 import type { RecordContext, Row } from '../../core';
+import { CallOutsTab } from './CallOuts';
 import { AfterActionPlans, ContinuityTabs, PHASES } from './shared';
 
 function ActivateDialog({ onClose }: { onClose: () => void }) {
@@ -41,7 +42,7 @@ function ActivateDialog({ onClose }: { onClose: () => void }) {
             options={(plans.data?.rows ?? []).map((p) => ({ value: String(p.id), label: `${p.ref} ${p.title}` }))} />
         </div>
       </div>
-      <p className="muted bc-small">Each plan's checklist is copied into the activation. No one is paged or messaged: use the plans' call trees to call people.</p>
+      <p className="muted bc-small">Each plan's checklist is copied into the activation. Once it is declared, the plans' call trees can be sent a message from its Call tree messages tab.</p>
     </Modal>
   );
 }
@@ -323,6 +324,7 @@ export function ActivationDetail() {
         { key: 'log', label: 'Log', content: ({ row, reload }) => <LogTab activation={row} onAdded={reload} /> },
         { key: 'roles', label: 'Roles', content: ({ row, reload }) => <RolesTab activation={row} onChanged={reload} /> },
         { key: 'checklist', label: 'Checklist', content: ({ row, reload }) => <ChecklistTab activation={row} onChanged={reload} /> },
+        { key: 'call-outs', label: 'Call tree messages', content: ({ row, reload }) => <CallOutsTab activation={row} onChanged={reload} /> },
         { key: 'summary', label: 'Summary', content: (rec) => <SummaryTab {...rec} /> },
       ]}
     />

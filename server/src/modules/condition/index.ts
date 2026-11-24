@@ -136,6 +136,8 @@ async function register(ctx: ModuleContext) {
   ctx.defineResource({
     type: 'condition_assessment', table: 'condition_assessments', module: 'assets', label: 'Condition assessment', plural: 'Condition assessments',
     path: '/api/condition-assessments', route: '/condition/assessments', titleField: 'target_label',
+    // Role grants scoped to departments or sites (E41-01, core/scope.ts).
+    scope: { site: (col) => `case when ${col('target_type')} = 'site' then ${col('target_id')} end` },
     ref: { field: 'ref', prefix: 'CND-' },
     searchable: ['target_label', 'notes', 'assessor_name'],
     defaultSort: { field: 'assessed_on', dir: 'desc' },

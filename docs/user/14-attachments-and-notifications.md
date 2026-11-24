@@ -64,13 +64,34 @@ If the scanner cannot be reached and your administrator has chosen to accept fil
 
 ### The list of files
 
-Each file is shown with an icon for its kind, its name, its size, who attached it and when. If it has a description, that appears under the name.
+Each file is shown with an icon for its kind, its name, its size, who attached it and when. If it has a description, that appears under the name. **Text searchable** after the date means search finds the record by the words inside the file (see [Finding a record by what its files say](#finding-a-record-by-what-its-files-say)).
 
-- Select the file's name, or the download button on its row, to download it. Files always download; they never open inside the application.
+- Select the file's name, or the download button on its row, to download it.
+- For an image (PNG, JPEG, GIF, WebP or BMP) or a PDF, select the eye button to preview it without downloading (see [Preview a file](#preview-a-file)).
 - Select the pencil button to edit its details.
 - Select the trash button to remove it.
 
 The pencil and trash buttons appear only if your role allows editing the record.
+
+### Preview a file
+
+Images and PDFs can be looked at in the application without downloading them.
+
+1. Select the eye button (**Preview**) on the file's row.
+2. The file opens in a window. A PDF is shown page by page; a long one shows its first 30 pages, and the window says how many more there are.
+3. Select **Download** to keep a copy, or **Close**.
+
+Only images and PDFs are shown this way. Every other kind of file (Word documents, spreadsheets, text files, web pages, SVG drawings) always downloads. A PDF is drawn as pictures of its pages: anything active inside it (scripts, forms, links to other sites) does nothing. Previewing a file on a restricted record is recorded in its history, like a download.
+
+### Finding a record by what its files say
+
+The search at the top of every page finds a record by the words inside its PDF, Word (`.docx`) and plain-text files (`.txt`, `.md`, `.log`, `.csv`), as well as by the file names. A match inside a file is shown with a paperclip and **In a file**, with the file's name and the passage that matched.
+
+- The text is read in the background a minute or so after a file is attached, so a new file is not found at once. Files attached before this was added are read too, newest first.
+- What you find follows the record, exactly as the files do: you only find records you can open, and a restricted record's files only if your role lets you see restricted records.
+- A scanned PDF that holds only pictures of pages has no text to find. Files larger than 25 MB, and files that cannot be read in 30 seconds, are not read. Only the first 300,000 characters of a file are searched.
+- When a file is removed its text is forgotten at once; if an administrator puts the file back, it is read again.
+- Older Word files (`.doc`), spreadsheets and presentations are found by their names only.
 
 ### Edit a file's details
 
@@ -94,7 +115,7 @@ The file disappears from the list and can no longer be downloaded. The removal i
 
 ### What is recorded in the history
 
-The record's **History** tab shows each file attached, each change to a file's details, each file removed and each file refused, with who did it and when. Downloading a file from a restricted record is recorded too.
+The record's **History** tab shows each file attached, each change to a file's details, each file removed and each file refused, with who did it and when. Downloading or previewing a file from a restricted record is recorded too.
 
 ## Evidence files
 
@@ -448,7 +469,7 @@ Text messages (below) are listed here too, as **Text message (email-to-text)** w
 
 ### Text messages
 
-Urgent alerts, such as a security incident that needs attention, can also reach people's phones as text messages ([Security incidents](07-security-incidents.md#alerts-by-email-and-text-message)). No paid service is built in. On the **Text messages** tab choose one or both ways:
+Urgent alerts, such as a security incident that needs attention, can also reach people's phones as text messages ([Security incidents](07-security-incidents.md#alerts-by-email-and-text-message)). Text messages also carry the messages sent to a plan's call tree during an emergency activation, each with the person's own acknowledgment link ([Business continuity](30-business-continuity.md#messaging-the-call-tree)). No paid service is built in. On the **Text messages** tab choose one or both ways:
 
 - **Send to email-to-text addresses**: the text is emailed, through the email settings above, to the person's email-to-text address. Many mobile carriers and enterprise messaging services give each phone such an address. Needs email switched on.
 - **Send through the webhook**: each text is posted, signed, to your own text-message system's webhook, which sends it on. Enter the **Webhook address** (https) and a **Signing secret** of at least 16 characters (kept encrypted, never shown again). It is an outbound connection: it needs outbound connections switched on and the host on the allow-list under **Administration** > **Settings**, exactly like webhooks. The format your system receives is in the [installation guide](../installation.md#text-messages-for-alerts).

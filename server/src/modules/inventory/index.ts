@@ -1,10 +1,12 @@
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
+import { departmentPrepare } from '../../core/scope.ts';
 import { registerDisposalRequests, ROUTED_ONLY } from './disposal.ts';
 import { CONDITION_ASSET_FIELDS, CONDITION_SITE_FIELDS, ensureConditionLists } from './fields-condition.ts';
 import { ASSET_MODEL_FIELDS } from './fields-models.ts';
 import { ensureOtLists, OT_ASSET_FIELDS, OT_SYSTEM_FIELDS } from './fields-ot.ts';
 import { ensurePrivacyLists, PRIVACY_DATA_CATEGORY_FIELDS } from './fields-privacy.ts';
 import { registerInventoryTaggables, TAG_NUMBER_FIELDS } from './fields-tags.ts';
+import { DATA_WIPE_ASSET_FIELDS, registerWipeCertificate, seedWipeMethods } from './fields-wiping.ts';
 import { registerImport } from './importer.ts';
 import { registerReminders } from './reminders.ts';
 import { disposalProblem, funderRuleOn, registerLifecycle, today } from './lifecycle.ts';
@@ -51,11 +53,6 @@ async function seedDefaults(ctx: ModuleContext) {
     { value: 'approved', label: 'Disposal approved', color: 'green' },
     { value: 'refused', label: 'Disposal refused', color: 'red' },
   ], { module: 'assets' });
-  // Asset departments use the organization's department list: bring text that agrees into its spelling.
-  await ctx.db.query(
-    `update assets a set department = d.name from departments d
-     where d.deleted_at is null and lower(trim(a.department)) = lower(d.name) and a.department <> d.name`,
-  );
   await ctx.lookups.ensure('funding_source', [
     { value: 'operating', label: 'Operating budget' },
     { value: 'capital', label: 'Capital budget' },
@@ -114,6 +111,7 @@ async function seedDefaults(ctx: ModuleContext) {
   // Lists of the inventory extensions (wave 11): each file is owned by one piece of work.
   await ensureOtLists(ctx);
   await ensureConditionLists(ctx);
+  await seedWipeMethods(ctx);
   await ensurePrivacyLists(ctx);
 }
 
@@ -123,6 +121,8 @@ async function register(ctx: ModuleContext) {
     path: '/api/sites', route: '/sites', titleField: 'name',
     searchable: ['name', 'address', 'function', 'technology'],
     defaultSort: { field: 'name', dir: 'asc' },
+    // Role grants scoped to sites (E41-01) show a person their own sites and those within them.
+    scope: { site: 'id' },
     fields: {
       name: { label: 'Name', type: 'text', required: true },
       address: { label: 'Address', type: 'text' },
@@ -135,6 +135,9 @@ async function register(ctx: ModuleContext) {
       network_links: { label: 'Network links', type: 'longtext' },
       to_confirm: { label: 'To confirm', type: 'longtext' },
       notes: { label: 'Notes', type: 'longtext' },
+      // E41-01: a site may sit within another one, and its manager is scoped to it and those within it.
+      parent_id: { label: 'Part of', type: 'ref', to: 'site' },
+      manager_id: { label: 'Site manager', type: 'user' },
       ...CONDITION_SITE_FIELDS,
       ...TAG_NUMBER_FIELDS,
     },
@@ -221,7 +224,9 @@ async function register(ctx: ModuleContext) {
       owner_id: { label: 'Owner', type: 'user' },
       user_id: { label: 'User', type: 'user' },
       assigned_to_name: { label: 'Assigned to (name)', type: 'text' },
-      department: { label: 'Department', type: 'text' },
+      // E41-01: a reference to the organization's departments; `department` keeps its name (set by the database).
+      department_id: { label: 'Department', type: 'ref', to: 'department' },
+      department: { label: 'Department name', type: 'text', readOnly: true },
       site_id: { label: 'Site', type: 'ref', to: 'site' },
       location: { label: 'Location', type: 'text' },
       purchase_date: { label: 'Purchase date', type: 'date' },
@@ -248,8 +253,12 @@ async function register(ctx: ModuleContext) {
       ...OT_ASSET_FIELDS,
       ...CONDITION_ASSET_FIELDS,
       ...ASSET_MODEL_FIELDS,
+      ...DATA_WIPE_ASSET_FIELDS,
     },
+    scope: { department: 'department_id', site: 'site_id' },
     hooks: {
+      // A department may still be given by name (`department` or `department_id`), as before E41-01.
+      prepare: departmentPrepare(ctx.db),
       beforeCreate: async (req, data) => {
         await checkAsset(ctx, data, data, null, !!req);
         return data;
@@ -263,11 +272,12 @@ async function register(ctx: ModuleContext) {
 
   /** The organization's departments, for the asset department choice (the admin list needs admin rights). */
   ctx.app.get('/api/inventory/departments', { preHandler: ctx.requirePerm('assets.view') }, async () =>
-    ctx.db.query<{ name: string }>('select name from departments where deleted_at is null order by lower(name)'));
+    ctx.db.query<{ id: string; name: string }>('select id, name from departments where deleted_at is null order by lower(name)'));
 
   registerRelations(ctx);
   registerLifecycle(ctx);
   registerDisposalRequests(ctx);
+  registerWipeCertificate(ctx);
   await registerReminders(ctx);
   registerReports(ctx);
   registerImport(ctx);
@@ -285,18 +295,7 @@ function checkSystem(ctx: ModuleContext, merged: Row, patch: Row): Row {
 }
 
 /** Rules that hold however an asset is written: unique tag, sensible percentage, and the disposal gate. */
-async function checkAsset(ctx: ModuleContext, merged: Row, patch: Row, existing: Row | null, byPerson: boolean) {
-  // Department: the organization's department list when there is one. A person must choose from
-  // it; system work (seeding) keeps its text, written the list's way where the two agree.
-  if (typeof patch.department === 'string' && patch.department.trim()) {
-    const wanted = patch.department.trim();
-    const names = (await ctx.db.query<{ name: string }>('select name from departments where deleted_at is null')).map((d) => d.name);
-    const match = names.find((n) => n.toLowerCase() === wanted.toLowerCase());
-    if (match) patch.department = match;
-    else if (names.length && byPerson && wanted !== existing?.department) {
-      ctx.fail(400, 'validation', 'Check the highlighted fields.', { department: `"${wanted}" is not in the department list.` });
-    }
-  }
+async function checkAsset(ctx: ModuleContext, merged: Row, patch: Row, existing: Row | null, _byPerson: boolean) {
   if (patch.tag) {
     const clash = await ctx.db.one<{ id: string }>(
       `select id from assets where lower(tag) = lower($1) and deleted_at is null and ($2::uuid is null or id <> $2::uuid)`,

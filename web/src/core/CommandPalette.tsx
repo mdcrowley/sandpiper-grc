@@ -145,7 +145,7 @@ export function CommandPalette({ opened, onClose, pages, create, userId }: Comma
     types.forEach((typeLabel) => hits.filter((h) => h.typeLabel === typeLabel).forEach((h) => out.push({
       key: `hit-${h.type}-${h.id}`, section: typeLabel, icon: h.matched === 'comment' ? 'message' : h.matched === 'attachment' ? 'paperclip' : 'file-text',
       label: h.label, reference: h.ref,
-      hint: h.matched === 'comment' ? 'In a comment' : h.matched === 'attachment' ? 'In a file name' : undefined,
+      hint: h.matched === 'comment' ? 'In a comment' : h.matched === 'attachment' ? 'In a file' : undefined,
       snippet: h.snippetParts?.length ? h.snippetParts : h.snippet ? [{ text: h.snippet, match: false }] : undefined,
       run: go(recordHref(h.route, h.id), true),
     })));

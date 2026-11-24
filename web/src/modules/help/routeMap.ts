@@ -50,6 +50,7 @@ export const ROUTE_HELP: RouteHelp[] = [
   { prefix: '/vendors', page: '04-vendors-and-contracts', section: 'the-vendor-profile' },
   { prefix: '/vendors/terms', page: '04-vendors-and-contracts', section: 'the-security-terms-matrix' },
   { prefix: '/vendors/questions', page: '04-vendors-and-contracts', section: 'the-questions' },
+  { prefix: '/vendors/intake', page: '34-vendor-risk-lifecycle', section: 'intake-and-risk-tiers' },
   { prefix: '/vendors/reassessments', page: '34-vendor-risk-lifecycle', section: 'reassessments-due' },
   { prefix: '/vendors/issues', page: '34-vendor-risk-lifecycle', section: 'vendor-issues' },
   { prefix: '/vendors/offboardings', page: '34-vendor-risk-lifecycle', section: 'offboarding' },
@@ -57,6 +58,7 @@ export const ROUTE_HELP: RouteHelp[] = [
   { prefix: '/contracts', page: '04-vendors-and-contracts', section: 'the-contract-record' },
   { prefix: '/contracts/renewals', page: '04-vendors-and-contracts', section: 'the-renewal-calendar-and-reminders' },
   { prefix: '/contracts/dates', page: '04-vendors-and-contracts', section: 'complete-the-dates' },
+  { prefix: '/contracts/performance', page: '04-vendors-and-contracts', section: 'contractor-performance' },
   { prefix: '/evidence', page: '04-vendors-and-contracts', section: 'evidence-and-expiry' },
   { prefix: '/evidence/expiring', page: '04-vendors-and-contracts', section: 'expiry' },
 
@@ -112,6 +114,7 @@ export const ROUTE_HELP: RouteHelp[] = [
   { prefix: '/reports', page: '15-dashboards-and-reports', section: 'reports' },
   { prefix: '/reports/new', page: '15-dashboards-and-reports', section: 'build-a-report' },
   { prefix: '/reports/packs', page: '15-dashboards-and-reports', section: 'report-packs' },
+  { prefix: '/reports/figures', page: '15-dashboards-and-reports', section: 'figures-over-time' },
   { prefix: '/reports/schedules', page: '15-dashboards-and-reports', section: 'scheduled-delivery' },
   { prefix: '/reports/snapshots', page: '15-dashboards-and-reports', section: 'scheduled-delivery' },
   { prefix: '/dashboards', exact: true, page: '15-dashboards-and-reports', section: 'dashboards' },
@@ -131,6 +134,7 @@ export const ROUTE_HELP: RouteHelp[] = [
   { prefix: '/admin/lifecycles', page: '23-lifecycles', section: 'setting-up-a-lifecycle-administrators' },
   { prefix: '/admin/settings', page: '09-administration', section: 'settings' },
   { prefix: '/admin/audit', page: '09-administration', section: 'the-audit-log' },
+  { prefix: '/admin/about', page: '09-administration', section: 'about-and-updates' },
   { prefix: '/admin/tokens', page: '09-administration', section: 'api-tokens' },
   { prefix: '/admin/webhooks', page: '09-administration', section: 'webhooks' },
   { prefix: '/admin/custom-fields', page: '09-administration', section: 'custom-fields' },
@@ -165,6 +169,7 @@ export const ROUTE_HELP: RouteHelp[] = [
   { prefix: '/safety/indicators', page: '20-safety-management', section: 'safety-performance-indicators' },
   { prefix: '/safety/exposure', page: '20-safety-management', section: 'exposure' },
   { prefix: '/safety/reporting-rules', page: '20-safety-management', section: 'safety-reporting-rules' },
+  { prefix: '/safety/confidential', page: '20-safety-management', section: 'confidential-reporting' },
   { prefix: '/safety/matrix', page: '20-safety-management', section: 'change-the-hazard-matrix' },
 
   // Corrective action plans
@@ -181,6 +186,7 @@ export const ROUTE_HELP: RouteHelp[] = [
   { prefix: '/inspections', page: '25-audits-and-inspections', section: 'inspections' },
   { prefix: '/inspections/schedules', page: '25-audits-and-inspections', section: 'schedules' },
   { prefix: '/audit-findings', page: '25-audits-and-inspections', section: 'findings' },
+  { prefix: '/admin/outside-reviewers', page: '25-audits-and-inspections', section: 'outside-reviewers' },
 
   // Controls
   { prefix: '/controls', exact: true, page: '26-controls-and-testing', section: 'the-control-library' },
@@ -207,6 +213,7 @@ export const ROUTE_HELP: RouteHelp[] = [
   // People and qualifications
   { prefix: '/people', page: '29-people-and-qualifications', section: 'the-roster' },
   { prefix: '/people/positions', page: '29-people-and-qualifications', section: 'positions' },
+  { prefix: '/people/departments', page: '29-people-and-qualifications', section: 'departments' },
   { prefix: '/training/qualifications', page: '29-people-and-qualifications', section: 'the-qualification-matrix' },
   { prefix: '/training/certifications', page: '12-training-and-exercises', section: 'qualifications-and-certifications' },
   { prefix: '/policies/kiosk', page: '11-policies-and-exceptions', section: 'the-acknowledgment-kiosk' },
@@ -234,6 +241,13 @@ export const ROUTE_HELP: RouteHelp[] = [
   { prefix: '/ot', page: '32-ot-security', section: 'the-ot-overview' },
   { prefix: '/ot/zones', page: '32-ot-security', section: 'security-zones' },
   { prefix: '/ot/conduits', page: '32-ot-security', section: 'conduits' },
+  { prefix: '/access-reviews', page: '40-user-access-reviews', section: 'review-campaigns' },
+  { prefix: '/access-reviews/accounts', page: '40-user-access-reviews', section: 'accounts-on-systems' },
+  { prefix: '/access-reviews/mine', page: '40-user-access-reviews', section: 'reviewing-the-accounts-of-a-system' },
+  // Registers an administrator defines (E41-06).
+  { prefix: '/registers', exact: true, page: '41-registers', section: 'opening-a-register' },
+  { prefix: '/registers', page: '41-registers', section: 'working-with-records' },
+  { prefix: '/admin/registers', page: '41-registers', section: 'defining-a-register-administrators' },
 
   // Legal holds, records requests and privacy
   { prefix: '/admin/legal-holds', page: '33-legal-holds' },
@@ -242,11 +256,17 @@ export const ROUTE_HELP: RouteHelp[] = [
   { prefix: '/records-requests', page: '37-records-requests-and-privacy', section: 'clock' },
   { prefix: '/privacy', exact: true, page: '37-records-requests-and-privacy', section: 'privacy-coverage' },
   { prefix: '/privacy/assessments', page: '37-records-requests-and-privacy', section: 'privacy-impact-assessments' },
+  // Records retention schedule and destruction log (E41-15).
+  { prefix: '/retention-schedule', exact: true, page: '42-records-retention-schedule', section: 'record-series' },
+  { prefix: '/retention-schedule', page: '42-records-retention-schedule', section: 'record-series' },
+  { prefix: '/destruction-log', exact: true, page: '42-records-retention-schedule', section: 'proposing-a-destruction' },
+  { prefix: '/destruction-log', page: '42-records-retention-schedule', section: 'approval' },
 
   // Integrations
   { prefix: '/admin/provisioning', page: '35-user-provisioning-and-log-forwarding', section: 'user-provisioning' },
   { prefix: '/admin/log-forwarding', page: '35-user-provisioning-and-log-forwarding', section: 'log-forwarding' },
   { prefix: '/account/calendar-feeds', page: '36-calendar-feeds-work-trackers-and-evidence-links', section: 'calendar-feeds' },
+  { prefix: '/calendar', page: '36-calendar-feeds-work-trackers-and-evidence-links', section: 'compliance-calendar' },
   { prefix: '/admin/calendar-and-work-trackers', page: '36-calendar-feeds-work-trackers-and-evidence-links' },
 
   // Asset tags

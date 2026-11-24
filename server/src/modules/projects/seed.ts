@@ -19,6 +19,8 @@ interface Sample {
   reports: [string, string, string, string][];
   milestones: { name: string; due: number; done?: number }[];
   items?: Row[];
+  /** E41-08: certifiable items, each with its requirements. */
+  cert?: { name: string; category: string; required: boolean; requirements: Row[] }[];
 }
 
 const STAGES = ['idea', 'initiate', 'plan', 'procure', 'deliver', 'close'];
@@ -96,6 +98,25 @@ const SAMPLES: Sample[] = [
       { kind: 'risk', title: 'Old prediction server must stay available for two weeks after cut-over', status: 'open', likelihood: 2, impact: 4 },
       { kind: 'issue', title: 'Restore test not yet scheduled', status: 'open', due_on: day(7) },
     ],
+    cert: [
+      {
+        name: '[Sample] Arrival prediction server', category: 'systems', required: true, requirements: [
+          { title: 'Predictions stay available when one server fails', basis: 'Sample design criterion', verification_method: 'test', status: 'verified', evidence_ref: 'Sample failover test report' },
+          { title: 'Remote access only through the operations network', basis: 'Sample security design criterion', verification_method: 'inspection', status: 'verified', evidence_ref: 'Sample configuration review' },
+        ],
+      },
+      {
+        name: '[Sample] Displays at major stops', category: 'facilities', required: true, requirements: [
+          { title: 'Displays are mounted clear of the platform edge', basis: 'Sample station design standard', verification_method: 'inspection', status: 'verified', evidence_ref: 'Sample site inspection record' },
+          { title: 'Displays show a fallback message when the feed stops', basis: 'Sample design criterion', verification_method: 'demonstration', status: 'in_progress', due_on: day(10) },
+        ],
+      },
+      {
+        name: '[Sample] Wayfinding signage updates', category: 'facilities', required: false, requirements: [
+          { title: 'New stop names on every wayfinding sign', basis: 'Sample signage standard', verification_method: 'inspection', status: 'open', due_on: day(45) },
+        ],
+      },
+    ],
   },
   {
     stage: 'deliver', ticks: 0,
@@ -123,7 +144,8 @@ const SAMPLES: Sample[] = [
 ];
 
 export async function seedSampleProjects(ctx: ModuleContext, svc: ProjectService): Promise<string> {
-  const existing = await ctx.db.one(`select 1 from projects where name like '[Sample]%' limit 1`);
+  // These samples by name: other modules (asset condition) add sample projects of their own first.
+  const existing = await ctx.db.one('select 1 from projects where name = any($1::text[]) limit 1', [SAMPLES.map((x) => x.project.name)]);
   if (existing) return 'sample projects already present; skipped';
 
   for (const s of SAMPLES) {
@@ -169,6 +191,10 @@ export async function seedSampleProjects(ctx: ModuleContext, svc: ProjectService
       });
     }
     for (const item of s.items ?? []) await svc.addItem(null, project, item);
+    for (const c of s.cert ?? []) {
+      const made = await ctx.resources.create('cert_item', { project_id: project.id, name: c.name, category: c.category, required: c.required });
+      for (const r of c.requirements) await ctx.resources.create('cert_requirement', { item_id: made.id, ...r });
+    }
   }
   return `${SAMPLES.length} sample projects created`;
 }

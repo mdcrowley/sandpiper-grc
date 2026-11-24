@@ -45,10 +45,21 @@ Open **Meetings**, or the committee's **Meetings** tab. Filter by committee, sta
 ### Plan a meeting
 
 1. Select **New meeting**, or **Create** then **Meeting**.
-2. Choose the **Committee**, and enter the **Title**, the **Date and time** and the **Location or call details**.
+2. Choose the **Committee**, and enter the **Title**, the **Date and time**, the **Length (minutes)** (an hour if you leave it empty) and the **Location or call details**.
 3. Select **Create meeting**. It gets a reference such as `MTG-00001`, and the committee's chair and secretary are recorded with it.
 
-Meetings reach members' calendars through a personal calendar feed (see [Calendar feeds](36-calendar-feeds-work-trackers-and-evidence-links.md#calendar-feeds)).
+Meetings reach members' calendars through a personal calendar feed (see [Calendar feeds](36-calendar-feeds-work-trackers-and-evidence-links.md#calendar-feeds)), or by an invitation email.
+
+### Invitations
+
+The **Invitations** tab lists the committee's members in office on the day of the meeting and how each is reached: **By email** (their account's address), **By email (staff roster address)** for a member who is a roster person, or **No email address: tell them yourself** for a member known only by name.
+
+- **Email invitations** sends each member an email with the meeting attached as a calendar file (`invitation.ics`). Opening it adds the meeting to their calendar, with the time, length, place and a link to the meeting here. You are named as the organizer when your account has an email address. Replies are not collected: record who came under **Attendance**.
+- After a change of time, length or place, **Email the updated invitation** sends it again. Calendars move the same event rather than adding a second one.
+- Once the meeting is canceled, **Email the cancellation** sends a cancellation that takes the meeting off their calendars.
+- **Download calendar file** gives you the same file to send or import yourself, for example while email is not set up.
+
+Invitations can be emailed by anyone who may edit meetings, while email is set up (see [Email](14-attachments-and-notifications.md)), and not for a meeting that has already taken place. **Invitations sent** on the meeting shows when they were last emailed, and each sending is in the meeting's history.
 
 A meeting moves through **Planned**, **Agenda published**, **Held** and **Minutes approved**, shown along the top of its page. Use **Publish agenda**, **Mark as held** and **Cancel meeting** at the top of the page. **Minutes approved** is set only by the chair's approval (see [Minutes](#minutes)).
 

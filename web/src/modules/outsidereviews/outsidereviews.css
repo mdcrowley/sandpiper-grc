@@ -1,0 +1,21 @@
+/* Outside reviewers (E41-09). */
+.or-small { font-size: var(--fs-sm); }
+.or-actions { text-align: end; white-space: nowrap; }
+.or-nav { display: flex; flex-wrap: wrap; gap: var(--s-3); margin-inline-end: auto; margin-inline-start: var(--s-4); }
+.or-nav a { color: var(--text); text-decoration: none; padding: var(--s-1) var(--s-2); border-radius: var(--radius-sm, 4px); }
+.or-nav a:hover { text-decoration: underline; }
+.or-nav a[aria-current='page'] { font-weight: 700; text-decoration: underline; text-underline-offset: 4px; }
+.or-content > * { max-width: 1100px; }
+.or-cards { display: grid; gap: var(--s-4); grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+.or-cards .btn { margin-top: var(--s-2); }
+.or-ended { margin: 0; padding-inline-start: var(--s-4); display: grid; gap: var(--s-2); }
+.or-section { margin-top: var(--s-4); }
+.or-h3 { font-size: var(--fs-md); margin: 0 0 var(--s-1); }
+.or-files { list-style: none; margin: var(--s-2) 0 0; padding: 0; display: grid; gap: var(--s-2); }
+.or-files li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
+.or-files li a { overflow-wrap: anywhere; }
+.or-file-note { flex-basis: 100%; padding-inline-start: 24px; font-size: var(--fs-sm); }
+.or-item { padding-bottom: var(--s-3); border-bottom: 1px solid var(--border); display: grid; gap: var(--s-1); }
+.or-item:last-child { border-bottom: 0; padding-bottom: 0; }
+.or-item-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); margin: 0; }
+.or-item .prose { margin: 0; }

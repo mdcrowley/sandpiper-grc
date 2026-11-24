@@ -133,7 +133,7 @@ export async function maySchemaChange(db: Pick<Db, 'one'>, table: string): Promi
 }
 
 /** Records a schema change the owner's migrate step must make (table `schema_requests`, migration 014). */
-export async function requestSchemaChange(db: Pick<Db, 'query'>, kind: 'search' | 'custom_column', target: string, detail: string): Promise<void> {
+export async function requestSchemaChange(db: Pick<Db, 'query'>, kind: 'search' | 'custom_column' | 'register', target: string, detail: string): Promise<void> {
   const fresh = await db.query(
     `insert into schema_requests (kind, target, detail) values ($1, $2, $3)
      on conflict (kind, target) do update set detail = excluded.detail where schema_requests.detail is distinct from excluded.detail
@@ -144,7 +144,7 @@ export async function requestSchemaChange(db: Pick<Db, 'query'>, kind: 'search' 
 }
 
 /** Marks a recorded schema change as made. */
-export async function schemaChangeDone(db: Pick<Db, 'query'>, kind: 'search' | 'custom_column', target: string): Promise<void> {
+export async function schemaChangeDone(db: Pick<Db, 'query'>, kind: 'search' | 'custom_column' | 'register', target: string): Promise<void> {
   await db.query('delete from schema_requests where kind = $1 and target = $2', [kind, target]);
 }
 
@@ -172,12 +172,22 @@ export async function ensureSearchIndex(db: Db, def: ResourceDef, customKeys: st
     return false;
   }
   const via = table === def.table ? '' : `|via ${table}`;
-  const signature = createHash('sha256').update(`v2|${def.table}${via}|${vectorSql(def, customKeys, 'new')}|${bodySql(def, 'new')}`).digest('hex');
-  const backfill = (onlyMissing: boolean) => `
+  // A view of a shared table (registers, E41-06: ResourceDef.partition): the trigger on that table
+  // indexes only this type's rows, so no row is indexed as a type it does not belong to.
+  const part = table !== def.table && def.partition && IDENT.test(def.partition.column) && /^[a-z0-9_]+$/.test(def.partition.value)
+    ? def.partition : null;
+  const signature = createHash('sha256').update(`v2|${def.table}${via}${part ? `|${part.column}=${part.value}` : ''}|${vectorSql(def, customKeys, 'new')}|${bodySql(def, 'new')}`).digest('hex');
+  const backfill = (onlyMissing: boolean) => {
+    const conds = [
+      ...(part ? [`t.${part.column} = '${part.value}'`] : []),
+      ...(onlyMissing ? [`not exists (select 1 from search_index si where si.record_type = '${def.type}' and si.record_id = t.id)`] : []),
+    ];
+    return `
     insert into search_index (record_type, record_id, vector, body)
     select '${def.type}', t.id, ${vectorSql(def, customKeys, 't')}, ${bodySql(def, 't')} from ${table} t
-    ${onlyMissing ? `where not exists (select 1 from search_index si where si.record_type = '${def.type}' and si.record_id = t.id)` : ''}
+    ${conds.length ? `where ${conds.join(' and ')}` : ''}
     on conflict (record_type, record_id) do update set vector = excluded.vector, body = excluded.body;`;
+  };
   try {
     const current = known ? known.get(def.type)
       : (await db.one<{ signature: string }>('select signature from search_index_state where table_name = $1', [def.type]))?.signature;
@@ -213,7 +223,7 @@ export async function ensureSearchIndex(db: Db, def: ResourceDef, customKeys: st
       end $search$;
       drop trigger if exists ${def.type}_search on ${table};
       create trigger ${def.type}_search after insert or update on ${table}
-        for each row execute function ${fn}();
+        for each row${part ? ` when (new.${part.column} = '${part.value}')` : ''} execute function ${fn}();
       ${backfill(false)}
       insert into search_index_state (table_name, signature) values ('${def.type}', '${signature}')
       on conflict (table_name) do update set signature = excluded.signature, built_at = now();`);

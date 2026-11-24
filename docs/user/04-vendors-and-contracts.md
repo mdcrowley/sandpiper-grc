@@ -48,6 +48,7 @@ Below the profile, a strip repeats **What they supply**, **Criticality**, **Remo
 | **Security terms** | The security-terms checklist for each of the vendor's contracts |
 | **Evidence** | Assurance evidence received from the vendor |
 | **Assessment** | The vendor security assessment: the latest score and gaps, an assessment in progress, and the history |
+| **Intake and checks** | The vendor's risk tier from its intake questionnaire, why, and the checks the tier needs before a contract becomes active; see [Intake and risk tiers](34-vendor-risk-lifecycle.md#intake-and-risk-tiers) |
 | **Lifecycle** | When the vendor is next reassessed, its exclusion-list checks, its issues and its offboardings; see [Vendor risk lifecycle](34-vendor-risk-lifecycle.md) |
 | **Contacts** | The people you deal with |
 | **Systems supplied** | Systems whose **Vendor** field points to this vendor; see [Inventory](03-inventory.md) |
@@ -104,9 +105,9 @@ Below it:
 - **Value by year**: the contract's value year by year (see below).
 - **As recorded in the contract register**: free-text notes carried over from an earlier register, such as **Document on file** and **Term and renewal (as recorded)**.
 
-The header has **Start offboarding**, which starts an offboarding checklist for the contract by hand, or **Open offboarding** once it has one (an offboarding also starts by itself when the contract's status becomes **Expired** or **Ended**; see [Offboarding](34-vendor-risk-lifecycle.md#offboarding)). When your administrator has asked for it, a contract can be made **Active** only after a recent exclusion-list check of its vendor (see [Exclusion-list checks](34-vendor-risk-lifecycle.md#exclusion-list-checks)).
+The header has **Start offboarding**, which starts an offboarding checklist for the contract by hand, or **Open offboarding** once it has one (an offboarding also starts by itself when the contract's status becomes **Expired** or **Ended**; see [Offboarding](34-vendor-risk-lifecycle.md#offboarding)). A contract can be made **Active** only once every check its vendor's risk tier needs is done or waived (see [Intake and risk tiers](34-vendor-risk-lifecycle.md#intake-and-risk-tiers)); a draft contract's page says which are missing. When your administrator has asked for it, it also needs a recent exclusion-list check of its vendor (see [Exclusion-list checks](34-vendor-risk-lifecycle.md#exclusion-list-checks)).
 
-The tabs are **Security terms**, **Evidence**, **Actions** (when the action tracker is switched on), **Funder clauses** (when funding and grant compliance is switched on and you may see funding records), and the usual **Activity**, **Attachments**, **Related** and **History**. Attach the signed contract and its schedules on the **Attachments** tab. **Funder clauses** is a checklist of the clauses required by each award that pays for the contract; see [Funder-required clauses on contracts](27-funding-and-grants.md#funder-required-clauses-on-contracts).
+The tabs are **Security terms**, **Evidence**, **Performance** (measures with targets and periodic scores; see [Contractor performance](#contractor-performance)), **Actions** (when the action tracker is switched on), **Funder clauses** (when funding and grant compliance is switched on and you may see funding records), and the usual **Activity**, **Attachments**, **Related** and **History**. Attach the signed contract and its schedules on the **Attachments** tab. **Funder clauses** is a checklist of the clauses required by each award that pays for the contract; see [Funder-required clauses on contracts](27-funding-and-grants.md#funder-required-clauses-on-contracts).
 
 ### Value by year
 
@@ -368,6 +369,40 @@ People who administer contracts see **Reminder days** on the renewal calendar.
 3. Select **Save reminder days**.
 
 Each value must be a whole number of days from 1 to 3650, with no repeats and at most twelve. The change is recorded in the audit log. If notifications are not switched on in your installation, the dialog says so and reminders are recorded in history only.
+
+## Contractor performance
+
+A contract can carry **performance measures**, each with a target, and a score is recorded for each month, quarter or year with a comment. The contract's **Performance** tab shows whether each score met the target and which way the measure is heading. Reading needs `contracts.view`; adding measures and recording scores needs `contracts.edit`.
+
+### Add a measure
+
+1. Open the contract and its **Performance** tab, and select **Add a measure**.
+2. Fill in:
+   - **Measure**: what is measured, for example "Shelters cleaned on schedule" or "Hours to fix a fault".
+   - **Target** and **Unit** (such as `%`, `hours` or `count`).
+   - **Better when**: **Higher** (the target is a minimum) or **Lower** (the target is a maximum).
+   - **Scored**: **Monthly**, **Quarterly** or **Yearly**. It cannot change once a score is recorded.
+   - **How it is measured**: optional.
+3. Select **Add the measure**.
+
+To change a measure, use its pencil button. Switch off **Still scored** to stop asking for scores but keep the history; the bin button removes the measure and its scores (refused while the contract is under a legal hold).
+
+### Record a score
+
+Select **Score** on the measure's line, choose the **Period** (it offers the score that is due, otherwise the latest period not yet scored), enter the **Score** and a **Comment** about what happened and what was agreed with the contractor, and select **Record the score**. The form says at once whether the score meets the target. Each period can be scored once; to change a score, open the measure (select its name) and use the pencil button beside the score, or the bin button to remove one recorded in error. If someone else changed the score since you opened it, you are asked to reload.
+
+### Reading the tab
+
+- The tiles count the measures still scored, how many **met** or fell **below** the target at their latest score, and how many **scores are due**.
+- Each measure shows its target, its latest score (green when it met the target, red when below), a small line of the recent scores with the target dashed, the **Trend**, how many scores met the target, and **Due** with the period when the last month, quarter or year has ended without a score (on contracts that are not expired or ended).
+- **Trend** follows the line that best fits the last six scores: **Improving** or **Worsening** (turned so that improving is always the better way, also for "lower is better" measures), or **Steady** when the change along it is no more than 0.5% of the target. It needs two scores.
+- Select a measure's name for its chart against the target and every score with its comment and who recorded it.
+
+Every measure and score, and every change, is recorded in the contract's history. Anonymizing a contract at the end of its retention period also clears the comments and who recorded the scores.
+
+### Across contracts
+
+**Vendors > Contractor performance** lists every contract with measures, those with measures below target first: how many met their target at the latest score, which fell below, how many are worsening and how many scores are due. Vendor names show to people who may see vendors.
 
 ## Not available yet
 

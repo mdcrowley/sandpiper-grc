@@ -5,6 +5,7 @@ import { rollUp } from './controls.ts';
 import { flagCoverage } from './coverage.ts';
 import { meanings } from './lists.ts';
 import { DATE_RE, UUID_RE, wholeNumber } from './shared.ts';
+import { copySteps, stepsWithoutResult } from './steps.ts';
 
 /**
  * Control tests (E26-05): one test of a control's design or operation over a period, with its
@@ -54,6 +55,11 @@ export function registerTests(ctx: ModuleContext) {
     if (m.done.includes(merged.status)) {
       if (!merged.result) errors.result = 'Give the result before marking the testing finished.';
       if (!merged.performed_on) errors.performed_on = 'Give the date the test was performed.';
+      // E41-12: every written step needs its result before the testing is finished.
+      if (existing && !m.done.includes(existing.status)) {
+        const left = await stepsWithoutResult(ctx, existing.id);
+        if (left) errors.status = `Give a result for every test step first (${left} still ${left === 1 ? 'has' : 'have'} none).`;
+      }
     }
     if (merged.performed_on && String(merged.performed_on) > dayInZone()) errors.performed_on = 'A test cannot be performed in the future.';
     if (Object.keys(errors).length) invalid(errors);
@@ -93,6 +99,8 @@ export function registerTests(ctx: ModuleContext) {
     hooks: {
       beforeCreate: (req, data) => check(req, null, data),
       beforeUpdate: (req, existing, patch) => check(req, existing, patch),
+      // E41-12: a new test starts with the control's written steps.
+      afterCreate: async (req, row) => { if (row.control_id) await copySteps(ctx, row.id, row.control_id, req?.user?.id ?? null); },
     },
   });
 

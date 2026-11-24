@@ -3,9 +3,11 @@
 import type { ModuleDef } from '../../core';
 import { ContractDetail, ContractList } from './ContractPages';
 import { EvidenceDetail, EvidenceExpiring, EvidenceList } from './EvidencePages';
+import { IntakeSettings } from './Intake';
 import { IssueDetail, IssueList } from './Issues';
 import { MissingDates } from './MissingDates';
 import { OffboardingDetail, OffboardingList } from './Offboardings';
+import { PerformanceReview } from './Performance';
 import { AssessmentQuestions } from './Questions';
 import { Reassessments } from './Reassessments';
 import { RenewalCalendar } from './RenewalCalendar';
@@ -21,6 +23,7 @@ const mod: ModuleDef = {
     { group: 'Vendors', label: 'Security terms matrix', path: '/vendors/terms', icon: 'shield', permission: 'contracts.view', order: 20 },
     { group: 'Vendors', label: 'Contracts', path: '/contracts', icon: 'file-text', permission: 'contracts.view', order: 30 },
     { group: 'Vendors', label: 'Renewal calendar', path: '/contracts/renewals', icon: 'calendar', permission: 'contracts.view', order: 40 },
+    { group: 'Vendors', label: 'Contractor performance', path: '/contracts/performance', icon: 'target', permission: 'contracts.view', order: 45 },
     { group: 'Vendors', label: 'Evidence', path: '/evidence', icon: 'clipboard', permission: 'vendors.view', order: 50 },
     { group: 'Vendors', label: 'Expiring evidence', path: '/evidence/expiring', icon: 'clock', permission: 'vendors.view', order: 60 },
     { group: 'Vendors', label: 'Reassessments due', path: '/vendors/reassessments', icon: 'calendar', permission: 'vendors.view', order: 70 },
@@ -31,6 +34,7 @@ const mod: ModuleDef = {
     { path: '/vendors', element: <VendorList />, permission: 'vendors.view' },
     { path: '/vendors/terms', element: <TermsMatrix />, permission: 'contracts.view' },
     { path: '/vendors/questions', element: <AssessmentQuestions />, permission: 'vendors.view' },
+    { path: '/vendors/intake', element: <IntakeSettings />, permission: 'vendors.view' },
     { path: '/vendors/reassessments', element: <Reassessments />, permission: 'vendors.view' },
     { path: '/vendors/issues', element: <IssueList />, permission: 'vendors.view' },
     { path: '/vendors/issues/:id', element: <IssueDetail />, permission: 'vendors.view' },
@@ -40,6 +44,7 @@ const mod: ModuleDef = {
     { path: '/contracts', element: <ContractList />, permission: 'contracts.view' },
     { path: '/contracts/renewals', element: <RenewalCalendar />, permission: 'contracts.view' },
     { path: '/contracts/dates', element: <MissingDates />, permission: 'contracts.view' },
+    { path: '/contracts/performance', element: <PerformanceReview />, permission: 'contracts.view' },
     { path: '/contracts/:id', element: <ContractDetail />, permission: 'contracts.view' },
     { path: '/evidence', element: <EvidenceList />, permission: 'vendors.view' },
     { path: '/evidence/expiring', element: <EvidenceExpiring />, permission: 'vendors.view' },

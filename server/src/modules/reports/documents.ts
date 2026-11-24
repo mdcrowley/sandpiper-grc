@@ -29,7 +29,10 @@ const globalsNote = (g?: GlobalFilters) => {
 /** Decides whether a section's figures may leave the application in this document. */
 export type Allow = (result: ReportResult) => boolean;
 
-export function makeDocuments(ctx: ModuleContext, loadReport: (user: SessionUser, id: string) => Promise<Row | undefined>) {
+/** A recorded figure over time (E41-04) the person may see, or null. */
+export type LoadFigure = (user: SessionUser, id: string, months: number) => Promise<{ figure: Row; result: ReportResult; what: string; filters: string[] } | null>;
+
+export function makeDocuments(ctx: ModuleContext, loadReport: (user: SessionUser, id: string) => Promise<Row | undefined>, loadFigure: LoadFigure = async () => null) {
   const appName = () => ctx.settings.get<string>('app.name', DEFAULT_APP_NAME);
 
   /** Runs a saved report for a document; a problem becomes a note in its place rather than a failure of the whole document. */
@@ -45,6 +48,15 @@ export function makeDocuments(ctx: ModuleContext, loadReport: (user: SessionUser
       if (err instanceof SpecError) return { ...head, note: `This report could not be run: ${err.message}` };
       throw err;
     }
+  }
+
+  /** A figure over time as a section: a line chart of the months recorded and their values; a note when it cannot be shown. */
+  async function figureSection(user: SessionUser, id: string, title?: string, months = 12): Promise<DocSection> {
+    const got = await loadFigure(user, id, months);
+    if (!got) return { title: title || 'Figure over time', note: 'This figure has been removed, or it is not available to you here.' };
+    const head = { title: title || String(got.figure.name), description: (got.figure.description as string | null) ?? got.what };
+    if (!got.result.rows.length) return { ...head, note: 'Nothing has been recorded for this figure yet.' };
+    return { ...head, result: got.result, chart: 'line', filters: got.filters };
   }
 
   const finish = async (title: string, subtitle: string | null, cover: boolean, given: DocSection[], user: SessionUser, now: Date, filtersNote?: string, allow?: Allow): Promise<BuiltDocument> => {
@@ -93,7 +105,7 @@ export function makeDocuments(ctx: ModuleContext, loadReport: (user: SessionUser
       const title = w.title || 'Untitled';
       if (w.kind === 'text') { sections.push({ title, markdown: String(cfg.markdown ?? '') }); continue; }
       if (w.kind === 'countdown' && !cfg.spec) { sections.push({ title, note: cfg.deadline ? `Deadline: ${String(cfg.deadline).slice(0, 10)}` : 'No deadline set.' }); continue; }
-      const data = await runWidget(ctx, user, w, { globals: opts.globals, now, loadReport: (id) => loadReport(user, id) });
+      const data = await runWidget(ctx, user, w, { globals: opts.globals, now, loadReport: (id) => loadReport(user, id), loadFigure: async (id, months) => (await loadFigure(user, id, months))?.result ?? null });
       if (data.status !== 'ok' || !data.result) { sections.push({ title, note: data.message ?? 'Not available.' }); continue; }
       const extra = data.denominator !== undefined && data.denominator !== null ? `Out of ${data.denominator}.` : data.trend
         ? `${data.trend.current} in the last ${data.trend.days} days; ${data.trend.previous} in the ${data.trend.days} days before.` : null;
@@ -109,11 +121,18 @@ export function makeDocuments(ctx: ModuleContext, loadReport: (user: SessionUser
     for (const s of (pack.sections as Row[]) ?? []) {
       if (s?.kind === 'text') sections.push({ title: String(s.title ?? ''), markdown: String(s.body ?? '') });
       else if (s?.kind === 'report') sections.push(await reportSection(user, await loadReport(user, String(s.reportId)), s.title ? String(s.title) : undefined, undefined, now));
+      else if (s?.kind === 'figure') sections.push(await figureSection(user, String(s.figureId), s.title ? String(s.title) : undefined, Number(s.months) || 12));
     }
     return finish(pack.cover_title || pack.name, pack.cover_subtitle ?? pack.description ?? null, true, sections, user, now, undefined, opts.allow);
   }
 
-  return { forReport, forSpec, forDashboard, forPack, reportSection };
+  /** One figure over time, on its own (Reports > Figures over time > Export). */
+  async function forFigure(user: SessionUser, id: string, months: number, now = new Date()): Promise<BuiltDocument> {
+    const section = await figureSection(user, id, undefined, months);
+    return finish(section.title, `The last ${months} months`, false, [section], user, now);
+  }
+
+  return { forReport, forSpec, forDashboard, forPack, forFigure, reportSection, figureSection };
 }
 
 export type Documents = ReturnType<typeof makeDocuments>;

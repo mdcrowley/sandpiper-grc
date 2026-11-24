@@ -1,12 +1,14 @@
 // Server-made PDF documents (PDFKit). One builder serves list exports, reports, dashboards,
 // report packs and record fact sheets: headings, paragraphs, fact lists, tables that break across
 // pages with the header row repeated, simple vector charts (bar, line, pie), page numbers and, for
-// restricted content, a watermark on every page.
+// restricted content, a watermark on every page. Every file is a tagged PDF meeting PDF/UA
+// (E41-13; see PdfBuilder below and the check in pdfua.ts).
 //
-// Fonts: text that Windows-1252 covers (Western European languages) is printed in PDFKit's
-// built-in Helvetica, so nothing is embedded. Any other text (Greek, Cyrillic, Hebrew, Arabic,
-// Chinese, Japanese, Korean and so on) is printed in a TrueType or OpenType font from the machine,
-// or from GRC_PDF_FONTS, with only the glyphs used embedded (see fonts.ts).
+// Fonts: text that Windows-1252 covers (Western European languages) is printed in the
+// application's own Arimo (fonts/, with Helvetica's widths, embedded as a subset, as PDF/UA needs every font
+// embedded). Any other text (Greek, Cyrillic, Hebrew, Arabic, Chinese, Japanese, Korean and so on)
+// is printed in a TrueType or OpenType font from the machine, or from GRC_PDF_FONTS, with only
+// the glyphs used embedded (see fonts.ts).
 //
 // Text that one font prints whole, left to right, goes straight to PDFKit. Text holding
 // right-to-left characters, or mixing scripts that no single font covers, is laid out here (E12-16):
@@ -14,7 +16,7 @@
 // text is broken into lines, and each line is put in display order by the bidirectional algorithm
 // (fonts.ts) and printed run by run. Only a character that no available font has prints as "?".
 import PDFDocument from 'pdfkit';
-import { bidiClass, bidiLevels, isDirectionMark, mirrored, needsBidi, pdfFonts, visualOrder, type FontFace } from './fonts.ts';
+import { baseFont, bidiClass, bidiLevels, isDirectionMark, mirrored, needsBidi, pdfFonts, visualOrder, type FontFace } from './fonts.ts';
 
 export const PDF_TYPE = 'application/pdf';
 
@@ -242,6 +244,8 @@ export interface PdfOptions {
   /** A cover page with the title, subtitle and meta; the body starts on page 2. */
   cover?: boolean;
   author?: string;
+  /** The document's language (BCP 47), recorded for screen readers. Default `en-US`. */
+  lang?: string;
   /**
    * The organization (Administration > Organization, `printBranding` in core/organization.ts): its
    * name and address lines in the footer of every page, its logo on the first page, its brand color
@@ -252,7 +256,82 @@ export interface PdfOptions {
 
 export interface PdfColumn { header: string; align?: 'left' | 'right'; /** Relative width; worked out from the content when left out. */ weight?: number }
 export interface ChartPoint { label: string; value: number }
+/** One line of a chart over time: a value for each label (null where there is none). */
+export interface ChartSeries { name: string; values: (number | null)[] }
 
+type Struct = PDFKit.PDFStructureElement;
+export type StructOptions = { alt?: string; lang?: string; scope?: 'Row' | 'Column' | 'Both' };
+
+/** XML text: PDFKit copies the document properties into the XMP metadata as they are. */
+const xml = (s: string) => s.replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[ch]!);
+
+/**
+ * A new PDFKit document that is tagged for PDF/UA (E41-13): marked as tagged with a structure tree,
+ * its language, its title shown in place of the file name, and the PDF/UA identifier in its XMP
+ * metadata. Every PDF the server makes starts here (PdfBuilder, and the label printer, which draws
+ * its own pages). The caller tags its content and sets fonts with `setBaseFont` (never the
+ * standard fonts, which are not embedded).
+ */
+export function taggedDocument(o: { title: string; author?: string; appName?: string; subject?: string | null; lang?: string } & PDFKit.PDFDocumentOptions): PDFKit.PDFDocument {
+  const { title: given, author, appName, subject, lang, ...rest } = o;
+  const title = clean(given).trim() || clean(appName ?? '').trim() || 'Document';
+  const doc = new PDFDocument({
+    ...rest,
+    // Document properties are stored as Unicode, so they need no font.
+    info: {
+      Title: title, Author: clean(author ?? ''), Creator: clean(appName ?? 'Sandpiper GRC'), Producer: 'Sandpiper GRC',
+      ...(subject ? { Subject: clean(subject) } : {}),
+    },
+    pdfVersion: '1.7', tagged: true, lang: lang || 'en-US', displayTitle: true, subset: 'PDF/UA' as PDFKit.Mixins.PDFSubsets,
+  });
+  // PDFKit writes the properties into the XMP metadata without escaping them: a title such as
+  // "Risks & issues" would make the metadata unreadable. Escape them for that step only.
+  const raw = doc as unknown as { endMetadata(): void; info: Record<string, unknown> };
+  const endMetadata = raw.endMetadata.bind(raw);
+  raw.endMetadata = () => {
+    const keep = raw.info;
+    raw.info = Object.fromEntries(Object.entries(keep).map(([k, v]) => [k, typeof v === 'string' ? xml(v) : v]));
+    try { endMetadata(); } finally { raw.info = keep; }
+  };
+  return doc;
+}
+
+/** Sets the application's own font (embedded; registered on first use), or Helvetica when its files are missing. */
+export function setBaseFont(doc: PDFKit.PDFDocument, bold: boolean): void {
+  const b = baseFont();
+  if (!b) { doc.font(bold ? 'Helvetica-Bold' : 'Helvetica'); return; }
+  const key = bold ? 'grc-base-bold' : 'grc-base';
+  const known = (doc as unknown as { _registeredFonts?: Record<string, unknown> })._registeredFonts;
+  if (!known?.[key]) doc.registerFont(key, bold ? b.bold : b.regular);
+  doc.font(key);
+}
+
+/** A structure element (PDFKit's `struct`, with options its type description lacks, such as a table header's scope). */
+export function structOf(doc: PDFKit.PDFDocument, type: string, opts: StructOptions, children?: PDFKit.PDFStructureElementChild | PDFKit.PDFStructureElementChild[]): PDFKit.PDFStructureElement {
+  return (doc.struct as (this: unknown, t: string, o: object, c: unknown) => PDFKit.PDFStructureElement).call(doc, type, opts, children ?? null);
+}
+
+/** Drawing that is not content (rules, shading, page furniture): marked as an artifact, which screen readers skip. */
+export function asArtifact(doc: PDFKit.PDFDocument, draw: () => void, type: 'Layout' | 'Pagination' = 'Layout'): void {
+  doc.markContent('Artifact', { type });
+  draw();
+  doc.endMarkedContent();
+}
+
+/** A chart's data in words, for its alternative text (what a screen reader says instead of the drawing). */
+export function chartAlt(label: string, points: ChartPoint[], kind: string): string {
+  const what = kind === 'pie' ? 'Pie chart' : kind === 'line' ? 'Line chart' : 'Bar chart';
+  const text = `${what}: ${label}. ${points.map((p) => `${p.label}: ${formatNumber(p.value)}`).join('; ')}.`;
+  return text.length > 1500 ? `${text.slice(0, 1497)}...` : text;
+}
+
+/**
+ * Builds a PDF. Every file is tagged for PDF/UA (E41-13): a structure tree in reading order
+ * (headings H1 to H3 that never skip a level, paragraphs, lists, tables with header cells, charts
+ * as figures with a text alternative), the document's language and title (shown as the window
+ * title), every font embedded, and page furniture (headers, footers, page numbers, the watermark,
+ * rules and shading) marked as artifacts that screen readers skip.
+ */
 export class PdfBuilder {
   readonly doc: PDFKit.PDFDocument;
   private chunks: Buffer[] = [];
@@ -261,36 +340,90 @@ export class PdfBuilder {
   private readonly registered = new Set<string>();
   /** The brand color for rules: the organization's when it has one. */
   private readonly brand: string;
+  /** The document's structure element: every tagged part is added under it, in reading order. */
+  private readonly root: Struct;
+  /** The level of the last heading, so that levels never skip (H1, then H2, then H3). */
+  private level = 0;
+  /** How far wanted levels are moved up, once a document has skipped one (sub-headings straight under the title). */
+  private shift = 0;
 
   constructor(opts: PdfOptions) {
     this.opts = opts;
     this.brand = opts.branding?.color && /^#[0-9a-f]{6}$/i.test(opts.branding.color) ? opts.branding.color : BRAND;
-    this.doc = new PDFDocument({
+    this.doc = taggedDocument({
+      title: opts.title, author: opts.author, appName: opts.appName, subject: opts.subtitle, lang: opts.lang,
       size: 'A4', layout: opts.landscape ? 'landscape' : 'portrait', bufferPages: true,
       margins: { top: 64, bottom: 56, left: 48, right: 48 },
-      // Document properties are stored as Unicode, so they need no font.
-      info: { Title: clean(opts.title), Author: clean(opts.author ?? ''), Creator: clean(opts.appName ?? 'Sandpiper GRC'), Producer: 'Sandpiper GRC' },
       // Content streams are compressed; tests inflate them to read the text back.
       compress: true,
     });
+    this.root = this.doc.struct('Document');
+    this.doc.addStructure(this.root);
     this.done = new Promise((resolve, reject) => {
       this.doc.on('data', (c: Buffer) => this.chunks.push(c));
       this.doc.on('end', () => resolve(Buffer.concat(this.chunks)));
       this.doc.on('error', reject);
     });
-    this.doc.font('Helvetica').fontSize(10).fillColor(INK);
+    this.base(false);
+    this.doc.fontSize(10).fillColor(INK);
     if (opts.cover) this.coverPage(); else this.titleBlock();
   }
 
-  /** The organization's logo, fitted into a box; nothing when there is none or it cannot be read. */
+  // ---------- tagging ----------
+
+  /** Adds a structure element whose content `draw` prints, under `parent`, in reading order. */
+  private tag(type: string, draw: () => void, opts: StructOptions = {}, parent: Struct = this.root) {
+    parent.add(this.el(type, opts, draw));
+  }
+
+  /** A structure element with its children (elements, or a function that prints its content when the element is placed). */
+  private el(type: string, opts: StructOptions, children: PDFKit.PDFStructureElementChild | PDFKit.PDFStructureElementChild[]): Struct {
+    return structOf(this.doc, type, opts, children);
+  }
+
+  /** Opens a grouping element (a table, a list, a row) under `parent`; the caller ends it. */
+  private group(type: string, parent: Struct = this.root): Struct {
+    const el = this.doc.struct(type);
+    parent.add(el);
+    return el;
+  }
+
+  /** Drawing that is not content (rules, shading, page furniture): marked as an artifact, which screen readers skip. */
+  private artifact(draw: () => void, type: 'Layout' | 'Pagination' = 'Layout') {
+    asArtifact(this.doc, draw, type);
+  }
+
+  /** The heading tag for a wanted level: never more than one deeper than the heading before it. */
+  private headingTag(wanted: number): string {
+    let lv = wanted - this.shift;
+    // A document whose first headings under the title are sub-headings: those, and every heading
+    // after them, move up by the levels skipped, so headings of one level stay siblings.
+    if (lv > this.level + 1) { this.shift += lv - (this.level + 1); lv = this.level + 1; }
+    this.level = Math.max(1, Math.min(lv, 6));
+    return `H${this.level}`;
+  }
+
+  // ---------- fonts ----------
+
+  /** The application's own font (embedded), or Helvetica when its files are missing. */
+  private base(bold: boolean) {
+    setBaseFont(this.doc, bold);
+  }
+
+  /** The organization's logo, fitted into a box, as a figure named after the organization; nothing when there is none or it cannot be read. */
   private logo(x: number, y: number, w: number, h: number, align: 'left' | 'right') {
     const logo = this.opts.branding?.logo;
     if (!logo) return;
-    try {
-      this.doc.image(logo, x, y, { fit: [w, h], valign: 'center', ...(align === 'right' ? { align: 'right' as const } : {}) });
-    } catch {
-      // A picture PDFKit cannot read is left out rather than failing the export.
-    }
+    const draw = () => {
+      try {
+        this.doc.image(logo, x, y, { fit: [w, h], valign: 'center', ...(align === 'right' ? { align: 'right' as const } : {}) });
+      } catch {
+        // A picture PDFKit cannot read is left out rather than failing the export.
+      }
+    };
+    const name = clean(this.opts.branding?.name ?? '').trim();
+    if (name) this.tag('Figure', draw, { alt: `${name} logo` });
+    else this.artifact(draw);
   }
 
   /** Sets the font that can print `text` (bold or regular) and returns the text to print with it. */
@@ -300,10 +433,10 @@ export class PdfBuilder {
     return out;
   }
 
-  /** Sets an embedded font (registering it on first use) or the standard one. */
+  /** Sets an embedded font (registering it on first use) or the base one. */
   private useFace(face: FontFace | null, bold: boolean) {
     if (!face) {
-      this.doc.font(bold ? 'Helvetica-Bold' : 'Helvetica');
+      this.base(bold);
       return;
     }
     if (!this.registered.has(face.key)) {
@@ -390,15 +523,21 @@ export class PdfBuilder {
   get width() { return this.doc.page.width - this.doc.page.margins.left - this.doc.page.margins.right; }
   get bottom() { return this.doc.page.height - this.doc.page.margins.bottom; }
 
+  /** Starts a new page. Tagged content that is still open carries on there. */
+  newPage() {
+    this.doc.continueOnNewPage();
+  }
+
   /** Starts a new page when less than `h` points are left on this one. */
   ensure(h: number) {
-    if (this.doc.y + h > this.bottom) this.doc.addPage();
+    if (this.doc.y + h > this.bottom) this.newPage();
   }
 
   private metaLines() {
     const { doc } = this;
-    doc.fontSize(9.5).fillColor(MUTED);
-    for (const line of this.opts.meta ?? []) this.write(line, this.left, doc.y, { width: this.width });
+    for (const line of this.opts.meta ?? []) {
+      this.tag('P', () => { doc.fontSize(9.5).fillColor(MUTED); this.write(line, this.left, doc.y, { width: this.width }); });
+    }
     doc.fillColor(INK);
   }
 
@@ -406,13 +545,12 @@ export class PdfBuilder {
     const { doc } = this;
     // The organization's logo in the top margin, at the right (where a restricted marking is not).
     if (!this.opts.watermark) this.logo(this.left + this.width - 140, 14, 140, 40, 'right');
-    doc.fontSize(20).fillColor(INK);
-    this.write(this.opts.title, this.left, doc.page.margins.top, { width: this.width, bold: true });
-    if (this.opts.subtitle) { doc.fontSize(11).fillColor(MUTED); this.write(this.opts.subtitle, doc.x, doc.y, { width: this.width }); }
+    this.tag(this.headingTag(1), () => { doc.fontSize(20).fillColor(INK); this.write(this.opts.title, this.left, doc.page.margins.top, { width: this.width, bold: true }); });
+    if (this.opts.subtitle) this.tag('P', () => { doc.fontSize(11).fillColor(MUTED); this.write(this.opts.subtitle, doc.x, doc.y, { width: this.width }); });
     doc.moveDown(0.3);
     this.metaLines();
     doc.moveDown(0.4);
-    doc.moveTo(this.left, doc.y).lineTo(this.left + this.width, doc.y).lineWidth(1.5).strokeColor(this.brand).stroke();
+    this.artifact(() => doc.moveTo(this.left, doc.y).lineTo(this.left + this.width, doc.y).lineWidth(1.5).strokeColor(this.brand).stroke());
     doc.moveDown(0.8);
   }
 
@@ -420,32 +558,40 @@ export class PdfBuilder {
     const { doc } = this;
     const top = doc.page.height * 0.32;
     this.logo(this.left, top - 120, 220, 72, 'left');
-    doc.rect(this.left, top - 28, 56, 5).fill(this.brand);
-    doc.fontSize(28).fillColor(INK);
-    this.write(this.opts.title, this.left, top, { width: this.width, bold: true });
-    if (this.opts.subtitle) { doc.moveDown(0.3).fontSize(13).fillColor(MUTED); this.write(this.opts.subtitle, doc.x, doc.y, { width: this.width }); }
+    this.artifact(() => doc.rect(this.left, top - 28, 56, 5).fill(this.brand));
+    this.tag(this.headingTag(1), () => { doc.fontSize(28).fillColor(INK); this.write(this.opts.title, this.left, top, { width: this.width, bold: true }); });
+    if (this.opts.subtitle) this.tag('P', () => { doc.moveDown(0.3).fontSize(13).fillColor(MUTED); this.write(this.opts.subtitle, doc.x, doc.y, { width: this.width }); });
     doc.moveDown(1);
     this.metaLines();
     if (this.opts.watermark) {
-      doc.moveDown(1).fontSize(10).fillColor(DANGER);
-      this.write(`${this.opts.watermark}. Contains restricted records: do not pass on.`, doc.x, doc.y, { width: this.width, bold: true });
+      this.tag('P', () => {
+        doc.moveDown(1).fontSize(10).fillColor(DANGER);
+        this.write(`${this.opts.watermark}. Contains restricted records: do not pass on.`, doc.x, doc.y, { width: this.width, bold: true });
+      });
     }
-    doc.addPage();
+    this.newPage();
   }
 
+  /** A heading: level 1 for a section, 2 for a part of one (tagged H2 and H3 under the title's H1). */
   heading(text: string, level: 1 | 2 = 1) {
     const { doc } = this;
     this.ensure(level === 1 ? 60 : 40);
     if (doc.y > doc.page.margins.top + 4) doc.moveDown(level === 1 ? 0.8 : 0.5);
-    doc.fontSize(level === 1 ? 14 : 11.5).fillColor(INK);
-    this.write(text, this.left, doc.y, { width: this.width, bold: true });
-    doc.moveDown(0.3).font('Helvetica').fontSize(10);
+    this.tag(this.headingTag(level + 1), () => {
+      doc.fontSize(level === 1 ? 14 : 11.5).fillColor(INK);
+      this.write(text, this.left, doc.y, { width: this.width, bold: true });
+    });
+    doc.moveDown(0.3);
+    this.base(false);
+    doc.fontSize(10);
   }
 
   paragraph(text: string, opts: { muted?: boolean; size?: number } = {}) {
     const { doc } = this;
-    doc.fontSize(opts.size ?? 10).fillColor(opts.muted ? MUTED : INK);
-    this.write(text, this.left, doc.y, { width: this.width });
+    this.tag('P', () => {
+      doc.fontSize(opts.size ?? 10).fillColor(opts.muted ? MUTED : INK);
+      this.write(text, this.left, doc.y, { width: this.width });
+    });
     doc.fillColor(INK).moveDown(0.4);
   }
 
@@ -456,9 +602,8 @@ export class PdfBuilder {
     const h = this.heightOf(text, this.width - 20) + 14;
     this.ensure(h + 6);
     const y = doc.y;
-    doc.roundedRect(this.left, y, this.width, h, 4).fill(BAND);
-    doc.fillColor(MUTED);
-    this.write(text, this.left + 10, y + 7, { width: this.width - 20 });
+    this.artifact(() => doc.roundedRect(this.left, y, this.width, h, 4).fill(BAND));
+    this.tag('P', () => { doc.fontSize(9.5).fillColor(MUTED); this.write(text, this.left + 10, y + 7, { width: this.width - 20 }); });
     doc.fillColor(INK);
     doc.y = y + h + 8;
   }
@@ -466,41 +611,54 @@ export class PdfBuilder {
   /** Simple Markdown: headings, bullets, numbered items and paragraphs (bold and italic marks are removed). */
   markdown(source: string) {
     const strip = (s: string) => s.replace(/\*\*([^*]+)\*\*/g, '$1').replace(/(^|[\s(])\*([^*\s][^*]*)\*/g, '$1$2');
+    let list: { el: Struct; ordered: boolean } | null = null;
+    const close = () => { list?.el.end(); list = null; };
     for (const block of String(source ?? '').slice(0, 20000).split(/\r?\n/)) {
       const line = block.trim();
       if (!line) continue;
       const h = /^(#{1,3})\s+(.*)$/.exec(line);
       const li = /^(?:([-*])|(\d+)[.)])\s+(.*)$/.exec(line);
+      if (!li) close();
       if (h) this.heading(strip(h[2]), 2);
       else if (li) {
         const { doc } = this;
-        const bullet = li[2] ? `${li[2]}.` : '•';
-        doc.font('Helvetica').fontSize(10).fillColor(INK);
+        const ordered = Boolean(li[2]);
+        if (list && list.ordered !== ordered) close();
+        if (!list) list = { el: this.group('L'), ordered };
+        const bullet = ordered ? `${li[2]}.` : '•';
+        doc.fontSize(10).fillColor(INK);
         this.ensure(14);
         const y = doc.y;
-        doc.text(bullet, this.left + 6, y, { width: 18 });
-        this.write(strip(li[3]), this.left + 24, y, { width: this.width - 24 });
+        list.el.add(this.el('LI', {}, [
+          this.el('Lbl', {}, () => { this.base(false); doc.fontSize(10).fillColor(INK); doc.text(bullet, this.left + 6, y, { width: 18 }); }),
+          this.el('LBody', {}, () => { doc.fontSize(10).fillColor(INK); this.write(strip(li[3]), this.left + 24, y, { width: this.width - 24 }); }),
+        ]));
         doc.moveDown(0.15);
       } else this.paragraph(strip(line));
     }
+    close();
   }
 
-  /** Label and value pairs, one per line (a record's fact sheet). */
+  /** Label and value pairs, one per line (a record's fact sheet): a two-column table with the labels as row headers. */
   keyValues(items: { label: string; value: string }[]) {
     const { doc } = this;
     const labelW = Math.min(170, this.width * 0.3);
+    const table = this.group('Table');
+    const body = this.group('TBody', table);
     for (const item of items) {
       doc.fontSize(10);
       const h = Math.max(this.heightOf(item.value || '—', this.width - labelW - 12), this.heightOf(item.label, labelW - 8, true), 12) + 8;
       this.ensure(h);
       const y = doc.y;
-      doc.fontSize(9.5).fillColor(MUTED);
-      this.write(item.label, this.left, y + 4, { width: labelW - 8, bold: true });
-      doc.fontSize(10).fillColor(INK);
-      this.write(item.value || '—', this.left + labelW, y + 4, { width: this.width - labelW });
-      doc.moveTo(this.left, y + h).lineTo(this.left + this.width, y + h).lineWidth(0.5).strokeColor(RULE).stroke();
+      body.add(this.el('TR', {}, [
+        this.el('TH', { scope: 'Row' }, () => { doc.fontSize(9.5).fillColor(MUTED); this.write(item.label, this.left, y + 4, { width: labelW - 8, bold: true }); }),
+        this.el('TD', {}, () => { doc.fontSize(10).fillColor(INK); this.write(item.value || '—', this.left + labelW, y + 4, { width: this.width - labelW }); }),
+      ]));
+      this.artifact(() => doc.moveTo(this.left, y + h).lineTo(this.left + this.width, y + h).lineWidth(0.5).strokeColor(RULE).stroke());
       doc.y = y + h + 1;
     }
+    body.end();
+    table.end();
     doc.moveDown(0.5);
   }
 
@@ -517,11 +675,15 @@ export class PdfBuilder {
         rowY = doc.y;
       }
       const x = this.left + (i % perRow) * (w + 12);
-      doc.roundedRect(x, rowY, w, 58, 6).lineWidth(0.8).strokeColor(RULE).stroke();
-      doc.fontSize(20).fillColor(INK);
-      this.write(item.value || '0', x + 10, rowY + 8, { width: w - 20, lineBreak: false, ellipsis: true, bold: true });
-      doc.fontSize(9).fillColor(MUTED);
-      this.write(item.label, x + 10, rowY + 38, { width: w - 20, lineBreak: false, ellipsis: true });
+      const y = rowY;
+      this.artifact(() => doc.roundedRect(x, y, w, 58, 6).lineWidth(0.8).strokeColor(RULE).stroke());
+      // One paragraph per figure: the number, then what it counts.
+      this.tag('P', () => {
+        doc.fontSize(20).fillColor(INK);
+        this.write(item.value || '0', x + 10, y + 8, { width: w - 20, lineBreak: false, ellipsis: true, bold: true });
+        doc.fontSize(9).fillColor(MUTED);
+        this.write(item.label, x + 10, y + 38, { width: w - 20, lineBreak: false, ellipsis: true });
+      });
     });
     doc.fillColor(INK);
     doc.x = this.left;
@@ -551,7 +713,12 @@ export class PdfBuilder {
     }
   }
 
-  /** Lays the table out, yielding after each row. */
+  /**
+   * Lays the table out, yielding after each row. Tagged as a table: a header row of column
+   * headers (TH), then a row (TR) of cells (TD) per record; with `boldFirstColumn` the first cell
+   * of each row is its row header. The header repeated on later pages is an artifact, so it is
+   * read once.
+   */
   private *tableSteps(columns: PdfColumn[], rows: string[][], opts: { boldLast?: boolean; boldFirstColumn?: boolean }): Generator<void> {
     const { doc } = this;
     if (!columns.length) return;
@@ -589,50 +756,80 @@ export class PdfBuilder {
       doc.fontSize(fontSize);
       return Math.max(...cells.map((c, i) => this.heightOf(c || ' ', widths[i] - pad * 2, isBold(style, i)))) + pad * 2;
     };
-    const drawRow = (cells: string[], y: number, h: number, style: 'head' | 'body' | 'bold', shade: boolean) => {
-      if (style === 'head') doc.rect(this.left, y, this.width, h).fill(BAND);
-      else if (shade) doc.rect(this.left, y, this.width, h).fill('#f7fafa');
-      let x = this.left;
+    const lefts = widths.map((_, i) => this.left + widths.slice(0, i).reduce((a, b) => a + b, 0));
+    const cell = (c: string, i: number, y: number, style: 'head' | 'body' | 'bold') => () => {
       doc.fontSize(fontSize).fillColor(INK);
-      cells.forEach((c, i) => {
-        this.write(c, x + pad, y + pad, { width: widths[i] - pad * 2, align: columns[i].align === 'right' ? 'right' : 'left', bold: isBold(style, i) });
-        x += widths[i];
-      });
-      doc.moveTo(this.left, y + h).lineTo(this.left + this.width, y + h).lineWidth(style === 'head' ? 1 : 0.4).strokeColor(style === 'head' ? this.brand : RULE).stroke();
+      this.write(c, lefts[i] + pad, y + pad, { width: widths[i] - pad * 2, align: columns[i].align === 'right' ? 'right' : 'left', bold: isBold(style, i) });
+    };
+    /** Draws a row: shading and rule as artifacts, the cells tagged under `parent` (or as an artifact when it is a repeated header). */
+    const drawRow = (cells: string[], y: number, h: number, style: 'head' | 'body' | 'bold', shade: boolean, parent: Struct | null) => {
+      if (style === 'head') this.artifact(() => doc.rect(this.left, y, this.width, h).fill(BAND));
+      else if (shade) this.artifact(() => doc.rect(this.left, y, this.width, h).fill('#f7fafa'));
+      if (parent) {
+        parent.add(this.el('TR', {}, cells.map((c, i) => {
+          const header = style === 'head' || Boolean(opts.boldFirstColumn && i === 0);
+          const scope = style === 'head' ? 'Column' : 'Row';
+          return this.el(header ? 'TH' : 'TD', header ? { scope } : {}, cell(c, i, y, style));
+        })));
+      } else {
+        this.artifact(() => cells.forEach((c, i) => cell(c, i, y, style)()), 'Pagination');
+      }
+      this.artifact(() => doc.moveTo(this.left, y + h).lineTo(this.left + this.width, y + h).lineWidth(style === 'head' ? 1 : 0.4).strokeColor(style === 'head' ? this.brand : RULE).stroke());
     };
     const head = columns.map((c) => cellText(c.header));
     const headH = rowHeight(head, 'head');
-    const drawHead = () => { const y = doc.y; drawRow(head, y, headH, 'head', false); doc.y = y + headH; };
+    const table = this.group('Table');
+    const drawHead = (parent: Struct | null) => { const y = doc.y; drawRow(head, y, headH, 'head', false, parent); doc.y = y + headH; };
     this.ensure(headH + 20);
-    drawHead();
+    const thead = this.group('THead', table);
+    drawHead(thead);
+    thead.end();
+    const tbody = this.group('TBody', table);
     for (let n = 0; n < rows.length; n++) {
       const raw = rows[n];
       const cells = columns.map((_, i) => cellText(raw[i]));
       const style = opts.boldLast && n === rows.length - 1 ? 'bold' : 'body';
       const h = Math.min(rowHeight(cells, style), this.bottom - this.doc.page.margins.top - headH - 4);
-      if (doc.y + h > this.bottom) { doc.addPage(); drawHead(); }
+      if (doc.y + h > this.bottom) { this.newPage(); drawHead(null); }
       const y = doc.y;
-      drawRow(cells, y, h, style, n % 2 === 1);
+      drawRow(cells, y, h, style, n % 2 === 1, tbody);
       doc.y = y + h;
       yield;
     }
+    tbody.end();
+    table.end();
     doc.x = this.left;
     doc.moveDown(0.6);
   }
 
-  /** A vector chart drawn from labeled values: horizontal bars, a line over time, or a pie. */
+  /** A vector chart drawn from labeled values: horizontal bars, a line over time, or a pie. Tagged as a figure whose text alternative lists the values. */
   chart(kind: 'bar' | 'line' | 'pie', points: ChartPoint[], label: string) {
     const data = points.filter((p) => Number.isFinite(p.value)).slice(0, kind === 'pie' ? 8 : kind === 'line' ? 60 : 24);
     if (!data.length || data.every((p) => p.value === 0)) return;
-    if (kind === 'pie') this.pie(data, label);
-    else if (kind === 'line') this.line(data, label);
-    else this.bars(data, label);
+    if (kind === 'line') { this.trend(data.map((p) => p.label), [{ name: label, values: data.map((p) => p.value) }], label); return; }
+    // Room for the start of the chart first, so that its figure starts on the page it is drawn on.
+    this.ensure(kind === 'pie' ? 70 * 2 + 40 : Math.min(data.length, 10) * 16 + 24);
+    this.tag('Figure', () => (kind === 'pie' ? this.pie(data, label) : this.bars(data, label)), { alt: chartAlt(label, data, kind) });
+  }
+
+  /**
+   * A line chart over time with one line per series (for example open risks by level, month by
+   * month), with a legend when there is more than one. Labels are the points in time, oldest first.
+   */
+  trend(labels: string[], series: ChartSeries[], label: string) {
+    const lines = series.filter((s) => s.values.some((v) => v !== null && Number.isFinite(v))).slice(0, SERIES.length);
+    if (!labels.length || !lines.length) return;
+    const h = 170;
+    this.ensure(h + 50 + (lines.length > 1 ? Math.ceil(lines.length / 3) * 14 : 0));
+    const words = lines.length === 1
+      ? `Line chart: ${label}. ${labels.map((l, i) => `${l}: ${lines[0].values[i] === null ? 'no figure' : formatNumber(lines[0].values[i]!)}`).join('; ')}.`
+      : `Line chart: ${label}. ${labels.map((l, i) => `${l}: ${lines.map((s) => `${s.name} ${s.values[i] === null ? 'no figure' : formatNumber(s.values[i]!)}`).join(', ')}`).join('; ')}.`;
+    this.tag('Figure', () => this.lines(labels.slice(0, 60), lines.map((s) => ({ ...s, values: s.values.slice(0, 60) })), label, h), { alt: words.length > 1500 ? `${words.slice(0, 1497)}...` : words });
   }
 
   private bars(data: ChartPoint[], label: string) {
     const { doc } = this;
     const rowH = 16;
-    this.ensure(Math.min(data.length, 10) * rowH + 24);
     const nameW = Math.min(170, this.width * 0.3);
     const valueW = 56;
     const trackW = this.width - nameW - valueW - 16;
@@ -648,55 +845,76 @@ export class PdfBuilder {
       doc.rect(this.left + nameW, y + 2, trackW, rowH - 5).fill(BAND);
       const w = Math.max(0.5, (Math.max(0, p.value) / max) * trackW);
       doc.rect(this.left + nameW, y + 2, w, rowH - 5).fill(SERIES[0]);
-      doc.font('Helvetica-Bold').fontSize(8.5).fillColor(INK).text(formatNumber(p.value), this.left + nameW + trackW + 8, y + 3, { width: valueW, align: 'right', lineBreak: false });
+      this.base(true);
+      doc.fontSize(8.5).fillColor(INK).text(formatNumber(p.value), this.left + nameW + trackW + 8, y + 3, { width: valueW, align: 'right', lineBreak: false });
       doc.y = y + rowH;
     }
     doc.x = this.left;
     doc.moveDown(0.6);
   }
 
-  private line(data: ChartPoint[], label: string) {
+  private lines(labels: string[], series: ChartSeries[], label: string, h: number) {
     const { doc } = this;
-    const h = 170;
-    this.ensure(h + 50);
     doc.fontSize(8).fillColor(MUTED);
     this.write(label, this.left, doc.y, { width: this.width });
     const top = doc.y + 6;
     const axisW = 40;
     const x0 = this.left + axisW;
     const plotW = this.width - axisW - 8;
-    const max = Math.max(...data.map((p) => p.value), 0);
-    const min = Math.min(0, ...data.map((p) => p.value));
+    const all = series.flatMap((s) => s.values).filter((v): v is number => v !== null && Number.isFinite(v));
+    const max = Math.max(...all, 0);
+    const min = Math.min(0, ...all);
     const span = max - min || 1;
     const yOf = (v: number) => top + h - ((v - min) / span) * h;
-    const xOf = (i: number) => x0 + (data.length === 1 ? plotW / 2 : (i / (data.length - 1)) * plotW);
+    const xOf = (i: number) => x0 + (labels.length === 1 ? plotW / 2 : (i / (labels.length - 1)) * plotW);
     // Grid and scale.
     for (let g = 0; g <= 4; g++) {
       const v = min + (span * g) / 4;
       const y = yOf(v);
       doc.moveTo(x0, y).lineTo(x0 + plotW, y).lineWidth(0.4).strokeColor(RULE).stroke();
-      doc.font('Helvetica').fontSize(7).fillColor(MUTED).text(formatNumber(v), this.left, y - 4, { width: axisW - 6, align: 'right', lineBreak: false });
+      this.base(false);
+      doc.fontSize(7).fillColor(MUTED).text(formatNumber(v), this.left, y - 4, { width: axisW - 6, align: 'right', lineBreak: false });
     }
-    doc.moveTo(xOf(0), yOf(data[0].value));
-    data.forEach((p, i) => { if (i) doc.lineTo(xOf(i), yOf(p.value)); });
-    doc.lineWidth(1.6).strokeColor(SERIES[0]).stroke();
-    data.forEach((p, i) => doc.circle(xOf(i), yOf(p.value), 2.2).fill(SERIES[0]));
-    // Labels: first, last and a few between, so they never overlap.
-    const step = Math.max(1, Math.ceil(data.length / 6));
-    data.forEach((p, i) => {
-      if (i % step !== 0 && i !== data.length - 1) return;
-      doc.fontSize(7).fillColor(MUTED);
-      this.write(p.label, xOf(i) - 40, top + h + 4, { width: 80, align: 'center', lineBreak: false, ellipsis: true });
+    series.forEach((s, k) => {
+      const color = SERIES[k % SERIES.length];
+      // A gap where a month has no figure: the line restarts after it.
+      let drawing = false;
+      s.values.forEach((v, i) => {
+        if (v === null || !Number.isFinite(v)) { drawing = false; return; }
+        if (!drawing) doc.moveTo(xOf(i), yOf(v)); else doc.lineTo(xOf(i), yOf(v));
+        drawing = true;
+      });
+      doc.lineWidth(1.6).strokeColor(color).stroke();
+      s.values.forEach((v, i) => { if (v !== null && Number.isFinite(v)) doc.circle(xOf(i), yOf(v), 2.2).fill(color); });
     });
+    // Labels: first, last and a few between, so they never overlap.
+    const step = Math.max(1, Math.ceil(labels.length / 6));
+    labels.forEach((l, i) => {
+      if (i % step !== 0 && i !== labels.length - 1) return;
+      doc.fontSize(7).fillColor(MUTED);
+      this.write(l, xOf(i) - 40, top + h + 4, { width: 80, align: 'center', lineBreak: false, ellipsis: true });
+    });
+    let y = top + h + 22;
+    if (series.length > 1) {
+      // Legend: a swatch and the series name, three to a line.
+      const colW = this.width / 3;
+      series.forEach((s, k) => {
+        const x = this.left + (k % 3) * colW;
+        if (k && k % 3 === 0) y += 14;
+        doc.rect(x, y + 1, 8, 8).fill(SERIES[k % SERIES.length]);
+        doc.fontSize(8.5).fillColor(INK);
+        this.write(s.name, x + 14, y, { width: colW - 20, lineBreak: false, ellipsis: true });
+      });
+      y += 18;
+    }
     doc.fillColor(INK);
     doc.x = this.left;
-    doc.y = top + h + 22;
+    doc.y = y;
   }
 
   private pie(data: ChartPoint[], label: string) {
     const { doc } = this;
     const r = 70;
-    this.ensure(r * 2 + 40);
     doc.fontSize(8).fillColor(MUTED);
     this.write(label, this.left, doc.y, { width: this.width });
     const top = doc.y + 6;
@@ -730,9 +948,10 @@ export class PdfBuilder {
     doc.y = Math.max(top + r * 2, ly) + 14;
   }
 
-  /** Writes headers, footers, page numbers and the watermark on every page, and returns the file. */
+  /** Writes headers, footers, page numbers and the watermark on every page (all artifacts), and returns the file. */
   async finish(): Promise<Buffer> {
     const { doc } = this;
+    this.root.end();
     const range = doc.bufferedPageRange();
     const total = range.count;
     for (let i = range.start; i < range.start + total; i++) {
@@ -741,30 +960,34 @@ export class PdfBuilder {
       const keep = margins.bottom;
       margins.bottom = 0; // writing in the margin must not start a new page
       const w = doc.page.width - margins.left - margins.right;
-      if (this.opts.watermark) {
-        doc.save();
-        doc.rotate(-35, { origin: [doc.page.width / 2, doc.page.height / 2] });
-        doc.font('Helvetica-Bold').fontSize(64).fillColor(DANGER).fillOpacity(0.07)
-          .text('RESTRICTED', 0, doc.page.height / 2 - 32, { width: doc.page.width, align: 'center', lineBreak: false });
-        doc.restore();
-        doc.fillOpacity(1);
-        doc.fontSize(8).fillColor(DANGER);
-        this.write(this.opts.watermark, margins.left, 24, { width: w, align: 'center', lineBreak: false, ellipsis: true, bold: true });
-      } else if (i > 0) {
+      this.artifact(() => {
+        if (this.opts.watermark) {
+          doc.save();
+          doc.rotate(-35, { origin: [doc.page.width / 2, doc.page.height / 2] });
+          this.base(true);
+          doc.fontSize(64).fillColor(DANGER).fillOpacity(0.07)
+            .text('RESTRICTED', 0, doc.page.height / 2 - 32, { width: doc.page.width, align: 'center', lineBreak: false });
+          doc.restore();
+          doc.fillOpacity(1);
+          doc.fontSize(8).fillColor(DANGER);
+          this.write(this.opts.watermark, margins.left, 24, { width: w, align: 'center', lineBreak: false, ellipsis: true, bold: true });
+        } else if (i > 0) {
+          doc.fontSize(8).fillColor(MUTED);
+          this.write(this.opts.title, margins.left, 28, { width: w, lineBreak: false, ellipsis: true });
+        }
         doc.fontSize(8).fillColor(MUTED);
-        this.write(this.opts.title, margins.left, 28, { width: w, lineBreak: false, ellipsis: true });
-      }
-      doc.fontSize(8).fillColor(MUTED);
-      // The organization's name beside the application's, and its address and contacts underneath.
-      const names = [...new Set([this.opts.branding?.name, this.opts.appName].filter((n): n is string => Boolean(n)))];
-      this.write(names.join(' · '), margins.left, doc.page.height - 34, { width: w / 2, lineBreak: false, ellipsis: true });
-      const lines = this.opts.branding?.lines ?? [];
-      if (lines.length) {
-        doc.fontSize(7).fillColor(MUTED);
-        this.write(lines.join(' · '), margins.left, doc.page.height - 23, { width: w, lineBreak: false, ellipsis: true });
-        doc.fontSize(8);
-      }
-      doc.font('Helvetica').text(`Page ${i + 1} of ${total}`, margins.left + w / 2, doc.page.height - 34, { width: w / 2, align: 'right', lineBreak: false });
+        // The organization's name beside the application's, and its address and contacts underneath.
+        const names = [...new Set([this.opts.branding?.name, this.opts.appName].filter((n): n is string => Boolean(n)))];
+        this.write(names.join(' · '), margins.left, doc.page.height - 34, { width: w / 2, lineBreak: false, ellipsis: true });
+        const lines = this.opts.branding?.lines ?? [];
+        if (lines.length) {
+          doc.fontSize(7).fillColor(MUTED);
+          this.write(lines.join(' · '), margins.left, doc.page.height - 23, { width: w, lineBreak: false, ellipsis: true });
+          doc.fontSize(8);
+        }
+        this.base(false);
+        doc.text(`Page ${i + 1} of ${total}`, margins.left + w / 2, doc.page.height - 34, { width: w / 2, align: 'right', lineBreak: false });
+      }, 'Pagination');
       margins.bottom = keep;
     }
     doc.end();

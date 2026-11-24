@@ -13,6 +13,12 @@ export interface SessionUser {
    * `can()` answers false for them whatever the grants, `*` included.
    */
   off?: string[];
+  /**
+   * Permission modules for which one of the person's roles is scoped to their departments or sites
+   * (E41-01, core/scope.ts), set when the user is loaded. Unset (a user built by hand): the scope
+   * rule is worked out in SQL for every scoped type.
+   */
+  scoped?: string[];
 }
 
 declare module 'fastify' {
@@ -81,6 +87,16 @@ export interface RowRule {
   hidden?: (col: (name: string) => string) => string;
 }
 
+/**
+ * E41-01: where a record belongs, for role grants scoped to a person's departments or sites
+ * (core/scope.ts). Each is a column of the row holding a department id (core `departments`) or a
+ * site id (`sites`), or a SQL expression of the row (built with `col`) giving that uuid.
+ */
+export interface ResourceScope {
+  department?: string | ((col: (name: string) => string) => string);
+  site?: string | ((col: (name: string) => string) => string);
+}
+
 export interface ResourceDef {
   type: string;
   table: string;
@@ -107,6 +123,25 @@ export interface ResourceDef {
    * pickers, history, comments, links, tags, files, fact sheets, exports and reports.
    */
   rowRule?: RowRule;
+  /**
+   * The department or site a record belongs to (E41-01). A role whose grants for this type's
+   * permission module are scoped to the person's departments or sites (Administration > Roles)
+   * then sees only the records of those departments or sites (and those below them), and the
+   * records the person created. Part of the visibility rule, like `rowRule`; figures are unchanged.
+   */
+  scope?: ResourceScope;
+  /**
+   * A directory every signed-in person may pick from and read the names of (departments): record
+   * pickers, labels and links do not need view permission on its module. Its own list and record
+   * pages still do.
+   */
+  directory?: boolean;
+  /**
+   * E41-06: the type's table is a view of one shared table that shows the rows where `column` holds
+   * `value` (registers an administrator defines, modules/registers). The search trigger then sits on
+   * the shared table and indexes only those rows.
+   */
+  partition?: { column: string; value: string };
   searchable?: string[];
   /**
    * Files attached to these records are evidence (E14-18): the record page's Attachments tab records
@@ -232,6 +267,31 @@ export interface ResourceRegistry {
    * fails the change.
    */
   onChange?(fn: (change: { action: 'create' | 'update' | 'delete' | 'purge'; def: ResourceDef; row: Row; req: FastifyRequest | null }) => Promise<void> | void): void;
+}
+
+/** The handlers of a record type's generated routes (list, stats, one, create, change, delete). */
+export interface RecordRouteHandlers {
+  list(req: FastifyRequest, reply: FastifyReply): Promise<unknown>;
+  stats(req: FastifyRequest, reply: FastifyReply): Promise<unknown>;
+  get(req: FastifyRequest, reply: FastifyReply): Promise<unknown>;
+  create(req: FastifyRequest, reply: FastifyReply): Promise<unknown>;
+  update(req: FastifyRequest, reply: FastifyReply): Promise<unknown>;
+  remove(req: FastifyRequest, reply: FastifyReply): Promise<unknown>;
+}
+
+/**
+ * Record types added and removed while the application runs (E41-06: registers an administrator
+ * defines), as `app.runtimeResources`. A type defined here gets no routes of its own (routes cannot be
+ * added once the server listens): the module that defines it serves them through routes with a
+ * parameter and calls `handlers(type)`. Everything else (metadata, search, history, attachments,
+ * imports, exports, reports, lifecycles, feature switches) reads the registry and follows at once.
+ */
+export interface RuntimeResources {
+  define(def: ResourceDef): void;
+  remove(type: string): void;
+  handlers(type: string): RecordRouteHandlers | undefined;
+  /** (Re)builds the type's search trigger; call after defining a type once the application is ready. */
+  refreshSearch(def: ResourceDef): Promise<void>;
 }
 
 /** A hand-written route described for the OpenAPI document (`GET /api/openapi.json`). */

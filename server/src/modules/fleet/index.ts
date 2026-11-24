@@ -63,6 +63,8 @@ async function register(ctx: ModuleContext) {
   ctx.defineResource({
     type: 'vehicle', table: 'vehicles', module: 'fleet', label: 'Vehicle', plural: 'Vehicles',
     path: '/api/vehicles', route: '/vehicles', titleField: 'fleet_number',
+    // Role grants scoped to departments or sites (E41-01, core/scope.ts).
+    scope: { site: 'depot_id' },
     searchable: ['fleet_number', 'make', 'model', 'registration', 'notes'],
     defaultSort: { field: 'fleet_number', dir: 'asc' },
     fields: {
@@ -94,6 +96,8 @@ async function register(ctx: ModuleContext) {
   ctx.defineResource({
     type: 'service', table: 'services', module: 'fleet', label: 'Service', plural: 'Services',
     path: '/api/services', route: '/services', titleField: 'name',
+    // Role grants scoped to departments or sites (E41-01, core/scope.ts).
+    scope: { site: 'depot_id' },
     searchable: ['route_code', 'name', 'description'],
     defaultSort: { field: 'route_code', dir: 'asc' },
     fields: {

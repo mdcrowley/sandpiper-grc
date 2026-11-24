@@ -1,0 +1,53 @@
+/* Compliance calendar (E41-03). */
+.cc-bar { display: flex; flex-wrap: wrap; gap: var(--s-3); align-items: center; justify-content: space-between; }
+.cc-title { margin: 0 0 0 var(--s-2); font-size: var(--fs-xl); font-weight: 650; }
+.cc-filters { display: flex; flex-wrap: wrap; gap: var(--s-3); align-items: flex-end; }
+.cc-filter { width: 14rem; max-width: 100%; }
+.cc-hint { margin: 0; }
+.cc-linkbtn { all: unset; cursor: pointer; color: var(--link); font-weight: 600; text-decoration: underline; }
+.cc-linkbtn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
+
+.cc-month-head, .cc-month-body { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.cc-month-week { display: contents; }
+.cc-month-head span { padding: var(--s-2); font-size: var(--fs-xs); font-weight: 600; color: var(--text-muted); text-align: center; border-bottom: 1px solid var(--border); }
+.cc-month-head abbr { text-decoration: none; }
+.cc-day { min-height: 112px; min-width: 0; padding: 4px; display: flex; flex-direction: column; gap: 3px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.cc-day:nth-child(7n) { border-right: 0; }
+.cc-month-week:last-child .cc-day { border-bottom: 0; }
+.cc-day-out { background-color: var(--surface-2); }
+.cc-day-out .cc-day-num { color: var(--text-muted); }
+.cc-day-num { all: unset; align-self: flex-start; min-width: 24px; height: 24px; line-height: 24px; text-align: center; border-radius: 12px; font-size: var(--fs-sm); font-weight: 600; cursor: pointer; }
+.cc-day-num:hover { background: var(--surface-hover); }
+.cc-day-num:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.cc-day-today .cc-day-num { background: var(--brand); color: var(--brand-contrast); }
+.cc-more { font-size: var(--fs-xs); align-self: flex-start; }
+
+.cc-ev { display: flex; align-items: center; gap: 4px; min-width: 0; padding: 1px 6px; border-radius: var(--radius-sm); border-left: 3px solid var(--c-gray-solid); background: var(--c-gray-bg); color: var(--c-gray-fg); font-size: var(--fs-xs); line-height: 1.5; text-decoration: none; }
+a.cc-ev:hover { filter: brightness(0.96); text-decoration: none; }
+.cc-ev:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.cc-ev-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cc-ev-overdue { box-shadow: inset 0 0 0 1px var(--c-red-solid); }
+.cc-ev-date { border-left-style: dashed; }
+.cc-ev-blue { border-left-color: var(--c-blue-solid); background: var(--c-blue-bg); color: var(--c-blue-fg); }
+.cc-ev-teal { border-left-color: var(--c-teal-solid); background: var(--c-teal-bg); color: var(--c-teal-fg); }
+.cc-ev-purple { border-left-color: var(--c-purple-solid); background: var(--c-purple-bg); color: var(--c-purple-fg); }
+.cc-ev-amber { border-left-color: var(--c-amber-solid); background: var(--c-amber-bg); color: var(--c-amber-fg); }
+.cc-ev-green { border-left-color: var(--c-green-solid); background: var(--c-green-bg); color: var(--c-green-fg); }
+.cc-ev-orange { border-left-color: var(--c-orange-solid); background: var(--c-orange-bg); color: var(--c-orange-fg); }
+.cc-ev-gray { border-left-color: var(--c-gray-solid); background: var(--c-gray-bg); color: var(--c-gray-fg); }
+@media (max-width: 900px) {
+  .cc-day { min-height: 84px; }
+  .cc-day .cc-ev { padding: 1px 4px; }
+}
+
+.cc-legend { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4); list-style: none; margin: 0; padding: 0; font-size: var(--fs-sm); color: var(--text-muted); }
+.cc-legend li { display: inline-flex; align-items: center; gap: var(--s-2); }
+.cc-swatch { display: inline-block; flex: none; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; background: var(--c-gray-solid); }
+.cc-swatch-date { background: transparent; border: 1.5px dashed var(--border-strong); }
+.cc-swatch-blue { background: var(--c-blue-solid); }
+.cc-swatch-teal { background: var(--c-teal-solid); }
+.cc-swatch-purple { background: var(--c-purple-solid); }
+.cc-swatch-amber { background: var(--c-amber-solid); }
+.cc-swatch-green { background: var(--c-green-solid); }
+.cc-swatch-orange { background: var(--c-orange-solid); }
+.cc-swatch-gray { background: var(--c-gray-solid); }

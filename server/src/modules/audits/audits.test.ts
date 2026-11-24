@@ -240,7 +240,7 @@ describe('audits, evidence requests and report approval', () => {
     const mine = await pm.get('/api/audit-requests/mine');
     expect(mine.status).toBe(200);
     expect(mine.body.open).toHaveLength(1);
-    expect(Object.keys(mine.body.open[0]).sort()).toEqual(['answerable', 'due_on', 'id', 'overdue', 'provided_at', 'ref', 'request', 'response_note', 'status', 'status_label']);
+    expect(Object.keys(mine.body.open[0]).sort()).toEqual(['answerable', 'due_on', 'files', 'id', 'overdue', 'provided_at', 'ref', 'request', 'response_note', 'status', 'status_label']);
     expect((await pm.get(`/api/audit-requests/${r.body.id}`)).status).toBe(403);
     expect((await pm.get(`/api/audits/${auditId}`)).status).toBe(403);
     expect((await auditor.post(`/api/audit-requests/${r.body.id}/respond`, { response_note: 'Not mine.' })).status).toBe(404);
@@ -314,6 +314,11 @@ describe('audits, evidence requests and report approval', () => {
       return pdfText(res.rawPayload);
     };
     expect(await pdf(lead)).toContain('Invented plan title for the label check');
+    // E41-13: the audit report is tagged for PDF/UA like every server PDF.
+    const { checkPdfUa } = await import('../../core/export/pdfua.ts');
+    const token = await createSession(t.db, lead.userId);
+    const file = await t.app.inject({ method: 'GET', url: `/api/audits/${auditId}/report.pdf`, headers: { cookie: `${SESSION_COOKIE}=${token}` } });
+    expect((await checkPdfUa(file.rawPayload)).failures).toEqual([]);
     const asAuditor = await pdf(auditor); // audits.export, but no actions.view
     expect(asAuditor).not.toContain('Invented plan title');
     expect(asAuditor).toContain('Restricted');

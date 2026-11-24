@@ -6,6 +6,8 @@ import { registerAcceptanceWorkflow } from './acceptance.ts';
 import { makeActionExtras } from './actions.ts';
 import { registerActionResource } from './actions-resource.ts';
 import { registerCaps, seedCapDefaults } from './caps.ts';
+import { registerDue } from './due.ts';
+import { registerCommonHeatmap } from './common-heatmap.ts';
 import { makeEnterprise, registerEnterpriseRisk, seedEnterpriseDefaults } from './enterprise.ts';
 import { makeLifecycle } from './lifecycle.ts';
 import { runObligationReminders } from './obligation-reminders.ts';
@@ -365,6 +367,9 @@ const mod: ModuleDef = {
       };
     });
 
+    // E41-17: every scale on one heat map at the common level.
+    registerCommonHeatmap(ctx, { scales, riskPre, statusesWith, scaleOffered });
+
     ctx.app.get('/api/risks/summary', { preHandler: riskPre('view') }, async () => {
       const all = await scales.all();
       const st = await featureState(ctx.db);
@@ -521,6 +526,7 @@ const mod: ModuleDef = {
     // Regulatory change intake and enterprise risk (E30).
     await registerRegulatoryChanges(ctx);
     await registerEnterpriseRisk(ctx, { scales, enterprise, riskPre });
+    registerDue(ctx); // verifications and periods to attest in My work and the calendars (E41-03)
   },
 
   seed: (ctx, opts) => seedRisksModule(ctx, opts),

@@ -28,6 +28,7 @@ param(
   [switch]$Pull,                   # upgrade: fetch the new release with git pull --ff-only
   [switch]$NoRollback,             # upgrade: on failure, stop and print the steps instead of rolling back
   [switch]$IncludeSecretKey,       # backup -Encrypt: also carry the secret key file inside the encrypted backup
+  [string]$Folder,                 # audit-archive: write this run's archive to another folder
   [Parameter(ValueFromRemainingArguments = $true)][string[]]$Rest
 )
 
@@ -197,6 +198,7 @@ Usage: .\grc.ps1 <command>
 
   dev | build | test | typecheck | ci development (ci = typecheck + tests + tests on UTC + build + dependency audit)
   audit-deps [-Level high]            known vulnerabilities in production packages; fails only when a fix exists
+  audit-archive [-Folder dir]         the audit archive as the database owner (least-privilege database role)
   npm <args>                          any npm command with the portable Node.js
 '@
 }
@@ -272,6 +274,7 @@ switch ($Command) {
 
   'version'       { exit (Invoke-Cli version) }
   'audit-deps'    { $a = @('audit-deps'); if ($Level) { $a += '--level', $Level }; exit (Invoke-Cli @a) }
+  'audit-archive' { $a = @('audit-archive'); if ($Folder) { $a += '--folder', $Folder }; exit (Invoke-Cli @a) }
 
   'backup' {
     $a = @('backup', '--label', $Label) + $keyArgs

@@ -16,7 +16,7 @@ The figures count every record, whoever looks at them. The lists show only what 
 
 ## Business processes
 
-Open the **Processes** tab, or **Create** then **Business process**. A process has a **Name**, a **Department**, an **Owner** (who is reminded about its impact analysis), a **Criticality** (**Vital**, **Essential**, **Important** or **Deferrable**), a **Status** (**Draft**, **Active** or **Retired**; only active processes are on the gap report), its **Peak periods**, the **Maximum tolerable downtime**, **Recovery time target** and **Recovery point target** in hours, the **Minimum staff to run it**, a **Description** and the **Manual workaround** used while its systems are down. **Last impact analysis** is set when an analysis is signed off; **Next impact analysis due** is set then too, and can be changed.
+Open the **Processes** tab, or **Create** then **Business process**. A process has a **Name**, a **Department** (one of the organization's departments, **People > Departments**), an **Owner** (who is reminded about its impact analysis), a **Criticality** (**Vital**, **Essential**, **Important** or **Deferrable**), a **Status** (**Draft**, **Active** or **Retired**; only active processes are on the gap report), its **Peak periods**, the **Maximum tolerable downtime**, **Recovery time target** and **Recovery point target** in hours, the **Minimum staff to run it**, a **Description** and the **Manual workaround** used while its systems are down. **Last impact analysis** is set when an analysis is signed off; **Next impact analysis due** is set then too, and can be changed.
 
 ### Dependencies
 
@@ -77,7 +77,7 @@ The **Call tree** tab lists who calls whom when the plan is activated: each pers
 
 An **Other phone** and **Notes** can be added to any entry. The arrows move an entry up or down among the people called by the same person, a level up, or under the entry above it. **Remove** takes an entry off; the people it called move up to whoever called it.
 
-**Print (PDF)** (with `continuity.export`) produces the call tree as a PDF, indented, with phones, to print and keep where it can be reached without the network. Printing is recorded in the plan's history. The application does not page or message anyone: a call tree is a list to call.
+**Print (PDF)** (with `continuity.export`) produces the call tree as a PDF, indented, with phones, to print and keep where it can be reached without the network. Printing is recorded in the plan's history. During an emergency activation, the call tree can also be sent a message by email and text message, with a link for each person to acknowledge it (see [Messaging the call tree](#messaging-the-call-tree)).
 
 ### Checklist
 
@@ -97,12 +97,35 @@ The **Exercises** tab (when exercises are part of your installation) shows the d
 
 Open **Emergency activations**, select **Activate a plan** (or **Create** then **Emergency activation**), and give **What is happening**, the **Kind of event** (**Severe weather**, **Power loss**, **Major service disruption**, **Loss of a facility**, **Public health** or **Other**), the **Level** (**Monitoring**, **Partial activation** or **Full activation**) and the **Plans to activate**. **Declare the activation** opens its workspace. Each plan's checklist is copied in, and the log starts with the declaration.
 
-The workspace has four tabs:
+The workspace has five tabs:
 
 - **Log**: what happens, as it happens. Each entry is stamped with your name and the time; **Ctrl+Enter** adds it. Entries cannot be changed or removed; to correct one, add another. Role changes, checklist steps, level changes, standing down and closing are logged too.
 - **Roles**: who is doing what (for example **Emergency manager**, **Operations lead**, **Communications lead**, **Scribe**). Choose a roster person, a user account or type a name. **End role** records the handover.
 - **Checklist**: the steps copied from the plans, by phase. Check a step when it is done; who and when are shown and logged. **Add step** adds one for this activation only.
+- **Call tree messages**: send an activated plan's call tree a message, and see who has acknowledged it (below).
 - **Summary**: when the emergency is over, write the **Stand-down summary** (what happened and the state things are left in) and select **Stand down**. Then write the **After-action summary** (what went well, what to improve) and select **Close the activation**. Once stood down, each after-action finding can raise a **corrective action plan** (source "Business continuity"; see [Corrective action plans](24-corrective-action-plans.md)). A closed activation can no longer be changed.
+
+### Messaging the call tree
+
+While an activation is active, someone with `continuity.edit` can send the call tree of one of its plans a message from the **Call tree messages** tab:
+
+1. Select **Send a message**.
+2. Choose whose **Call tree** to message (one of the plans activated), write the **Message** (what is happening and what people should do, up to 1,000 characters), and choose **By email**, **By text message** or both. **Links work for (hours)** is 72 unless changed (1 to 168).
+3. Select **Send**.
+
+The message goes out through the application's own alert channels, the ones an administrator sets up under **Administration > Email** (see [Administration](09-administration.md)); no paid paging service is involved:
+
+- **Email** goes to the address of the person's account, or, for a roster person with no account, the email address on the roster.
+- **Text messages** go to people with an account who have saved a mobile number or an email-to-text address for urgent alerts (see [Your mobile number and email-to-text address](14-attachments-and-notifications.md#your-mobile-number-and-email-to-text-address)). A text carries the start of the message (about the first 200 characters) and the link.
+- An entry with only a typed name and phone is not messaged: it is listed as **Not reachable: call them**.
+
+Someone who is on the call tree twice gets one message. If neither email nor text messages are set up, the tab says so and nothing can be sent: call people from the printed call tree.
+
+Each person gets a **link of their own**. Opening it shows the organization, the activation, the message and the button **I have received this message**, with an optional note (for example "On my way"). No sign-in is needed. Opening the link does not acknowledge by itself, so a mail program that checks links cannot acknowledge for them. The link is for that one message and that one person, and works until it expires or the activation is closed; acknowledging twice changes nothing. It should not be forwarded.
+
+Under each message sent, the tab shows how many people have acknowledged, then everyone on it, those who have not yet acknowledged first: their role, how they were reached (and **not delivered** when the email or text could not be sent), and when they acknowledged, through their link or recorded by staff, with their note. For someone who acknowledges another way, such as on the phone, select **Record acknowledgment** and add a note. **Remind those who have not acknowledged** sends the message again to everyone still waiting who can be reached, each with a new link (the earlier one stops working). Sending, each acknowledgment and each reminder are written to the activation's log. At most 20 messages and reminders go out for one activation in an hour.
+
+A text message has to carry its link in its text, so administrators can see the link in the delivery log of text messages; the link can do nothing but acknowledge that one message.
 
 ## Reminders
 
@@ -123,7 +146,7 @@ Two monthly figures are offered to safety performance indicators and key risk in
 
 ## Retention
 
-Anonymizing a plan at the end of its retention period also clears the typed names, phones and notes of its call tree. Anonymizing an activation also replaces its log entries, the names in them, typed role names and the names and notes on its checklist. Names read from the roster or from accounts are not stored with the plan or activation. See [Administration](09-administration.md#retention).
+Anonymizing a plan at the end of its retention period also clears the typed names, phones and notes of its call tree. Anonymizing an activation also replaces its log entries, the names in them, typed role names, the names and notes on its checklist, and the names and acknowledgment notes of its call tree messages. Names read from the roster or from accounts are not stored with the plan or activation. See [Administration](09-administration.md#retention).
 
 ## Sample data
 

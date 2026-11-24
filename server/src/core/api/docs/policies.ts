@@ -17,7 +17,7 @@ const VERSION = `{ id: uuid, policy_id: uuid, version: integer, status: ${VERSIO
 const ACK_STATE = "'outstanding' | 'overdue' | 'acknowledged' | 'superseded'";
 const MY_ACK = `{ id: uuid, policy_id: uuid, policy_ref: string | null, policy_title: string, policy_summary: string | null,
   version: integer, effective_on: date | null, requested_at: datetime, due_on: date, acknowledged_at: datetime | null,
-  state: ${ACK_STATE}, days_left: integer }`;
+  acknowledged_language: string | null "The language read (E41-07)", state: ${ACK_STATE}, days_left: integer }`;
 const COUNTS = '{ total: integer, acknowledged: integer, outstanding: integer, overdue: integer, acknowledged_pct: number, outstanding_pct: number, overdue_pct: number }';
 
 export const DOCS: RouteDoc[] = [
@@ -109,17 +109,21 @@ export const DOCS: RouteDoc[] = [
 
   // ---- acknowledgments
   route('GET', '/api/policies/acknowledgments/mine', 'Your acknowledgment requests', {
-    tag: P, description: `${SIGNED_IN} Closed requests you never acknowledged are left out.`,
+    tag: P, description: `${SIGNED_IN} Closed requests you never acknowledged are left out. With \`lang\`, titles of versions translated into that language are given in it (each row's \`language\` says which).`,
+    query: { lang: q('string', 'A language code (shared/i18n.ts), for example es.') },
     response: `{ today: date, awaiting: [${MY_ACK}] "Outstanding and overdue, soonest due first", acknowledged: [${MY_ACK}] "Newest first" }`,
   }),
   route('GET', '/api/policies/acknowledgments/:ackId', 'One of your acknowledgment requests, with the text to acknowledge', {
-    tag: P, description: `${SIGNED_IN} Only the caller's own requests; 404 \`not_found\` otherwise. The text is exactly the version named in the request.`,
+    tag: P, description: `${SIGNED_IN} Only the caller's own requests; 404 \`not_found\` otherwise. The text is exactly the version named in the request: its translation into \`lang\` when it has one, else the original.`,
+    query: { lang: q('string', 'The language to read in, for example es.') },
     response: `{ id: uuid, policy_id: uuid, policy_ref: string | null, policy_title: string, policy_summary: string | null,
       version: integer, effective_on: date | null, requested_at: datetime, due_on: date, acknowledged_at: datetime | null,
-      state: ${ACK_STATE}, days_left: integer, change_summary: string | null, body_html: string }`,
+      state: ${ACK_STATE}, days_left: integer, change_summary: string | null, body_html: string,
+      language: string "Of the text given", original_language: string, translations: [string] "Languages the version is translated into" }`,
   }),
   route('POST', '/api/policies/acknowledgments/:ackId/acknowledge', 'Acknowledge a policy version', {
-    tag: P, description: `${SIGNED_IN} Only the caller's own requests (404 \`not_found\` otherwise). Repeating it changes nothing. 409 \`superseded\` when the version was replaced or the policy retired. Audited.`,
+    tag: P, description: `${SIGNED_IN} Only the caller's own requests (404 \`not_found\` otherwise). Repeating it changes nothing. 409 \`superseded\` when the version was replaced or the policy retired. The body's \`language\` is recorded when the version has a translation in it, else the original's language. Audited.`,
+    body: '{ language?: string }',
     response: MY_ACK,
   }),
   route('GET', '/api/policies/:id/acknowledgments', 'Who has and has not acknowledged a version of a policy', {

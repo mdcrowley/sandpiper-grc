@@ -2,6 +2,7 @@ import type { ModuleContext, ModuleDef } from '../../core/module.ts';
 import { ANONYMIZED_TEXT, onAnonymize } from '../../core/retention.ts';
 import { registerActivations } from './activations.ts';
 import { registerBia } from './bia.ts';
+import { registerCallouts } from './callouts.ts';
 import { registerGaps } from './gaps.ts';
 import { registerPlans } from './plans.ts';
 import { registerProcesses } from './processes.ts';
@@ -13,8 +14,9 @@ import { seedContinuity } from './seed.ts';
  * impact analyses with tolerable downtime, continuity and emergency plans with call trees,
  * checklists, review and approval, the gap report (tolerable downtime against system recovery
  * time), and emergency activations for non-cyber events with a log, roles and checklists.
- * Permission module and feature area `continuity`. No mass notification or paging is sent: a call
- * tree is a list to print and call.
+ * Permission module and feature area `continuity`. During an activation a plan's call tree can be
+ * sent a message by email and text message through the application's alert channels, each person
+ * acknowledging through a link of their own (E41-14, callouts.ts); there is no paging service.
  */
 
 async function seedDefaults(ctx: ModuleContext) {
@@ -104,6 +106,10 @@ function anonymizeHooks() {
     await tx.query('update activation_roles set name = case when name is null then null else $2 end where activation_id = $1', [id, ANONYMIZED_TEXT]);
     await tx.query(`update activation_checklist set done_by_name = case when done_by_name is null then null else $2 end,
        note = case when note is null then null else $2 end where activation_id = $1`, [id, ANONYMIZED_TEXT]);
+    // E41-14: the names on call-tree messages, and notes given when acknowledging.
+    await tx.query(`update activation_callout_recipients set name = case when name is null then null else $2 end,
+       ack_by_name = case when ack_by_name is null then null else $2 end, ack_note = case when ack_note is null then null else $2 end where activation_id = $1`, [id, ANONYMIZED_TEXT]);
+    await tx.query('update activation_callouts set sent_by_name = case when sent_by_name is null then null else $2 end where activation_id = $1', [id, ANONYMIZED_TEXT]);
   });
 }
 
@@ -114,6 +120,7 @@ async function register(ctx: ModuleContext) {
   registerBia(ctx);
   registerPlans(ctx);
   registerActivations(ctx);
+  registerCallouts(ctx);
   registerGaps(ctx);
   await registerContinuityReminders(ctx);
   anonymizeHooks();

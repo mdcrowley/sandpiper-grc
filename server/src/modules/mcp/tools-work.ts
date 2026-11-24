@@ -35,7 +35,8 @@ async function typeMeta(t: ToolContext, key: string) { return (await t.meta()).r
 const myWork: ToolSpec = {
   name: 'my_work', title: 'My work', group: 'Work and insight', idempotent: true,
   description: 'What is waiting for you in the parts of the application you use: work assigned to you, your open actions, '
-    + 'approvals and acknowledgments waiting for you and unread notifications, soonest due first.',
+    + 'approvals and acknowledgments waiting for you, every other kind of due work (evidence requests, control tests, verifications, inspections, '
+    + 'obligation periods to attest, vendor reassessments, certifications) and unread notifications, soonest due first.',
   input: {},
   async run(_args, t) {
     const sections: Section[] = [];
@@ -65,6 +66,15 @@ const myWork: ToolSpec = {
       sections.push({
         key: 'acknowledgements', label: 'Policies waiting for your acknowledgment', total: acks.awaiting.length,
         rows: acks.awaiting.slice(0, 10).map((a) => ({ id: a.id, ref: a.policy_ref, title: `${a.policy_title} (version ${a.version})`, due_on: a.due_on, state: a.state, url: `${t.baseUrl}/my-policies` })),
+      });
+    }
+    // Every other kind of due work the modules register (E41-03): evidence requests, control tests,
+    // verifications, inspections, periods to attest, vendor reassessments, certifications and more.
+    const due = await t.api.tryGet<{ sections: { key: string; kind: string; count: number; overdue: number; items: any[] }[] }>('/api/work/mine?limit=10&skip=actions.due');
+    for (const s of due?.sections ?? []) {
+      sections.push({
+        key: s.key, label: `${s.kind}${s.overdue ? ` (${s.overdue} overdue)` : ''}`, total: s.count,
+        rows: s.items.map((i) => ({ id: i.recordId, ref: i.ref, title: i.title, due: i.start, overdue: i.overdue, url: `${t.baseUrl}${i.url}` })),
       });
     }
     await t.progress(4, steps, 'Looking at unread notifications');

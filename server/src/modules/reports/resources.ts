@@ -240,6 +240,8 @@ export function defineReportResources(ctx: ModuleContext, sharing: Sharing) {
     return sections.map((s: Row, i) => {
       if (s?.kind === 'text') return { kind: 'text', title: text(s.title, 160), body: text(s.body, 20000) };
       if (s?.kind === 'report' && UUID_RE.test(String(s.reportId))) return { kind: 'report', reportId: String(s.reportId), title: s.title ? text(s.title, 160) : undefined };
+      // A recorded figure over time (E41-04), for board packs.
+      if (s?.kind === 'figure' && UUID_RE.test(String(s.figureId))) return { kind: 'figure', figureId: String(s.figureId), title: s.title ? text(s.title, 160) : undefined, months: int(s.months, 1, 60, 12) };
       return bad('sections', `Section ${i + 1} is not valid.`);
     });
   }

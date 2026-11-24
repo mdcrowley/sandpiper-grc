@@ -183,7 +183,15 @@ export interface MobileWorkItem {
   overdue: boolean;
 }
 
-export type MobileWorkKey = 'tickets' | 'actions' | 'approvals' | 'inspections' | 'condition' | 'acknowledgments' | 'training';
+/**
+ * A section's key: one of the fixed sections, or (E41-03) the key of the calendar source of a kind of
+ * due work, for example `audits.requests` (evidence requests), `controls.tests`, `actions.verifications`,
+ * `obligations.attestations`, `vendors.reassessments`, `training.certifications` or `funding.certifications`
+ * (from GET /api/work/mine). Their items are records (`type` is the record type).
+ */
+export type MobileWorkKey = 'tickets' | 'actions' | 'approvals' | 'inspections' | 'condition' | 'acknowledgments' | 'training' | DueWorkKey;
+/** The key of a calendar source with due work (`<module>.<name>`). */
+export type DueWorkKey = `${string}.${string}`;
 
 export interface MobileWorkSection {
   key: MobileWorkKey;

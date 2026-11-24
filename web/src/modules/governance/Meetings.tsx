@@ -22,7 +22,7 @@ export function MeetingList() {
         urlState
         columns={['ref', 'title', 'committee_id', 'scheduled_at', 'status', 'quorum_met', { field: 'location', hidden: true }, { field: 'chair_id', hidden: true }]}
         filters={['committee_id', 'status', 'scheduled_at', 'quorum_met']}
-        createFields={['committee_id', 'title', 'scheduled_at', 'location']}
+        createFields={['committee_id', 'title', 'scheduled_at', 'duration_minutes', 'location']}
       />
     </div>
   );
@@ -64,6 +64,69 @@ function Actions({ row, save, canEdit, reload }: RecordContext) {
       <ConfirmDialog open={canceling} title="Cancel this meeting?" message="The meeting will be marked as canceled. Its agenda and pack are kept." confirmLabel="Cancel meeting" danger busy={busy}
         onConfirm={async () => { await move('canceled', 'Meeting canceled.'); setCanceling(false); }} onCancel={() => setCanceling(false)} />
     </>
+  );
+}
+
+// ---------- invitations (E41-17) ----------
+
+interface InvitationsView { invited_at: string | null; sequence: number; mail: boolean; invitees: { name: string; reachable: boolean; how: 'account' | 'roster' | null }[] }
+
+/** Who the calendar invitation goes to, and sending it (again after a change, or a cancellation). */
+function Invitations({ meeting, onChanged }: { meeting: Row; onChanged: () => void }) {
+  const toast = useToast();
+  const { can } = useAuth();
+  const { data, error, reload } = useFetch<InvitationsView>(`/api/meetings/${meeting.id}/invitations`);
+  const [busy, setBusy] = useState(false);
+  if (error) return <ErrorState error={error} onRetry={reload} />;
+  if (!data) return <Loading lines={4} />;
+  const canceled = meeting.status === 'canceled';
+  const past = new Date(meeting.scheduled_at).getTime() < Date.now();
+  const reachable = data.invitees.filter((i) => i.reachable).length;
+  const mayEmail = can('governance.edit') && data.mail && reachable > 0 && meeting.status !== LOCKED
+    && (canceled ? Boolean(data.invited_at) : !past);
+  const label = canceled ? 'Email the cancellation' : data.invited_at ? 'Email the updated invitation' : 'Email invitations';
+  const send = async () => {
+    setBusy(true);
+    try {
+      const r = await api.post<{ invited: number }>(`/api/meetings/${meeting.id}/invitations`, {});
+      toast.success(`${canceled ? 'Cancellation' : 'Invitation'} emailed to ${r.invited} ${r.invited === 1 ? 'member' : 'members'}.`);
+      reload(); onChanged();
+    } catch (err) { toast.error(errorMessage(err)); } finally { setBusy(false); }
+  };
+  return (
+    <Card
+      title="Invitations"
+      flush
+      actions={(
+        <>
+          <a className="btn btn-sm" href={`/api/meetings/${meeting.id}/invitation.ics`} download>Download calendar file</a>
+          {mayEmail && <Button size="sm" variant="primary" loading={busy} onClick={() => void send()}>{label}</Button>}
+        </>
+      )}
+    >
+      <div className="gv-pad stack">
+        <p className="muted">
+          Members in office on the day of the meeting are emailed the meeting as a calendar file that adds it to their calendar.
+          After a change of time or place, email it again: their calendars update the same event. Once the meeting is canceled, email the
+          cancellation to take it off their calendars. {data.invited_at ? `Last emailed ${formatDateTime(data.invited_at)}.` : 'Not emailed yet.'}
+        </p>
+        {!data.mail && <p className="notice notice-warn">Email is not set up, so invitations cannot be emailed. Download the calendar file and send it yourself.</p>}
+      </div>
+      <TableWrap label="Who is invited">
+        <table className="table">
+          <thead><tr><th scope="col">Member</th><th scope="col">Invitation</th></tr></thead>
+          <tbody>
+            {data.invitees.length === 0 && <tr><td colSpan={2} className="muted">The committee has no members in office on the day.</td></tr>}
+            {data.invitees.map((i, n) => (
+              <tr key={`${i.name}-${n}`}>
+                <td>{i.name}</td>
+                <td>{i.reachable ? (i.how === 'roster' ? 'By email (staff roster address)' : 'By email') : <span className="muted">No email address: tell them yourself</span>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </TableWrap>
+    </Card>
   );
 }
 
@@ -405,11 +468,12 @@ export function MeetingDetail() {
       actions={(rec) => <Actions {...rec} />}
       summary={({ row, reload }) => (
         <EditableSummary type="meeting" row={row} onSaved={reload} title="Meeting" editable={row.status === LOCKED ? false : undefined}
-          fields={['title', 'committee_id', 'scheduled_at', 'location', 'chair_id', 'secretary_id', 'quorum_met']} />
+          fields={['title', 'committee_id', 'scheduled_at', 'duration_minutes', 'location', 'chair_id', 'secretary_id', 'quorum_met', 'invited_at']} />
       )}
       tabs={[
         { key: 'agenda', label: 'Agenda', content: ({ row }) => <Agenda meeting={row} /> },
         { key: 'pack', label: 'Pack', content: ({ row }) => <Pack meeting={row} /> },
+        { key: 'invitations', label: 'Invitations', content: ({ row, reload }) => <Invitations meeting={row} onChanged={reload} /> },
         { key: 'attendance', label: 'Attendance', content: ({ row, reload }) => <AttendanceTab meeting={row} onChanged={reload} /> },
         {
           key: 'minutes', label: 'Minutes', content: ({ row, reload }) => (

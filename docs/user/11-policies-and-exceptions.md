@@ -86,6 +86,7 @@ The page has these tabs:
 |---|---|
 | **Policy** | The text readers see, the **Details** card and **Who must acknowledge** |
 | **Versions** | Every version, and two versions side by side |
+| **Translations** | A version's title, summary and text in another language, for staff who read in it |
 | **Acknowledgments** | Who has and has not acknowledged a version |
 | **Mapped outcomes** | The framework outcomes this policy supports |
 | **Exceptions** | Exceptions recorded against this policy |
@@ -157,6 +158,17 @@ The earlier published version is kept and marked **Superseded**.
 
 Select the **More actions** button (three dots), then **Retire policy**, and confirm. The policy is marked **Retired**, outstanding acknowledgment requests are closed, and no new version can be written. The text and history stay available.
 
+## Translate a version
+
+Staff can choose to read the self-service portal, the acknowledgment kiosk and the mobile app in another language (English and Spanish today). A version can carry a translation for each of those languages; the version's own text stays the approved original.
+
+1. Open the policy's **Translations** tab. **Version** at the top right chooses which version (the published one first).
+2. Select **Translate** on the language's row (**Edit** once there is one). You need **Edit** on **Policies**.
+3. Write the **Title**, and if you like the **Summary** and **What changed**, in that language, and the **Text** in Markdown, as the original. **Read the original text** below the form shows what you are translating. A new version's translation starts from the previous version's, when it had one.
+4. Select **Save translation**.
+
+You can translate a draft before it is approved, or add or correct the translation of the published version afterward: people who chose that language read it from the moment you save. A replaced (superseded) version's translations are kept as they were, and so are a retired policy's. **Read** shows a translation; **Remove** takes it away, after which people read the original. Every change is in the policy's **History**, with the text it replaced, so what someone read when they acknowledged can always be shown again. Discarding a draft discards its translations too.
+
 ## Compare versions
 
 Open the **Versions** tab. The table lists every version with its status, what changed, who approved it and when.
@@ -196,6 +208,8 @@ When a version is published:
 
 The policy moves to **Already acknowledged**; select its name to read the same text again. The date and time of your acknowledgment are recorded against the version you read.
 
+In the self-service portal, on the kiosk and in the mobile app, a person who chose another language reads the version's translation in it when there is one, and the acknowledgment also records the language they read (see [Translate a version](#translate-a-version)).
+
 ### Track acknowledgment
 
 Open the policy's **Acknowledgments** tab.
@@ -204,7 +218,8 @@ Open the policy's **Acknowledgments** tab.
 - **People** lists who was asked. Use **Show** to switch between outstanding, overdue only, acknowledged and everyone.
 - **By department** gives the same counts for each department.
 - **Version** switches to an earlier version's record.
-- **Export CSV** downloads the list for the version shown.
+- An acknowledgment given in a translation says so after its date, for example (read in Spanish).
+- **Export CSV** downloads the list for the version shown, with a **Language read** column.
 - **Staff on the roster** (shown to people who can see the roster) lists the roster people asked, with their employee number, position, status, when and how they acknowledged (**Sign-in sheet**, **Kiosk** or **By hand**) and who recorded it, with the same counts.
 
 ### Record acknowledgments from a sign-in sheet
@@ -228,6 +243,8 @@ The kiosk lets staff acknowledge for themselves on a supervisor's device, for ex
 2. The member of staff types the start of their name and picks it. Only people on the roster with something to acknowledge are listed, with their position.
 3. They enter their **Employee number** and select **Continue**. A wrong number is refused; after five wrong numbers for the same person within 15 minutes the kiosk stops accepting numbers for that person until 15 minutes have passed since the first of them, and each wrong number is recorded in the audit log. Numbers typed at the same moment on several devices count together, so the limit cannot be got round by trying many at once. A right number clears the count. The count is kept in the database, so restarting the server or using another server process does not reset it.
 4. They read each document, check **I have read and understood this document**, and select **Acknowledge**.
+
+**Language** at the top of the kiosk lets each person choose English or Español for their turn, at any step. A document with a translation in that language is shown translated (and says so); one without is shown in the original. The acknowledgment records the language each document was read in. The next person starts again in the device's language (the signed-in supervisor's choice in the portal or the app, or the browser's).
 
 The kiosk thanks them and returns to the list for the next person. Each acknowledgment is recorded with the method **Kiosk** and the signed-in supervisor as the person who recorded it. Sign out when you leave the device.
 

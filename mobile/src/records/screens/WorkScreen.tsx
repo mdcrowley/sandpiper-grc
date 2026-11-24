@@ -13,8 +13,9 @@ import { useLoad, useMeta, useOnForeground } from '../hooks';
 import { workItemTarget } from '../navigate';
 import { Body, Button, Card, Chip, Heading, ListRow, Loading, Notice } from '../ui';
 import { openOnWeb } from '../web';
+import { localized } from '../../i18n';
 
-export const TEXT = {
+export const TEXT = localized('work', {
   title: 'My work',
   loading: 'Loading your work',
   refresh: 'Refresh',
@@ -30,7 +31,7 @@ export const TEXT = {
   openAcknowledgments: 'Open acknowledgments',
   notifications: (n: number) => (n ? `Notifications (${n} unread)` : 'Notifications'),
   opensWeb: 'Opens on the web',
-};
+});
 
 /** The number on the My work tab: everything waiting, as counted at the last refresh. */
 export function totalWaiting(home: MobileHome | null): number {

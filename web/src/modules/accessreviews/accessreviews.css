@@ -1,0 +1,15 @@
+/* User access reviews (E41-02). Tokens only, so both themes work. */
+.ar-add { display: flex; flex-wrap: wrap; gap: var(--s-3); align-items: flex-end; }
+.ar-add > :first-child { flex: 1 1 18rem; min-width: 0; }
+.ar-note { margin: var(--s-2) 0 0; }
+.ar-wrap { overflow-wrap: anywhere; min-width: 8rem; }
+.ar-small { font-size: var(--fs-sm, 0.875rem); }
+.ar-totals { margin: 0; }
+.ar-decide { gap: var(--s-2); flex-wrap: nowrap; }
+.ar-bulk { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; padding: var(--s-3) var(--s-4); border-bottom: 1px solid var(--border); background: var(--surface-2, var(--surface)); }
+.ar-hide-label .mantine-Checkbox-label, .ar-hide-label label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.ar-progress { min-width: 10rem; }
+.ar-dialog-buttons { justify-content: flex-end; gap: var(--s-2); }
+.ar-file { display: flex; flex-direction: column; gap: var(--s-1); }
+.ar-file-label { font-weight: 600; font-size: var(--fs-sm, 0.875rem); }
+.ar-errors { margin: var(--s-2) 0 0; padding-left: var(--s-5); }

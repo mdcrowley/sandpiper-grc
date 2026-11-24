@@ -27,7 +27,7 @@ const GATE_VIEW = `{ id: uuid, gate_key: string, name: string, from_stage: strin
   decisions: [{ id: uuid, decision: string, approver_name: string, approver_role: string | null, decided_on: date,
     reference: string | null, notes: string | null, recorded_by_name: string, created_at: datetime, ... }],
   total: integer, checked: integer, outstanding: [string], missing_documents: [string],
-  blockers: [{ kind: 'status' | 'checklist' | 'document', label: string }],
+  blockers: [{ kind: 'status' | 'checklist' | 'document' | 'certificate', label: string }], requires_certificate: boolean "E41-08: a certificate of readiness must be in force (projects with certifiable items)",
   is_current: boolean, can_approve: boolean, approvers_for_tier: [string], change_available: boolean,
   change: { id: uuid, label: string, ref: string | null, route: string | null, status: string | null } | null, ... }`;
 
@@ -68,11 +68,11 @@ const SETTINGS_DESC = 'Partial body. Invalid values give 400 `validation` with p
 
 const GATE_DEF = `{ id: uuid, key: string, name: string, from_stage: string, to_stage: string, sort: integer, active: boolean,
   required_documents: [{ name: string, required: boolean }], checklist: [string], approvers: { [tier]: [string] },
-  wants_change: boolean, approval_workflow_id: uuid | null "E11-25: the approval workflow gate decisions are asked through", ... }`;
+  wants_change: boolean, requires_certificate: boolean "E41-08: projects with certifiable items need a certificate of readiness in force to pass", approval_workflow_id: uuid | null "E11-25: the approval workflow gate decisions are asked through", ... }`;
 
 const GATE_DEF_BODY = `{ name?: string, checklist?: [string],
   required_documents?: [string | { name: string, required?: boolean }] "A plain name is required",
-  approvers?: { [tier]: [string] }, wants_change?: boolean, approval_workflow_id?: uuid | null "From GET /api/projects/gate-workflows; null: decisions recorded by hand" }`;
+  approvers?: { [tier]: [string] }, wants_change?: boolean, requires_certificate?: boolean, approval_workflow_id?: uuid | null "From GET /api/projects/gate-workflows; null: decisions recorded by hand" }`;
 
 const GATE_DEF_DESC = 'Changes the template only; gates already opened on projects keep their copy. A new checklist replaces the old one. 404 `not_found` for an unknown key. Audited.';
 

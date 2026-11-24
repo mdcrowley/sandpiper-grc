@@ -18,7 +18,7 @@
 import { randomBytes } from 'node:crypto';
 import type { FastifyRequest } from 'fastify';
 import { loadUser } from '../../core/auth.ts';
-import { calendarSources, type CalendarEvent } from '../../core/calendar.ts';
+import { calendarSources, checkedEvents } from '../../core/calendar.ts';
 import { UUID_RE } from '../../core/errors.ts';
 import type { ModuleContext, Row, SessionUser } from '../../core/module.ts';
 import { makeDbLimiter } from '../../core/ratelimit.ts';
@@ -67,45 +67,13 @@ export async function feedEvents(ctx: ModuleContext, user: SessionUser, feed: Fe
   const to = addDays(today, DAYS_AHEAD);
   const wanted = new Set(sourceList(feed.sources));
   const sources = calendarSources(ctx.app, ctx.resources, user).filter((s) => wanted.has(s.key));
-  const collected: { event: CalendarEvent; label: string }[] = [];
-  for (const s of sources) {
-    try {
-      for (const event of await s.events(ctx, user, from, to)) collected.push({ event, label: s.label });
-    } catch (err) {
-      // One source failing leaves the others in the feed.
-      ctx.app.log.warn({ err, source: s.key }, 'calendar source failed');
-    }
-  }
-
-  // Check every record again: it must be of a type that is on, visible to this person now, and not deleted.
-  const byType = new Map<string, Set<string>>();
-  for (const { event } of collected) {
-    if (!UUID_RE.test(event.recordId)) continue;
-    if (!byType.has(event.recordType)) byType.set(event.recordType, new Set());
-    byType.get(event.recordType)!.add(event.recordId);
-  }
-  const visible = new Map<string, Map<string, boolean>>(); // type -> id -> restricted
-  for (const [type, ids] of byType) {
-    const def = ctx.resources.get(type);
-    if (!def) continue;
-    const flag = def.restricted === 'flag' ? 't.restricted' : def.restricted === true ? 'true' : 'false';
-    const rows = await ctx.db.query<{ id: string; restricted: boolean }>(
-      `select t.id, (${flag}) as restricted from ${def.table} t
-        where t.id = any($1::uuid[]) and t.deleted_at is null and ${ctx.resources.visibleWhere(type, user, 't')}`,
-      [[...ids]]);
-    visible.set(type, new Map(rows.map((r) => [r.id, r.restricted === true])));
-  }
-
+  // Every record is checked again (core/calendar.ts checkedEvents): its type is on, it is visible to this person now, not deleted.
   const out: IcsEvent[] = [];
-  const seen = new Set<string>();
-  for (const { event, label } of collected) {
-    const restricted = visible.get(event.recordType)?.get(event.recordId);
-    if (restricted === undefined || seen.has(event.uid)) continue;
-    seen.add(event.uid);
+  for (const { event, source, restricted } of await checkedEvents(ctx, user, sources, from, to)) {
     // busy: only what kind of date it is; restricted: never a title unless the feed shows titles.
     const title = restricted
       ? (feed.detail === 'titles' ? event.title : RESTRICTED_TITLE)
-      : (feed.detail === 'titles' ? event.title : label);
+      : (feed.detail === 'titles' ? event.title : source.label);
     out.push({
       uid: `${event.uid}@sandpiper-grc`, title, start: event.start, end: event.end, allDay: event.allDay,
       url: event.url.startsWith('/') ? `${base}${event.url}` : undefined,

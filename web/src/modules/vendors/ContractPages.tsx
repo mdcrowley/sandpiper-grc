@@ -9,6 +9,8 @@ import type { Row } from '../../core';
 import { Checklist } from './Checklist';
 import { StartOffboarding } from './Offboardings';
 import { AddEvidence } from './EvidenceForm';
+import { PerformanceTab } from './Performance';
+import { VendorChecksNotice } from './Intake';
 import {
   ActionsTab, ExpiryChip, NoticeChip, daysUntil, ifWeDoNothing, noticeTone, useActionsAvailable,
 } from './shared';
@@ -214,7 +216,7 @@ export function ContractDetail() {
           <Link className="btn btn-secondary" to="/contracts/renewals">Renewal calendar</Link>
         </>
       )}
-      banner={({ row }) => <NoticeHero row={row} />}
+      banner={({ row }) => <><VendorChecksNotice contract={row} /><NoticeHero row={row} /></>}
       summary={({ row, reload, save, canEdit }) => (
         <div className="vnd-contract-cols">
           <EditableSummary
@@ -246,6 +248,7 @@ export function ContractDetail() {
       tabs={[
         { key: 'terms', label: 'Security terms', content: ({ row }) => <Checklist contractId={row.id} /> },
         { key: 'evidence', label: 'Evidence', content: ({ row }) => <ContractEvidence row={row} /> },
+        { key: 'performance', label: 'Performance', content: ({ row }) => <PerformanceTab contractId={row.id} /> },
         ...(actions ? [{ key: 'actions', label: 'Actions', content: ({ row }: { row: Row }) => <ActionsTab sourceType="contract" sourceId={row.id} /> }] : []),
         ...(funding && FundingClauses ? [{
           key: 'funder-clauses', label: 'Funder clauses',

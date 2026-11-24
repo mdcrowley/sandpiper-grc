@@ -1,6 +1,7 @@
 // The calls the work, search, record and approval screens make. Everything goes through
 // ../api/client.ts (apiFetch). Owner: APP-WORK.
 import { ApiError, CLIENT_ERRORS, apiFetch, type ApiFetchInit } from '../api/client';
+import { getLanguage } from '../i18n';
 import type { MobileHome } from '../../../shared/mobile-api.ts';
 import type {
   AckDetail, AckItem, ApprovalItem, AttachmentRow, CommentRow, DecisionResult, HistoryEvent, Meta, RecordRow, ResourceMeta, SearchHit,
@@ -101,17 +102,19 @@ export function decide(stepId: string, decision: 'approved' | 'rejected', commen
   });
 }
 
+// E41-07: titles and texts in the person's language when the version is translated into it.
 export async function fetchAcknowledgments(): Promise<AckItem[]> {
-  const answer = await apiFetch<{ awaiting: AckItem[] }>('/api/policies/acknowledgments/mine');
+  const answer = await apiFetch<{ awaiting: AckItem[] }>(`/api/policies/acknowledgments/mine?lang=${getLanguage()}`);
   return answer.awaiting ?? [];
 }
 
-export function fetchAcknowledgment(id: string): Promise<AckDetail> {
-  return apiFetch<AckDetail>(`/api/policies/acknowledgments/${encodeURIComponent(id)}`);
+export function fetchAcknowledgment(id: string, lang: string = getLanguage()): Promise<AckDetail> {
+  return apiFetch<AckDetail>(`/api/policies/acknowledgments/${encodeURIComponent(id)}?lang=${encodeURIComponent(lang)}`);
 }
 
-export function acknowledge(id: string): Promise<AckItem> {
-  return apiFetch<AckItem>(`/api/policies/acknowledgments/${encodeURIComponent(id)}/acknowledge`, { method: 'POST' });
+/** `language`: the language the text was read in (recorded when the version is translated into it). */
+export function acknowledge(id: string, language?: string): Promise<AckItem> {
+  return apiFetch<AckItem>(`/api/policies/acknowledgments/${encodeURIComponent(id)}/acknowledge`, { method: 'POST', body: language ? { language } : undefined });
 }
 
 /** A readable sentence for any failure, for the screens' error boxes. */

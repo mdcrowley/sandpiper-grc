@@ -13,12 +13,15 @@ const values = async (c: { get: (u: string) => Promise<{ body: any }> }) => (awa
 
 describe('GET /api/reports/departments', () => {
   it('offers the organization\'s departments and those recorded on records the caller may view, never a restricted record\'s', async () => {
-    await t.db.query(`insert into departments (name) values ('Invented Rail Operations'), ('Invented Closed Unit')`);
+    // E41-01: a record's department is one of the organization's departments; the two used below are
+    // removed afterwards, so their names are known only from the records that keep them.
+    await t.db.query(`insert into departments (name) values ('Invented Rail Operations'), ('Invented Closed Unit'), ('Invented Bus Maintenance'), ('Invented Secret Unit')`);
     await t.db.query(`update departments set deleted_at = now() where name = 'Invented Closed Unit'`);
     expect((await t.api.post('/api/actions', { title: 'Invented open action', status: 'open', department: 'Invented Bus Maintenance' })).status).toBe(201);
     const risk = (await t.api.post('/api/risks', { title: 'Invented restricted risk' })).body;
     const hidden = await t.api.post('/api/actions', { title: 'Invented restricted action', status: 'open', department: 'Invented Secret Unit', source: 'risk', source_type: 'risk', source_id: risk.id });
     expect(hidden.body.restricted).toBe(true);
+    await t.db.query(`update departments set deleted_at = now() where name in ('Invented Bus Maintenance', 'Invented Secret Unit')`);
 
     const res = await t.api.get('/api/reports/departments');
     expect(res.status).toBe(200);

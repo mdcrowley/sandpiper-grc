@@ -6,6 +6,7 @@ import { HazardDetail, HazardList } from './Hazards';
 import { ExposurePage, IndicatorDetail, IndicatorList } from './Indicators';
 import { MatrixEditor } from './MatrixEditor';
 import { ReportRules } from './ReportRules';
+import { ConfidentialViewers } from './ConfidentialViewers';
 import './safety.css';
 
 const view = 'safety.view';
@@ -19,6 +20,7 @@ const mod: ModuleDef = {
     { group: 'Safety', label: 'Safety indicators', path: '/safety/indicators', icon: 'target', permission: view, order: 98 },
     { group: 'Administration', label: 'Hazard matrix', path: '/safety/matrix', icon: 'target', permission: 'safety.administer', order: 63 },
     { group: 'Administration', label: 'Safety reporting rules', path: '/safety/reporting-rules', icon: 'clock', permission: 'safety.administer', order: 64 },
+    { group: 'Administration', label: 'Confidential safety reports', path: '/safety/confidential', icon: 'eye-off', permission: 'safety.administer', order: 65 },
   ],
   routes: [
     { path: '/safety', element: <SafetyDashboard />, permission: view },
@@ -31,6 +33,7 @@ const mod: ModuleDef = {
     { path: '/safety/exposure', element: <ExposurePage />, permission: view },
     { path: '/safety/matrix', element: <MatrixEditor />, permission: 'safety.administer' },
     { path: '/safety/reporting-rules', element: <ReportRules />, permission: 'safety.administer' },
+    { path: '/safety/confidential', element: <ConfidentialViewers />, permission: 'safety.administer' },
   ],
   create: [
     { label: 'Safety event', path: '/safety/events?new=1', permission: 'safety.create', icon: 'alert' },

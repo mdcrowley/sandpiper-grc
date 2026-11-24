@@ -17,9 +17,9 @@ export function ProcessList() {
       <ResourceList
         type="business_process"
         urlState
-        columns={['ref', 'name', 'department', 'criticality', 'status', 'mtd_hours', 'owner_id', { field: 'rto_target_hours', hidden: true }, { field: 'next_bia_due', hidden: true }, { field: 'last_bia_on', hidden: true }]}
+        columns={['ref', 'name', 'department_id', 'criticality', 'status', 'mtd_hours', 'owner_id', { field: 'rto_target_hours', hidden: true }, { field: 'next_bia_due', hidden: true }, { field: 'last_bia_on', hidden: true }]}
         filters={['criticality', 'status', 'owner_id', 'next_bia_due']}
-        createFields={['name', 'department', 'owner_id', 'criticality', 'status', 'mtd_hours', 'rto_target_hours', 'rpo_target_hours', 'description']}
+        createFields={['name', 'department_id', 'owner_id', 'criticality', 'status', 'mtd_hours', 'rto_target_hours', 'rpo_target_hours', 'description']}
       />
     </div>
   );
@@ -168,7 +168,7 @@ export function ProcessDetail() {
   return (
     <RecordPage
       type="business_process"
-      summaryFields={['name', 'department', 'owner_id', 'criticality', 'status', 'peak_periods', 'mtd_hours', 'rto_target_hours', 'rpo_target_hours', 'minimum_staff', 'last_bia_on', 'next_bia_due', 'description', 'manual_workaround']}
+      summaryFields={['name', 'department_id', 'owner_id', 'criticality', 'status', 'peak_periods', 'mtd_hours', 'rto_target_hours', 'rpo_target_hours', 'minimum_staff', 'last_bia_on', 'next_bia_due', 'description', 'manual_workaround']}
       tabs={[
         { key: 'dependencies', label: 'Dependencies', content: ({ row }) => <Dependencies process={row} /> },
         { key: 'bia', label: 'Impact analysis', content: ({ row }) => <ImpactAnalyses process={row} /> },

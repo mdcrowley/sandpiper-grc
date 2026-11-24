@@ -2,8 +2,9 @@
 // suggestions and file sending.
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { api, ApiError, Icon, qs, useDebounced, type IconName } from '../../core';
+import { api, ApiError, Button, errorMessage, Icon, qs, useDebounced, type IconName } from '../../core';
 import { appTitle } from '../../core/branding';
+import { catalogs, useI18n } from '../../core/i18n';
 
 export interface Choice { value: string; label: string }
 export interface PortalConfig {
@@ -40,7 +41,9 @@ export const ConfigProvider = ConfigContext.Provider;
  * branding (core/branding.ts) replaces it in place.
  */
 export function usePortalTitle(title: string | null | undefined): void {
-  const portal = useContext(ConfigContext)?.title;
+  const own = useContext(ConfigContext)?.title;
+  const { t } = useI18n();
+  const portal = own && catalogs.en?.['portal.title'] === own ? t('portal.title') : own;
   useEffect(() => {
     if (!title) return undefined;
     document.title = [title, portal && portal !== title ? portal : null, appTitle()].filter(Boolean).join(' · ');
@@ -73,21 +76,33 @@ export function usePortal(): PortalConfig {
   return c;
 }
 
+/**
+ * A text the server wrote in English (a request's plain status, a "who is affected" answer), in the
+ * person's language: translated when it is the server's own wording, kept as it is when an
+ * administrator wrote their own (a status's portal wording, for example).
+ */
+export function useServerText(): (key: string, english: string) => string {
+  const { t } = useI18n();
+  return useCallback((key: string, english: string) => (catalogs.en?.[key] === english ? t(key) : english), [t]);
+}
+
 export function StatusPill({ status }: { status: PlainStatus }) {
-  return <span className={`pt-pill pt-tone-${status.tone}`}>{status.label}</span>;
+  const text = useServerText();
+  return <span className={`pt-pill pt-tone-${status.tone}`}>{text(`portal.status.${status.key}.label`, status.label)}</span>;
 }
 
 const BANNER_ICON: Record<string, IconName> = { info: 'info', warning: 'alert', outage: 'alert-circle', resolved: 'check-circle' };
-const BANNER_TITLE: Record<string, string> = { info: 'Service update', warning: 'Service warning', outage: 'Service problem', resolved: 'Service restored' };
+const BANNER_TONES = ['info', 'warning', 'outage', 'resolved'];
 
 export function ServiceBanner() {
   const { banner } = usePortal();
+  const { t } = useI18n();
   if (!banner) return null;
   return (
     <div className={`pt-banner pt-banner-${banner.tone}`} role={banner.tone === 'outage' ? 'alert' : 'status'}>
       <Icon name={BANNER_ICON[banner.tone] ?? 'info'} size={22} />
       <div>
-        <strong>{BANNER_TITLE[banner.tone] ?? 'Service update'}</strong>
+        <strong>{t(`portal.banner.${BANNER_TONES.includes(banner.tone) ? banner.tone : 'info'}`)}</strong>
         <p>{banner.message}</p>
       </div>
     </div>
@@ -107,11 +122,12 @@ export function useSuggestions(text: string): Article[] {
   return found;
 }
 
-export function Suggestions({ articles, title = 'These articles might help' }: { articles: Article[]; title?: string }) {
+export function Suggestions({ articles, title }: { articles: Article[]; title?: string }) {
+  const { t } = useI18n();
   if (!articles.length) return null;
   return (
     <aside className="pt-suggest" aria-live="polite">
-      <h2 className="pt-suggest-title"><Icon name="book" size={18} /> {title}</h2>
+      <h2 className="pt-suggest-title"><Icon name="book" size={18} /> {title ?? t('portal.suggest.title')}</h2>
       <ul>
         {articles.slice(0, 4).map((a) => (
           <li key={a.id}>
@@ -148,19 +164,33 @@ export async function sendFile(ticketId: string, file: File): Promise<void> {
   throw new ApiError(res.status, body.error?.code ?? `http_${res.status}`, body.error?.message ?? `"${file.name}" could not be sent.`);
 }
 
-export function formatSize(n: number): string {
-  if (n < 1024) return `${n} bytes`;
+export function formatSize(n: number, t?: (key: string, vars?: Record<string, string | number>) => string): string {
+  if (n < 1024) return t ? t('portal.size.bytes', { count: n }) : `${n} bytes`;
   if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
+/** The portal's "could not be loaded" box, in the person's language. */
+export function PortalError({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
+  const { t } = useI18n();
+  return (
+    <div className="state error-state" role="alert">
+      <span className="state-icon state-icon-error"><Icon name="alert" size={22} /></span>
+      <p className="state-title">{t('common.loadFailed')}</p>
+      {error !== undefined && error !== null && <p className="state-message">{errorMessage(error)}</p>}
+      {onRetry && <div className="state-action"><Button icon="refresh" onClick={onRetry}>{t('common.retry')}</Button></div>}
+    </div>
+  );
+}
+
 /** A file picker with a large target and the chosen files listed with a remove button. */
-export function FilePicker({ files, onChange, label = 'Add a photo or file' }: { files: File[]; onChange: (f: File[]) => void; label?: string }) {
+export function FilePicker({ files, onChange, label }: { files: File[]; onChange: (f: File[]) => void; label?: string }) {
+  const { t } = useI18n();
   return (
     <div className="pt-files">
       <label className="pt-file-btn">
         <Icon name="upload" size={20} />
-        <span>{label}</span>
+        <span>{label ?? t('portal.files.add')}</span>
         <input type="file" multiple className="sr-only" onChange={(e) => { onChange([...files, ...Array.from(e.target.files ?? [])]); e.target.value = ''; }} />
       </label>
       {files.length > 0 && (
@@ -169,8 +199,8 @@ export function FilePicker({ files, onChange, label = 'Add a photo or file' }: {
             <li key={`${f.name}-${i}`}>
               <Icon name="file-text" size={18} />
               <span className="truncate">{f.name}</span>
-              <span className="muted">{formatSize(f.size)}</span>
-              <button type="button" className="pt-link-btn" aria-label={`Remove ${f.name}`} onClick={() => onChange(files.filter((_, j) => j !== i))}>Remove</button>
+              <span className="muted">{formatSize(f.size, t)}</span>
+              <button type="button" className="pt-link-btn" aria-label={t('portal.files.removeNamed', { name: f.name })} onClick={() => onChange(files.filter((_, j) => j !== i))}>{t('portal.files.remove')}</button>
             </li>
           ))}
         </ul>

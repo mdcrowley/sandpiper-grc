@@ -174,11 +174,55 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | [E37](epics/E37-asset-tags.md) | Asset tags: values, printing and lookup | in progress | 9 / 10 |
 | [E38](epics/E38-mobile-apps.md) | Mobile apps for iPhone and Android | in progress | 11 / 15 |
 | [E39](epics/E39-vehicle-and-asset-models.md) | Vehicle and asset models | done | 7 / 7 |
-| [E40](epics/E40-production-hardening.md) | Production hardening | in progress | 13 / 14 |
-| [E41](epics/E41-product-gaps-wave-19.md) | Product gaps found in the wave 19 review | open | 0 / 17 |
-| | **Total** | | **757 / 785** |
+| [E40](epics/E40-production-hardening.md) | Production hardening | done | 14 / 14 |
+| [E41](epics/E41-product-gaps-wave-19.md) | Product gaps found in the wave 19 review | done | 17 / 17 |
+| [E42](epics/E42-windows-installer.md) | Windows installer, in-place updates and the update check | in progress | 6 / 7 |
+| | **Total** | | **781 / 792** |
 
-Of the 10 issues not done, 5 are in the epics E37 (asset tags) and E38 (mobile apps), specified in
+Of the 11 issues not done, E42-07 (the Windows installer on a real Windows Server, by hand) needs a
+person. Every product gap of the wave 19 review (E41) is built. Wave 20 built E41-01
+(departments are records (parent, manager, merge); role grants can be limited per area to the members'
+departments or sites and those below them; out-of-scope records are hidden like restricted ones;
+figures unchanged), E41-02 (the account register per system with roster matching and leaver and
+on-leave flags, imports per system, review campaigns decided by each system's owner with reminders,
+removals tracked to done through actions or the next import, a CSV decision file, and recording a
+finished campaign as a control test), E41-03 (one registration, the calendar source registry, feeds
+My work on the web, in the app and in the assistant, calendar feeds and the new Compliance calendar
+(`/calendar`: month, list and my due work, filters by area, kind and person); new kinds: evidence
+requests, corrective actions to verify, obligation periods to attest, certification renewals and
+funding certifications), E41-04 (figures over time (counts with a breakdown, or metrics) recorded at
+each month end and on demand, the same for everyone, charted on Reports > Figures over time, in
+dashboards (Figure over time widget) and board packs), E41-13 (every server PDF is tagged for PDF/UA
+(structure, language, title, embedded fonts, artifacts, chart alternatives), checked in unit tests
+with pdf.js; a veraPDF run by a person is still to do) and E41-17 (data wiping proof at disposal,
+meeting invitations as .ics, a heat map of every scale at the common level, and portal reports from
+scratch in the mobile app); E40-14 (rotation procedures for every secret, most carried out once and the rest proven by unit tests, and the
+audit archive as an owner command) closed E40; and E42 (a Windows installer with in-place updates
+and the update check) was built in wave 20 too.
+
+Wave 21 built E41-05 (confidential safety reporting: the reporter's identity is kept off the safety
+event and shown only to named people, each look audited, and the reporter is told what changed),
+E41-06 (registers an administrator defines, such as lost property, keys issued or visitors, with
+their own fields, numbering, permissions and switch), E41-07 (the portal, the policy kiosk and the
+app's employee-facing screens in English and Spanish, the person's choice saved on the account;
+policy versions carry translations; acknowledgments record the language read) and E41-08 (safety
+and security certification of capital projects: certifiable items and requirements derived from
+hazards and threats, verified with evidence; a certificate of readiness that cannot be issued while
+a required item is open and lists the open items it accepts; gate templates can require it).
+
+Wave 22 built E41-09 (outside reviewers, an external auditor or a funder's reviewer, invited by
+email to one audit engagement or compliance review until an end date and confined by the server to
+it; the person asked for evidence attaches files without `audits.edit`), E41-10 and E41-11 (vendor
+intake questionnaires that set a risk tier and the checks needed before a contract becomes active;
+contractor performance measures with targets, periodic scores and trends), E41-12 (written test steps
+on a control with per-step results in each test; control coverage imported from a spreadsheet,
+checked, then added), E41-14 (an activation sends a plan's call tree a message by email and text
+message; each person acknowledges through their own link without signing in; the activation lists
+who has not acknowledged, with phone acknowledgments and reminders), E41-15 (a retention schedule
+and destruction log for the organization's own records) and E41-16 (search inside attached files,
+with previews of images and PDFs).
+
+Of the other 10, 5 are in the epics E37 (asset tags) and E38 (mobile apps), specified in
 [the asset tags and mobile apps specification](specs/asset-tags-and-mobile-apps.md): the online app
 was built in wave 13, offline reports, push notifications and the Maestro flows in wave 14, and
 offline inspections, condition assessments and counts (E38-11, E38-12) and the Android UnifiedPush
@@ -204,6 +248,7 @@ with real data, then those that close the main known gaps.
 | 6 | [E16-15](epics/E16-hosting-operations-and-hardening.md) A walkthrough by a screen reader user | NVDA has been run through the main journeys by a script; no screen reader user has used the application |
 | 7 | [E16-41](epics/E16-hosting-operations-and-hardening.md) Load test with the database on its own machine | Measured with the database in a limited container on the same laptop; search and the full-text list tuned for it (wave 15) |
 | 8 | [E16-42](epics/E16-hosting-operations-and-hardening.md) Services across a restart of a real machine, and macOS | Proven across a restart of a systemd container |
+| 9 | [E42-07](epics/E42-windows-installer.md) The Windows installer on a real Windows Server | Tested silently on a Windows 11 workstation; a restart and the install pages by hand remain |
 
 ## Known gaps coverage
 
@@ -231,11 +276,13 @@ Keep this table in step with that file.
 | An existing installation keeps its second-factor setting | E02-05, E02-17 (done) |
 | Default role changes reach an existing database only when applied | E18-21 (done) |
 | PDF fonts and bidirectional embedding characters; exports stop at 50,000 rows; PDF column limit; CSV code pages | E12-16, E22-22, E22-24 (done; the limits are recorded there) |
+| PDF/UA checked with pdf.js, not veraPDF; one document language | E41-13 (done; a veraPDF run by a person is recorded there) |
 | The portal does not ask ticket custom fields | E15-14 (done) |
 | JSON API responses are not compressed by the application | E22-32 (done; the limit is recorded there) |
-| Contract import dates | E06-15 (done) |
-| Wave 10 parts: evidence answers in text, no coverage import or per-control test steps, finance left to the finance system, meeting decisions and kind-less workflows, no emailed calendar invitations, departments not a record type, monthly-only KRIs | E23, E24, E26, E27, E28, E29, E30 (done; the limits are recorded there), E36-03 |
-| Wave 11 parts: printed call trees; one useful-life benchmark per class; no OT network scanning, starter mappings not loaded, no history for zones below target, no OT badge in a saved map picture; working days skip weekends only; exclusion checks and offboarding by hand; no SCIM bulk or sorting, one collector per forwarder, read-only feeds, no product-specific work-tracker connections | E31, E32, E33, E34, E35, E36 (done; the limits are recorded there) |
+| Contract import dates; a higher vendor risk tier or an expired check does not deactivate active contracts | E06-15, E41-10 (done; the limits are recorded there) |
+| Wave 10 parts: inspection photos need `audits.edit`, finance left to the finance system, meeting decisions and kind-less workflows, meeting invitation replies not collected, ticket and training departments kept as text, monthly-only KRIs | E23, E24, E26, E27, E28, E29, E30, E41-01, E41-17 (done; the limits are recorded there) |
+| Scoped roles not run on a PostgreSQL server or in the browser suite | E41-01 (done; the limit is recorded there) |
+| Wave 11 parts: call-tree texts reach accounts only, links visible in the text delivery log, not tried with real gateways (E41-14); one useful-life benchmark per class; no OT network scanning, starter mappings not loaded, no history for zones below target, no OT badge in a saved map picture; working days skip weekends only; exclusion checks and offboarding by hand; no SCIM bulk or sorting, one collector per forwarder, read-only feeds, no product-specific work-tracker connections | E31, E32, E33, E34, E35, E36, E41-14 (done; the limits are recorded there) |
 | The Overview cache is per process; module routes outside the generic save are not one transaction | E16-38, E40-03 (done; the limits are recorded there) |
 | Help page tables always take a Tab stop and have a generic name | E22-48 (done; the limit is recorded there) |
 | Least-privilege account queues custom fields for the owner; user services not proven across a restart or for the system examples | E16-37 (done; recorded there), E16-42 |
@@ -248,6 +295,16 @@ Keep this table in step with that file.
 | Mobile app security limits: expiry by the phone's clock, iPhone protection class and backup exclusion unchecked on a device, Android recents thumbnail, proprietary ML Kit and Firebase, build-tool audit advisories | E38-15 |
 | Printed tags not yet read by real phones; signed releases | E37-08, E38-05, E38-13 |
 | Load test with the database on its own machine and people in different roles | E16-41 |
+| Operations: the audit archive as the owner from a scheduled task; secret rotation proven by unit tests only | E40-14 (done; the limits are recorded there) |
+| Windows installer unsigned, not yet proven on a real Windows Server; only Windows has an installer | E42-07 |
+| User access reviews: no connection to systems; account lists imported, removals done by people | E41-02 (done; the limit is recorded there) |
+| Compliance calendar: records requests, plan reviews and condition assessments show only the viewer's own items | E41-03 (done; the limit is recorded there) |
+| Confidential safety reporting cannot protect the report's own text or the identity from people who run the server | E41-05 (done; the limit is recorded there) |
+| Certification: one certificate of readiness per project, no second-person verification, CSV source type kept, no mobile My work entry | E41-08 (done; the limits are recorded there) |
+| Registers: workflows on a new register start after a restart; no calendar, My work or app entries; least-privilege accounts wait for `migrate` | E41-06 (done; the limits are recorded there) |
+| Languages: English and Spanish only; staff screens and organization content in English; Spanish not reviewed by a native speaker | E41-07 (done; the limits are recorded there) |
+| Outside reviewers read and download only; staff pickers list them; no second factor unless required for everyone | E41-09 (done; the limits are recorded there) |
+| Search inside files: PDF, .docx and plain text only; previews of images and PDFs; retention items under Records requests in the calendar filter | E41-15, E41-16 (done; the limits are recorded there) |
 
 ### Verification status
 

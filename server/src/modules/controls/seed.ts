@@ -85,6 +85,20 @@ async function linkRecord(ctx: ModuleContext, controls: { id: string; covers: Co
   return n;
 }
 
+/** Invented written test steps: what the tester does, and what they should find. */
+const SAMPLE_STEPS: Record<string, [string, string][]> = {
+  'Pre-service vehicle check': [
+    ['Pick ten vehicles that left the depot in the period, at random from the dispatch log.', 'Every vehicle is on the dispatch log for that day.'],
+    ['Find the pre-service check sheet for each vehicle and day.', 'A signed check sheet exists for every vehicle chosen.'],
+    ['Compare each defect reported on a sheet with the defect log.', 'Every reported defect was logged, and the vehicle was held until it was cleared.'],
+  ],
+  'Backup restore test': [
+    ['Choose two systems from the backup schedule that were not restored last quarter.', 'Both systems have backups from the last seven days.'],
+    ['Restore each system to the test environment and time the restore.', 'Each restore finishes within the system\'s recovery time.'],
+    ['Have the system owner confirm that the restored data is complete.', 'The owner signs off the restore record.'],
+  ],
+};
+
 export async function seedControls(ctx: ModuleContext, opts: SeedOptions): Promise<string> {
   if (opts.profile !== 'dev') return 'nothing to load (organizations import their own control catalog)';
   if (await ctx.db.one('select 1 from controls where notes = $1 limit 1', [SAMPLE_NOTE])) {
@@ -154,6 +168,15 @@ export async function seedControls(ctx: ModuleContext, opts: SeedOptions): Promi
     }
   }
   for (const c of made) await rollUp(ctx, c.id);
+
+  // Written test steps (E41-12) for two controls, added after the past tests so those keep none.
+  for (const [title, steps] of Object.entries(SAMPLE_STEPS)) {
+    const i = CONTROLS.findIndex((c) => c.title === title);
+    if (i < 0) continue;
+    for (const [k, [step, expected]] of steps.entries()) {
+      await ctx.db.query('insert into control_steps (control_id, sort, step, expected) values ($1, $2, $3, $4)', [made[i].id, (k + 1) * 10, step, expected]);
+    }
+  }
 
   const linked = await linkExisting(ctx, made);
   // Covered records the later modules create during this seed run are linked as they appear.

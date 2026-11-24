@@ -48,11 +48,11 @@ export function ResultTable({ result, maxRows = 200, sticky, label }: { result: 
               </tr>
             ))}
           </tbody>
-          <tfoot><tr>
+          {p.colTotals.some((v) => v !== null) && <tfoot><tr>
             <th scope="row">Total</th>
             {p.colTotals.map((v, j) => <td key={j} className="num rp-total">{v === null ? '' : <button type="button" className="rp-link-num" onClick={() => drill(result, p.cols[j].drill)}>{formatValue(v)}</button>}</td>)}
             <td className="num rp-total">{p.grand === null ? '' : formatValue(p.grand)}</td>
-          </tr></tfoot>
+          </tr></tfoot>}
         </table>
       </TableWrap>
     );

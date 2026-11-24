@@ -5,6 +5,7 @@
 import type { FastifyRequest } from 'fastify';
 import { UUID_RE } from '../../core/errors.ts';
 import type { ModuleContext, Row, SessionUser } from '../../core/module.ts';
+import { departmentPrepare } from '../../core/scope.ts';
 import { checkHours, DEP_TYPES, DEPENDS_ON, invalid, liveDepKinds, text } from './shared.ts';
 
 export const PROCESS_HOURS = ['mtd_hours', 'rto_target_hours', 'rpo_target_hours'];
@@ -92,13 +93,17 @@ export function registerProcesses(ctx: ModuleContext) {
   ctx.defineResource({
     type: 'business_process', table: 'business_processes', module: 'continuity', label: 'Business process', plural: 'Business processes',
     path: '/api/business-processes', route: '/continuity/processes', titleField: 'name',
+    // Role grants scoped to departments or sites (E41-01, core/scope.ts).
+    scope: { department: 'department_id' },
     ref: { field: 'ref', prefix: 'BPR-' },
     searchable: ['name', 'department', 'description', 'peak_periods'],
     defaultSort: { field: 'name', dir: 'asc' },
     fields: {
       ref: { label: 'Reference', type: 'text', readOnly: true },
       name: { label: 'Name', type: 'text', required: true },
-      department: { label: 'Department', type: 'text' },
+      // E41-01: a reference to the organization's departments; `department` keeps its name (set by the database).
+      department_id: { label: 'Department', type: 'ref', to: 'department' },
+      department: { label: 'Department name', type: 'text', readOnly: true },
       owner_id: { label: 'Owner', type: 'user' },
       description: { label: 'Description', type: 'longtext', personal: false },
       criticality: { label: 'Criticality', type: 'lookup', list: 'process_criticality' },
@@ -113,6 +118,8 @@ export function registerProcesses(ctx: ModuleContext) {
       next_bia_due: { label: 'Next impact analysis due', type: 'date' },
     },
     hooks: {
+      // A department may still be given by name (`department` or `department_id`), as before E41-01.
+      prepare: departmentPrepare(ctx.db),
       beforeCreate: (req, data) => check(req, data, null),
       beforeUpdate: (req, existing, patch) => check(req, patch, existing),
     },

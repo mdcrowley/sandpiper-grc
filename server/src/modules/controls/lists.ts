@@ -64,6 +64,12 @@ export async function seedControlLists(ctx: ModuleContext): Promise<void> {
     { value: 'complete', label: 'Awaiting review', color: 'amber', sort: 30, meta: { done: true } },
     { value: 'reviewed', label: 'Reviewed', color: 'green', sort: 40, meta: { done: true, final: true } },
   ], own);
+  // E41-12: the result of one written test step; `meta.failed` = the step found a problem.
+  await ctx.lookups.ensure('control_step_result', [
+    { value: 'pass', label: 'Passed', color: 'green', sort: 10 },
+    { value: 'fail', label: 'Failed', color: 'red', sort: 20, meta: { failed: true } },
+    { value: 'not_applicable', label: 'Not applicable', color: 'gray', sort: 30 },
+  ], own);
   await ctx.lookups.ensure('control_sample_result', [
     { value: 'pass', label: 'No exception', color: 'green', sort: 10 },
     { value: 'exception', label: 'Exception', color: 'red', sort: 20 },

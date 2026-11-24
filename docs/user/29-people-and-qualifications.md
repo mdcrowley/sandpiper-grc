@@ -1,6 +1,6 @@
 # People and qualifications
 
-The roster holds everyone on staff, whether or not they have an account: bus and rail operators, maintainers, dispatchers, station agents and office staff. Each person has a position, and each position lists the courses and certifications it requires. From that the application works out who is qualified now, which certifications are about to expire, and which documents each person has been asked to acknowledge. Open **People** and **Positions** in the **Administration** group. Lists and record pages work as described in [Getting started](01-getting-started.md).
+The roster holds everyone on staff, whether or not they have an account: bus and rail operators, maintainers, dispatchers, station agents and office staff. Each person has a position, and each position lists the courses and certifications it requires. From that the application works out who is qualified now, which certifications are about to expire, and which documents each person has been asked to acknowledge. Open **People**, **Positions** and **Departments** in the **People** group. Lists and record pages work as described in [Getting started](01-getting-started.md).
 
 The roster is always on: it is not one of the parts an administrator can switch off, because policies, committees and safety use it. Training, certifications and the qualification matrix belong to training (see [Training and exercises](12-training-and-exercises.md)), and acknowledgments to policies (see [Policies and exceptions](11-policies-and-exceptions.md#staff-on-the-roster)); when one of those is switched off, its tabs and columns on the roster go with it.
 
@@ -8,8 +8,8 @@ The roster is always on: it is not one of the parts an administrator can switch 
 
 | Permission | Allows |
 |---|---|
-| `people.view` | See the roster and positions |
-| `people.create`, `people.edit`, `people.delete` | Add, change and remove people and positions, and import the roster |
+| `people.view` | See the roster, positions and departments |
+| `people.create`, `people.edit`, `people.delete` | Add, change and remove people, positions and departments, and import the roster; `people.delete` also merges departments |
 | `people.export` | Export the roster |
 | `training.view` together with `people.view` | See the qualification matrix, expiring certifications and a person's training |
 | `training.edit` | Set what each position requires |
@@ -20,7 +20,7 @@ Names, employee numbers, email addresses, phone numbers, hire dates, accounts an
 
 ## Positions
 
-Open **People > Positions**. Each position (`POS-` numbers) has a **Name** (unique), a **Code**, a **Description**, whether it is **Safety-sensitive** (shown only while safety management is switched on), and whether it is **Active**. On the position's page, choose its **Department** on the **Department** card.
+Open **People > Positions**. Each position (`POS-` numbers) has a **Name** (unique), a **Code**, a **Description**, whether it is **Safety-sensitive** (shown only while safety management is switched on), and whether it is **Active**, and its **Department**.
 
 ### What a position requires
 
@@ -33,6 +33,18 @@ On the position's **Requirements** tab (shown to people who can see training), s
 
 The **People** tab lists everyone in the position.
 
+## Departments
+
+Open **People > Departments**. A department has a **Name** (unique), the department it is **Part of** (so a night shift can sit under depot operations), a **Manager** and a **Description**. Its page lists its **People** and the **Departments below** it. Anyone signed in can choose a department on a record, even without access to this list.
+
+People, positions, assets, actions, projects and business processes each point at one department. Earlier versions kept the department of assets, actions, projects and business processes as typed text; on upgrading, each name was matched to the department of that name, and a name that was not yet in the list was added to it, so every record keeps its department. The name still shows in reports and figures grouped by department, and it follows when a department is renamed.
+
+The conversion can leave two departments for one ("IT" and "Information Technology"). Open the one to drop and select **Merge into…**, choose the department to keep, and select **Merge**: everyone and everything in it (accounts, the roster, positions and records) moves to the other department, the departments below it move under that one, and it is removed. Merging needs `people.delete` and is recorded in the audit log.
+
+### Seeing only your own department's or site's records
+
+An administrator can limit a role to the records of its members' own departments or sites, under **Administration > Roles > Which records** (see [Administration](09-administration.md#which-records-a-role-reaches)). A person's departments are the department on their account, their department on the roster and the departments they manage, with every department below those; their sites are their **Work site** on the roster and the sites they manage (a site's **Site manager**), with every site within those (a site's **Part of**). So set each person's department and work site on the roster, and each department's and site's manager, to give a depot manager their depot.
+
 ## The roster
 
 Open **People > People**. The title and **New person** come first, then the tiles. They count people who are **Active** and **On leave**, how many are **With an account**, and the **Positions**. The list shows each person's reference (`PER-` numbers), name, employee number, position, department and status; more columns (account, supervisor, work site, hire date, source) are in the column chooser.
@@ -42,12 +54,12 @@ Open **People > People**. The title and **New person** come first, then the tile
 1. Select **New person**, or **Create** then **Person**.
 2. Enter the **Full name** and, if they use one, a **Preferred name** (the kiosk shows it).
 3. Enter the **Employee number** (unique on the roster), **Email** and **Phone**.
-4. Choose the **Position**, **Work site** and **Supervisor** (another person on the roster).
+4. Choose the **Department**, **Position**, **Work site** and **Supervisor** (another person on the roster).
 5. If the person can sign in, choose their **Account**. An account belongs to one person only.
 6. Enter the **Hire date** and choose the **Status**: **Active**, **On leave** or **Left**.
 7. Select **Create person**.
 
-When no department is chosen the person takes their position's department; change it on the **Department** card of their page. A person whose email address is the same as an account's is linked to that account by themselves.
+When no department is chosen the person takes their position's department. A person whose email address is the same as an account's is linked to that account by themselves.
 
 People who leave keep their record with the status **Left**: they are no longer asked to do training or acknowledge documents, and they drop out of the qualification matrix.
 
@@ -63,7 +75,7 @@ Imported people show **Imported** as their **Source**. The check before importin
 
 ### The person's page
 
-The header shows the person's status and, when their position has requirements, whether they are **Qualified** or **Not qualified** now. Below the details and the **Department** card:
+The header shows the person's status and, when their position has requirements, whether they are **Qualified** or **Not qualified** now. Below the details:
 
 - **Training and certifications**: the **Qualification** table (each requirement of their position with its state and the date it is in date until), their **Certifications**, and their **Training records**, including training assigned by position.
 - **Acknowledgments**: the documents they were asked to acknowledge as a member of the roster, and when and how they did.

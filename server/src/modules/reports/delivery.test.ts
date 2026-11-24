@@ -290,11 +290,11 @@ describe('scheduled delivery', () => {
 
 describe('standard dashboards and reports', () => {
   it('seeds once, keeps later edits, and every widget answers whether or not its module is loaded', async () => {
-    expect(await seedStandard(t.ctx)).toMatch(/^7 dashboards, \d+ reports, 1 packs added$/);
+    expect(await seedStandard(t.ctx)).toMatch(/^7 dashboards, \d+ reports, 1 packs, 6 figures added$/);
     const first = (await t.api.get('/api/dashboards?pageSize=100')).body.rows.filter((d: any) => d.key);
     expect(first.map((d: any) => d.key).sort()).toEqual(STANDARD_DASHBOARDS.map((d) => d.key).sort());
     await t.api.patch(`/api/dashboards/${first[0].id}`, { name: 'Renamed by us' });
-    expect(await seedStandard(t.ctx)).toBe('0 dashboards, 0 reports, 0 packs added');
+    expect(await seedStandard(t.ctx)).toBe('0 dashboards, 0 reports, 0 packs, 0 figures added');
     expect((await t.api.get(`/api/dashboards/${first[0].id}`)).body.name).toBe('Renamed by us');
 
     // Everyone with dashboards.view sees the standard dashboards; widgets never throw.

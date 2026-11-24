@@ -41,6 +41,7 @@ The tabs hold the rest:
 | **Changes and issues** | Change records, open tickets and open vulnerabilities that name this system |
 | **Map** | The system's connections, and what is affected if it fails |
 | **OT** | Operational technology details: control level, whether it is life-critical, security zone, supplier remote access, patching and field location ([OT security](32-ot-security.md)); shown while **OT and rail-systems security** is on |
+| **Accounts** | The accounts the system holds, with their holders on the staff roster and flags for leavers, and the import of the system's own account file ([User access reviews](40-user-access-reviews.md)); shown while **User access reviews** is on |
 | **Attachments** | Files kept with the record, such as a contract summary or a recovery plan |
 
 **Activity**, **Related** and **History** follow, as on every record page.
@@ -158,7 +159,7 @@ An asset is a piece of equipment, a license or a subscription. Open **Assets** i
 
 Equipment fitted to vehicles (onboard computers, CAD/AVL units, fareboxes, card validators, on-vehicle routers, cameras, radios and passenger information displays) is recorded here as assets with those types, and installed on a vehicle from the vehicle's **Equipment** tab. See [Fleet and services](19-fleet-and-services.md).
 
-Use the column chooser to add **Disposal approval**, **Department**, **Owner**, **System**, **Serial number**, **Cost**, **Purchase date** or **Asset model**. To change several assets at once, check them and select **Edit selected…**: you can set **Status**, **Type**, **Site**, **Owner**, **System**, **Funding source**, **Warranty end** or **Support end**. The disposal rules below still apply to each asset.
+Filter the list by **Department** like any other field. Use the column chooser to add **Disposal approval**, **Department**, **Owner**, **System**, **Serial number**, **Cost**, **Purchase date** or **Asset model**. To change several assets at once, check them and select **Edit selected…**: you can set **Status**, **Type**, **Site**, **Department**, **Owner**, **System**, **Funding source**, **Warranty end** or **Support end**. The disposal rules below still apply to each asset.
 
 ### Add an asset
 
@@ -181,7 +182,7 @@ The top of the record shows where the asset is in its life: **Ordered**, **In st
 - A **Funder interest** notice appears when an outside funder keeps an interest in the asset.
 - **Disposal awaiting approval** or **Disposal approved** appears while a disposal is in progress.
 
-The **Details** card holds what the asset is, with its **Asset model** when it has one: each value it takes from the model says **From model** under it, and a value the asset keeps as its own says **Overridden**, with **Use the model's value** to clear it (see [Asset models](#asset-models)). The **Who has it and where** card shows **Assigned to**, **Owner**, **Department**, **Site** and **Location**; select **Edit** to change the owner, department, site or location. **Department** is chosen from the organization's department list (set up under **Administration**, **Settings**); it is free text only while no departments exist.
+The **Details** card holds what the asset is, with its **Asset model** when it has one: each value it takes from the model says **From model** under it, and a value the asset keeps as its own says **Overridden**, with **Use the model's value** to clear it (see [Asset models](#asset-models)). The **Who has it and where** card shows **Assigned to**, **Owner**, **Department**, **Site** and **Location**; select **Edit** to change the owner, department, site or location. **Department** is one of the organization's departments (**People > Departments**).
 
 While **OT and rail-systems security** is on, an **Operational technology (OT)** section under the details records whether the asset is OT, its control level, whether it is life-critical, its security zone and its firmware version ([OT security](32-ot-security.md)).
 
@@ -241,6 +242,15 @@ Requests made before disposal approvals moved onto the workflows keep their deci
 
 An administrator can switch this second way off: on **Disposal approvals**, turn on **Only accept approvals decided here**. A disposal then needs a request approved in the application (through its approval workflow).
 
+**Assets that hold data.** A laptop, a phone, a server's disks, a camera recorder or a fare-collection unit holds data that must be wiped before it leaves. When you mark such an asset as disposed, switch on **This asset holds data** in the dispose box (it is already on when **Holds data** is checked on the asset) and enter:
+
+- **How the data was wiped**: **Cleared (overwritten)**, **Purged (secure or cryptographic erase)** or **Destroyed (shredded, crushed or burned)**;
+- **Data wiped on**: the date;
+- **Wiped by**: the person or the company that did it;
+- **Wiping certificate reference**: the wiping company's certificate number, or your own.
+
+An asset that holds data cannot be marked as disposed without all four, however its status is changed (the dispose box, editing the record, changing several assets at once or an import). Attach the wiping company's own certificate to the asset under **Attachments**. Once the wiping is recorded, the **Disposal** tab shows a **Data wiping** card and **Download the data wiping certificate (PDF)**, a certificate that restates the asset, its serial number, the method, the date, who wiped it, the certificate reference and the disposal approval. Printing it is recorded in the asset's history. An administrator can change the names of the methods under **Administration > Lists** (`data_wipe_method`).
+
 Either way, the asset is checked in if it was out, its status becomes **Disposed**, and the approval is kept in its history. The **Disposal** tab shows the steps (**Request approval**, **Approver decides**, **Mark as disposed**, **Disposed**), every request with its decision, and the **Disposal record**.
 
 ### The funder-interest rule
@@ -282,7 +292,7 @@ Asset models work exactly like vehicle models; the details are in [Fleet and ser
 
 A site is a building or location. Open **Sites** in the **Inventory** group.
 
-To add one, select **New site** and enter the **Name**, **Address**, **Function**, **Power protection**, **Physical security**, **Third parties on site** and **Network links**. Only the name is required.
+To add one, select **New site** and enter the **Name**, **Address**, **Function**, **Power protection**, **Physical security**, **Third parties on site** and **Network links**. Only the name is required. A site can be **Part of** another one (a wash bay within a depot) and have a **Site manager**: a role limited to **Their sites** gives its members the records of the sites they manage or work at and every site within them (see [Administration](09-administration.md#which-records-a-role-reaches)).
 
 The site record has two tabs of its own:
 
@@ -347,5 +357,4 @@ Tools that push assets automatically (endpoint management or discovery) use `POS
 ## Not available yet
 
 - Automatic discovery of assets on the network.
-- Changing an asset's department for several assets at once, or filtering the asset list by department. Use the **Assets by department** report.
 - Individual vehicles on the relationship map: they are drawn in groups by depot and mode (see [Fleet and services](19-fleet-and-services.md)).

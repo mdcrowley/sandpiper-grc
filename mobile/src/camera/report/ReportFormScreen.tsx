@@ -10,7 +10,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import * as Crypto from 'expo-crypto';
 import * as ImagePicker from 'expo-image-picker';
 import { useSession } from '../../api/client';
-import { Banner, Body, Button, Field, Row, Screen, Section, Title } from '../../ui';
+import { Banner, Body, Button, Field, Row, Screen, Section, SwitchRow, Title } from '../../ui';
 import { fontSize, radius, space, useTheme } from '../../theme';
 import { apiFetch } from '../../api/client';
 import { lookupOptions, recordOptions, type Option } from '../../tags/calls';
@@ -20,30 +20,37 @@ import { discardPicture } from '../still';
 import { packageList, packageSites, orOffline } from '../../offline';
 import { saveReport } from '../reportQueue';
 import { buildReport, initialAnswers, isPortal, pickDefault, PORTAL_AFFECTS, PORTAL_URGENCY } from './build';
+import { localized } from '../../i18n';
 
-export const TEXT = {
+export const TEXT = localized('reportForm', {
   problem: 'Report a problem', hazard: 'Report a hazard or close call',
   about: 'About', titleLabel: 'Title', titleHint: 'A few words: what and where.',
   problemText: 'What is wrong', hazardText: 'What happened or what could happen',
-  site: 'Site', siteSearch: 'Find a site', noSite: 'No site', location: 'Where exactly (optional)',
+  site: 'Site', siteSearch: 'Find a site', noSite: 'No site', location: 'Where exactly (optional)', where: 'Where is it (optional)',
   type: 'Type', severity: 'Severity', harm: 'How bad was it', affects: 'Who is affected', urgency: 'How urgent is it',
   photos: 'Photos', takePhoto: 'Take a photo', choosePhotos: 'Choose photos', removePhoto: 'Remove photo',
   maxPhotos: 'At most 10 photos.', send: 'Send', titleRequired: 'Type a title.',
   notAllowed: 'You cannot make this kind of report.',
   preparing: 'Preparing the photo…',
-};
+  confidential: 'Keep my name confidential',
+  confidentialHint: 'Your name is not saved with the report. Only a few people your organization names can see who sent it, and each time they look it is recorded. You are still told what was done.',
+});
 
 const MAX_PHOTOS = 10;
 
 export default function ReportFormScreen() {
   const { colors } = useTheme();
   const session = useSession();
-  const params = useLocalSearchParams<{ kind?: string; start?: string }>();
+  const params = useLocalSearchParams<{ kind?: string; start?: string; via?: string }>();
   const start = handoff.get(params.start, 'report')?.start ?? null;
   const kind: 'problem' | 'hazard' = start?.kind ?? (params.kind === 'hazard' ? 'hazard' : 'problem');
-  const allowed = start ? true : kind === 'problem' ? session.areaOn('tickets') && session.can('tickets.create') : session.areaOn('safety') && session.can('safety.create');
+  // E41-17: a portal user's report from scratch (?via=portal) goes to the portal's own forms.
+  const viaPortal = !start && params.via === 'portal';
+  const allowed = start ? true
+    : viaPortal ? session.areaOn('portal') && session.can('portal.create') && (kind === 'problem' || session.areaOn('safety'))
+    : kind === 'problem' ? session.areaOn('tickets') && session.can('tickets.create') : session.areaOn('safety') && session.can('safety.create');
 
-  const portal = isPortal(start);
+  const portal = isPortal(start) || viaPortal;
   const [initial] = useState(() => initialAnswers(start));
   const [title, setTitle] = useState(initial.title);
   const [text, setText] = useState(initial.description);
@@ -56,6 +63,8 @@ export default function ReportFormScreen() {
   const [howUrgent, setHowUrgent] = useState('slowed');
   const [harms, setHarms] = useState<Option[]>([]);
   const [harm, setHarm] = useState<string | null>(null);
+  // E41-05: a portal safety report may keep the reporter's name confidential.
+  const [confidential, setConfidential] = useState(false);
   const [types, setTypes] = useState<Option[]>([]);
   const [severities, setSeverities] = useState<Option[]>([]);
   const [eventType, setEventType] = useState<string | null>(initial.eventType);
@@ -125,7 +134,7 @@ export default function ReportFormScreen() {
     if (!title.trim()) { setTitleError(TEXT.titleRequired); return; }
     setBusy(TEXT.send); setError(null);
     try {
-      const req = buildReport(kind, { title, description: text, site, locationDetail: detail, eventType, severity, occurredAt: new Date().toISOString(), affects, howUrgent, harm }, start);
+      const req = buildReport(kind, { title, description: text, site, locationDetail: detail, eventType, severity, occurredAt: new Date().toISOString(), affects, howUrgent, harm, confidential: kind === 'hazard' && portal && confidential }, start, { portal: viaPortal });
       await saveReport({ kind, path: req.path, recordType: req.recordType, body: req.body, link: req.link, title: title.trim() }, photos, Crypto.randomUUID());
       for (const p of photos) discardPicture(p.uri);
       photosRef.current = [];
@@ -164,6 +173,11 @@ export default function ReportFormScreen() {
           {harms.map((t, i) => <Row key={t.id} label={t.label} selected={harm === t.id} onPress={() => setHarm(t.id)} last={i === harms.length - 1} />)}
         </Section>
       ) : null}
+      {kind === 'hazard' && portal ? (
+        <Section>
+          <SwitchRow label={TEXT.confidential} detail={TEXT.confidentialHint} value={confidential} onChange={setConfidential} last />
+        </Section>
+      ) : null}
       {kind === 'problem' && portal ? (
         <>
           <Section title={TEXT.affects}>
@@ -175,7 +189,7 @@ export default function ReportFormScreen() {
         </>
       ) : null}
 
-      <Section title={TEXT.site}>
+      {viaPortal ? null : <Section title={TEXT.site}>
         <Row label={site?.label || TEXT.noSite} accessibilityLabel={`${site?.label || TEXT.noSite}, ${TEXT.site}`} expanded={choosingSite} onPress={() => setChoosingSite((c) => !c)} last={!choosingSite} accessibilityHint={TEXT.siteSearch} />
         {choosingSite ? (
           <View>
@@ -184,8 +198,8 @@ export default function ReportFormScreen() {
             {(sites ?? []).map((s, i) => <Row key={s.id} label={s.label} detail={s.ref ?? null} onPress={() => { setSite({ id: s.id, label: s.label }); setChoosingSite(false); }} last={i === (sites?.length ?? 0) - 1} />)}
           </View>
         ) : null}
-      </Section>
-      <Field label={TEXT.location} value={detail} onChangeText={setDetail} />
+      </Section>}
+      <Field label={viaPortal ? TEXT.where : TEXT.location} value={detail} onChangeText={setDetail} />
 
       <Section title={TEXT.photos}>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space[2], padding: space[2] }}>

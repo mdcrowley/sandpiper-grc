@@ -88,4 +88,44 @@ const biaSignOffTest = {
   },
 };
 
-export const tests = [continuityTest('light', 1440), continuityTest('dark', 820), biaSignOffTest];
+// E41-14: an activation sends a plan's call tree a message; the tab lists who has not acknowledged,
+// and staff record an acknowledgment taken by phone. (The person's own link is covered by the unit
+// tests, which read it from a stand-in mail server.)
+const callOutTest = (theme, width) => ({
+  name: `continuity: a call tree is sent a message and an acknowledgment is recorded (${theme}, ${width})`,
+  theme, width,
+  async run(t) {
+    const { page } = t;
+    const api = t.api();
+    const tag = Date.now().toString(36);
+    const activation = await t.step('set up email, a plan with a call tree and an activation', async () => {
+      // Messages are only queued here: the mail server address need not answer.
+      await api.must('PUT', '/api/admin/mail/settings', { enabled: true, host: '127.0.0.1', port: 2599, tlsMode: 'none', fromAddress: 'grc@example.test', baseUrl: 'http://127.0.0.1' });
+      const plan = await api.must('POST', '/api/continuity-plans', { title: `E2E call-out plan ${tag}` });
+      await api.must('POST', `/api/continuity-plans/${plan.id}/call-tree`, { role: 'Yard', name: `E2E Yard Hand ${tag}`, phone: '+1 555 010 0199' });
+      const me = await api.must('GET', '/api/auth/state');
+      await api.must('POST', `/api/continuity-plans/${plan.id}/call-tree`, { role: 'Emergency manager', user_id: me.user.id });
+      return api.must('POST', '/api/emergency-activations', { title: `E2E flood ${tag}`, event_type: 'severe_weather', plan_ids: [plan.id] });
+    });
+
+    await t.step('send the message from the Call tree messages tab', async () => {
+      await page.goto(`/continuity/activations/${activation.id}?tab=call-outs`);
+      await page.click({ text: 'Send a message', tag: 'button' });
+      await page.fill({ label: 'Message' }, `E2E report to the south depot ${tag}`);
+      await page.click({ text: 'Send', tag: 'button' });
+      await page.waitFor({ text: `E2E report to the south depot ${tag}`, tag: 'p' });
+      const main = await page.text('main');
+      t.soft(main.includes('0 of 2 acknowledged'), 'the count of acknowledgments is missing');
+      t.soft(main.includes('Not reachable: call them'), 'the typed entry is not listed to call');
+    });
+    await t.step('record one acknowledgment taken by phone', async () => {
+      await page.click({ text: 'Record acknowledgment', tag: 'button' });
+      await page.fill({ label: 'Note' }, 'Called at 05:10');
+      await page.click({ text: 'Record', tag: 'button' });
+      await page.waitFor({ text: '1 of 2 acknowledged' });
+      t.soft((await page.text('main')).includes('Called at 05:10'), 'the note is not shown');
+    });
+  },
+});
+
+export const tests = [continuityTest('light', 1440), continuityTest('dark', 820), biaSignOffTest, callOutTest('light', 1440), callOutTest('dark', 820)];

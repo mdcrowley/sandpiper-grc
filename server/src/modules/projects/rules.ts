@@ -117,18 +117,20 @@ export function missingDocuments(documents: unknown): string[] {
 }
 
 export interface Blocker {
-  kind: 'status' | 'checklist' | 'document';
+  kind: 'status' | 'checklist' | 'document' | 'certificate';
   label: string;
 }
 
 /** Everything that stops a gate being approved, in the order a person would fix it. */
-export function approvalBlockers(input: { projectStatus: string; statusLabel?: string; outstanding: string[]; documents: unknown }): Blocker[] {
+export function approvalBlockers(input: { projectStatus: string; statusLabel?: string; outstanding: string[]; documents: unknown; certificate?: string | null }): Blocker[] {
   const out: Blocker[] = [];
   if (input.projectStatus !== 'active') {
     out.push({ kind: 'status', label: `The project is ${(input.statusLabel ?? input.projectStatus).toLowerCase()}, not active` });
   }
   for (const label of input.outstanding) out.push({ kind: 'checklist', label });
   for (const name of missingDocuments(input.documents)) out.push({ kind: 'document', label: name });
+  // E41-08: the gate requires a certificate of readiness and none is in force.
+  if (input.certificate) out.push({ kind: 'certificate', label: input.certificate });
   return out;
 }
 

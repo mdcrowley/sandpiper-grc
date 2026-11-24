@@ -12,10 +12,10 @@ interface AlertContact {
 interface TestRow { id: string; status: string; error: string | null; provider: string | null }
 
 /** `userId` set: an administrator editing that person; otherwise the signed-in person's own. */
-/** Text messages carry security incident alerts only: hidden while that part is switched off (E14-34). */
+/** Text messages carry security incident alerts and call-tree messages (E41-14): hidden while both parts are switched off (E14-34). */
 export function AlertContactCard({ userId }: { userId?: string }) {
   const { areaOn } = useAuth();
-  return areaOn('secincidents') ? <AlertContactForm userId={userId} /> : null;
+  return areaOn('secincidents') || areaOn('continuity') ? <AlertContactForm userId={userId} /> : null;
 }
 
 function AlertContactForm({ userId }: { userId?: string }) {

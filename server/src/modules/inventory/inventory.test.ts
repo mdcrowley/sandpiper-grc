@@ -120,6 +120,7 @@ describe('assignment history', () => {
     expect((await t.api.post(`/api/assets/${asset.id}/check-out`, {})).body.error.fields.assignee_name).toBeTruthy();
     expect((await t.api.post(`/api/assets/${asset.id}/check-in`, {})).status).toBe(409);
 
+    await t.db.query(`insert into departments (name) values ('Planning') on conflict (name) do update set deleted_at = null`);
     const out = await t.api.post(`/api/assets/${asset.id}/check-out`, { assignee_name: 'Sam Invented', department: 'Planning', due_back_on: '2027-01-10' });
     expect(out.status).toBe(201);
     expect((await t.api.get(`/api/assets/${asset.id}`)).body).toMatchObject({ status: 'in_use', assigned_to_name: 'Sam Invented', department: 'Planning' });

@@ -175,8 +175,9 @@ export async function makeNormalizer(deps: ImportDeps, def: ResourceDef, user: S
     if (records.has(type)) return records.get(type)!;
     const target = deps.registry.get(type);
     let out: Resolver | null = null;
-    // Only records the person could find by hand: view permission on the type and the restricted-record rule.
-    if (target && deps.mayAccess(user, target, 'view')) {
+    // Only records the person could find by hand: view permission on the type (or a directory anyone may
+    // pick from, such as departments: E41-01) and the restricted-record rule.
+    if (target && (deps.mayAccess(user, target, 'view') || (target.directory === true && !!user))) {
       const byKey = new Map<string, string | null>();
       const rows = await deps.db.query<{ id: string; t: string | null; r: string | null }>(
         `select id, ${target.titleField}::text as t, ${target.ref ? `${target.ref.field}::text` : 'null'} as r from ${target.table}

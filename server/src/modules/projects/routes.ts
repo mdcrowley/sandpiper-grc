@@ -13,7 +13,7 @@ export function registerProjectRoutes(ctx: ModuleContext, svc: ProjectService): 
 
   // ---------- portfolio and settings ----------
 
-  app.get('/api/projects/portfolio', view, async () => svc.portfolio());
+  app.get('/api/projects/portfolio', view, async (req) => svc.portfolio(req.user));
 
   app.get('/api/projects/settings', view, async () => svc.getSettings());
   // PUT is the documented method; PATCH is accepted too because the shared web api client

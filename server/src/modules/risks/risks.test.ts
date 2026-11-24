@@ -256,6 +256,11 @@ describe('risks', () => {
 });
 
 describe('actions', () => {
+  // E41-01: an action's department is one of the organization's departments, given here by name.
+  beforeAll(async () => {
+    await t.db.query("insert into departments (name) values ('Finance'), ('Quokka department'), ('Planning') on conflict (name) do update set deleted_at = null");
+  });
+
   it('creates, updates and filters actions, setting the completion date', async () => {
     const sourceId = '11111111-2222-4333-8444-555555555555';
     const made = await t.api.post('/api/actions', {

@@ -2,6 +2,7 @@ import type { ModuleDef } from '../../core';
 import './admin.css';
 import { AccountSecurityPage } from './AccountSecurity';
 import { AdminTokensPage } from './ApiTokens';
+import { AboutPage } from './About';
 import { AuditLogPage } from './AuditLog';
 import { CustomFieldsPage } from './CustomFields';
 import { FeaturesPage } from './Features';
@@ -34,6 +35,7 @@ const mod: ModuleDef = {
     { group: 'Administration', label: 'API tokens', path: '/admin/tokens', icon: 'key', permission: ADMIN, order: 49 },
     { group: 'Administration', label: 'Webhooks', path: '/admin/webhooks', icon: 'link', permission: ADMIN, order: 51 },
     { group: 'Administration', label: 'Audit log', path: '/admin/audit', icon: 'history', permission: 'audit.view', order: 57 },
+    { group: 'Administration', label: 'About', path: '/admin/about', icon: 'info', permission: ADMIN, order: 99 },
   ],
   routes: [
     { path: '/admin/users', element: <UsersPage />, permission: ADMIN },
@@ -50,6 +52,7 @@ const mod: ModuleDef = {
     { path: '/admin/tokens', element: <AdminTokensPage />, permission: ADMIN },
     { path: '/admin/webhooks', element: <WebhooksPage />, permission: ADMIN },
     { path: '/admin/audit', element: <AuditLogPage />, permission: 'audit.view' },
+    { path: '/admin/about', element: <AboutPage />, permission: ADMIN },
     // "My account": open to every signed-in user.
     { path: '/account/security', element: <AccountSecurityPage /> },
   ],

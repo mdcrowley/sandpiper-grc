@@ -158,7 +158,7 @@ export interface ProjectSystems {
 }
 
 export interface Blocker {
-  kind: 'status' | 'checklist' | 'document';
+  kind: 'status' | 'checklist' | 'document' | 'certificate';
   label: string;
 }
 
@@ -217,6 +217,8 @@ export interface Gate {
   is_current: boolean;
   can_approve: boolean;
   wants_change: boolean;
+  /** E41-08: a certificate of readiness must be in force (only for projects with certifiable items). */
+  requires_certificate: boolean;
   change_available: boolean;
   change: (LinkedRecord & { status: string | null }) | null;
   /** E11-25: the approval workflow the gate's template names, and the one asked for here. */
@@ -256,6 +258,7 @@ export interface GateDefinition extends GateDefinitionOutline {
   checklist: string[];
   required_documents: { name: string; required: boolean }[];
   wants_change: boolean;
+  requires_certificate: boolean;
   approvers: Record<string, string[]>;
   approval_workflow_id: string | null;
 }
@@ -302,4 +305,103 @@ export const RAG_DIMENSIONS: { key: 'overall' | 'schedule' | 'budget' | 'risk'; 
 
 export function todayIso(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: timeZone() }).format(new Date());
+}
+
+// ---------- E41-08: safety and security certification ----------
+
+export interface CertSource {
+  type: string;
+  type_label: string;
+  id: string | null;
+  label: string;
+  ref: string | null;
+  route: string | null;
+}
+
+/** A requirement as the reader may see it: a restricted one they may not see shows no detail. */
+export interface CertRequirement {
+  id: string | null;
+  ref: string | null;
+  title: string;
+  visible: boolean;
+  restricted: boolean;
+  status: string;
+  requirement?: string | null;
+  verification_method?: string | null;
+  owner_id?: string | null;
+  owner_name?: string | null;
+  due_on?: string | null;
+  basis?: string | null;
+  evidence_ref?: string | null;
+  verification_notes?: string | null;
+  verified_by_name?: string | null;
+  verified_on?: string | null;
+  source?: CertSource | null;
+  files?: number;
+  updated_at?: string;
+}
+
+export interface CertItem {
+  id: string;
+  ref: string;
+  name: string;
+  description: string | null;
+  category: string | null;
+  required: boolean;
+  owner_id: string | null;
+  owner_name: string | null;
+  status: string;
+  requirements_total: number;
+  requirements_open: number;
+  open: boolean;
+  requirements: CertRequirement[];
+}
+
+export interface CertItemBrief {
+  id: string;
+  ref: string;
+  name: string;
+  required?: boolean;
+  status?: string;
+  requirements_total: number;
+  requirements_open: number;
+}
+
+export interface Certificate {
+  id: string;
+  status: 'issued' | 'withdrawn';
+  scope: string;
+  conditions: string | null;
+  issued_by_name: string;
+  issued_by_role: string | null;
+  issued_on: string;
+  items: CertItemBrief[];
+  open_items: CertItemBrief[];
+  withdrawn_at: string | null;
+  withdrawn_by_name: string | null;
+  withdraw_reason: string | null;
+}
+
+export interface Certification {
+  project_id: string;
+  summary: {
+    items: number;
+    required_items: number;
+    items_open: number;
+    required_open: number;
+    requirements: number;
+    requirements_open: number;
+    requirements_verified: number;
+    requirements_not_applicable: number;
+  };
+  hidden: number;
+  items: CertItem[];
+  blockers: CertItemBrief[];
+  open_items: CertItemBrief[];
+  can_issue: boolean;
+  certificate: Certificate | null;
+  history: Certificate[];
+  gates_requiring: string[];
+  /** The record types a requirement may be derived from here ('hazard', 'risk'). */
+  sources: string[];
 }

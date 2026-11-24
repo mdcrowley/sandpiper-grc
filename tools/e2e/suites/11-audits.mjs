@@ -60,4 +60,22 @@ const dashboardTest = {
   },
 };
 
-export const tests = [runTest('light', 390), runTest('dark', 820), dashboardTest];
+// E41-09: an audit's Outside reviewers tab, and the administrators' list. (Sending an invitation needs
+// email set up, which the throw-away instance has not: the tab says so and offers no invitation.)
+const reviewersTest = {
+  name: 'audits: the outside reviewers tab and the list of invitations for administrators (light, 1440)',
+  theme: 'light', width: 1440,
+  async run(t) {
+    const { page } = t;
+    const api = t.api();
+    const tag = Date.now().toString(36);
+    const audit = await api.must('POST', '/api/audits', { title: `E2E audit for an outside reviewer ${tag}`, audit_type: 'internal_audit' });
+    await page.goto(`/audits/engagements/${audit.id}?tab=reviewers`);
+    await page.waitFor(() => document.querySelector('main')?.innerText.includes('No outside reviewers'));
+    t.soft((await page.text('main')).includes('Email is not set up'), 'the tab does not say that invitations need email');
+    await page.goto('/admin/outside-reviewers');
+    await page.waitFor({ text: 'Outside reviewers', tag: 'h1' });
+  },
+};
+
+export const tests = [runTest('light', 390), runTest('dark', 820), dashboardTest, reviewersTest];

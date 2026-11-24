@@ -7,6 +7,8 @@
 // and `status`. Other modules check `ctx.resources.get('person')` before using it.
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
+import { departmentPrepare } from '../../core/scope.ts';
+import { registerDepartments } from './departments.ts';
 import { seedPeople } from './seed.ts';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -36,6 +38,9 @@ async function seedDefaults(ctx: ModuleContext) {
 }
 
 async function register(ctx: ModuleContext): Promise<void> {
+  registerDepartments(ctx);
+  // A department may be given by its name, as HR files give it (E41-01: department_id is a reference now).
+  const prepareDepartment = departmentPrepare(ctx.db);
   const invalid = (fields: Record<string, string>): never => ctx.fail(400, 'validation', 'Check the highlighted fields.', fields);
   const byImport = (req: FastifyRequest | null) => !!req && /\/api\/(v1\/)?import\//.test(req.url);
 
@@ -102,8 +107,8 @@ async function register(ctx: ModuleContext): Promise<void> {
       employee_number: { label: 'Employee number', type: 'text', personal: true },
       email: { label: 'Email', type: 'text', personal: true },
       phone: { label: 'Phone', type: 'text', personal: true },
-      // A department id (core departments). Writes also accept the department's name, as HR files give it.
-      department_id: { label: 'Department', type: 'text', personal: false },
+      // Writes also accept the department's name, as HR files give it.
+      department_id: { label: 'Department', type: 'ref', to: 'department' },
       position_id: { label: 'Position', type: 'ref', to: 'position' },
       work_site_id: { label: 'Work site', type: 'ref', to: 'site' },
       user_id: { label: 'Account', type: 'user', personal: true },
@@ -113,7 +118,10 @@ async function register(ctx: ModuleContext): Promise<void> {
       source: { label: 'Source', type: 'lookup', list: 'person_source', default: 'manual', readOnly: true },
       notes: { label: 'Notes', type: 'longtext', personal: true },
     },
+    // Role grants scoped to departments or sites (E41-01) reach the roster by department and work site.
+    scope: { department: 'department_id', site: 'work_site_id' },
     hooks: {
+      prepare: (req, input) => prepareDepartment(req, input),
       beforeCreate: (req, data) => checkPerson(req, data, null),
       beforeUpdate: (req, existing, patch) => checkPerson(req, patch, existing),
     },
@@ -128,13 +136,15 @@ async function register(ctx: ModuleContext): Promise<void> {
       ref: { label: 'Reference', type: 'text', readOnly: true },
       name: { label: 'Name', type: 'text', required: true },
       code: { label: 'Code', type: 'text' },
-      department_id: { label: 'Department', type: 'text', personal: false },
+      department_id: { label: 'Department', type: 'ref', to: 'department' },
       description: { label: 'Description', type: 'longtext', personal: false },
       // Hidden while the safety area is off (AREAS safety fields: { position: ['safety_sensitive'] }).
       safety_sensitive: { label: 'Safety-sensitive', type: 'boolean', default: false },
       active: { label: 'Active', type: 'boolean', default: true },
     },
+    scope: { department: 'department_id' },
     hooks: {
+      prepare: (req, input) => prepareDepartment(req, input),
       beforeCreate: async (_req, data) => checkPosition(data, null),
       beforeUpdate: async (_req, existing, patch) => checkPosition(patch, existing),
     },

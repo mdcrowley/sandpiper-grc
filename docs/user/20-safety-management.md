@@ -33,13 +33,37 @@ Open **Safety events**. Filter by type, severity, status, date, vehicle, service
 6. Describe **What happened** and the **Immediate actions**, and enter **People injured** and **Reported by**.
 7. If you know them, enter the figures reporting depends on: **Fatalities**, **People taken for medical treatment**, **Estimated damage** and whether the vehicle or station was **evacuated**. Once people are recorded on the **People involved** tab, the first two are counted from them.
 8. Leave **Restricted (holds personal information)** as it is, or change it (see below).
-9. Select **Create safety event**.
+9. If the person who made the report asked for their identity to be kept confidential, check **Reporter asked to stay confidential** (see [Confidential reporting](#confidential-reporting)).
+10. Select **Create safety event**.
 
 The event gets a reference such as `SE-00101`.
 
 ### Reports from the self-service portal
 
-When the portal is on and its setting **Staff can report a safety event** is on, staff can use **Report a safety concern** in the portal to describe what happened in plain words (see [Report a safety concern](18-self-service-portal.md#report-a-safety-concern)). Each report becomes a safety event with the status **Reported**, the reporter in **Reported by**, and a severity taken from how bad the reporter said it was. A note on the event says it came from the portal; check the severity when you triage it. Everyone who may edit safety records is notified of each new report (a **Serious** or worse report is announced as described under "Notifications" below). The reporter sees only the reference, the title and a plain status (**Received**, **Being looked into** or **Closed**); for a restricted event, only the reference.
+When the portal is on and its setting **Staff can report a safety event** is on, staff can use **Report a safety concern** in the portal to describe what happened in plain words (see [Report a safety concern](18-self-service-portal.md#report-a-safety-concern)). Each report becomes a safety event with the status **Reported**, the reporter in **Reported by**, and a severity taken from how bad the reporter said it was. A note on the event says it came from the portal; check the severity when you triage it. Everyone who may edit safety records is notified of each new report (a **Serious** or worse report is announced as described under "Notifications" below). The reporter sees only the reference, the title and a plain status (**Received**, **Being looked into** or **Closed**); for a restricted event, only the reference. When the event closes, the reporter also sees what was done (see [Telling the reporter what was done](#telling-the-reporter-what-was-done)). A reporter can ask for their name to be kept confidential (see [Confidential reporting](#confidential-reporting)).
+
+### Confidential reporting
+
+People are more willing to report a mistake, a near miss or an unsafe instruction when they know their name will not travel. A reporter can ask for their identity to be kept confidential:
+
+- in the portal, by checking **Keep my name confidential** on **Report a safety concern**;
+- when someone on the safety team records a report made to them (for example by phone), by choosing the reporter in **Reported by** and checking **Reporter asked to stay confidential**. You cannot do this for a report you make yourself, because your name is on the event as the person who entered it: use **Report a safety concern** in the portal instead. Checking it with nobody in **Reported by** records an anonymous report.
+
+The event is then saved without the reporter's name. **Reported by** stays empty and is not shown, a portal report is created by the application rather than by the reporter (so neither **Created by** nor the **History** names them), and the notes and notifications say only that the reporter asked to stay confidential. Lists, filters, exports, record PDFs, search, reports, imports, webhooks and the AI assistant all read the event, so none of them can show who reported it. Whether a reporter stays confidential is chosen when the report is made and cannot be changed afterward.
+
+Only the people named under **Administration > Confidential safety reports** can see who made a confidential report. On the event page they see a notice with **Show who reported it**; each look is recorded on the event's **History** as "Confidential reporter's identity viewed", with the name of the person who looked but never the reporter's. Everyone else sees the notice without the button. Name as few people as you can.
+
+To name them, open **Administration > Confidential safety reports** (needs `safety.administer`), choose the people under **Named people** and select **Save named people**. Each must be active and able to see safety events; adding someone asks you to confirm your password. Nobody is named at first, so until someone is, nobody can see who made a confidential report. A named person who loses access to safety events cannot look until they have it again. Every change is recorded in the audit log.
+
+What confidentiality does not cover: the words of the report itself (ask reporters not to name themselves in it), and people who run the server, who can read the database, backups and the request log.
+
+### Telling the reporter what was done
+
+When an event that has a reporter (in **Reported by**, or a confidential one) is closed, the reporter is told in plain words what was done about their report. **Close event** asks for **What the reporter is told**: what was found and what was done about it, without names or personal details. The event cannot be closed without it. The reporter then gets a notification (**Your safety report SE-00104 is closed**, with your words), **Reporter told** records when, and the **History** shows "Reporter told what was done about their report". In the portal, **My safety reports** shows the words under the closed report.
+
+A confidential reporter's notification says only **A safety report you made has been closed** and asks them to read what was done under **My safety reports** in the portal, so the notification names neither the event nor what it was about. (When the portal is off, the notification carries the words.)
+
+Both appear on the event page in the **Telling the reporter** card, where the words can be changed. Reopening an event and closing it again tells the reporter again.
 
 ### Restricted events
 
@@ -55,7 +79,7 @@ The event page shows the progress (**Reported**, **Under investigation**, **Corr
 
 The buttons at the top move the event on: **Start investigation**, **Corrective actions raised**, **Close event** and, on a closed event, **Reopen**. The button for the next step is the main one: **Start investigation** on a reported event, **Corrective actions raised** during an investigation, **Close event** once actions are raised.
 
-An event can be closed only when its **Root cause** is recorded and every corrective action is finished or canceled. **Closed on** is filled in for you, and cleared if the event is reopened.
+An event can be closed only when its **Root cause** is recorded and every corrective action is finished or canceled; an event with a reporter also needs **What the reporter is told** (see [Telling the reporter what was done](#telling-the-reporter-what-was-done)). **Closed on** is filled in for you, and cleared if the event is reopened.
 
 ### People involved
 

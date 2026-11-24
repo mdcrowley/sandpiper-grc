@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { SegmentedControl } from '@mantine/core';
 import {
-  api, ApiError, Button, DateField, errorMessage, formatDate, Modal, RecordPicker, Select, TextArea, TextField, useAuth,
+  api, ApiError, Button, DateField, errorMessage, formatDate, Modal, RecordPicker, Select, Switch, TextArea, TextField, useAuth,
   useFetch, useLookup, UserPicker, useResource, useToast,
 } from '../../core';
 import type { Row } from '../../core';
@@ -25,17 +25,9 @@ const CHECK_IN = [{ value: 'in_stock', label: 'In stock' }, { value: 'in_repair'
 const fieldErrors = (err: unknown): Record<string, string> =>
   err instanceof ApiError && err.fields && Object.keys(err.fields).length ? { ...err.fields, _form: err.message } : { _form: errorMessage(err) };
 
-/** Department from the organization's list; free text while no departments have been set up. */
-export function DepartmentInput({ value, onChange, error }: { value: string; onChange: (v: string) => void; error?: string }) {
-  const { data } = useFetch<{ name: string }[]>('/api/inventory/departments');
-  if (data && data.length) {
-    const names = data.map((d) => d.name);
-    const options = (value && !names.includes(value) ? [value, ...names] : names).map((n) => ({ value: n, label: n }));
-    return <Select label="Department" value={value} onChange={onChange} options={options} error={error} placeholder="Choose a department"
-      hint={value && !names.includes(value) ? 'This value is not in the department list. Choose one from the list.' : undefined} />;
-  }
-  return <TextField label="Department" value={value} onChange={onChange} error={error}
-    hint={data ? 'No departments are set up yet (Administration, Settings), so this is free text.' : undefined} />;
+/** Department from the organization's departments (E41-01: a reference, People > Departments). */
+export function DepartmentInput({ value, display, onChange, error }: { value: string | null; display?: string; onChange: (v: string | null) => void; error?: string }) {
+  return <RecordPicker label="Department" type="department" value={value} display={display} onChange={(id) => onChange(id)} error={error} />;
 }
 
 export function CheckOutDialog({ asset, onClose }: DialogProps) {
@@ -43,7 +35,7 @@ export function CheckOutDialog({ asset, onClose }: DialogProps) {
   const [who, setWho] = useState<'name' | 'user'>('name');
   const [userId, setUserId] = useState<string | null>(null);
   const [name, setName] = useState('');
-  const [department, setDepartment] = useState<string>(asset.department ?? '');
+  const [department, setDepartment] = useState<string | null>(asset.department_id ?? null);
   const [location, setLocation] = useState<string>(asset.location ?? '');
   const [due, setDue] = useState('');
   const [notes, setNotes] = useState('');
@@ -61,7 +53,7 @@ export function CheckOutDialog({ asset, onClose }: DialogProps) {
     try {
       await api.post(`/api/assets/${asset.id}/check-out`, {
         user_id: who === 'user' ? userId : null, assignee_name: who === 'name' ? name : null,
-        department, location, due_back_on: due || null, notes,
+        department_id: department, location, due_back_on: due || null, notes,
       });
       toast.success('Asset checked out.');
       onClose(true);
@@ -84,7 +76,7 @@ export function CheckOutDialog({ asset, onClose }: DialogProps) {
           ? <UserPicker label="User" value={userId} onChange={(id) => setUserId(id)} error={errors.user_id} required />
           : <TextField label="Name" value={name} onChange={setName} error={errors.assignee_name} required autoFocus />}
         <div className="form-grid">
-          <DepartmentInput value={department} onChange={setDepartment} error={errors.department} />
+          <DepartmentInput value={department} display={asset._display?.department_id} onChange={setDepartment} error={errors.department_id} />
           <TextField label="Location" value={location} onChange={setLocation} />
           <DateField label="Due back" value={due} onChange={setDue} min={todayIso()} error={errors.due_back_on} hint="Leave empty for a permanent assignment." />
         </div>
@@ -139,7 +131,7 @@ export function WhereDialog({ asset, onClose }: DialogProps) {
   const toast = useToast();
   const { can } = useAuth();
   const [owner, setOwner] = useState<string | null>(asset.owner_id ?? null);
-  const [department, setDepartment] = useState<string>(asset.department ?? '');
+  const [department, setDepartment] = useState<string | null>(asset.department_id ?? null);
   const [site, setSite] = useState<string | null>(asset.site_id ?? null);
   const [location, setLocation] = useState<string>(asset.location ?? '');
   const draft = JSON.stringify([owner, department, site, location]);
@@ -150,7 +142,7 @@ export function WhereDialog({ asset, onClose }: DialogProps) {
   async function submit() {
     const patch: Record<string, unknown> = {};
     if (owner !== (asset.owner_id ?? null)) patch.owner_id = owner;
-    if (department !== (asset.department ?? '')) patch.department = department || null;
+    if (department !== (asset.department_id ?? null)) patch.department_id = department;
     if (site !== (asset.site_id ?? null)) patch.site_id = site;
     if (location !== (asset.location ?? '')) patch.location = location || null;
     if (!Object.keys(patch).length) { onClose(false); return; }
@@ -173,7 +165,7 @@ export function WhereDialog({ asset, onClose }: DialogProps) {
         <div className="form-grid">
           <UserPicker label="Owner" value={owner} display={asset._display?.owner_id} onChange={(id) => setOwner(id)} error={errors.owner_id}
             hint="Answers for the asset and is told when its warranty or support is about to end." />
-          <DepartmentInput value={department} onChange={setDepartment} error={errors.department} />
+          <DepartmentInput value={department} display={asset._display?.department_id} onChange={setDepartment} error={errors.department_id} />
           {can('sites.view') && <RecordPicker label="Site" type="site" value={site} display={asset._display?.site_id} onChange={(id) => setSite(id)} error={errors.site_id} />}
           <TextField label="Location" value={location} onChange={setLocation} hint="Room, rack or shelf." />
         </div>
@@ -203,7 +195,15 @@ export function DisposeDialog({ asset, onClose }: DialogProps) {
   const [ref, setRef] = useState<string>(asset.disposal_approval_ref ?? '');
   const [method, setMethod] = useState<string>(asset.disposal_method ?? '');
   const [disposedOn, setDisposedOn] = useState(todayIso());
-  const draft = JSON.stringify([path, reason, by, on, ref, method, disposedOn]);
+  // E41-17: an asset that holds data records its wiping before it is disposed of.
+  const wipeMethods = useLookup('data_wipe_method');
+  const [holdsData, setHoldsData] = useState<boolean>(!!asset.data_bearing);
+  const [wipe, setWipe] = useState({
+    data_wipe_method: String(asset.data_wipe_method ?? ''), data_wiped_on: String(asset.data_wiped_on ?? '').slice(0, 10),
+    data_wiped_by: String(asset.data_wiped_by ?? ''), data_wipe_certificate: String(asset.data_wipe_certificate ?? ''),
+  });
+  const setWipeField = (k: keyof typeof wipe, v: string) => { setWipe((w) => ({ ...w, [k]: v })); setErrors((e) => ({ ...e, [k]: '' })); };
+  const draft = JSON.stringify([path, reason, by, on, ref, method, disposedOn, holdsData, wipe]);
   const [start] = useState(draft);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -221,6 +221,12 @@ export function DisposeDialog({ asset, onClose }: DialogProps) {
       if (!on) missing.disposal_approved_on = 'Enter the date the disposal was approved.';
     }
     if (blocked) missing.disposal_approval_ref = 'Enter the reference of the funder\'s approval to dispose of this equipment.';
+    if (disposing && holdsData) {
+      if (!wipe.data_wipe_method) missing.data_wipe_method = 'Choose how the data was wiped.';
+      if (!wipe.data_wiped_on) missing.data_wiped_on = 'Enter the date the data was wiped.';
+      if (!wipe.data_wiped_by.trim()) missing.data_wiped_by = 'Enter who wiped the data (a person or a company).';
+      if (!wipe.data_wipe_certificate.trim()) missing.data_wipe_certificate = 'Enter the reference of the wiping certificate.';
+    }
     if (Object.keys(missing).length) { setErrors(missing); return; }
     setBusy(true);
     try {
@@ -233,6 +239,7 @@ export function DisposeDialog({ asset, onClose }: DialogProps) {
         await api.post(`/api/assets/${asset.id}/dispose`, {
           ...(approved ? {} : { disposal_approved_by: by, disposal_approved_on: on }),
           disposal_approval_ref: ref || null, disposal_method: method || null, disposed_on: disposedOn || null,
+          data_bearing: holdsData, ...(holdsData ? wipe : {}),
         });
         toast.success('Asset marked as disposed.');
       }
@@ -303,6 +310,22 @@ export function DisposeDialog({ asset, onClose }: DialogProps) {
             <TextField label="Disposal method" value={method} onChange={setMethod} hint="For example recycled, sold, returned to vendor." />
             {disposing && <DateField label="Disposed on" value={disposedOn} onChange={setDisposedOn} max={todayIso()} error={errors.disposed_on} />}
           </div>
+        )}
+        {disposing && (
+          <fieldset className="rc-form-section stack">
+            <legend className="rc-form-legend">Data on the asset</legend>
+            <Switch label="This asset holds data (disks, memory cards, phone or recorder storage)" checked={holdsData} onChange={(v) => { setHoldsData(v); setErrors({}); }} />
+            {holdsData && (
+              <div className="form-grid">
+                <Select label="How the data was wiped" required value={wipe.data_wipe_method} error={errors.data_wipe_method}
+                  options={wipeMethods.map((m) => ({ value: m.value, label: m.label }))} onChange={(v) => setWipeField('data_wipe_method', v ?? '')} />
+                <DateField label="Data wiped on" required value={wipe.data_wiped_on} onChange={(v) => setWipeField('data_wiped_on', v ?? '')} max={todayIso()} error={errors.data_wiped_on} />
+                <TextField label="Wiped by" required value={wipe.data_wiped_by} onChange={(v) => setWipeField('data_wiped_by', v)} error={errors.data_wiped_by} hint="The person or the company that wiped it." />
+                <TextField label="Wiping certificate reference" required value={wipe.data_wipe_certificate} onChange={(v) => setWipeField('data_wipe_certificate', v)}
+                  error={errors.data_wipe_certificate} hint="The wiping company's certificate number, or your own. Attach their certificate to the asset too." />
+              </div>
+            )}
+          </fieldset>
         )}
         {disposing && <p className="muted">The asset is checked in if it is out, and the approval is kept in its history.</p>}
       </form>

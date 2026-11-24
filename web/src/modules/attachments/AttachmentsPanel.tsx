@@ -1,5 +1,5 @@
-// The files attached to one record: add (drag and drop or a file picker), list, download,
-// edit and remove. Embed it on any record page:
+// The files attached to one record: add (drag and drop or a file picker), list, preview (images
+// and PDFs, E41-16), download, edit and remove. Embed it on any record page:
 //
 //   <AttachmentsPanel recordType="ticket" recordId={row.id} />
 //   <AttachmentsPanel recordType="framework_outcome" recordId={row.id} evidence />
@@ -13,6 +13,7 @@ import {
 } from '../../core';
 import { AttachmentEditDialog } from './AttachmentEditDialog';
 import { LinkDialog } from './LinkDialog';
+import { PreviewDialog } from './PreviewDialog';
 import { downloadAttachment, expiryState, FileTypeIcon, formatBytes, formatLimit, linkCheckState, type Attachment, type FileConfig } from './shared';
 import { refusalFor, uploadFile } from './upload';
 import './attachments.css';
@@ -55,6 +56,7 @@ export function AttachmentsPanel({ recordType, recordId, evidence = false, onCha
   const [collectedOn, setCollectedOn] = useState('');
   const [expiresOn, setExpiresOn] = useState('');
   const [editing, setEditing] = useState<Attachment | null>(null);
+  const [previewing, setPreviewing] = useState<Attachment | null>(null);
   const [removing, setRemoving] = useState<Attachment | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [linking, setLinking] = useState(false);
@@ -274,6 +276,7 @@ export function AttachmentsPanel({ recordType, recordId, evidence = false, onCha
                     <time dateTime={att.uploaded_at} title={relativeTime(att.uploaded_at)}>{formatDate(att.uploaded_at)}</time>
                     {att.kind === 'evidence' && att.collected_on && <span>Collected {formatDate(att.collected_on)}</span>}
                     {att.is_link && att.checked_by_name && att.last_checked_on && <span>Checked by {att.checked_by_name}</span>}
+                    {att.text_status === 'indexed' && <span title="Search finds this record by the words inside this file">Text searchable</span>}
                   </p>
                 </div>
                 <div className="att-chips">
@@ -287,7 +290,10 @@ export function AttachmentsPanel({ recordType, recordId, evidence = false, onCha
                   {att.is_link ? (
                     canEdit && <IconButton icon="check" label={`Mark ${att.file_name} as checked today`} disabled={busy === att.id} onClick={() => void markChecked(att)} />
                   ) : (
-                    <IconButton icon="download" label={`Download ${att.file_name}`} disabled={busy === att.id} onClick={() => void download(att)} />
+                    <>
+                      {att.preview && <IconButton icon="eye" label={`Preview ${att.file_name}`} onClick={() => setPreviewing(att)} />}
+                      <IconButton icon="download" label={`Download ${att.file_name}`} disabled={busy === att.id} onClick={() => void download(att)} />
+                    </>
                   )}
                   {canEdit && <IconButton icon="edit" label={`Edit details of ${att.file_name}`} onClick={() => setEditing(att)} />}
                   {canEdit && <IconButton icon="trash" label={`Remove ${att.file_name}`} onClick={() => setRemoving(att)} />}
@@ -306,6 +312,7 @@ export function AttachmentsPanel({ recordType, recordId, evidence = false, onCha
           onSaved={() => { setEditing(null); reload(); }}
         />
       )}
+      {previewing && <PreviewDialog attachment={previewing} onClose={() => setPreviewing(null)} />}
       {linking && (
         <LinkDialog
           recordType={recordType} recordId={recordId} evidence={asEvidence} today={today}

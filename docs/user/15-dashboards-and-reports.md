@@ -1,6 +1,6 @@
 # Dashboards and reports
 
-You can build your own reports and dashboards without help from a developer: choose what to report on, pick the columns or groups you want, and see the answer straight away. Everything is under the **Reports** group: **Dashboards**, **Reports**, **Report packs**, **Schedules** and **Delivered to me**. The same group also holds the **Risk report** (see [Risks, actions and obligations](06-risks-actions-obligations.md#the-risk-report)) and **Expiring evidence files** (see [Attachments and notifications](14-attachments-and-notifications.md#expiring-evidence-files)), which are fixed pages rather than reports you build.
+You can build your own reports and dashboards without help from a developer: choose what to report on, pick the columns or groups you want, and see the answer straight away. Everything is under the **Reports** group: **Dashboards**, **Reports**, **Figures over time**, **Report packs**, **Schedules** and **Delivered to me**. The same group also holds the **Risk report** (see [Risks, actions and obligations](06-risks-actions-obligations.md#the-risk-report)) and **Expiring evidence files** (see [Attachments and notifications](14-attachments-and-notifications.md#expiring-evidence-files)), which are fixed pages rather than reports you build.
 
 An administrator can switch dashboards and reports off under **Administration > Features** (see [Administration](09-administration.md#features)); the **Overview** page and its figures stay. Saved dashboards, reports and schedules are kept and return when it is switched back on.
 
@@ -136,12 +136,13 @@ Everyone else sees **My work** first, then the **Dashboard**.
 ### Build or change a dashboard
 
 1. Select **New dashboard** (or **Create** then **Dashboard**), enter a **Name** and select **Create and add widgets** (without a name, a message under the field asks for one). It starts empty and private to you. To change an existing dashboard, open it and select **Edit** (only its owner and administrators can; anyone else can **Save a copy**).
-2. Select **Add a widget**. Build a new one (**Number**, **Chart**, **Gauge**, **Progress toward a target**, **Table**, **List of records**, **Countdown clock**, **Calendar** or **Text**) or pick one of the saved reports under **Or use a saved report**.
+2. Select **Add a widget**. Build a new one (**Number**, **Chart**, **Gauge**, **Progress toward a target**, **Table**, **List of records**, **Countdown clock**, **Calendar**, **Text** or **Figure over time**) or pick one of the saved reports under **Or use a saved report**.
 3. The widget editor opens at the side. Choose the **Records**, then the groups, totals, columns, filters and chart, depending on the kind of widget:
    - **Number**: one figure. Switch on **Show a trend arrow** to compare the latest period with the one before (choose **Counted by**, **Days in each period** and whether **More is good news**). **Say it in a sentence** turns the figure into a sentence: write `{value}` where the figure goes, and `{one|many}` for words that change when the figure is exactly 1, for example `{value} {project is|projects are} rated red`.
    - **Gauge** and **Progress toward a target**: under **Out of**, measure against **All …** (shows a percentage) or **A target figure**.
    - **Countdown clock**: **A date I choose**, or **The next dates on records** (choose the **Date to use**).
    - **Calendar**: a month with the number of records on each day; use the arrows to change month.
+   - **Figure over time**: a recorded figure month by month (see [Figures over time](#figures-over-time)): choose the **Figure**, the **Months to show** and how to show it.
    - **Text**: a heading, note or instructions. Start a line with `#` for a heading or `-` for a bullet; use `**bold**`, `*italic*` and `[words](/tickets)` for a link. Text is never run as code.
    - **Saved report**: the report as it is now, drawn the way the report says.
 4. Select **Done**.
@@ -168,15 +169,40 @@ Reports, dashboards and report packs each have **Who can see it**: **Only me**, 
 
 ## Report packs
 
-A report pack is a document for a board, directors, owners, senior leadership or an auditor: a cover page followed by an ordered set of saved reports and text sections. Open **Report packs**. The **Leadership security pack** comes with the application: a summary to write, framework progress, top risks, overdue actions and incidents. Installations set up before this version have it as the **Governing body security pack**; rename it under **Edit sections** if you like.
+A report pack is a document for a board, directors, owners, senior leadership or an auditor: a cover page followed by an ordered set of saved reports, figures over time and text sections. Open **Report packs**. The **Leadership security pack** comes with the application: a summary to write, framework progress, top risks, open risks by level month by month, overdue actions and incidents (a pack set up before this version is not changed: add the figure under **Edit sections**). Installations set up before this version have it as the **Governing body security pack**; rename it under **Edit sections** if you like.
 
 - Open a pack to see it as it will print: the cover page with the organization's logo and name, the title, subtitle, "Figures as at" and "Prepared by", a contents list, then one section per page, ending with the organization's name, address and contacts (as set under **Administration > Organization**, see [Administration](09-administration.md#organization)).
 - **Print** prints the page from the browser (each section starts on a new sheet). **Download** (needs the reports export permission) offers **PDF** (a cover page, then one section per page, with page numbers), **Excel (XLSX)** (one sheet per report) or **Print-ready page**, which opens the same pack as a separate page. The PDF and the print-ready page carry the organization's logo, name, brand color and address too.
 - **Produce dated copy** (needs the reports export permission) freezes the figures as they are now and keeps the copy under **Produced documents**, so it can be opened again later. Anyone who can see the pack and every saved report in it, and can see every kind of record in it, can read the copy in the application; a copy that lists restricted records needs security access too.
-- **Edit sections** (under **More**, or the button beside the preview): change the **Name**, **Cover title**, **Cover subtitle**, **Description** and any custom fields; add sections with **Add a saved report** or **Add text**; give each a **Heading**; move them with the arrows and remove them with the cross. A pack holds up to 40 sections. Select **Save**.
+- **Edit sections** (under **More**, or the button beside the preview): change the **Name**, **Cover title**, **Cover subtitle**, **Description** and any custom fields; add sections with **Add a saved report**, **Add a figure over time** (a line chart of a recorded figure month by month, see [Figures over time](#figures-over-time); choose **Months to show**) or **Add text**; give each a **Heading**; move them with the arrows and remove them with the cross. A pack holds up to 40 sections. Select **Save**.
 - Under **More**: **Share…** (owner and administrators), **Refresh the figures** and **Delete**.
 
 To start a new pack, select **New report pack** on the **Report packs** page, or **Create** then **Report pack**.
+
+## Figures over time
+
+A board usually wants to see how a figure moves from month to month: open risks by level, overdue actions, open audit findings. Open **Reports > Figures over time**. Each figure the organization follows is shown with its latest value and a small chart of the last twelve months; select its name to open it.
+
+**How figures are recorded.**
+
+- At the end of every month the application records each figure that is switched on for recording (it runs every hour as the background job **reports.figures_month_end** and records a month once, at its first run after the month ends; the value says when it was recorded). A figure added during a month is first recorded at the end of that month.
+- **Record figures now** (people who may change reports) records every figure at once for the month so far; **Record now** on a figure's page records that one. The current month shows the value so far and is marked "(so far)". Once the month ends, its month-end value takes the place of the values recorded on demand.
+- Figures are **the same for everyone**: they count every record, restricted ones included, and never show the words or people of a record, only numbers and, for a breakdown, the values of a list (such as a risk level). You see a figure when your role may view the records it counts.
+
+**The standard figures.** The application comes with **Open risks by level**, **Overdue actions**, **Open audit findings by rating**, **Audit findings overdue**, **Open vulnerabilities by severity** and **Staff qualified for their position**. A figure whose part of the application is switched off is not shown.
+
+**Add a figure** (people who may create reports):
+
+1. Select **Add figure**.
+2. Enter a **Name** and, if you like, a **Description** (shown under the chart and in board packs).
+3. Under **What it measures**, choose:
+   - **A count of records**: choose the **Records to count**, optionally **Break down by** a list field (one line per value on the chart, for example one per risk level), and add **Filters** as in the report builder (a figure cannot be filtered by "me", since it is the same for everyone).
+   - **A metric the application works out**: choose a **Metric**, such as overdue actions or the share of inspections done on time.
+4. Leave **Record at the end of every month** on, and select **Add figure**.
+
+**A figure's page** shows the chart and the values month by month as a table. Choose the **Period** (the last 6, 12, 24 or 36 months) and **Show as** (lines, bars or a table only). A month without a month-end value shows the latest value recorded on demand. **Export** (needs the reports export permission) offers **PDF**, **Excel (XLSX)**, **CSV** and **Print-ready page**; every export is recorded in the audit log. **Edit** changes what the figure counts, its name and whether it is recorded; **Remove** (under **More**) stops recording it and hides it everywhere, including dashboards and packs that use it. Adding, changing, removing and recording figures are recorded in the audit log.
+
+**On dashboards and in packs.** Add the **Figure over time** widget to a dashboard (choose the **Figure**, the **Months to show** and how to show it), or **Add a figure over time** to a report pack. Both draw the recorded values, so a board pack produced each month shows the same history to everyone who reads it.
 
 ## Scheduled delivery
 
@@ -200,18 +226,30 @@ At each delivery, every recipient gets a notification in the application with a 
 
 **Delivered to me** lists every copy delivered to you or produced by you. Select one to read it in the application. A copy opens only while you can still see the report, dashboard or pack it was made from and every saved report in it. A PDF or Excel copy is only offered as a file to download. Taking a copy out of the application, with **Download PDF**, **Download Excel file**, **Download CSV** or **Download to print or save as PDF**, needs the reports (or dashboards) export permission and is recorded in the audit log.
 
+## Accessible PDFs
+
+Every PDF the server makes (list exports, record fact sheets, reports, dashboards, report packs, figures over time, scheduled PDF files, the audit report, the continuity call tree, the security incident kit and printed asset tags) is a tagged PDF that meets the PDF/UA standard for accessible documents, so screen readers and other assistive technology can read it:
+
+- It carries its title (shown as the window title instead of the file name) and its language (US English).
+- Its structure is tagged in reading order: the title and section headings as headings that never skip a level, paragraphs, bulleted and numbered lists, and tables whose header row (and, in a summary table, the first column) is marked as headers. A table that runs over several pages is one table; the header row repeated on each page is read once.
+- Every chart is a figure with a text alternative that lists its values in words, for example "Bar chart: Count by status. Open: 4; Closed: 7". A printed tag's barcode or two-dimensional code is a figure named by its value.
+- Page headers and footers, page numbers, the restricted marking repeated on every page, rules and shading are marked as decoration, so they are not read out on every page.
+- Every font is embedded in the file. Western European text is printed in the application's own font, Arimo (with the same character widths as Helvetica and Arial), which ships with the application.
+
+The application checks each kind of PDF against the machine-checkable PDF/UA requirements in its automated tests. Whether a chart's description says what matters, and whether the reading order makes sense for a particular document, still needs a person to judge.
+
 ## Text in other scripts in PDFs
 
-PDF files made by the server (exports, scheduled PDF files, report packs and record fact sheets) print Western European text in a standard font. Any other text is printed in a font that the server already has, with only the letters used embedded in the file, so names and titles in Greek, Cyrillic, Hebrew, Arabic, Chinese, Japanese, Korean, Indic scripts and so on read as written. The server looks for well-known fonts with wide coverage (Noto Sans and DejaVu Sans on Linux, Arial Unicode on macOS, Segoe UI, Arial, Microsoft YaHei, Yu Gothic, Malgun Gothic and Nirmala UI on Windows); an administrator can name others (see [Operations](../operations.md)). Text that mixes scripts is printed piece by piece, each piece in a font that has it, so a title such as "Depot 北 – Αμαξοστάσιο" prints in full even when no single font covers all of it; only a character that no available font has prints as `?`. Right-to-left text (Hebrew, Arabic and the like) is printed in reading order: words run from right to left, numbers and Latin words inside it keep their own order, brackets face the right way, and a paragraph that starts in a right-to-left script is aligned to the right (in a table cell too). Arabic letters take their joined forms. Excel and CSV files hold any text.
+PDF files made by the server (exports, scheduled PDF files, report packs and record fact sheets) print Western European text in the application's own font. Any other text is printed in a font that the server already has, with only the letters used embedded in the file, so names and titles in Greek, Cyrillic, Hebrew, Arabic, Chinese, Japanese, Korean, Indic scripts and so on read as written. The server looks for well-known fonts with wide coverage (Noto Sans and DejaVu Sans on Linux, Arial Unicode on macOS, Segoe UI, Arial, Microsoft YaHei, Yu Gothic, Malgun Gothic and Nirmala UI on Windows); an administrator can name others (see [Operations](../operations.md)). Text that mixes scripts is printed piece by piece, each piece in a font that has it, so a title such as "Depot 北 – Αμαξοστάσιο" prints in full even when no single font covers all of it; only a character that no available font has prints as `?`. Right-to-left text (Hebrew, Arabic and the like) is printed in reading order: words run from right to left, numbers and Latin words inside it keep their own order, brackets face the right way, and a paragraph that starts in a right-to-left script is aligned to the right (in a table cell too). Arabic letters take their joined forms. Excel and CSV files hold any text.
 
 ## Permissions
 
 | Permission | Allows |
 |---|---|
 | Reports: view | Open and run reports and packs shared with you; use the report builder's preview; receive and read delivered copies |
-| Reports: create | Build and save reports and packs, schedule them |
-| Reports: edit / delete | Change or delete reports, packs and schedules you own |
-| Reports: export | PDF, Excel, CSV and print-ready exports of reports and packs, producing pack copies, downloading delivered copies |
+| Reports: create | Build and save reports and packs, schedule them, add figures over time |
+| Reports: edit / delete | Change or delete reports, packs and schedules you own; change, record now and remove figures over time |
+| Reports: export | PDF, Excel, CSV and print-ready exports of reports, packs and figures over time, producing pack copies, downloading delivered copies |
 | Dashboards: view | Open dashboards shared with you and choose a home dashboard |
 | Dashboards: create / edit / delete | Build, change or delete dashboards you own |
 | Dashboards: export | PDF, Excel and print-ready dashboard exports; downloading delivered dashboard copies |

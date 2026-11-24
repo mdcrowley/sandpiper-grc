@@ -129,7 +129,7 @@ The menu on the left is divided into groups. You see only the items your role al
 
 | Group | Items |
 |---|---|
-| (top) | **Overview**, **My actions**, **Approvals**, **Notifications**, **Self-service portal** |
+| (top) | **Overview**, **My actions**, **Compliance calendar**, **Approvals**, **Notifications**, **Self-service portal** |
 | Service desk | **Tickets**, **Service desk dashboard**, **Service catalog**, **Problems**, **Knowledge base** |
 | Inventory | **Systems**, **Relationship map**, **Assets**, **Disposal approvals**, **Sites**, **Asset condition**, **Inventory counts**, **Data categories**, **Vehicles**, **Services**, **Equipment coverage**, **What is affected**, **Inventory reports** |
 | Change | **Changes**, **Change calendar**, **New change**, **Change settings** |
@@ -140,10 +140,10 @@ The menu on the left is divided into groups. You see only the items your role al
 | People | **People**, **Positions**, **Qualifications**, **Certifications** |
 | Projects | **Project portfolio**, **New project request**, **Project settings** |
 | Reports | **Dashboards**, **Reports**, **Report packs**, **Schedules**, **Risk report**, **Delivered to me**, **Expiring evidence files** |
-| Administration | **Users**, **Roles**, **Sign-in providers**, **User provisioning**, **Lists**, **Asset tags**, **Organization**, **Settings**, **Features**, **Custom fields**, **Lifecycles**, **Approval workflows**, **Email**, **Reminders**, **Mobile app**, **Push notifications**, **API tokens**, **AI assistant access**, **Webhooks**, **Log forwarding**, **Calendar and work trackers**, **Background jobs**, **Retention**, **Legal holds**, **Audit log**, **Service desk settings**, **Risk scales**, **Risk appetite**, **Hazard matrix**, **Safety reporting rules**, **File settings**, **Backups** |
+| Administration | **Users**, **Roles**, **Sign-in providers**, **User provisioning**, **Lists**, **Asset tags**, **Organization**, **Settings**, **Features**, **Custom fields**, **Lifecycles**, **Approval workflows**, **Email**, **Reminders**, **Mobile app**, **Push notifications**, **API tokens**, **AI assistant access**, **Webhooks**, **Log forwarding**, **Calendar and work trackers**, **Background jobs**, **Retention**, **Legal holds**, **Audit log**, **Service desk settings**, **Risk scales**, **Risk appetite**, **Hazard matrix**, **Safety reporting rules**, **Confidential safety reports**, **File settings**, **Backups** |
 | Help | **User guide**, **API reference** |
 
-A few entries are for everyone and have no permission of their own: **Overview**, **Approvals**, **Notifications**, **My training**, **My acknowledgments**, **New project request**, **Delivered to me**, **Expiring evidence files**, **User guide** and **API reference**. The settings entries (**Change settings**, **Project settings**, **Risk scales**, **Hazard matrix**, **File settings**) appear only for people who administer that area. **Qualifications** names people on the roster, so it appears only for people who may view both training and people. Related pages sit next to each other in their group (for example the vulnerability pages, then the OT security pages). A part of the application an administrator has switched off under **Administration > Features** (for example the self-service portal, which starts off) has no entries at all.
+A few entries are for everyone and have no permission of their own: **Overview**, **Compliance calendar**, **Approvals**, **Notifications**, **My training**, **My acknowledgments**, **New project request**, **Delivered to me**, **Expiring evidence files**, **User guide** and **API reference**. The settings entries (**Change settings**, **Project settings**, **Risk scales**, **Hazard matrix**, **File settings**) appear only for people who administer that area. **Qualifications** names people on the roster, so it appears only for people who may view both training and people. Related pages sit next to each other in their group (for example the vulnerability pages, then the OT security pages). A part of the application an administrator has switched off under **Administration > Features** (for example the self-service portal, which starts off) has no entries at all.
 
 Each group heading is a button: select it to fold that group away or open it again. A folded group shows how many pages it holds, and the application remembers which groups you folded. The page you are on is highlighted, and its group opens by itself when you go there.
 
@@ -173,6 +173,7 @@ Short lists of what is waiting for you. Each list shows a count beside its title
 | **My tickets** | Open tickets assigned to you, with the time left to resolve each one |
 | **My actions** | Actions you own that are not done or canceled, soonest due date first |
 | **My approvals** | Things waiting for an approval your role can give: changes awaiting approval (not ones you raised yourself), exception requests and policies in review |
+| **My due work** | Every other kind of work of yours that is overdue or due in the next 30 days, overdue first: evidence requests asked of you, control tests, corrective actions to verify, inspections, obligations and obligation periods to attest, risk and policy reviews, vendor reassessments, your certifications coming up for renewal, funding certifications to sign or confirm, and the like from other parts in use. **View all** opens your due work in the [compliance calendar](36-calendar-feeds-work-trackers-and-evidence-links.md#compliance-calendar) |
 | **My acknowledgments** | Policies you have been asked to read and acknowledge |
 | **My training** | Courses assigned to you that you have not completed |
 | **My notifications** | Your unread notifications; opening one from here marks it as read |
@@ -222,7 +223,7 @@ The search box in the middle of the top bar finds records, pages and things to c
 3. Type. From the first letter, **Go to** lists pages whose name matches (for example "ren" offers **Renewal calendar**) and **Create** lists matching kinds of record (typing "new" lists them all). From two letters, records you are allowed to see appear below, grouped by kind, each with its reference.
 4. Select a result, or use the up and down arrow keys and press `Enter`. Press `Esc` to close the panel.
 
-Search looks in titles, references and text, and also in comments and the names of attached files. The best matches come first: a record whose reference is exactly what you typed, and records with the words in their title usually come before those with them only in their text. Under each record found is a short passage with the words you typed highlighted; "In a comment" or "In a file name" says where they were found. Depending on how the server is set up, search matches whole words (with their other forms, such as "renew" for "renewal") or any part of a word. It does not understand misspellings. Recent searches are kept in this browser only.
+Search looks in titles, references and text, and also in comments, the names of attached files and the words inside attached PDF, Word and text files (see [Attachments](14-attachments-and-notifications.md#finding-a-record-by-what-its-files-say)). The best matches come first: a record whose reference is exactly what you typed, and records with the words in their title usually come before those with them only in their text. Under each record found is a short passage with the words you typed highlighted; "In a comment" or "In a file" says where they were found. Depending on how the server is set up, search matches whole words (with their other forms, such as "renew" for "renewal") or any part of a word. It does not understand misspellings. Recent searches are kept in this browser only.
 
 ### Create button
 

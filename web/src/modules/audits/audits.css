@@ -93,3 +93,9 @@
 
 /* Pages of the coverage grid (E40-09). */
 .au-pager { padding: 0.75rem 0; }
+
+/* Files the person asked attaches to an evidence request (E41-09). */
+.rq-files { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-2); }
+.rq-files li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
+.rq-files li a { overflow-wrap: anywhere; }
+.rq-upload { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }

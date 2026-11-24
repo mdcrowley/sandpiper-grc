@@ -34,6 +34,10 @@ export interface Attachment {
   /** When someone last confirmed the linked document is still there and current (links only). */
   last_checked_on?: string | null;
   checked_by_name?: string | null;
+  /** E41-16: 'image' or 'pdf' when the file can be shown in the browser (PreviewDialog). */
+  preview?: 'image' | 'pdf' | null;
+  /** E41-16: whether the text inside the file was read for search (indexed, empty, skipped, failed), or null while waiting. */
+  text_status?: 'indexed' | 'empty' | 'skipped' | 'failed' | null;
   /** Only on the upload response: the scanner could not check the file and it was accepted anyway. */
   scan_warning?: string;
 }

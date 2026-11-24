@@ -7,7 +7,7 @@ import type { IconName, ListResult } from '../../core';
 import { ChartPicker } from './BuilderParts';
 import { completeFilters } from './FilterEditor';
 import { ColumnsEditor, FiltersSection, GroupEditor, Section, SortEditor, TotalsEditor } from './SpecEditor';
-import type { CatalogType, ReportDefinition, ReportSpec, Widget, WidgetKind } from './types';
+import type { CatalogType, ReportDefinition, ReportSpec, TrackedFigure, Widget, WidgetKind } from './types';
 import { Markdown } from './visuals';
 
 export const WIDGET_LIBRARY: { kind: WidgetKind; label: string; hint: string; icon: IconName; w: number; h: number }[] = [
@@ -19,6 +19,7 @@ export const WIDGET_LIBRARY: { kind: WidgetKind; label: string; hint: string; ic
   { kind: 'list', label: 'List of records', hint: 'A short list, each record a link.', icon: 'file-text', w: 4, h: 4 },
   { kind: 'countdown', label: 'Countdown clock', hint: 'Time left to a date you set, or to the next dates on records.', icon: 'clock', w: 4, h: 3 },
   { kind: 'calendar', label: 'Calendar', hint: 'A month showing how many records fall on each day.', icon: 'calendar', w: 6, h: 5 },
+  { kind: 'figure', label: 'Figure over time', hint: 'A figure recorded at each month end, such as open risks by level, month by month.', icon: 'chart', w: 6, h: 4 },
   { kind: 'text', label: 'Text', hint: 'A heading, a note or instructions.', icon: 'edit', w: 4, h: 2 },
 ];
 
@@ -63,7 +64,7 @@ export function WidgetLibrary({ open, onClose, onAdd }: { open: boolean; onClose
 }
 
 const KIND_NEEDS: Record<WidgetKind, { type: boolean; group?: number; totals?: 'one' | 'many'; columns?: boolean; chart?: boolean; filters?: boolean; sort?: boolean }> = {
-  report: { type: false }, text: { type: false },
+  report: { type: false }, text: { type: false }, figure: { type: false },
   number: { type: true, totals: 'one', filters: true },
   gauge: { type: true, totals: 'one', filters: true },
   progress: { type: true, totals: 'one', filters: true },
@@ -77,6 +78,7 @@ const KIND_NEEDS: Record<WidgetKind, { type: boolean; group?: number; totals?: '
 export function WidgetEditor({ widget, types, onClose, onSave }: { widget: Widget | null; types: CatalogType[]; onClose: () => void; onSave: (w: Widget) => void }) {
   const [w, setW] = useState<Widget | null>(widget);
   const reports = useFetch<ListResult<ReportDefinition>>(widget?.kind === 'report' ? '/api/reports?pageSize=200&sort=name' : null);
+  const figures = useFetch<TrackedFigure[]>(widget?.kind === 'figure' ? '/api/figures' : null);
   useEffect(() => setW(widget), [widget]);
   if (!w) return <Drawer open={false} title="Widget" onClose={onClose}><span /></Drawer>;
 
@@ -116,6 +118,24 @@ export function WidgetEditor({ widget, types, onClose, onSave }: { widget: Widge
             onChange={(reportId) => setW({ ...w, title: w.title || reports.data?.rows.find((r) => r.id === reportId)?.name || '', config: { ...cfg, reportId } })}
             hint="The widget always shows the report as it is now, drawn the way the report says." />
         )}
+
+        {w.kind === 'figure' && (() => {
+          const chosen = figures.data?.find((x) => x.id === cfg.figureId);
+          return (
+            <>
+              <Select label="Figure" required searchable value={String(cfg.figureId ?? '')} placeholder="Choose a figure…"
+                options={(figures.data ?? []).map((x) => ({ value: x.id, label: x.name }))}
+                onChange={(figureId) => { const x = figures.data?.find((y) => y.id === figureId); setW({ ...w, title: w.title || x?.name || '', config: { ...cfg, figureId, figureType: x?.record_type ?? undefined } }); }}
+                hint={figures.data && !figures.data.length ? 'No figures are recorded yet. Add them under Reports > Figures over time.' : 'Recorded at each month end, the same for everyone.'} />
+              <Select label="Months to show" value={String(cfg.months ?? 12)} onChange={(m) => setCfg({ months: Number(m) })}
+                options={[6, 12, 24, 36].map((n) => ({ value: String(n), label: `Last ${n} months` }))} />
+              <Section title="Show as">
+                <ChartPicker chart={cfg.chart ?? { kind: 'line' }} onChange={(chart) => setCfg({ chart })}
+                  kinds={chosen?.group_field ? ['line', 'stacked', 'area', 'table'] : ['line', 'bar', 'area', 'table']} />
+              </Section>
+            </>
+          );
+        })()}
 
         {w.kind === 'text' && (
           <>

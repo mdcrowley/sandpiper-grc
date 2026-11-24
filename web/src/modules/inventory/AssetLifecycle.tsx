@@ -56,6 +56,9 @@ export function LifecycleBand({ row }: { row: Row }) {
         <Callout color="gray" title={`Disposed${row.disposed_on ? ` on ${formatDate(row.disposed_on)}` : ''}`}>
           Approved by {row.disposal_approved_by ?? 'unknown'}{row.disposal_approved_on ? ` on ${formatDate(row.disposal_approved_on)}` : ''}
           {row.disposal_approval_ref ? `, approval reference ${row.disposal_approval_ref}` : ''}{row.disposal_method ? `. Method: ${row.disposal_method}` : ''}.
+          {row.data_bearing && row.data_wiped_on
+            ? ` Data wiped on ${formatDate(row.data_wiped_on)} by ${row.data_wiped_by ?? 'unknown'}, certificate ${row.data_wipe_certificate ?? 'not recorded'}.`
+            : ''}
         </Callout>
       ) : (
         <>
@@ -260,6 +263,8 @@ export function RequestCard({ request, label, onChanged, showAsset }: { request:
 }
 
 const DISPOSAL = ['disposal_approved_by', 'disposal_approved_on', 'disposal_approval_ref', 'disposal_method', 'disposed_on'];
+/** E41-17: how the data on an asset that holds data was wiped. */
+const WIPING = ['data_bearing', 'data_wipe_method', 'data_wiped_on', 'data_wiped_by', 'data_wipe_certificate'];
 
 export function DisposalTab({ row, version, onChanged }: { row: Row; version: number; onChanged: () => void }) {
   const funder = useFunder();
@@ -300,6 +305,21 @@ export function DisposalTab({ row, version, onChanged }: { row: Row; version: nu
           : <div className="stack">{data.map((r) => <RequestCard key={r.id} request={r} label={row.tag ?? row.name} onChanged={() => { reload(); onChanged(); }} />)}</div>}
       </Card>
       <EditableSummary type="asset" row={row} fields={DISPOSAL} title="Disposal record" editable={false} />
+      {row.data_bearing ? (
+        <>
+          {!row.data_wiped_on && !gone && (
+            <Callout color="amber" title="This asset holds data">
+              Record how its data was wiped, when, by whom and the certificate reference when you mark it as disposed.
+            </Callout>
+          )}
+          <EditableSummary type="asset" row={row} fields={WIPING} title="Data wiping" editable={false} />
+          {row.data_wiped_on && (
+            <div>
+              <a className="btn btn-secondary" href={`/api/assets/${row.id}/data-wiping-certificate.pdf`} download>Download the data wiping certificate (PDF)</a>
+            </div>
+          )}
+        </>
+      ) : null}
     </div>
   );
 }

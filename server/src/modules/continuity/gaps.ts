@@ -185,6 +185,7 @@ export function registerGaps(ctx: ModuleContext) {
 
   defineCalendarSource(app, {
     key: 'continuity.reviews', label: 'Continuity plan reviews and impact analyses due (mine)', recordType: 'continuity_plan', permission: 'continuity.view',
+    work: true, kind: 'Plan reviews', // E41-03: My work
     async events(c, user, from, to) {
       const plans = await c.db.query<Row>(
         `select id, ref, title, next_review_on::text as d from continuity_plans p
@@ -207,7 +208,7 @@ export function registerGaps(ctx: ModuleContext) {
     },
   });
   defineCalendarSource(app, {
-    key: 'continuity.exercises', label: 'Exercises of continuity plans I own', recordType: 'exercise', permission: 'continuity.view',
+    key: 'continuity.exercises', label: 'Exercises of continuity plans I own', recordType: 'exercise', permission: 'continuity.view', kind: 'Continuity exercises',
     async events(c, user, from, to) {
       if (!c.can(user, 'exercises.view') || !c.resources.get('exercise')) return [];
       const rows = await c.db.query<Row>(

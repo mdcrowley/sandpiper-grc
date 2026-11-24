@@ -38,3 +38,24 @@
 
 /* Pages of the coverage list (E40-09). */
 .ctl-pager { padding: 0.75rem 1rem; }
+
+/* Written test steps (E41-12): numbered, with their expected result and, in a test, a result and note. */
+.ctl-steps { list-style: none; margin: 0; padding: 0; }
+.ctl-steps > li { display: grid; grid-template-columns: 2rem minmax(0, 1fr) auto; gap: var(--s-3); align-items: start; padding: var(--s-3) var(--s-4); border-top: 1px solid var(--border); }
+.ctl-steps > li:first-child { border-top: 0; }
+.ctl-step-n { display: inline-flex; align-items: center; justify-content: center; width: 1.75rem; height: 1.75rem; border-radius: 50%; background: var(--surface-2, var(--brand-soft)); color: var(--text); font-weight: 600; font-size: var(--fs-sm); }
+.ctl-step-text { display: grid; gap: var(--s-1); min-width: 0; }
+.ctl-step-text p { margin: 0; overflow-wrap: anywhere; }
+.ctl-step-label { font-weight: 600; }
+.ctl-step-actions { display: flex; flex-wrap: wrap; gap: var(--s-1); justify-content: flex-end; }
+.ctl-step-result { display: grid; grid-template-columns: minmax(10rem, 14rem) minmax(0, 1fr); gap: var(--s-3); align-items: end; margin-top: var(--s-2); }
+@media (max-width: 700px) {
+  .ctl-steps > li { grid-template-columns: 2rem minmax(0, 1fr); }
+  .ctl-step-actions { grid-column: 2; justify-content: flex-start; }
+  .ctl-step-result { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* The coverage import dialog. */
+.ctl-file { display: flex; flex-direction: column; gap: var(--s-1); }
+.ctl-file-label { font-weight: 600; font-size: var(--fs-sm); }
+.ctl-dialog-buttons { justify-content: flex-end; gap: var(--s-2); }

@@ -7,6 +7,7 @@ import { registerProviders } from './providers.ts';
 import { registerRoles } from './roles.ts';
 import { registerSettings } from './settings.ts';
 import { registerSso } from './sso.ts';
+import { registerUpdates } from './updates.ts';
 import { registerUsers } from './users.ts';
 
 /**
@@ -29,6 +30,7 @@ const mod: ModuleDef = {
     // Single sign-on (server/src/core/identity): sign-in providers, linking, break-glass.
     registerSso(ctx);
     registerProviders(ctx);
+    registerUpdates(ctx); // Administration > About: version and the update check (E42-06)
     describeAdminRoutes(ctx);
   },
 };

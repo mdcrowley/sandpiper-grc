@@ -63,9 +63,12 @@ The app has five tabs along the bottom: **My work**, **Tag**, **Report**, **Sear
 ### My work
 
 My work shows what is waiting for you: tickets assigned to you, your actions, approvals, inspections and
-condition assessments due, policies to acknowledge and training due. Each section shows how many are
+condition assessments due, policies to acknowledge and training due, and one section for each other kind
+of your work that is overdue or due in the next 30 days: evidence requests, control tests, corrective
+actions to verify, obligation periods to attest, vendor reassessments, certifications to renew or sign,
+and the like (the same items as **My due work** on the web). Each section shows how many are
 waiting and the first few. Tap an item to open it; "Show all on the web" opens the full list in your
-browser. The screen refreshes when you open it and when you come back to the app; pull down or tap
+browser (for the other kinds, your due work in the compliance calendar). The screen refreshes when you open it and when you come back to the app; pull down or tap
 **Refresh** to refresh it yourself. The number on the My work tab is everything waiting at the last
 refresh. Areas your administrator has switched off do not appear.
 
@@ -95,7 +98,9 @@ with a reason (a reason is needed to reject, and the person who asked sees it). 
 on the web: for example, you cannot decide two steps of the same request when the workflow forbids it,
 and the app shows the server's explanation. When an approval asks you to sign in again, the app opens
 the sign-in page; after you sign in, it sends your decision. Open a policy to read the version you were
-asked about, then tap **Acknowledge**.
+asked about, then tap **Acknowledge**. When the version has a translation in the language you chose (see
+[Language](#language)), you read the translation, with a button to read the original instead, and your
+acknowledgment records the language you read it in.
 
 ### Tag
 
@@ -123,6 +128,15 @@ is saved on the phone first and sent from there, so you can report with no signa
 connection, being sent, **Arrived** with the new record's reference (for example TKT-00042) and how many
 photos arrived, or **Needs attention**. **Dismiss** removes an arrived report from the list (it stays on
 the server). The Report tab is shown only when you may report a problem or a hazard.
+
+If you report through the self-service portal (the **Requester** role), **Report a problem** opens the
+portal's own form: what is wrong, who is affected, how urgent it is, where it is (in your own words)
+and photos. It arrives as a request you can follow in the portal, as from a tag card. **Report a hazard
+or close call** is offered too while your organization takes safety reports in the portal; it asks how
+bad it was in plain words. **Keep my name confidential** on that form sends the report without your name
+stored with it, as in the portal: only the few people your organization names can see who sent it, each
+look is recorded, and you are still told what was done (see
+[Report a safety concern](18-self-service-portal.md#report-a-safety-concern)).
 
 ### Field work: inspections, condition and counts
 
@@ -231,9 +245,20 @@ unread at that time.
 
 - **Notifications** (with the number unread), **Push notifications** and **Devices**.
 - **Unlock with Face ID or fingerprint** (above).
+- **Language** (see below).
 - **About**: the app's version and **Open-source licenses**, the packages the app is built with. If your
   server recommends a newer version of the app, it says so here.
 - **Sign out**.
+
+## Language
+
+Under **Account > Language**, choose **English** or **Español**. The tabs, My work, policies to
+acknowledge, the Tag tab and tag cards, the Report tab and its forms, and the Account tab are then shown
+in that language; the app goes back to My work as it changes. The choice is kept on your account (the
+self-service portal uses it too) and on the phone, so the app opens in it without a connection. Records
+and lists your organization wrote (record names, types, statuses, field names) are shown as they were
+written, and so are the other screens (Search, records, approvals, field work), which are in English.
+Signing out returns the app to English.
 
 ## Devices and lost phones
 

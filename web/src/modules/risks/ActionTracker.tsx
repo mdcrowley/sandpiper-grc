@@ -268,7 +268,7 @@ export function ActionTracker() {
             columns={[
               'ref', 'title',
               { field: 'status', label: 'Status', sortable: true, render: (row) => <ActionStatus row={row} onChanged={summary.reload} /> },
-              'priority', 'owner_id', 'department',
+              'priority', 'owner_id', 'department_id',
               {
                 field: 'due_on', label: 'Due', sortable: true,
                 render: (row) => {
@@ -326,7 +326,7 @@ export function ActionTracker() {
       <Modal open={creating} title="New action" size="lg" onClose={() => setCreating(false)}>
         <ResourceForm
           type="action"
-          fields={['title', 'description', 'priority', 'owner_id', 'due_on', 'source', 'department', 'notes']}
+          fields={['title', 'description', 'priority', 'owner_id', 'due_on', 'source', 'department_id', 'site_id', 'notes']}
           onCancel={() => setCreating(false)}
           onSaved={() => { setCreating(false); setVersion((n) => n + 1); reloadAll(); }}
         />

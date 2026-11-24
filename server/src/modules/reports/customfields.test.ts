@@ -72,7 +72,7 @@ describe('custom fields on reporting records (E18-45)', () => {
   });
 
   it('still seeds the standard items: "required" applies to people, not to system work', async () => {
-    expect(await seedStandard(t.ctx)).toMatch(/^7 dashboards, \d+ reports, 1 packs added$/);
+    expect(await seedStandard(t.ctx)).toMatch(/^7 dashboards, \d+ reports, 1 packs, 6 figures added$/);
     // A person changing a standard item without the value is asked for it only if they empty it.
     const std = (await t.api.get('/api/dashboards?pageSize=100')).body.rows.find((d: any) => d.key);
     expect((await t.api.patch(`/api/dashboards/${std.id}`, { name: 'Renamed' })).status).toBe(200);

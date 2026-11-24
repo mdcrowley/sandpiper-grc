@@ -1,23 +1,25 @@
-// Fonts for server-made PDFs beyond the standard Helvetica (E12-14).
+// Fonts for server-made PDFs (E12-14, E41-13).
 //
-// The standard PDF fonts print Western European text only (Windows-1252). For anything else
-// (Greek, Cyrillic, Hebrew, Arabic, Chinese, Japanese, Korean, Indic scripts, symbols) the PDF
-// builder embeds a TrueType or OpenType font, only the glyphs used (a subset). No font ships with
-// the application: it uses the fonts the machine already has, or those an administrator names.
+// Western European text (Windows-1252) is printed in the application's own font, Arimo (see
+// `baseFont` below). For anything else (Greek, Cyrillic, Hebrew, Arabic, Chinese, Japanese,
+// Korean, Indic scripts, symbols) the PDF builder embeds a TrueType or OpenType font from the
+// machine, or one an administrator names, only the glyphs used (a subset).
 //
 //   GRC_PDF_FONTS   Font files to use, in order of preference, separated by the platform's path
 //                   separator (";" on Windows, ":" elsewhere). A collection (.ttc) may name one
 //                   font with "#": `/fonts/NotoSansCJK-Regular.ttc#NotoSansCJKjp-Regular`.
-//                   "none" switches embedding off. When unset, well-known system fonts are used
+//                   "none" uses no machine font (other scripts print as "?"; the application's
+//                   own font is still used for Western European text). When unset, well-known system fonts are used
 //                   (Noto and DejaVu on Linux, Arial Unicode on macOS, Segoe UI, Arial, YaHei,
 //                   Yu Gothic, Malgun Gothic and Nirmala on Windows).
 //
 // The bold face of each font is found beside it by its usual file name (Regular -> Bold,
 // segoeui -> segoeuib, arial -> arialbd); without one, bold text is printed in the regular face.
 // Fonts are read with fontkit, which PDFKit already uses: no package is added.
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { basename, delimiter, dirname, extname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 export interface FontFace {
   /** The name the PDF builder registers it under. */
@@ -147,6 +149,31 @@ export function pdfFonts(): FontFamily[] {
 
 /** For tests: forget the fonts found, so that a changed GRC_PDF_FONTS is read again. */
 export function resetPdfFonts() { families = undefined; }
+
+// ---------------------------------------------------------------------------------------------
+// The base font (E41-13). PDF/UA needs every font a document uses embedded, so the standard
+// Helvetica (never embedded) is not used: Western European text is printed in Arimo, a font with
+// Helvetica's and Arial's character widths (so layouts are unchanged), which
+// ships with the application (server/src/core/export/fonts, SIL Open Font License 1.1, OFL.txt
+// beside it), and only the glyphs used go into each file. The files are read once.
+
+export interface BaseFont { regular: Buffer; bold: Buffer }
+let base: BaseFont | null | undefined;
+
+/** The application's own font, or null when its files are missing (the PDF then falls back to Helvetica). */
+export function baseFont(): BaseFont | null {
+  if (base !== undefined) return base;
+  try {
+    base = {
+      regular: readFileSync(fileURLToPath(new URL('./fonts/Arimo-Regular.ttf', import.meta.url))),
+      bold: readFileSync(fileURLToPath(new URL('./fonts/Arimo-Bold.ttf', import.meta.url))),
+    };
+  } catch (err) {
+    console.warn('[pdf] the application font (server/src/core/export/fonts) could not be read; PDFs use Helvetica and are not PDF/UA:', (err as Error).message);
+    base = null;
+  }
+  return base;
+}
 
 // ---------------------------------------------------------------------------------------------
 // Text direction (E12-16). PDFKit shapes Arabic and Hebrew but prints the words of a sentence in

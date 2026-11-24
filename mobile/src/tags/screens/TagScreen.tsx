@@ -23,8 +23,9 @@ import { useTagSettings } from '../formats';
 import * as handoff from '../handoff';
 import { offlinePackage } from '../../offline';
 import { offlineAnswers } from '../offline';
+import { localized } from '../../i18n';
 
-export const TEXT = {
+export const TEXT = localized('tag', {
   title: 'Tag',
   aim: 'Point the camera at a tag. Barcodes, 2D codes and printed numbers are all read.',
   aimPick: 'Point the camera at the new tag, or type its number.',
@@ -43,7 +44,7 @@ export const TEXT = {
   notFoundTitle: 'Couldn\'t find this tag', correct: 'Correct it below, or read it again.',
   how: { code: 'Code', text: 'Text', both: 'Code and text' } as const,
   formatsUnavailable: 'Tag formats could not be loaded; codes are still read exactly, and text is offered for you to confirm.',
-};
+});
 
 const LOOKUP_DELAY_MS = 350;
 

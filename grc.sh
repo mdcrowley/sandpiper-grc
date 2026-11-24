@@ -45,7 +45,7 @@ cmd="${1:-help}"
 [ $# -gt 0 ] && shift
 
 profile=pilot prune=0 label=manual at=02:00 lines=40 follow=0 no_secrets=0 out='' force=0 level=''
-skip_install=0 encrypt=0 key_file='' pass_file='' to='' from='' pull=0 no_rollback=0 include_key=0
+skip_install=0 encrypt=0 key_file='' pass_file='' to='' from='' pull=0 no_rollback=0 include_key=0 folder=''
 rest=()
 if [ "$cmd" != npm ]; then
   while [ $# -gt 0 ]; do
@@ -72,6 +72,7 @@ if [ "$cmd" != npm ]; then
           passphrasefile) take "$@"; pass_file="$value" ;;
           to) take "$@"; to="$value" ;;
           from) take "$@"; from="$value" ;;
+          folder) take "$@"; folder="$value" ;;
           follow) follow=1 ;;
           nosecrets) no_secrets=1 ;;
           force) force=1 ;;
@@ -277,6 +278,7 @@ Usage: ./grc.sh <command> [options]
 
   dev | build | test | typecheck | ci development (ci = typecheck + tests + tests on UTC + build + dependency audit)
   audit-deps [--level high]           known vulnerabilities in production packages; fails only when a fix exists
+  audit-archive [--folder dir]        the audit archive as the database owner (least-privilege database role)
   npm <args>                          any npm command with this script's Node.js
 EOF
 }
@@ -774,6 +776,7 @@ case "$cmd" in
     node "$tsx" server/src/cli.ts "${a[@]}"; exit $? ;;
   version) run_cli version; exit $? ;;
   audit-deps) a=(audit-deps); [ -n "$level" ] && a+=(--level "$level"); run_cli "${a[@]}"; exit $? ;;
+  audit-archive) a=(audit-archive); [ -n "$folder" ] && a+=(--folder "$folder"); run_cli "${a[@]}"; exit $? ;;
   service) service_cmd ;;
 
   backup)

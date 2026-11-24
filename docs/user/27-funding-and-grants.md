@@ -160,6 +160,10 @@ Each deficiency is corrected through a corrective action plan (see [Corrective a
 
 A deficiency with no plan can be closed by hand. **Closed on** is filled in when it closes, and cleared if it is reopened.
 
+### The funder's reviewer
+
+The funder's reviewer can be given access to one review for a set period, on the review's **Outside reviewers** tab (needs `funding.edit` and email set up). They see the review's details (funder, period, site visit, status and lead), its document requests with their answers, the evidence files on the review, and its deficiencies, and nothing else in the application. Mark the files on the review that the reviewer should see as evidence; other files are not shown. Inviting, the account, what the reviewer sees and how access ends work as for audits: see [Outside reviewers](25-audits-and-inspections.md#outside-reviewers). While **Funding and grants** is switched off, invitations to reviews are hidden and closed.
+
 ### Close a review
 
 A review can be closed only when none of its deficiencies is open. **Closed on** is filled in for you. A closed review takes no new deficiencies, and its areas and requests cannot change until it is reopened.

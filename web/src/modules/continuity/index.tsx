@@ -3,6 +3,7 @@
 // emergency activations.
 import type { ModuleDef } from '../../core';
 import { ActivationDetail, ActivationList } from './Activations';
+import { CallOutAckPage } from './CallOuts';
 import { BiaDetail, BiaList } from './Bia';
 import { ContinuityDashboard } from './Dashboard';
 import { GapReport } from './Gaps';
@@ -31,6 +32,8 @@ const mod: ModuleDef = {
     { path: '/continuity/activations', element: <ActivationList />, permission: view },
     { path: '/continuity/activations/:id', element: <ActivationDetail />, permission: view },
   ],
+  // E41-14: the page a person opens from their call-tree message, without signing in.
+  publicRoutes: [{ path: '/call-out/:token', element: <CallOutAckPage /> }],
   create: [
     { label: 'Business process', path: '/continuity/processes?new=1', permission: 'continuity.create', icon: 'shield' },
     { label: 'Continuity plan', path: '/continuity/plans?new=1', permission: 'continuity.create', icon: 'clipboard' },

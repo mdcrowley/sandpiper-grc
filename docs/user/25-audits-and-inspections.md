@@ -149,11 +149,41 @@ Both appear on the finding's **Related** tab.
 
 On an audit's **Evidence requests** tab, select **New evidence request**: say **What is asked for**, who it is **Asked of** and when it is **Due**. The request (`REQ-00007`) moves through **Requested**, **Provided**, **Accepted** or **Returned for more**.
 
-The person asked needs no audit permission. They are notified, and open **My evidence requests** (`/audits/my-requests`, linked from the notification), which shows only their own requests: the reference, what is asked for, the due date and status, never the audit itself. They say what they are providing and where the auditor can find it, and select **Send my answer**. The request becomes **Provided** and the lead auditor is notified. The auditor then selects **Accept** or **Return for more** on the request's page; a returned request shows again under **Waiting for you**.
+The person asked needs no audit permission. They are notified, and open **My evidence requests** (`/audits/my-requests`, linked from the notification), which shows only their own requests: the reference, what is asked for, the due date and status, never the audit itself. They attach the evidence itself with **Attach files** (as many files as needed; the same file types, size limit and malware check as any other file), say what they are providing, and select **Send my answer**. The request becomes **Provided** and the lead auditor is notified. The auditor then selects **Accept** or **Return for more** on the request's page; a returned request shows again under **Waiting for you**.
 
 The person asked is reminded once when a request comes within `audits.request_reminder_days` (**3** days unless changed) and once when it is overdue. Requests on a restricted audit are shown only to people who may see restricted records.
 
-Files: the person asked cannot attach files unless they may edit audits, so the answer names where the evidence is kept. An auditor can attach files to the request or the audit.
+Files: the person asked attaches files without any audit permission, but only to their own requests. Each file lands on the request as an **evidence file**, so the auditor sees it on the request's **Evidence files** tab with who sent it and when. The person asked sees and downloads the files on their own requests, and may **Remove** a file they sent until the auditor accepts the evidence; after that the files stay. Every file sent or removed is recorded in the request's history. An auditor can also attach files to the request or the audit as usual.
+
+## Outside reviewers
+
+An external auditor, a certification body or a funder's reviewer can be given access to **one** audit for a set period, without becoming a user of the rest of the application. They see that audit's details, its evidence requests with the answers and files, the evidence files on the audit itself, and its findings, and nothing else: no lists, search, other records, people, reports or settings.
+
+### Invite a reviewer
+
+On the audit's **Outside reviewers** tab, select **Invite a reviewer** (needs `audits.edit`, and email set up under Administration > Email). Enter their **Name**, **Email address**, optionally their **Organization** (their firm, or the funder), and the day **Access ends** (from today to a year ahead), then select **Send the invitation**. You are asked to confirm your password first, because an invitation can make an account.
+
+- The first invitation of an address makes an account for it, with no roles, and emails a set-up link to that address only. Nobody in the organization sees the link. The person chooses a password and then signs in like anyone else: the same password rules, lockout, session time-out and second-factor rules apply (to require a second factor of reviewers, require it for everyone under Administration > Settings).
+- A later invitation of the same address, to another audit or a funder review, reuses that account and sends a notice without a link.
+- An address that belongs to a staff account cannot be invited: staff get access through their roles.
+- The email names the audit by its reference only, never its title.
+- On a restricted audit, the dialog says so: the reviewer will see it.
+
+The tab lists each reviewer with their organization, the day access ends, its status (**Open**, **Ended** or **Revoked**), whether they have set their password yet, when they last opened it and who invited them. From each row's menu you can **Change the end date**, **Send the invitation again** (**Send the set-up link again** for someone who has not set their password: a new link, and earlier links stop working) or **Revoke access now**.
+
+### What the reviewer sees
+
+The reviewer signs in to a page of their own, **Your reviews**, with the audits and reviews open to them and how many days are left. Opening one shows its details (type, status, lead auditor, dates, scope and criteria; the report summary and overall opinion once the report is approved or the audit closed), the evidence requests with each answer and its files, the evidence files on the audit, and the findings with their criteria, condition, cause, effect, recommendation and management response. They can download the files. Files on the audit that are not marked as evidence are not shown, so mark the files the reviewer should see as evidence. **Account security** lets them change their password and set up a second factor.
+
+Every time a reviewer opens an audit (at most once an hour) and every file they download is recorded in the audit's history.
+
+### When access ends
+
+Access ends at the end of the chosen day, or at once when revoked. When nothing is open to a reviewer any more, their sessions end and their account is disabled (checked every few hours, and at once on revoking). Inviting them again turns the account back on, unless an administrator disabled it.
+
+**Administration > Outside reviewers** (administrators) lists every invitation, with the audit or review it opens, and can revoke any of them. Reviewer accounts also appear under **Users**; give them no roles. Even with a role, the account still reaches only its reviews.
+
+While **Audits and inspections** is switched off (Administration > Features), invitations to audits are hidden and closed to their reviewers.
 
 ## Indicators
 

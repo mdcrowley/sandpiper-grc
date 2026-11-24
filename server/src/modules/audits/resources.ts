@@ -212,6 +212,8 @@ export function registerResources(ctx: ModuleContext) {
   ctx.defineResource({
     type: 'inspection_schedule', table: 'inspection_schedules', module: 'audits', label: 'Inspection schedule', plural: 'Inspection schedules',
     path: '/api/inspection-schedules', route: '/inspections/schedules', titleField: 'name',
+    // Role grants scoped to departments or sites (E41-01, core/scope.ts).
+    scope: { site: (col) => `case when ${col('target_type')} = 'site' then ${col('target_id')} end` },
     searchable: ['name', 'target_label'],
     defaultSort: { field: 'next_due_on', dir: 'asc' },
     fields: {
@@ -256,6 +258,8 @@ export function registerResources(ctx: ModuleContext) {
   ctx.defineResource({
     type: 'inspection', table: 'inspections', module: 'audits', label: 'Inspection', plural: 'Inspections',
     path: '/api/inspections', route: '/inspections', titleField: 'title',
+    // Role grants scoped to departments or sites (E41-01, core/scope.ts).
+    scope: { site: (col) => `case when ${col('target_type')} = 'site' then ${col('target_id')} end` },
     ref: { field: 'ref', prefix: 'INS-' },
     searchable: ['title', 'target_label', 'notes'],
     defaultSort: { field: 'due_on', dir: 'desc' },

@@ -17,19 +17,22 @@ content, which belongs in a document tool (E25-13, E29-11, E32-06, E34-09).
 - **Accessibility**: tables on the Help pages always take a Tab stop, even when they fit, and carry the generic name "Table".
 - **Wave 10 parts** (corrective action plans, audits and inspections, controls, funding, committees,
   the staff roster, obligations and enterprise risk):
-  - The person asked for audit evidence answers in text only (attaching files needs `audits.edit`);
-    taking inspection photos needs `audits.edit` and the attachments module.
-  - Coverage cannot be imported from a spreadsheet, and controls have no per-control test steps.
+  - Taking inspection photos needs `audits.edit` and the attachments module.
   - Funding: drawdowns, budgets and spending by award are left to the finance system.
   - A meeting decision can be applied only to approvals declared as an approval kind, not to
-    workflows an administrator defined with no kind; meetings send no calendar invitations by
-    email; members subscribe through a calendar feed (E36-03).
-  - Departments are not a record type, so person and position exports show the department's id.
+    workflows an administrator defined with no kind; meetings are emailed as calendar invitations
+    (.ics) and through the calendar feed; replies are not collected (E41-17).
+  - Departments are records (E41-01), but ticket requester departments and training-record
+    departments stay as recorded text. Scoped roles (E41-01) have not been run on a PostgreSQL server
+    or in the browser suite.
   - Key risk indicators are monthly only; regulatory changes are entered by hand (no outside feed).
 - **Wave 11 parts** (business continuity, asset condition, OT security, legal holds, records
   requests and privacy, the vendor risk lifecycle and integrations):
-  - Business continuity: call trees are printed and called by hand; nothing pages or messages
-    people.
+  - Business continuity (E41-14): call-tree text messages reach only people with an account
+    (`sendText` takes accounts); a roster person without an account gets email only, and a typed
+    name is listed to call. A text carries its acknowledgment link in its text, so the link is
+    visible in the text delivery log administrators read (it can only acknowledge that message).
+    Not tried with a real mail server, carrier email-to-text gateway, text-message webhook or phone.
   - Asset condition: one useful-life benchmark per class (changing it recomputes every member);
     condition history is listed, not charted.
   - OT security: no network scanning or device discovery; the starter structure file's mappings are
@@ -81,7 +84,9 @@ content, which belongs in a document tool (E25-13, E29-11, E32-06, E34-09).
   languages with a font found on the machine (or named in `GRC_PDF_FONTS`); explicit
   bidirectional embedding characters are ignored. List exports stop at 50,000 rows (the file and
   the `X-GRC-Export-Truncated` header say so) and are built in memory; a PDF holds at most 12
-  columns. A CSV that is not UTF-8 is read as Windows-1252; other code pages are not detected.
+  columns. Server PDFs pass an automated PDF/UA check built on pdf.js, not veraPDF; run veraPDF's
+  PDF/UA-1 profile on a sample of each kind once. The document language is US English for every PDF;
+  text in other scripts has no per-span language. A CSV that is not UTF-8 is read as Windows-1252; other code pages are not detected.
   The pause in sending email while the mail server is unreachable is kept per server process.
 - **Custom fields**: the portal deliberately does not ask ticket custom fields of
   requesters (they are the service desk's own classification); catalog questions do that
@@ -113,8 +118,8 @@ content, which belongs in a document tool (E25-13, E29-11, E32-06, E34-09).
   covers (my inspections' targets, condition assessments due, open counts). The web's inspection runner
   asks for no signature (the inspection page shows who signed in the app). Inspections and counts were
   proven on the Android emulator only, not on a real phone in a dead spot or an iPhone. A phone signed
-  out from the web loses work it had not sent, including inspections started on it. Portal users report from a tag card only, not from scratch,
-  and photos on a portal safety report may be refused.
+  out from the web loses work it had not sent, including inspections started on it. Photos on a
+  portal safety report may be refused.
 - **Mobile app accessibility not yet tried by people (E38-15)**: the app was checked on the Android
   emulator at 200% text with its accessibility tree and automated tests, but VoiceOver has not been run
   (it needs an iPhone or a Mac), no TalkBack user has walked through it, and iPhone Dynamic Type at the
@@ -150,9 +155,14 @@ content, which belongs in a document tool (E25-13, E29-11, E32-06, E34-09).
   to 3.7 s. Under bursts of writes, a request that waits more than `GRC_DATABASE_CONNECT_TIMEOUT` (10 s)
   for one of the `GRC_DATABASE_POOL_MAX` (10) connections answers 503 `busy` with `Retry-After` (since
   wave 19; before, about 30 of 82,000 requests failed this way while seeding scale 4).
-- **Operations**: the audit archive cannot run under a least-privilege database role (no delete
-  privilege); archiving as the owner is not built. Rotating the database password, SCIM tokens and
-  the backup passphrase is not yet a written procedure (E40-14).
+- **Operations**: under a least-privilege database role the audit archive runs as the owner with
+  `audit-archive` from a scheduled task (E40-14). Rotating sign-in provider, email, push,
+  work-tracker, log-forwarder and object-store secrets is written down but was proven by unit tests
+  only, not carried out against those systems.
+- **Windows installer (E42)**: the installer is unsigned (SmartScreen warns; check the SHA-256 in
+  the release's SHA256SUMS.txt). It has been tested silently on a Windows 11 workstation (GitHub's
+  Windows Server runner workflow added, first run pending), not yet on a real Windows Server across
+  a restart or through its pages by hand (E42-07). Only Windows has an installer.
 - **Vehicle and asset models (E39)**: a model change saves each member on its own, not in one
   database transaction; a member refused by its own rules is listed on the model and takes the value
   at its next save unless overridden. Inherited custom fields are marked on the model lists, not under
@@ -166,8 +176,35 @@ content, which belongs in a document tool (E25-13, E29-11, E32-06, E34-09).
 - **Provisioning**: provisioning deactivates an account that can administer only when it created
   the account; for accounts created before wave 19 this is known from the audit log, so one whose
   creation event was purged keeps the older refusal and is deprovisioned by hand.
+- **User access reviews (E41-02)**: the application never connects to systems, so account lists
+  are imported from files and removals are carried out by people.
+- **Compliance calendar (E41-03)**: records requests, continuity plan reviews and condition
+  assessments show only the viewer's own items in the compliance calendar (no "everyone" view yet).
 - **Vendors**: the contract import fills structured dates only where the text is
-  unambiguous; the "Complete the dates" queue lists the rest.
+  unambiguous; the "Complete the dates" queue lists the rest. A higher vendor risk tier or an expired
+  check (E41-10) does not deactivate contracts that are already active; it only stops new activations.
+- **Confidential safety reporting (E41-05)** keeps the reporter's identity off the safety event and
+  shows it only to named people, each look audited. It cannot protect what the reporter writes in the
+  report itself, and people who run the server can still find the identity in the database, backups
+  and the request log.
+- **Certification (E41-08)** issues one certificate of readiness per project, with no per-item
+  certificate of conformance and no second-person confirmation of a verification. Requirement CSV
+  exports keep the stored source type ('hazard' or 'risk') even when that area is switched off. The
+  mobile app's My work has no entry for certification requirements.
+- **Registers (E41-06)**: approval workflows on a register defined while the server runs start after
+  the next restart; no calendar, My work or mobile app entries for registers; with a least-privilege
+  database account a new register waits for `migrate` as the owner, and removing one is refused.
+- **Languages (E41-07)**: English and Spanish only. The staff application, server validation
+  messages, notifications and email, organization-written content (catalog, articles, lookup lists)
+  and the app's Search, records, approvals and field work screens are English only. The Spanish has
+  not been reviewed by a native speaker.
+- **Outside reviewers (E41-09)** read and download only (no comments or questions); staff user
+  pickers still list reviewer accounts; a second factor is not required of reviewers unless it is
+  required for everyone.
+- **Search inside files (E41-16)** covers PDF, .docx and plain text only; scanned PDFs (no
+  OCR), .doc, spreadsheets and presentations are found by name only. File previews cover images and
+  PDFs (first 30 pages). In the compliance calendar's area filter, retention items (E41-15) are listed under
+  Records requests and privacy (they share its permissions).
 
 ## Verification status
 

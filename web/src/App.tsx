@@ -25,6 +25,12 @@ const loadPortal = Object.values(portalFiles)[0] as (typeof portalFiles)[string]
 const PortalApp = loadPortal && modules.some((m) => m.key === 'portal')
   ? lazy(() => loadPortal().then((m) => ({ default: m.PortalApp })))
   : null;
+// Outside reviewers (E41-09) have a layout of their own too: their account reaches nothing else.
+const reviewerFiles = import.meta.glob<{ ReviewerApp: ComponentType }>('./modules/outsidereviews/ReviewerApp.tsx');
+const loadReviewer = Object.values(reviewerFiles)[0] as (typeof reviewerFiles)[string] | undefined;
+const ReviewerApp = loadReviewer && modules.some((m) => m.key === 'outsidereviews')
+  ? lazy(() => loadReviewer().then((m) => ({ default: m.ReviewerApp })))
+  : null;
 /** Permissions that open some part of the agent screens (anything in the sidebar but the portal itself). */
 const agentPermissions = [...new Set(modules.flatMap((m) => m.nav ?? []).map((n) => n.permission)
   .filter((p): p is string => Boolean(p) && !p!.startsWith('portal.')))];
@@ -43,6 +49,10 @@ function SignedInApp() {
   if (!user) return <LoginPage />;
   // The server refuses everything but second-factor set-up: offer only that (and sign out).
   if (mfaEnrollmentBlocked) return <EnrollmentGate />;
+  // An outside reviewer's account (the server's grant): only their reviews and their account security.
+  if (ReviewerApp && can('outsidereviews.reviewer') && !agentPermissions.some((p) => can(p))) {
+    return <Suspense fallback={<RouteLoading bare />}><ReviewerApp /></Suspense>;
+  }
   if (PortalApp && areaOn('portal')) {
     if (isPortalPath(pathname)) {
       return <Suspense fallback={<RouteLoading bare />}><PortalApp /></Suspense>;

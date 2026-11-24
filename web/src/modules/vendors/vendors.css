@@ -365,3 +365,59 @@ a.vnd-cell:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px;
 .vnd-ob-note { font-size: var(--fs-sm); }
 @media (max-width: 600px) { .vnd-ob-item { grid-template-columns: minmax(0, 1fr) auto; } .vnd-ob-item > :last-child { grid-column: 1 / -1; justify-self: start; } }
 .table td.vnd-wrap { white-space: normal; min-width: 20ch; overflow-wrap: anywhere; }
+
+/* ---------- intake, risk tiers and required checks (E41-10) ---------- */
+.vnd-intake-q { border: 0; padding: 0; margin: 0 0 var(--s-4); min-width: 0; }
+.vnd-intake-q legend { font-weight: 600; padding: 0; margin-bottom: var(--s-2); }
+.vnd-intake-help { margin: 0 0 var(--s-2); font-size: var(--fs-sm); }
+.vnd-intake-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--s-2); }
+.vnd-intake-option {
+  display: flex; align-items: center; gap: var(--s-2); padding: var(--s-2) var(--s-3); min-height: 44px; cursor: pointer;
+  border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface);
+}
+.vnd-intake-option:hover { border-color: var(--brand); }
+.vnd-intake-option.is-on { border-color: var(--brand); background: var(--brand-soft); font-weight: 600; }
+.vnd-intake-option input { width: 18px; height: 18px; accent-color: var(--brand); flex: none; margin: 0; }
+.vnd-intake-option:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
+.vnd-intake-preview { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-3); padding: var(--s-3) var(--s-4); background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); }
+.vnd-intake-h { font-size: var(--fs-sm); font-weight: 600; margin: 0 0 var(--s-2); }
+.vnd-intake-reasons { margin: 0; padding-inline-start: var(--s-5); display: grid; gap: var(--s-1); }
+.vnd-intake-answers summary { cursor: pointer; font-weight: 600; }
+.vnd-intake-answers dl { display: grid; gap: var(--s-2); margin: var(--s-2) 0 0; }
+.vnd-intake-answers dt { color: var(--text-muted); font-size: var(--fs-sm); }
+.vnd-intake-answers dd { margin: 0; }
+.vnd-intake-notice { margin: var(--s-3) var(--s-4); }
+.vnd-intake-act { white-space: nowrap; text-align: end; }
+.vnd-intake-opts-edit { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
+.vnd-intake-opt-edit { display: inline-flex; align-items: center; gap: 2px; min-width: 0; flex: 1 1 180px; max-width: 280px; }
+.vnd-intake-opt-edit > :first-child { flex: 1; min-width: 0; }
+.vnd-intake-default { max-width: 320px; margin-bottom: var(--s-3); }
+.vnd-intake-rules { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--s-3); }
+.vnd-intake-rule { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.4fr) minmax(0, 0.8fr) auto; align-items: end; gap: var(--s-2) var(--s-3); padding-bottom: var(--s-3); border-bottom: 1px solid var(--border); }
+.vnd-intake-rule:last-child { border-bottom: 0; }
+@media (max-width: 900px) { .vnd-intake-rule { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.vnd-intake-matrix td { text-align: center; }
+.vnd-intake-check .mantine-Checkbox-body { justify-content: center; }
+.vnd-intake-check .mantine-Checkbox-labelWrapper { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.vnd-intake-foot { padding: var(--s-3) var(--s-4); margin: 0; }
+
+/* ---------- contractor performance (E41-11) ---------- */
+.vnd-perf-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: var(--s-3); }
+.vnd-perf-toggle { display: inline-flex; align-items: center; gap: var(--s-1); background: none; border: 0; padding: 0; font: inherit; font-weight: 600; color: var(--text); cursor: pointer; text-align: start; }
+.vnd-perf-toggle:hover { color: var(--brand); }
+.vnd-perf-toggle:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
+.vnd-perf-name { white-space: normal; min-width: 18ch; }
+.vnd-perf-inactive > * { opacity: 0.7; }
+.vnd-perf-detail > td { background: var(--surface-2); white-space: normal; }
+.vnd-perf-history { display: grid; gap: var(--s-3); padding: var(--s-2) 0; }
+.vnd-perf-trend { display: inline-flex; align-items: center; gap: var(--s-2); }
+.vnd-trend { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; font-size: var(--fs-sm); }
+.vnd-trend-improving { color: var(--c-green-fg); }
+.vnd-trend-worsening { color: var(--c-red-fg); }
+.vnd-trend-steady { color: var(--text-muted); }
+.vnd-spark { flex: none; overflow: visible; }
+.vnd-spark-line { fill: none; stroke: var(--c-blue-solid); stroke-width: 1.75; stroke-linejoin: round; stroke-linecap: round; }
+.vnd-spark-target { stroke: var(--text-muted); stroke-width: 1; stroke-dasharray: 3 3; }
+.vnd-spark-dot { fill: var(--c-blue-solid); }
+.vnd-intake-name { font-weight: 600; }
+.vnd-intake-matrix td.vnd-intake-name { text-align: start; }

@@ -7,6 +7,7 @@ import {
 import type { RecordContext } from '../../core';
 import { ActionsPanel } from '../risks/ActionsPanel';
 import { BudgetBar, Person, RagChip, RagWithTrend, TierChip } from './bits';
+import { CertificationTab } from './CertificationTab';
 import { GateRecordDrawer } from './GateRecordDrawer';
 import { GatesProvider, useGates } from './gatesContext';
 import { describeGate, GateStepper } from './GateStepper';
@@ -112,7 +113,7 @@ function Overview({ row, reload, save }: RecordContext) {
           type="project"
           row={row}
           title="Project"
-          fields={['name', 'description', 'expected_benefits', 'sponsor', 'project_manager_id', 'system_owner', 'department', 'status', 'start_on', 'target_on']}
+          fields={['name', 'description', 'expected_benefits', 'sponsor', 'project_manager_id', 'system_owner', 'department_id', 'status', 'start_on', 'target_on']}
           onSaved={saved}
         />
         <div className="stack">
@@ -182,6 +183,7 @@ export function ProjectDetail() {
           { key: 'reports', label: 'Status reports', content: (rec) => <StatusReportsTab projectId={rec.row.id} onChanged={rec.reload} /> },
           { key: 'items', label: 'Register', content: (rec) => <ItemsTab projectId={rec.row.id} onChanged={rec.reload} /> },
           { key: 'milestones', label: 'Milestones', content: (rec) => <MilestonesTab projectId={rec.row.id} onChanged={rec.reload} /> },
+          { key: 'certification', label: 'Certification', content: (rec) => <CertificationTab projectId={rec.row.id} onChanged={rec.reload} /> },
           { key: 'scoring', label: 'Scoring', content: (rec) => <ScoringTab row={rec.row} save={rec.save} canEdit={rec.canEdit} /> },
           ...(hasActions ? [{ key: 'actions', label: 'Actions', content: (rec: RecordContext) => <ActionsPanel sourceType="project" sourceId={rec.row.id} source="project" /> }] : []),
         ]}

@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { guardFormula } from './export/csv.ts';
 import { CURRENCY } from './config.ts';
 import { afterCommit, type Db } from './db.ts';
@@ -6,11 +6,12 @@ import { ApiError, fail, UUID_RE } from './errors.ts';
 import { assertNotHeld } from './holds.ts';
 import { etagOf, ifMatchAccepts, pageOf } from './api/conventions.ts';
 import { routePattern } from './api/versioning.ts';
-import type { CreateOptions, FieldDef, ResourceDef, ResourceRegistry, Row, SessionUser, UpdateOptions } from './module.ts';
+import type { CreateOptions, FieldDef, RecordRouteHandlers, ResourceDef, ResourceRegistry, Row, RuntimeResources, SessionUser, UpdateOptions } from './module.ts';
 import { CUSTOM_PREFIX, customFieldDef, customName, type CustomField, type CustomFields } from './customfields.ts';
 import { makeLifecycles, type HeldMove, type Lifecycles } from './lifecycle.ts';
 import { BODY_SEPARATOR, bodyLike, ensureCommentSearch, ensureSearchIndex, maySchemaChange, parseSearch, requestSchemaChange, schemaChangeDone, substringColumns } from './search.ts';
 import { can, type makeAudit, type makeLookups } from './services.ts';
+import { scopeSql } from './scope.ts';
 // Spreadsheet and PDF exports, record fact sheets and the generic import (core/export, core/import).
 import { capExportRows, EXPORT_ROW_LIMIT, exportColumns, sendListExport, truncatedLine, TRUNCATED_HEADER } from './export/list.ts';
 import { registerExportRoutes } from './export/routes.ts';
@@ -85,6 +86,8 @@ declare module 'fastify' {
   interface FastifyInstance {
     /** Allowed status changes and required fields per record type (E14-31, core/lifecycle.ts). */
     lifecycles: Lifecycles;
+    /** Record types added and removed while the application runs (E41-06, modules/registers). */
+    runtimeResources: RuntimeResources;
   }
 }
 
@@ -92,6 +95,8 @@ export interface RecordLabel { label: string; ref: string | null; hidden: boolea
 
 export function makeResources({ app, db, audit, lookups, custom }: Deps) {
   const defs = new Map<string, ResourceDef>();
+  /** The generated route handlers of each type (E41-06: a type defined at run time is served through them). */
+  const handlerMap = new Map<string, RecordRouteHandlers>();
   /** Record types with a working full-text index (the rest are searched by substring). */
   const ftsTypes = new Set<string>();
   const listeners: ChangeListener[] = [];
@@ -198,9 +203,23 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
     return def.rowRule.where(user, columnOf(alias)) || 'true';
   }
 
+  /**
+   * The type's row rule and its department or site scope (E41-01, core/scope.ts) for this user:
+   * 'true' when neither hides anything. Figures use the row rule alone.
+   */
+  function ruleSql(def: ResourceDef, user: SessionUser | null | undefined, alias?: string): string {
+    const scope = def.scope && user ? scopeSql(def, user, columnOf(alias), { people: defs.has('person'), sites: defs.has('site') }) : 'true';
+    const rule = rowRuleSql(def, user, alias);
+    if (scope === 'true') return rule;
+    return rule === 'true' ? scope : `(${rule}) and ${scope}`;
+  }
+
+  /** Every signed-in person may pick and read the names of a directory type (departments); others need view on its module. */
+  const mayLink = (user: SessionUser | null | undefined, def: ResourceDef) => (def.directory ? !!user : mayAccess(user ?? null, def, 'view'));
+
   function visibilitySql(def: ResourceDef, user: SessionUser | null | undefined, alias?: string): string {
     if (alias !== undefined && !IDENT.test(alias)) throw new Error(`Bad table alias: ${alias}`);
-    const rule = rowRuleSql(def, user, alias);
+    const rule = ruleSql(def, user, alias);
     const flag = seesRestricted(user) ? 'true'
       : def.restricted === true ? 'false'
       : def.restricted === 'flag' ? `coalesce(${alias ? `${alias}.` : ''}restricted, false) = false`
@@ -474,7 +493,7 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
       if (!target) continue;
       // Hidden and missing answer alike, so the refusal does not tell that a hidden record exists. A
       // person without view on the linked record's area cannot link to it either (E40-13).
-      if ((!mayAccess(req.user, target, 'view') && !onBehalf(req)) || !(await find(f.to, String(v), req.user))) fields[name] = `${target.label} not found.`;
+      if ((!mayLink(req.user, target) && !onBehalf(req)) || !(await find(f.to, String(v), req.user))) fields[name] = `${target.label} not found.`;
     }
     if (Object.keys(fields).length) fail(400, 'validation', 'Check the highlighted fields.', fields);
   }
@@ -622,11 +641,11 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
     if (!def || !clean.length) return out;
     const sees = seesRestricted(user);
     // A label is a piece of the other record: people without view on its module do not get it either.
-    const mayView = !user || can(user, `${def.module}.view`);
+    const mayView = !user || can(user, `${def.module}.view`) || def.directory === true;
     const rows = await db.query<Row>(
       `select id, ${def.titleField}::text as label, ${def.ref ? def.ref.field : 'null'} as ref,
               ${def.restricted === 'flag' ? 'coalesce(restricted, false)' : 'false'} as flagged,
-              coalesce((${rowRuleSql(def, user)}), false) as ruled_in
+              coalesce((${ruleSql(def, user)}), false) as ruled_in
        from ${def.table} where id = any($1::uuid[])`,
       [clean],
     );
@@ -827,7 +846,7 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
 
   // ---------- registration ----------
 
-  function defineResource(def: ResourceDef) {
+  function defineResource(def: ResourceDef, opts: { routes?: boolean } = {}) {
     if (def.restrictedFrom && def.restricted !== 'flag') throw new Error(`Resource ${def.type}: restrictedFrom needs restricted: 'flag'`);
     for (const name of [def.table, def.titleField, def.ref?.field, def.restrictedFrom?.typeField, def.restrictedFrom?.idField,
       ...Object.keys(def.fields), ...(def.searchable ?? []), ...(def.defaultSort ? [def.defaultSort.field] : [])]) {
@@ -840,7 +859,7 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
     if (defs.has(def.type)) throw new Error(`Resource ${def.type} defined twice`);
     defs.set(def.type, def);
 
-    app.get(def.path, async (req, reply) => {
+    const list = async (req: FastifyRequest, reply: FastifyReply) => {
       authorize(req, def, 'view');
       const query = req.query as Record<string, string>;
       const customDefs = await custom.defs(def.type);
@@ -900,12 +919,12 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
         : []).map((r) => [r.id, r]));
       const rows = ids.map((id) => byId.get(id)).filter((r): r is Row => r !== undefined);
       return { rows: await decorate(def, rows, req.user), total, page, pageSize };
-    });
+    };
 
     // A figure: the same counts for everyone who may view the type, restricted records included
     // (buildWhere, figures). A restricted record is grouped under "Restricted records" when the
     // grouping field is one of its details; a restricted related record is labeled "Restricted".
-    app.get(`${def.path}/stats`, async (req) => {
+    const stats = async (req: FastifyRequest) => {
       authorize(req, def, 'view');
       const query = req.query as Record<string, string>;
       const group = query.group;
@@ -942,28 +961,28 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
         groups.sort((a, b) => pos(a.value) - pos(b.value));
       }
       return { groups, total: groups.reduce((n, g) => n + g.count, 0) };
-    });
+    };
 
-    app.get(`${def.path}/:id`, async (req) => {
+    const getOne = async (req: FastifyRequest) => {
       authorize(req, def, 'view');
       const row = (await find(def.type, (req.params as any).id, req.user)) ?? fail(404, 'not_found', `${def.label} not found.`);
       return (await decorate(def, [row], req.user))[0];
-    });
+    };
 
-    app.post(def.path, async (req, reply) => {
+    const createOne = async (req: FastifyRequest, reply: FastifyReply) => {
       authorize(req, def, 'create');
       const row = await create(def.type, (req.body ?? {}) as Row, req);
       reply.code(201);
       return (await decorate(def, [row], req.user))[0];
-    });
+    };
 
-    app.patch(`${def.path}/:id`, async (req) => {
+    const updateOne = async (req: FastifyRequest) => {
       authorize(req, def, 'edit');
       const row = await update(def.type, (req.params as any).id, (req.body ?? {}) as Row, req);
       return (await decorate(def, [row], req.user))[0];
-    });
+    };
 
-    app.delete(`${def.path}/:id`, async (req) => {
+    const removeOne = async (req: FastifyRequest) => {
       authorize(req, def, 'delete');
       const id = String((req.params as any).id ?? '');
       // One transaction, as a save (E40-03); the row is locked, and If-Match checked against it (E40-01).
@@ -983,7 +1002,25 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
         await emit({ action: 'delete', def, row, req });
       });
       return { ok: true };
-    });
+    };
+
+    const h: RecordRouteHandlers = { list, stats, get: getOne, create: createOne, update: updateOne, remove: removeOne };
+    handlerMap.set(def.type, h);
+    // A type defined while the application runs (E41-06) is served by its module's own routes.
+    if (opts.routes === false) return;
+    app.get(def.path, h.list);
+    app.get(`${def.path}/stats`, h.stats);
+    app.get(`${def.path}/:id`, h.get);
+    app.post(def.path, h.create);
+    app.patch(`${def.path}/:id`, h.update);
+    app.delete(`${def.path}/:id`, h.remove);
+  }
+
+  /** Removes a record type defined while the application runs (E41-06); its rows are untouched. */
+  function removeResource(type: string) {
+    defs.delete(type);
+    handlerMap.delete(type);
+    ftsTypes.delete(type);
   }
 
   const registry: ResourceRegistry = {
@@ -1045,8 +1082,17 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
     validate: (def, input, mode, system) => validate(def, input, mode, system),
   });
 
+  if (!app.hasDecorator('runtimeResources')) {
+    app.decorate('runtimeResources', {
+      define: (def: ResourceDef) => defineResource(def, { routes: false }),
+      remove: removeResource,
+      handlers: (type: string) => handlerMap.get(type),
+      refreshSearch: (def: ResourceDef) => refreshSearch(def),
+    } satisfies RuntimeResources);
+  }
+
   return {
-    registry, defineResource, labelsFor, mayAccess, visibilitySql,
+    registry, defineResource, labelsFor, mayAccess, mayLink, visibilitySql,
     /** Whether files on this type are evidence (ResourceDef.evidence, else EVIDENCE_TYPES). */
     evidenceFor: (def: ResourceDef) => def.evidence ?? EVIDENCE_TYPES.has(def.type),
     decorate, userNames, labelOf, pickFields, customOf, visibleRecord,

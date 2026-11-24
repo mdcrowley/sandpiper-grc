@@ -6,6 +6,7 @@
 // Pure: what to save, and how the Report tab shows it.
 import type { NewOutboxItem } from '../offline/outbox';
 import type { OutboxError, OutboxItem } from '../offline/types';
+import { localized } from '../i18n';
 
 export type ReportKind = 'problem' | 'hazard';
 
@@ -52,13 +53,13 @@ export interface ReportView {
 }
 
 /** Messages people see. */
-export const REPORT_TEXT = {
+export const REPORT_TEXT = localized('reports', {
   waiting: 'Saved on this phone. It is sent on its own when there is a connection.',
   sending: 'Sending…',
   sent: 'Arrived',
   attention: 'Needs attention',
   photos: (sent: number, all: number) => `${sent} of ${all} photo${all === 1 ? '' : 's'} sent`,
-};
+});
 
 /** The reports in the outbox, newest first. */
 export function reportViews(items: OutboxItem[]): ReportView[] {

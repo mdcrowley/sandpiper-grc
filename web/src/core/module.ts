@@ -30,6 +30,10 @@ export const MODULE_AREA: Record<string, string> = {
   tags: 'tags', mobile: 'mobile',
   // Wave 14: push notification credentials (Administration > Push notifications) belong to the mobile app.
   push: 'mobile',
+  // Wave 20: user access reviews (E41-02).
+  accessreviews: 'accessreviews',
+  // Wave 22: the records retention schedule and destruction log (E41-15).
+  recordsretention: 'recordsretention',
 };
 
 /** Whether a web module's area is on (always true for a module that is not part of an area). */
