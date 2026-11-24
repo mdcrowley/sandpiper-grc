@@ -351,12 +351,20 @@ function journey({ type, open, skip = [], known = {}, start, pick, comment }) {
         const file = join(dir, `e2e-${stamp}.txt`);
         writeFileSync(file, `Invented attachment for ${title}\n`);
         // The attachments panel sits on the Attachments tab, or on the record's own Files or Evidence tab.
-        const tab = await page.fn(() => {
-          const tabs = [...document.querySelectorAll('[role=tab]')].map((x) => x.innerText.replace(/\s*\d+$/, '').trim());
+        // Tabs that do not fit the width are in the strip's More menu (E18-63).
+        const findIn = (role) => page.fn((sel) => {
+          const tabs = [...document.querySelectorAll(sel)].map((x) => x.innerText.replace(/\s*\d+$/, '').trim());
           return ['Attachments', 'Evidence files', 'Files', 'Evidence', 'Documents'].find((name) => tabs.includes(name));
-        });
+        }, `[role=${role}]`);
+        let tab = await findIn('tab');
+        if (tab) await page.click({ text: tab, tag: '[role=tab]' });
+        else if (await page.fn(() => Boolean(document.querySelector('.ui-tabs-more')))) {
+          await page.click('.ui-tabs-more');
+          await page.waitFor('[role=menuitem]');
+          tab = await findIn('menuitem');
+          if (tab) await page.click({ text: tab, tag: '[role=menuitem]' });
+        }
         if (!tab) throw new Error('no Attachments, Evidence files, Files or Evidence tab');
-        await page.click({ text: tab, tag: '[role=tab]' });
         await page.waitFor('section[aria-label="Attach files"] input[type=file]');
         await page.upload('section[aria-label="Attach files"] input[type=file]', [file]);
         await page.waitFor(() => /e2e-.*\.txt/.test(document.querySelector('ul[aria-label="Attached files"]')?.innerText ?? ''), { timeout: 15000 });

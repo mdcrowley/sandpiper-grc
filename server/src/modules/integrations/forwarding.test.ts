@@ -144,7 +144,12 @@ describe('forwarders', () => {
     await event('test.one', { password: 'never-sent' });
     await event('test.two');
     const [a, b] = await Promise.all([fwd.runOne(syslogId), fwd.runOne(syslogId)]);
-    expect([a.status, b.status].sort()).toEqual(['sent', 'skipped']);
+    // One run sends; the other either finds it running ('skipped') or, when the first has already
+    // finished (as on a fast database server), finds nothing left ('idle'). Never two sends.
+    const statuses = [a.status, b.status].sort();
+    expect(statuses).toContain('sent');
+    expect(statuses.filter((s) => s === 'sent')).toHaveLength(1);
+    expect(statuses.every((s) => s === 'sent' || s === 'skipped' || s === 'idle')).toBe(true);
     await new Promise((r) => setTimeout(r, 100));
     const sent = tcp.received.flatMap(frames);
     const actions = sent.map((l) => l.split(' ')[5]);
