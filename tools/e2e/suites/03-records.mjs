@@ -356,13 +356,21 @@ function journey({ type, open, skip = [], known = {}, start, pick, comment }) {
           const tabs = [...document.querySelectorAll(sel)].map((x) => x.innerText.replace(/\s*\d+$/, '').trim());
           return ['Attachments', 'Evidence files', 'Files', 'Evidence', 'Documents'].find((name) => tabs.includes(name));
         }, `[role=${role}]`);
+        // The shared Attachments tab is preferred to a record's own Evidence or Documents tab, wherever it is.
         let tab = await findIn('tab');
-        if (tab) await page.click({ text: tab, tag: '[role=tab]' });
-        else if (await page.fn(() => Boolean(document.querySelector('.ui-tabs-more')))) {
+        if (tab !== 'Attachments' && await page.fn(() => Boolean(document.querySelector('.ui-tabs-more')))) {
           await page.click('.ui-tabs-more');
           await page.waitFor('[role=menuitem]');
-          tab = await findIn('menuitem');
-          if (tab) await page.click({ text: tab, tag: '[role=menuitem]' });
+          const inMenu = await findIn('menuitem');
+          if (inMenu && (inMenu === 'Attachments' || !tab)) {
+            tab = inMenu;
+            await page.click({ text: tab, tag: '[role=menuitem]' });
+          } else {
+            await page.key('Escape');
+          }
+        }
+        if (tab && await page.fn((name) => [...document.querySelectorAll('[role=tab]')].some((x) => x.innerText.replace(/\s*\d+$/, '').trim() === name && x.getAttribute('aria-selected') !== 'true'), tab)) {
+          await page.click({ text: tab, tag: '[role=tab]' });
         }
         if (!tab) throw new Error('no Attachments, Evidence files, Files or Evidence tab');
         await page.waitFor('section[aria-label="Attach files"] input[type=file]');

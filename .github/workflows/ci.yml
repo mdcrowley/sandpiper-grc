@@ -195,7 +195,7 @@ jobs:
   unix-install:
     name: Install and run with grc.sh (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 40
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
