@@ -774,7 +774,9 @@ separate, tamper-evident copy.
 - **Audit.** Sign-ins (naming the provider), failures with the reason, provider changes and
   tests, links, unlinks, link permissions, per-person limits and break-glass changes, each with
   time and source address. Failures count against the same per-address sign-in limit as
-  passwords.
+  passwords. Each attempt claims its slot before it is tried; a failure keeps that claim as its one
+  count, and any other outcome gives it back before the answer is sent, so the count is exact as
+  soon as the client has its answer.
 - **Unlinking** needs a recent confirmation (a password, or signing in at the provider again),
   ends the other sessions made through that provider, and never removes a person's last way in.
 - **The provider's own second factor** (E02-22, off by default per provider). When an

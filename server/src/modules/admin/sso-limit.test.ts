@@ -3,6 +3,8 @@ import { testApp } from '../../test/helpers.ts';
 
 // E22-43: the single sign-on routes claim the per-address sign-in slot before the attempt (take()),
 // as the local sign-in does, so attempts sent at the same moment cannot all slip under the limit.
+// The counts are checked as soon as the answers are in: on a database server with several
+// connections, a claim given back only after the answer was sent would still be counted here.
 
 let t: Awaited<ReturnType<typeof testApp>>;
 beforeAll(async () => { t = await testApp(); });
@@ -25,7 +27,8 @@ describe('single sign-on per-address limit (E22-43)', () => {
     const failed = (await failures()) - before;
     // (Claimed first and counted after, so a burst may even be refused whole: never more than the limit.)
     expect(failed).toBeLessThanOrEqual(20);
-    // The claims were given back: what remains is one row per recorded failure.
+    // A failure keeps its claim as its count and every other claim was given back before its answer
+    // was sent: what remains, once every answer is in, is one row per recorded failure.
     expect(await hits()).toBe(failed);
 
     // Over the limit: a further attempt is refused before it is tried (nothing more is audited).

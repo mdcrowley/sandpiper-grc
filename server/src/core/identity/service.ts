@@ -199,8 +199,32 @@ export function signinLimiter(db: Db) {
   return makeDbLimiter(db, 'signin', 20, 5 * 60_000); // the same bucket as password sign-in
 }
 
+/**
+ * E22-43: the per-address sign-in slot a request claimed before its attempt (sso.ts `limited`).
+ * The first failure the request records keeps the claimed row as its count (as the local sign-in
+ * does), instead of adding a second row and giving the claim back afterward; a request that records
+ * no failure gives the claim back before its answer is sent (`settleSigninClaim`), so the count is
+ * exact by the time the client sees the answer, even on a server with several connections.
+ */
+interface HeldClaim { release: () => Promise<void>; kept: boolean }
+const heldClaims = new WeakMap<FastifyRequest, HeldClaim>();
+
+export function holdSigninClaim(req: FastifyRequest, slot: { release: () => Promise<void> }): void {
+  heldClaims.set(req, { release: slot.release, kept: false });
+}
+
+/** Gives back the request's claim unless a failure kept it (idempotent; called before the answer goes out and again at the end). */
+export async function settleSigninClaim(req: FastifyRequest): Promise<void> {
+  const claim = heldClaims.get(req);
+  if (!claim) return;
+  heldClaims.delete(req);
+  if (!claim.kept) await claim.release();
+}
+
 export async function auditFailure(deps: IdentityDeps, req: FastifyRequest, provider: ProviderRecord | null, reason: string, userId?: string, what = 'Sign-in') {
-  await signinLimiter(deps.db).hit(clientIp(req));
+  const claim = heldClaims.get(req);
+  if (claim && !claim.kept) claim.kept = true; // the claimed row is this failure's count
+  else await signinLimiter(deps.db).hit(clientIp(req));
   await deps.audit(req, {
     action: what === 'Sign-in' ? 'signin.failure' : 'identity.failure', recordType: 'user', recordId: userId,
     summary: `${what} failed (${reason.slice(0, 160)}) via ${provider ? `${provider.name} (${provider.key})` : 'single sign-on'} from ${clientIp(req)}`,

@@ -75,12 +75,13 @@ describe('password confirmation asks for the second factor too (E01-29)', () => 
     expect((await audited('reauth.failure', p.id)).some((s) => /wrong authenticator or recovery code/.test(s))).toBe(true);
 
     await t.db.query('update users set totp_last_step = null where id = $1', [p.id]);
-    const ok = await call(p.cookie, 'POST', '/api/auth/confirm', { password: PASSWORD, code: totpCode(secret) });
+    const used = totpCode(secret);
+    const ok = await call(p.cookie, 'POST', '/api/auth/confirm', { password: PASSWORD, code: used });
     expect(ok.status).toBe(200);
     expect((await audited('reauth.success', p.id)).at(-1)).toMatch(/password and authenticator code/);
 
-    // The same code cannot be used twice; a recovery code works once.
-    expect((await call(p.cookie, 'POST', '/api/auth/confirm', { password: PASSWORD, code: totpCode(secret) })).status).toBe(400);
+    // The same code cannot be used twice (the one just used: a fresh step may have begun since); a recovery code works once.
+    expect((await call(p.cookie, 'POST', '/api/auth/confirm', { password: PASSWORD, code: used })).status).toBe(400);
     expect((await call(p.cookie, 'POST', '/api/auth/confirm', { password: PASSWORD, code: recoveryCodes[0] })).status).toBe(200);
     expect((await call(p.cookie, 'POST', '/api/auth/confirm', { password: PASSWORD, code: recoveryCodes[0] })).status).toBe(400);
     expect((await audited('mfa.recovery_code_used', p.id)).at(-1)).toMatch(/confirm the password; 9 left/);

@@ -614,7 +614,7 @@ The per-address bucket on single sign-on routes is checked before an attempt and
 
 **Acceptance criteria**
 
-- [x] Use `take()` like the local sign-in: every public single sign-on route (directory sign-in, passkey step, start, callback, SAML response, single logout, back-channel sign-out) claims the shared per-address slot before the attempt and gives it back when the attempt ends (a failure is recorded once); test `admin/sso-limit.test.ts` with 30 simultaneous attempts
+- [x] Use `take()` like the local sign-in: every public single sign-on route (directory sign-in, passkey step, start, callback, SAML response, single logout, back-channel sign-out) claims the shared per-address slot before the attempt and a failure keeps the claim as its one count, otherwise it is given back before the answer is sent (wave 23: it used to be given back after the answer, which a PostgreSQL server could show as an extra row); test `admin/sso-limit.test.ts` with 30 simultaneous attempts
 
 ### E22-44 Exports without secrets leave out token and session tables
 

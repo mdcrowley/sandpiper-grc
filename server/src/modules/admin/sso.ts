@@ -11,7 +11,7 @@ import { linkIdentity } from '../../core/identity/accounts.ts';
 import {
   acceptAssertionOnce, auditFailure, beginFlow, callbackPath, consumeFlow, DRIVERS, enabledProviders, finishSignIn, keepPostedResponse,
   LINK_COOKIE, localSignInOn, NO_APPLICATION_ADDRESS, providerById, providerByKey, publicBase, readSecret, registerSignInPolicy, safeReturn,
-  signinLimiter, SSO_ADDRESS_REQUIRED, type IdentityDeps,
+  holdSigninClaim, settleSigninClaim, signinLimiter, SSO_ADDRESS_REQUIRED, type IdentityDeps,
 } from '../../core/identity/service.ts';
 import { IdentityError, type ExternalIdentity, type ProviderRecord } from '../../core/identity/types.ts';
 import { verifyLogoutToken } from '../../core/identity/oidc.ts';
@@ -79,8 +79,10 @@ export function registerSso(ctx: ModuleContext) {
   /**
    * E22-43: the per-address sign-in bucket (shared with the local password sign-in) is claimed before
    * the attempt, like the local sign-in (wave 9, SA-3), so attempts sent at the same moment all count.
-   * The claim is given back when the attempt ends: a failure has by then been recorded on its own
-   * (auditFailure), so each failure counts once and a success counts nothing.
+   * The first failure the attempt records (auditFailure) keeps the claimed row as its count; otherwise
+   * the claim is given back before the answer is sent (the onSend hook below) or, failing that, when
+   * the handler ends. So each failure counts once, a success counts nothing, and the count is exact
+   * by the time the client has its answer.
    */
   function limited<T>(
     refuse: (req: FastifyRequest, reply: FastifyReply) => T | Promise<T>,
@@ -89,9 +91,12 @@ export function registerSso(ctx: ModuleContext) {
     return async (req: FastifyRequest, reply: FastifyReply): Promise<T> => {
       const slot = await signinLimiter(db).take(clientIp(req));
       if (!slot.ok) return refuse(req, reply);
-      try { return await handler(req, reply); } finally { await slot.release(); }
+      holdSigninClaim(req, slot);
+      try { return await handler(req, reply); } finally { await settleSigninClaim(req); }
     };
   }
+  // Settled before the answer leaves (a handler sends its redirect itself, before `finally` runs).
+  app.addHook('onSend', async (req) => { await settleSigninClaim(req); });
 
   /** Progressive lockout of a local account, as for a wrong local password (from the 5th failure, 1 minute doubling to 15). */
   async function countAccountFailure(req: FastifyRequest, userId: string) {
@@ -630,13 +635,15 @@ export function registerSso(ctx: ModuleContext) {
     // sends these to every application at once, so it is not counted as a failure).
     if (!p.enabled || p.config.idpLogout !== true) return go('/');
     const ip = clientIp(req);
-    // E22-43: claimed before the attempt, given back once it ends (a failure is recorded by auditFailure).
+    // E22-43: claimed before the attempt; a failure keeps it as its count (auditFailure), otherwise it
+    // is given back before the answer is sent (as in `limited`).
     const slot = await signinLimiter(db).take(ip);
     if (!slot.ok) return go('/');
+    holdSigninClaim(req, slot);
     try {
       return await idpLogoutChecked(req, reply, p, binding, rawQuery, form, go, ip);
     } finally {
-      await slot.release();
+      await settleSigninClaim(req);
     }
   }
 
