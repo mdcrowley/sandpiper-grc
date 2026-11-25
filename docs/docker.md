@@ -9,7 +9,7 @@ ghcr.io/mdcrowley/sandpiper-grc
 | Tag | What it is |
 |---|---|
 | `latest` | The newest release |
-| `0.2.0`, `0.2` | A release, or the newest patch of a minor version (pin one of these in production) |
+| `0.3.0`, `0.3` | A release, or the newest patch of a minor version (pin one of these in production) |
 | `edge` | The `main` branch, rebuilt on every change. For trying out what is coming, not for real data |
 
 The image runs as an unprivileged user (uid 1000), with a read-only root filesystem, no
@@ -94,7 +94,7 @@ Settings that steer Compose rather than the application:
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `GRC_IMAGE` | `ghcr.io/mdcrowley/sandpiper-grc:latest` | The image to run. Pin a version (`...:0.2.0`) in production |
+| `GRC_IMAGE` | `ghcr.io/mdcrowley/sandpiper-grc:latest` | The image to run. Pin a version (`...:0.3.0`) in production |
 | `GRC_BIND` | `127.0.0.1` | Host address the port is published on |
 | `GRC_PUBLISH_PORT` | `8080` | Host port |
 | `COMPOSE_FILE` | `compose.yaml` | `compose.yaml:compose.postgres.yaml` (with `;` on Windows) makes the PostgreSQL variant the default |

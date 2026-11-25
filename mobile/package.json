@@ -1,6 +1,6 @@
 {
   "name": "sandpiper-grc-mobile",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "private": true,
   "license": "MIT",
   "description": "Sandpiper GRC for iPhone and Android (Expo, React Native). Not part of the root npm install.",

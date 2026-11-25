@@ -4,7 +4,7 @@
   instance (built with build.ps1 -Instance), so it cannot touch a real installation.
 
     powershell -ExecutionPolicy Bypass -File tools\installer\test-install.ps1 `
-      -Installer   <out>\SandpiperGRC-test-Setup-0.2.0.exe `
+      -Installer   <out>\SandpiperGRC-test-Setup-0.3.0.exe `
       -Upgrade     <out>\SandpiperGRC-test-Setup-0.2.1.exe `
       -Broken      <out>\SandpiperGRC-test-Setup-0.2.2.exe   (built with -BrokenMigration) `
       -Instance test -Port 8206 -DataRoot C:\ProgramData\SandpiperGRC-test `

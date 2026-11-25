@@ -1529,7 +1529,7 @@ that it is waiting for a lock held by running work. Do not restart a server that
 ## Upgrading
 
 ```powershell
-.\grc.ps1 upgrade -From D:\downloads\sandpiper-grc-0.2.0.zip   # a release folder or .zip
+.\grc.ps1 upgrade -From D:\downloads\sandpiper-grc-0.3.0.zip   # a release folder or .zip
 .\grc.ps1 upgrade -Pull                                        # or: git pull --ff-only, done by upgrade
 .\grc.ps1 upgrade                                              # or: the new code is already in place
 ```
