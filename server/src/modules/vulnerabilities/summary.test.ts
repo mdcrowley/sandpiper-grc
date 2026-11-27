@@ -104,8 +104,9 @@ describe('sample data', () => {
     const weeks = await t.db.query('select distinct week_start from vulnerability_snapshots');
     expect(weeks.length).toBeGreaterThanOrEqual(6);
 
-    const second = await seedVulnerabilities(t.ctx, { profile: 'pilot', seedDir: '' });
+    const second = await seedVulnerabilities(t.ctx, { profile: 'dev', seedDir: '' });
     expect(second).toMatch(/\(0 new\)/);
+    expect(await seedVulnerabilities(t.ctx, { profile: 'pilot', seedDir: '' })).toMatch(/dev profile only/);
     expect(first).not.toMatch(/\(0 new\)/);
     expect((await t.api.get('/api/vulnerabilities')).body.total).toBe(before + sample.total);
     // Seeding is system work: its audit events have no person behind them.

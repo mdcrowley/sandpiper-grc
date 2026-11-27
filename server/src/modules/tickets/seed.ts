@@ -2,9 +2,9 @@ import type { ModuleContext, Row } from '../../core/module.ts';
 import { clock } from './clock.ts';
 
 /**
- * Invented sample data for demonstrations. There is no seed file for the service desk, so
- * both profiles get the same clearly labeled "[Sample]" records. Nothing here describes
- * a real person, device or event.
+ * Invented sample data for demonstrations, dev profile only (E18-69): clearly labeled "[Sample]"
+ * tickets, problems, knowledge articles and catalog items. Nothing here describes a real person,
+ * device or event.
  */
 
 const MIN = 60_000;

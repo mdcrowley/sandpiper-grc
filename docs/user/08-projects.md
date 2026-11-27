@@ -411,7 +411,7 @@ Other changes to a gate template apply to gates opened from then on. A gate alre
 
 ## Sample data
 
-Loading sample data adds seven invented projects whose names start with **[Sample]**, for example "[Sample] Real-time passenger information upgrade" and "[Sample] Depot network refresh", spread across every stage with gates, reports, milestones and register items; "[Sample] Real-time passenger information upgrade" also carries certifiable items with their requirements. Delete them when you no longer need them.
+The `dev` sample data (never the `pilot` profile a real installation uses) adds seven invented projects whose names start with **[Sample]**, for example "[Sample] Real-time passenger information upgrade" and "[Sample] Depot network refresh", spread across every stage with gates, reports, milestones and register items; "[Sample] Real-time passenger information upgrade" also carries certifiable items with their requirements. Delete them when you no longer need them.
 
 ## Not available yet
 

@@ -5,7 +5,7 @@ const HOUR = 3_600_000;
 
 /**
  * One clearly invented, already-declared incident so the workspace and the clocks have
- * something to show. Same in both profiles; nothing here comes from the seed folder.
+ * something to show. Dev profile only (E18-69); nothing here comes from the seed folder.
  */
 export async function seedSample(ctx: ModuleContext, svc: IncidentService): Promise<string> {
   const existing = await ctx.db.one(

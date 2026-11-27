@@ -1,6 +1,6 @@
 # E18 Quality and known defects
 
-**Status:** done (68 of 68 issues done)
+**Status:** done (69 of 69 issues done)
 
 ## Goal
 
@@ -89,6 +89,7 @@ has never been checked, so nobody relies on something untested.
 | E18-66 | Wave 19 security review: models and custom references | done | P1 |
 | E18-67 | Wave 19 security review: provisioning, sign-in address and CSV | done | P1 |
 | E18-68 | Wave 23 security review: access, platform, files and the Windows installer | done | P1 |
+| E18-69 | The pilot seed profile added invented sample records | done | P1 |
 
 ---
 
@@ -1443,3 +1444,18 @@ The wave 23 internal security review of waves 20 to 22 found issues in four grou
 **Implemented in:** `server/src/modules/attachments/text.ts`, `text-reader.mjs`, `deploy/windows/`, `server/src/modules/reports/figures.ts`, `server/src/modules/registers/admin.ts`, `server/src/modules/vendors/index.ts`, `server/src/modules/policies/translations.ts`, `server/src/core/scope.ts`, `core/reviewers.ts`, `core/resource.ts`, `server/src/modules/accessreviews/campaigns.ts`, `server/src/modules/safety/confidential.ts`.
 
 **GitHub browser run of waves 20 to 22:** the Projects menu entry for certification is now "Certifiable items", the same as its page title; text naming switched-off areas was removed from the assistant's `my_work` tool, the API help, the compliance calendar, About, the role "Which records" card, the starter vendor intake and the sample register; the custom fields of a switched-off record type or register are no longer listed under Administration > Custom fields. The new browser tests in suites 05, 13, 17, 24, 25 and 26 were corrected (waits for plain text name an element, Escape closes an open search list before its dialog, the switched-off register's expected 404 is allowed); no product change was needed for them.
+
+### E18-69 The pilot seed profile added invented sample records
+
+**Status:** done · **Priority:** P1 · **Type:** defect
+
+The `pilot` seed profile, the one a real installation uses, loaded the organization's own files and profile but also added invented "[Sample]" records in nine modules: change blackout periods, templates and changes; inventory assets; policies and exceptions; projects; risks; a security incident; service desk tickets, problems, knowledge articles and a catalog item; training courses, rules, records, exercises, findings and follow-up actions; and vulnerability findings with a back-filled weekly trend. That is pretend data in a real installation. Every invented record is now created only in the `dev` profile. The pilot loads what comes from the seed files and the organization profile (systems, sites, data categories, vendors and contracts, framework outcomes, information requests, obligations, notification rules, vehicles and services) and built-in reference content (lists, roles, framework functions and categories, the standard reports, dashboards, pack and tracked figures). A database seeded by an earlier version keeps the samples it has; the installation guide says how to find and delete them.
+
+**Acceptance criteria**
+
+- [x] The `pilot` profile creates no "[Sample]" or other invented record in any module; the `dev` profile loads the same samples as before
+- [x] What the pilot does load (seed files, organization profile, reference content) is unchanged
+- [x] A test runs every module's pilot seed on an empty seed folder with every optional area on, and fails on any "[Sample]" value in any text column, a filled sample table or a sample person
+- [x] The module seed tests expect no samples in the pilot; the installation guide, developer guide and user guide say what each profile loads
+
+**Implemented in:** `server/src/modules/changes/index.ts`, `inventory/seed.ts`, `policies/seed.ts`, `projects/index.ts`, `risks/seed.ts`, `secincidents/index.ts`, `tickets/index.ts`, `training/seed.ts`, `vulnerabilities/seed.ts`; the test `server/src/modules/inventory/seed-pilot-clean.test.ts`.

@@ -1026,7 +1026,8 @@ const mod: ModuleDef = {
     // The organization's own rules first, so that open incidents and the sample pick them up.
     const added = await loadOrganizationRules(ctx, opts?.organization?.notificationRules);
     if (added) await svc.resyncOpenIncidents(null);
-    const sample = await seedSample(ctx, svc);
+    // The invented sample incident is dev profile only (E18-69).
+    const sample = opts.profile === 'dev' ? await seedSample(ctx, svc) : 'no sample incident (dev profile only)';
     return `${added} notification rule${added === 1 ? '' : 's'} added from the organization profile; ${sample}`;
   },
 };

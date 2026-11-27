@@ -44,16 +44,20 @@ describe('sample data', () => {
     expect(expiring.map((e: any) => e.expired)).toEqual([true, false]);
   });
 
-  it('never invents acknowledgments for real people in the pilot profile', async () => {
+  it('loads no sample policies, exceptions or acknowledgments in the pilot profile (E18-69)', async () => {
     await t.db.query(`delete from policy_acknowledgements; delete from policy_versions;`).catch(async () => {
       await t.db.query('delete from policy_acknowledgements');
       await t.db.query('delete from policy_versions');
     });
     await t.db.query('delete from policy_exceptions');
     await t.db.query('delete from policies');
-    await mod.seed!(t.ctx, { profile: 'pilot', seedDir: 'none', organization: {} });
-    expect(await count('policies')).toBe(7);
+    expect(await mod.seed!(t.ctx, { profile: 'pilot', seedDir: 'none', organization: {} })).toMatch(/dev profile only/);
+    expect(await count('policies')).toBe(0);
+    expect(await count('policy_exceptions')).toBe(0);
     expect(await count('policy_acknowledgements where acknowledged_at is not null')).toBe(0);
+    // The tests below work on the samples again.
+    await mod.seed!(t.ctx, { profile: 'dev', seedDir: 'none', organization: {} });
+    expect(await count('policies')).toBe(7);
   });
 });
 

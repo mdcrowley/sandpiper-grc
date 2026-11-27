@@ -4,7 +4,8 @@ import { keysFor } from './rules.ts';
 import { takeSnapshot } from './summary.ts';
 
 /**
- * Invented sample findings, loaded in both profiles and marked "[Sample]" in their source.
+ * Invented sample findings and their back-filled weekly trend, dev profile only (E18-69), marked
+ * "[Sample]" in their source.
  * Idempotent: a finding is only added when no finding with the same host and identifier exists.
  */
 
@@ -53,15 +54,15 @@ const FINDINGS: [string, string, string, number, string, string, string, string]
 const AGES = [3, 8, 14, 21, 35, 50, 75, 120, 210];
 
 export async function seedVulnerabilities(ctx: ModuleContext, opts: SeedOptions): Promise<string> {
+  // Invented samples only: a pilot installation starts with no pretend findings or trend (E18-69).
+  if (opts.profile !== 'dev') return 'nothing to load (sample findings are dev profile only)';
   const now = today();
   const idByName = async (type: string, table: string, name: string | null): Promise<string | null> => {
     if (!name || !ctx.resources.get(type)) return null;
     return (await ctx.db.one<{ id: string }>(`select id from ${table} where lower(name) = lower($1) and deleted_at is null`, [name]))?.id ?? null;
   };
-  // In the dev profile some samples get an owner, so the "by owner" numbers have something to show.
-  const user = opts.profile === 'dev'
-    ? await ctx.db.one<{ id: string }>(`select id from users where status = 'active' and deleted_at is null order by created_at limit 1`).catch(() => undefined)
-    : undefined;
+  // Some samples get an owner, so the "by owner" numbers have something to show.
+  const user = await ctx.db.one<{ id: string }>(`select id from users where status = 'active' and deleted_at is null order by created_at limit 1`).catch(() => undefined);
 
   let created = 0;
   let total = 0;

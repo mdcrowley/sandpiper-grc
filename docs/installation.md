@@ -369,10 +369,20 @@ it, load the data and start it again.
 docker compose stop app && docker compose run --rm app grc seed --profile dev && docker compose start app   # Docker
 ```
 
-The `dev` profile loads invented sample data for a bus and light-rail operator in every
-module and needs no files. Sample records are labeled `[Sample]` where they could be
-mistaken for real ones. Complete the setup wizard first: some sample records are assigned
-to existing active users, and a seed run before any user exists leaves them unassigned.
+There are two profiles, and only one of them invents anything:
+
+- **`dev`** loads invented sample data for a bus and light-rail operator in every module and
+  needs no files. Sample records are labeled `[Sample]` where they could be mistaken for real
+  ones. Use it for trying the application, demonstrations and development, never for a real
+  installation. Complete the setup wizard first: some sample records are assigned to existing
+  active users, and a seed run before any user exists leaves them unassigned.
+- **`pilot`** (the default) loads **no invented records**. It loads only what comes from your
+  own seed files and [organization profile](#the-organization-profile), and the built-in
+  reference content every installation gets: configurable lists, roles, the cybersecurity
+  framework's functions and categories (and its outcomes and mappings when you supply the
+  file), and the standard reports, dashboards, report pack and tracked figures. Every other
+  register (tickets, changes, projects, risks, policies, training, vulnerabilities, assets,
+  security incidents and the rest) starts empty, for you to fill.
 
 ## The organization profile
 
@@ -391,10 +401,11 @@ cp examples/organization.example.json seed/organization.json
 
 Be aware of two things:
 
-- The pilot profile **also adds invented sample records** (service desk tickets, problems
-  and knowledge articles, projects, risks, assets and one security incident, all labeled
-  `[Sample]` or clearly invented), because those modules have no import file. Delete them
-  in the application when you no longer want them.
+- The pilot profile **adds no invented sample records**: a module with no import file
+  starts empty. Earlier versions did add `[Sample]` records in the pilot profile (tickets,
+  changes, projects, risks, policies, training, vulnerabilities, assets and one security
+  incident); a later seed neither adds more nor removes those. Delete them in the
+  application: search for `[Sample]` in each register.
 - Without `csf_subcategory_designations.csv` the framework is created with its functions
   and categories but **no outcomes**. Add outcomes on the framework page, supply the file,
   or use the `dev` profile.

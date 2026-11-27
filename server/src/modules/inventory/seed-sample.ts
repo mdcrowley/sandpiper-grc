@@ -2,7 +2,7 @@ import type { ModuleContext, Row } from '../../core/module.ts';
 import { dayInZone } from '../../core/timezone.ts';
 import { upsertByName } from './seed.ts';
 
-/** Invented data only: the `dev` estate and the "[Sample]" assets added in every profile. */
+/** Invented data only, for the `dev` profile: the estate and the "[Sample]" assets. */
 
 /** A date `days` from today, in the organization's time zone. */
 const dayOffset = (days: number): string => dayInZone(days);
@@ -147,7 +147,7 @@ export async function seedDevEstate(ctx: ModuleContext): Promise<string> {
   return `systems ${DEV_SYSTEMS.length}, sites ${DEV_SITES.length}, data categories ${DEV_CATEGORIES.length} (generated), integrations ${DEV_INTEGRATIONS.length}`;
 }
 
-/** About 15 invented assets. `link` ties them to the generated sites and systems (dev profile only). */
+/** About 23 invented assets (dev profile only). `link` ties them to the generated sites and systems. */
 export async function seedSampleAssets(ctx: ModuleContext, opts: { link: boolean }): Promise<string> {
   const approval = { disposal_approved_by: 'Sample Approver', disposal_approved_on: dayOffset(-40) };
   const samples: (Row & { site?: string; system?: string })[] = [

@@ -6,7 +6,8 @@ import { seedDevEstate, seedSampleAssets } from './seed-sample.ts';
 /**
  * `grc.ps1 seed`. Profile `pilot` loads the three inventory files from the seed folder
  * (each is optional: a file that is not there is skipped and named in the summary);
- * profile `dev` generates a small invented estate. Both add invented sample assets.
+ * profile `dev` generates a small invented estate and adds invented "[Sample]" assets (the pilot
+ * adds none: E18-69).
  * Everything is an upsert by name, so the command is safe to run again.
  */
 
@@ -172,8 +173,9 @@ export async function seedPilotEstate(ctx: ModuleContext, opts: SeedOptions): Pr
 }
 
 export async function seedInventory(ctx: ModuleContext, opts: SeedOptions): Promise<string> {
-  const estate = opts.profile === 'pilot' ? await seedPilotEstate(ctx, opts) : await seedDevEstate(ctx);
-  // Invented assets are tied to invented records only: in the pilot they stay unlinked.
-  const assets = await seedSampleAssets(ctx, { link: opts.profile === 'dev' });
+  // The pilot loads only the organization's own files: no invented assets (E18-69).
+  if (opts.profile === 'pilot') return seedPilotEstate(ctx, opts);
+  const estate = await seedDevEstate(ctx);
+  const assets = await seedSampleAssets(ctx, { link: true });
   return `${estate}; ${assets}`;
 }

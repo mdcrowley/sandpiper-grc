@@ -6,8 +6,9 @@ import { seedCaps } from './seed-caps.ts';
 import { seedCompliance } from './seed-compliance.ts';
 
 // Seed loader. Pilot: information requests from the seed folder, when the file is there (read
-// at run time, never copied into the repository). Dev: invented actions and example
-// obligations. Both: obligations from the organization profile and clearly invented sample risks.
+// at run time, never copied into the repository). Dev: invented actions, clearly invented sample
+// risks and example obligations (E18-69: none of these in the pilot). Both: obligations from the
+// organization profile.
 
 const day = (offset: number): string => dayInZone(offset);
 
@@ -300,8 +301,8 @@ export async function seedRisksModule(ctx: ModuleContext, opts: SeedOptions): Pr
     }
   } else {
     parts.push(`${await devActions(ctx)} invented actions added`);
+    parts.push(`${await sampleRisks(ctx)} sample risks added`);
   }
-  parts.push(`${await sampleRisks(ctx)} sample risks added`);
   let obligationsAdded = await loadObligations(ctx, opts.organization?.obligations);
   if (opts.profile === 'dev') obligationsAdded += await loadObligations(ctx, devObligations(), await firstUser(ctx));
   const obligations = (await ctx.db.one<{ c: number }>('select count(*)::int as c from obligations where deleted_at is null'))!.c;

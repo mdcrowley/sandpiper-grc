@@ -7,11 +7,13 @@ import { seedSampleQualifications } from './seed-qualifications.ts';
 import { syncTrainingAssignments } from './sync.ts';
 
 /**
- * Invented sample data, the same in both profiles and marked "[Sample]". Idempotent: the
+ * Invented sample data, dev profile only (E18-69) and marked "[Sample]". Idempotent: the
  * training set is added only while no sample course exists, the exercises only while no
  * sample exercise exists, so later edits and deletions are never undone.
  */
-export async function seedTraining(ctx: ModuleContext, _opts: SeedOptions, now: Date = new Date()): Promise<string> {
+export async function seedTraining(ctx: ModuleContext, opts: SeedOptions, now: Date = new Date()): Promise<string> {
+  // A pilot installation starts with no pretend courses, records or exercises.
+  if (opts.profile !== 'dev') return 'nothing to load (sample training data is dev profile only)';
   const today = localDate(now);
   const day = (offset: number) => addDays(today, offset);
   const notes: string[] = [];

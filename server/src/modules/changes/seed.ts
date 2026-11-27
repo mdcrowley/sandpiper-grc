@@ -1,7 +1,8 @@
 import type { ModuleContext, Row } from '../../core/module.ts';
 import type { ChangeService } from './service.ts';
 
-// Invented sample changes, the same in both seed profiles. Nothing here comes from the seed folder.
+// Invented sample changes, blackout periods and templates: dev profile only (E18-69). Nothing here
+// comes from the seed folder.
 
 /** A moment `offset` days from today at `hour` o'clock. */
 const at = (offset: number, hour: number): string => {

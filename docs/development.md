@@ -65,7 +65,12 @@ version for a first pull request.
   light-rail operator, with invented organization details: `DEV_ORGANIZATION` in
   `core/profile.ts`). Needs no files.
 - `pilot` (default): reads the private `seed/` folder. Every file is optional; a missing
-  file is skipped.
+  file is skipped. It **never creates invented records** (E18-69): only what comes from the
+  organization's files and profile, plus built-in reference content (lists, roles, framework
+  outcomes and mappings, the standard reports, dashboards, pack and tracked figures). Every
+  invented "[Sample]" record a module's `seed` adds belongs behind `opts.profile === 'dev'`;
+  `modules/inventory/seed-pilot-clean.test.ts` runs every module's pilot seed on an empty
+  folder and fails on any `[Sample]` value or a filled sample table.
   - `organization.json`: the organization profile (a file still named
     `organisation.json` is read too). Shape and an invented example are in
     `examples/organization.example.json` (type `OrganizationProfile` in `core/profile.ts`):

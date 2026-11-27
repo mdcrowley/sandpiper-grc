@@ -402,7 +402,8 @@ describe('sample data', () => {
     expect(item?.questions).toHaveLength(4);
     expect(item?.tasks).toHaveLength(3);
 
-    expect(String(await mod.seed!(t.ctx, { profile: 'pilot', seedDir: '' }))).toMatch(/skipped/);
+    expect(String(await mod.seed!(t.ctx, { profile: 'dev', seedDir: '' }))).toMatch(/skipped/);
+    expect(String(await mod.seed!(t.ctx, { profile: 'pilot', seedDir: '' }))).toMatch(/dev profile only/);
     expect(await count()).toBe(40);
   });
 });

@@ -343,4 +343,4 @@ If the deviation is on the risk register, edit **The exception** card and choose
 
 ## Sample data
 
-Policies and exceptions whose titles start with **[Sample]** are invented examples loaded with the sample data. Retire or delete them when you no longer need them.
+Policies and exceptions whose titles start with **[Sample]** are invented examples loaded with the `dev` sample data; the `pilot` profile a real installation uses loads none. Retire or delete them when you no longer need them.

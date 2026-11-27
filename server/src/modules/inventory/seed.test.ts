@@ -86,7 +86,7 @@ describe('seed', () => {
       const note = await inventory.seed!(app.ctx, { profile: 'pilot', seedDir: join(dir, 'does-not-exist') });
       expect(note).toContain('systems 0, sites 0, data categories 0');
       expect(note).toContain('not in the seed folder and skipped: sites.psv, data_categories.psv, systems.psv');
-      expect(note).toContain('sample assets 23 (23 new)');
+      expect(note).not.toContain('sample assets');
     } finally {
       await app.close();
     }
@@ -94,9 +94,9 @@ describe('seed', () => {
   it('loads the pilot files and is safe to run twice', async () => {
     const first = await inventory.seed!(t.ctx, { profile: 'pilot', seedDir: dir });
     expect(first).toContain('systems 4, sites 2, data categories 3');
-    expect(first).toContain('sample assets 23 (23 new)');
+    expect(first).not.toContain('sample assets');
     const after = await counts();
-    expect(after).toEqual({ systems: 4, sites: 2, categories: 3, assets: 23, dataLinks: 2, siteLinks: 1, integrations: 0 });
+    expect(after).toEqual({ systems: 4, sites: 2, categories: 3, assets: 0, dataLinks: 2, siteLinks: 1, integrations: 0 });
 
     const payroll = (await t.api.get('/api/systems?q=Pretend Payroll')).body.rows[0];
     expect(payroll).toMatchObject({
@@ -120,18 +120,9 @@ describe('seed', () => {
     const events = (await t.db.one<{ c: number }>('select count(*)::int c from audit_events'))!.c;
     const second = await inventory.seed!(t.ctx, { profile: 'pilot', seedDir: dir });
     expect(second).toContain('systems 4, sites 2, data categories 3');
-    expect(second).toContain('sample assets 23 (0 new)');
     expect(await counts()).toEqual(after);
     expect((await t.api.get(`/api/systems/${ledger.id}`)).body).toMatchObject({ hosting_type: 'hybrid', status: 'in_use' });
     expect((await t.db.one<{ c: number }>('select count(*)::int c from audit_events'))!.c).toBe(events);
-  });
-
-  it('creates sample assets with funder interest and past support, unlinked in the pilot', async () => {
-    const all = (await t.api.get('/api/assets?pageSize=100')).body.rows;
-    expect(all.every((a: any) => a.name.startsWith('[Sample]'))).toBe(true);
-    expect(all.filter((a: any) => a.funder_interest).length).toBeGreaterThanOrEqual(2);
-    expect((await t.api.get('/api/inventory/reports/assets-past-support')).body.total).toBeGreaterThanOrEqual(2);
-    expect(all.every((a: any) => a.system_id === null && a.site_id === null)).toBe(true);
   });
 
   it('generates an invented estate for the dev profile, idempotently', async () => {
@@ -143,7 +134,14 @@ describe('seed', () => {
     expect(after.sites - before.sites).toBe(6);
     expect(after.categories - before.categories).toBe(8);
     expect(after.assets).toBe(23);
+    expect(note).toContain('sample assets 23 (23 new)');
     expect(after.integrations).toBe(28);
+    // Sample assets with funder interest and past support, tied to the invented estate.
+    const all = (await t.api.get('/api/assets?pageSize=100')).body.rows;
+    expect(all.every((a: any) => a.name.startsWith('[Sample]'))).toBe(true);
+    expect(all.filter((a: any) => a.funder_interest).length).toBeGreaterThanOrEqual(2);
+    expect((await t.api.get('/api/inventory/reports/assets-past-support')).body.total).toBeGreaterThanOrEqual(2);
+    expect(all.some((a: any) => a.system_id !== null && a.site_id !== null)).toBe(true);
     await inventory.seed!(t.ctx, { profile: 'dev', seedDir: dir });
     expect(await counts()).toEqual(after);
     const graph = (await t.api.get('/api/systems/graph')).body;

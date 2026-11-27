@@ -21,7 +21,9 @@ const mod: ModuleDef = {
     defineChange(ctx, svc.base);
     await registerStartSweep(ctx);
   },
-  async seed(ctx) {
+  async seed(ctx, opts) {
+    // Invented samples only: a pilot installation starts with no pretend changes (E18-69).
+    if (opts.profile !== 'dev') return 'nothing to load (sample changes are dev profile only)';
     return seedSampleChanges(ctx, makeService(ctx));
   },
 };

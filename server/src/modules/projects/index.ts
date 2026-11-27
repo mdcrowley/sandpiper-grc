@@ -33,7 +33,9 @@ const mod: ModuleDef = {
     await scheduleWork(ctx, 'projects.reminders', () => svc.runReminders(), { every: 6 * 3_600_000, firstRunInMs: 90_000 });
     await scheduleWork(ctx, 'projects.overdue_reminders', () => runOverdueReminders(ctx), { every: 6 * 3_600_000, firstRunInMs: 100_000 });
   },
-  async seed(ctx) {
+  async seed(ctx, opts) {
+    // Invented samples only: a pilot installation starts with no pretend projects (E18-69).
+    if (opts.profile !== 'dev') return 'nothing to load (sample projects are dev profile only)';
     return seedSampleProjects(ctx, makeService(ctx));
   },
 };

@@ -450,7 +450,7 @@ describe('obligations', () => {
 });
 
 describe('seed', () => {
-  it('loads information requests from a pipe-delimited file, idempotently, with sample risks', async () => {
+  it('loads information requests from a pipe-delimited file, idempotently; sample risks only in the dev profile', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'grc-risks-seed-'));
     try {
       writeFileSync(join(dir, 'information_requests.psv'), [
@@ -463,11 +463,10 @@ describe('seed', () => {
 
       const first = await mod.seed!(t.ctx, { profile: 'pilot', seedDir: dir });
       expect(first).toMatch(/3 information-request actions added/);
-      expect(first).toMatch(/9 sample risks added/);
+      expect(first).not.toMatch(/sample risks/);
       expect(first).toMatch(/0 obligations added \(0 in the register\)/);
       const again = await mod.seed!(t.ctx, { profile: 'pilot', seedDir: dir });
       expect(again).toMatch(/0 information-request actions added, 0 updated, 3 unchanged \(3 in total\)/);
-      expect(again).toMatch(/0 sample risks added/);
 
       const loaded = await t.api.get('/api/actions?f.source=information_request&sort=external_ref');
       expect(loaded.body.total).toBe(3);
@@ -478,19 +477,25 @@ describe('seed', () => {
       expect(loaded.body.rows[0].notes).toBe('Feeds: Widget register\nForm: Spreadsheet\nIf none: Say so');
       expect(loaded.body.rows[2].priority).toBe('medium');
 
+      // The pilot adds no invented risks (E18-69): only the 3 information requests.
+      expect((await t.api.get('/api/risks?q=[Sample]')).body.total).toBe(0);
+      expect((await t.api.get('/api/actions')).body.total).toBe(before + 3);
+
+      const dev = await mod.seed!(t.ctx, { profile: 'dev', seedDir: dir });
+      expect(dev).toMatch(/12 invented actions added/);
+      expect(dev).toMatch(/9 sample risks added/);
+      // The nine sample risks and the two parent risks of the compliance samples (seed-compliance.ts).
       const samples = await t.api.get('/api/risks?q=[Sample]');
-      expect(samples.body.total).toBe(9);
+      expect(samples.body.total).toBe(11);
       expect(new Set(samples.body.rows.map((r: any) => r.scale_key))).toEqual(new Set(['cyber_5x5', 'hazard_4x5']));
       const accepted = samples.body.rows.filter((r: any) => r.status === 'accepted');
       expect(accepted.length).toBe(2);
       expect((await t.api.get(`/api/risks/${accepted[0].id}/acceptances`)).body.acceptances.length).toBe(1);
       const linked = await t.api.get('/api/actions?f.source_type=risk&f.source=risk');
       expect(new Set(linked.body.rows.map((r: any) => r.source_id)).size).toBe(2);
-      // 3 information requests + 3 actions linked to sample risks.
-      expect((await t.api.get('/api/actions')).body.total).toBe(before + 6);
-
-      const dev = await mod.seed!(t.ctx, { profile: 'dev', seedDir: dir });
-      expect(dev).toMatch(/12 invented actions added/);
+      // 3 information requests, then the dev samples: 12 invented actions, 3 actions on sample risks and
+      // the actions of the sample corrective action plans and compliance samples.
+      expect((await t.api.get('/api/actions')).body.total).toBe(before + 25);
       // The dev profile also adds invented example obligations, once.
       expect(dev).toMatch(/4 obligations added \(4 in the register\)/);
       const devAgain = await mod.seed!(t.ctx, { profile: 'dev', seedDir: dir });
@@ -537,7 +542,7 @@ describe('seed', () => {
       const before = (await t.api.get('/api/actions?f.source=information_request')).body.total;
       const note = await mod.seed!(t.ctx, { profile: 'pilot', seedDir: dir });
       expect(note).toMatch(/no information_requests\.psv in the seed folder/);
-      expect(note).toMatch(/0 sample risks added/);
+      expect(note).not.toMatch(/sample risks/);
       expect((await t.api.get('/api/actions?f.source=information_request')).body.total).toBe(before);
     } finally {
       rmSync(dir, { recursive: true, force: true });

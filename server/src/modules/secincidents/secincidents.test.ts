@@ -473,6 +473,11 @@ describe('restricted behavior', () => {
 });
 
 describe('seed', () => {
+  it('creates no sample incident in the pilot profile (E18-69)', async () => {
+    expect(await mod.seed!(t.ctx, { profile: 'pilot', seedDir: 'unused', organization: {} })).toMatch(/no sample incident/);
+    expect(await t.db.query(`select 1 from security_incidents where title like '[Sample]%'`)).toHaveLength(0);
+  });
+
   it('creates one declared sample incident with live clocks, and only once', async () => {
     const opts = { profile: 'dev' as const, seedDir: 'unused' };
     await mod.seed!(t.ctx, opts);

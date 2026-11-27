@@ -1,6 +1,6 @@
-// Seed loader. Both profiles get the same invented "[Sample]" policies and exceptions; the
-// dev profile also gets a few sample people so that acknowledgment tracking has something
-// to show. Idempotent: a sample whose title already exists is left alone.
+// Seed loader, dev profile only (E18-69): invented "[Sample]" policies and exceptions, and a few
+// sample people so that acknowledgment tracking has something to show. A pilot installation
+// starts with no pretend policies. Idempotent: a sample whose title already exists is left alone.
 import type { ModuleContext, Row, SeedOptions } from '../../core/module.ts';
 import { audienceUserIds, publishVersion, syncPolicyStatus } from './acknowledgments.ts';
 import { addDays, localDate } from './dates.ts';
@@ -126,12 +126,13 @@ async function seedRosterBulletins(ctx: ModuleContext, now: Date): Promise<strin
 }
 
 export async function seedPolicies(ctx: ModuleContext, opts: SeedOptions): Promise<string> {
+  if (opts.profile !== 'dev') return 'nothing to load (sample policies are dev profile only)';
   const now = new Date();
   const today = localDate(now);
   // Sample people are only added once a real account exists: the first-run setup wizard is
   // offered only while there are no users at all, so adding them earlier would lock everyone out.
   const anyone = await ctx.db.one('select 1 from users limit 1');
-  const people = opts.profile === 'dev' && anyone ? await samplePeople(ctx) : 0;
+  const people = anyone ? await samplePeople(ctx) : 0;
   const roleKeys = new Set((await ctx.db.query<{ key: string }>('select key from roles')).map((r) => r.key));
   const ids = new Map<string, string>();
   let policies = 0;
@@ -168,8 +169,8 @@ export async function seedPolicies(ctx: ModuleContext, opts: SeedOptions): Promi
     }
   }
 
-  const acknowledged = opts.profile === 'dev' ? await sampleAcknowledgments(ctx, people > 0) : 0;
-  const bulletins = opts.profile === 'dev' ? await seedRosterBulletins(ctx, now) : null;
+  const acknowledged = await sampleAcknowledgments(ctx, people > 0);
+  const bulletins = await seedRosterBulletins(ctx, now);
 
   // Map the first two policies to a few framework outcomes, when that module is loaded and has any.
   const outcomes = ctx.resources.get(OUTCOME_TYPE);
@@ -206,7 +207,7 @@ export async function seedPolicies(ctx: ModuleContext, opts: SeedOptions): Promi
     ...(people ? [`${people} sample people`] : []),
     ...(acknowledged ? [`${acknowledged} sample acknowledgments`] : []),
     ...(bulletins ? [bulletins] : []),
-    ...(opts.profile === 'dev' && !anyone ? ['sample people skipped until the first administrator exists (run the seed again after setup)'] : []),
+    ...(!anyone ? ['sample people skipped until the first administrator exists (run the seed again after setup)'] : []),
   ];
   return notes.join(', ');
 }

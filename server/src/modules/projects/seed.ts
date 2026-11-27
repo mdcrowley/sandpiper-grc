@@ -2,7 +2,7 @@ import type { ModuleContext, Row } from '../../core/module.ts';
 import { todayInZone } from '../../core/timezone.ts';
 import type { ProjectService } from './service.ts';
 
-// Invented sample projects, the same in both seed profiles. Nothing here comes from the seed folder.
+// Invented sample projects: dev profile only (E18-69). Nothing here comes from the seed folder.
 
 const day = (offset: number): string => {
   const d = new Date(Date.now() + offset * 86400000);

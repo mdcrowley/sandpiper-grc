@@ -15,7 +15,12 @@ const counts = async () => (await t.db.one<any>(
           (select count(*)::int from exercise_participants where deleted_at is null) as participants`))!;
 
 describe('sample data', () => {
-  it('adds invented, marked sample data in either profile and is idempotent', async () => {
+  it('adds nothing in the pilot profile (E18-69)', async () => {
+    expect(await seedTraining(t.ctx, { profile: 'pilot', seedDir: 'unused' })).toMatch(/dev profile only/);
+    expect(await counts()).toEqual({ courses: 0, rules: 0, records: 0, exercises: 0, findings: 0, participants: 0 });
+  });
+
+  it('adds invented, marked sample data in the dev profile and is idempotent', async () => {
     const opts = { profile: 'dev' as const, seedDir: 'unused' };
     const note = await seedTraining(t.ctx, opts);
     expect(note).toMatch(/6 sample courses, .* 40 records; 4 sample exercises, 7 findings/);
@@ -36,7 +41,7 @@ describe('sample data', () => {
     expect((await t.api.get('/api/training/mine')).body.rows.length).toBe(3);
     expect((await t.api.get('/api/exercises/calendar')).body.overdue.length).toBe(1);
 
-    expect(await seedTraining(t.ctx, { ...opts, profile: 'pilot' })).toMatch(/already present.*already present/);
+    expect(await seedTraining(t.ctx, opts)).toMatch(/already present.*already present/);
     expect(await counts()).toEqual(first);
   });
 });

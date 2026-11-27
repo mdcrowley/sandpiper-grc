@@ -255,7 +255,7 @@ The other findings are removed. Their comments, files, links, tags and watchers 
 
 ## Sample data
 
-Loading sample data adds about sixty invented findings on twelve invented hosts, with the source **[Sample] Monthly network scan**, and several weeks of history for the weekly chart. To remove them, filter the list by searching for the source, then delete the findings.
+The `dev` sample data (never the `pilot` profile a real installation uses) adds about sixty invented findings on twelve invented hosts, with the source **[Sample] Monthly network scan**, and several weeks of history for the weekly chart. To remove them, filter the list by searching for the source, then delete the findings.
 
 ## Not available yet
 

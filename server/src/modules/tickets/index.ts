@@ -765,10 +765,12 @@ const mod: ModuleDef = {
   },
 
   async seed(ctx, opts) {
+    // Invented samples only: a pilot installation starts with no pretend tickets (E18-69).
+    if (opts.profile !== 'dev') return 'nothing to load (sample tickets are dev profile only)';
     const sla = makeSla(ctx);
     const summary = await seedSamples(ctx, sla);
     // Generated sample data also shows escalation at work: one invented rule, added once.
-    if (opts.profile !== 'dev' || (await ctx.db.one('select 1 from escalation_rules limit 1'))) return summary;
+    if (await ctx.db.one('select 1 from escalation_rules limit 1')) return summary;
     await ctx.db.query(
       `insert into escalation_rules (name, condition, wait_minutes, to_group) values ('[Sample] Unassigned for four working hours', 'unassigned', 240, 'service_desk')`);
     await sla.sweep();
