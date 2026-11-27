@@ -4,7 +4,7 @@ Operational technology (OT) is the equipment and software that runs the service 
 
 The OT security pages let you mark which systems and assets are OT and record what matters for their security, group them into **security zones** joined by **conduits**, each with the security level it should reach and the level it has reached, and see at a glance where you fall short. Lists and record pages work as described in [Getting started](01-getting-started.md).
 
-Open the pages from the **Cybersecurity** group in the navigation: **OT security** (the overview) and **Security zones**. The pages share tabs along the top: **Overview**, **Security zones** and **Conduits**.
+Open the pages from **Security > OT security** in the navigation. The pages share tabs along the top: **Overview**, **Security zones** and **Conduits**.
 
 If your organization does not use them, an administrator can switch **OT and rail-systems security** off under **Administration > Features** (see [Administration](09-administration.md#features)). The pages, the zones and conduits, the OT fields on systems and assets, the OT mark and zones on the relationship map and the starter structure file then disappear everywhere. Nothing is deleted: everything returns as it was when the part is switched back on.
 
@@ -52,7 +52,7 @@ Each tile opens the records behind it. Below them:
 
 ## Security zones
 
-A zone groups OT systems and assets that share security needs, for example the train control servers, or everything in the maintenance shop. Open **Security zones**.
+A zone groups OT systems and assets that share security needs, for example the train control servers, or everything in the maintenance shop. Open **Security > OT security** and the **Security zones** tab.
 
 ### Add a zone
 
@@ -109,7 +109,7 @@ Many organizations follow a licensed standard for the security of their control 
 
 To use it:
 
-1. Open **Framework outcomes > More > Frameworks and structure**, select **Add framework from a file**, then **Download the OT starter structure**.
+1. Open **Security > Framework outcomes**, then **More > Frameworks and structure**, select **Add framework from a file**, then **Download the OT starter structure**.
 2. In the file, change the `key`, `name` and codes to match your licensed copy, replace each placeholder text with the requirement from that copy, and remove what you do not use. The format is described in [Cybersecurity frameworks](05-cybersecurity-frameworks.md#the-reference-file-format).
 3. Load the file with **Add framework from a file**. The `mappings` block is a guide only and is not loaded: record the links you keep as **Also satisfies** on each outcome.
 

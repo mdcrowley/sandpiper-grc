@@ -16,13 +16,13 @@ An administrator can switch training and exercises off under **Administration > 
 | `training.administer` | Change the reminder settings on the **Training overview** and the certification reminder days |
 | `exercises.view`, `exercises.create`, `exercises.edit`, `exercises.delete`, `exercises.export` | The same for exercises |
 
-Everyone who can sign in can open **My training**, which shows only their own records.
+Everyone who can sign in can open **My work > Training** (**My training**), which shows only their own records.
 
 **Qualifications**, the expiring certifications and a person's training on their roster page name people on the roster, so they also need `people.view`. The **Training coordinator** role holds both.
 
 ## Courses
 
-Open **Courses** in the **Cybersecurity** group.
+Open **People and training > Training overview** and the **Courses** tab.
 
 ### Add a course
 
@@ -118,7 +118,7 @@ Dates may be written as `YYYY-MM-DD` or month/day/year. A completion for a perso
 
 ## Training overview
 
-Open **Training overview** in the **Cybersecurity** group. Each person counts once for each active course they have been given, by their latest record: **Completed**, **To do** or **Overdue**. A record is overdue when its due date has passed and it has not been completed.
+Open **People and training > Training overview**. Each person counts once for each active course they have been given, by their latest record: **Completed**, **To do** or **Overdue**. A record is overdue when its due date has passed and it has not been completed.
 
 | Part | Shows |
 |---|---|
@@ -135,7 +135,7 @@ Select any tile, bar segment, point or number to open **Training records** filte
 
 Positions, the courses and certifications each one requires, and the roster itself are described in [People and qualifications](29-people-and-qualifications.md). In training:
 
-- **Certifications** (in the **Cybersecurity** group) lists every certification (`CRT-` numbers) with the person, type, number, issuing body, issue and expiry dates and status. Select **New certification**, or **Create** then **Certification**; when you give the **Issued on** date and leave **Expires on** empty, the expiry is worked out from the type's validity, and **Issued by** is filled from the type. Add the scanned certificate on the record's **Evidence files** tab.
+- **Certifications** (the **Certifications** tab of **People and training > Qualifications**) lists every certification (`CRT-` numbers) with the person, type, number, issuing body, issue and expiry dates and status. Select **New certification**, or **Create** then **Certification**; when you give the **Issued on** date and leave **Expires on** empty, the expiry is worked out from the type's validity, and **Issued by** is filled from the type. Add the scanned certificate on the record's **Evidence files** tab.
 - **Expiring** on the certifications list shows the certifications that have expired or expire within 30, 60, 90 or 180 days and have not been renewed by a later certification of the same type.
 - **Qualifications** shows the qualification matrix (see the guide page above).
 
@@ -145,7 +145,7 @@ Once a day the application looks for certifications that expire within 90, 60 an
 
 ## My training
 
-Open **My training** in the **Cybersecurity** group to see the courses you have been given, their due dates, and the ones you have completed. The tiles count what is **To do** (and how many are retakes), **Overdue** and **Completed**.
+Open **My work > Training** to see the courses you have been given, their due dates, and the ones you have completed. The tiles count what is **To do** (and how many are retakes), **Overdue** and **Completed**.
 
 When you finish a course, tell the course owner or your manager so that it can be recorded, unless the course lets you record it yourself:
 
@@ -167,7 +167,7 @@ Each notification opens **My training**. To change the 7 days, someone with **Ad
 
 ## Exercises
 
-Open **Exercises** in the **Cybersecurity** group.
+Open **Safety and emergency management > Exercises**.
 
 ### Plan an exercise
 
@@ -218,7 +218,7 @@ An exercise that tested a business continuity or emergency plan can be linked to
 
 ### Exercise calendar
 
-Open **Exercise calendar** in the **Cybersecurity** group.
+Open **Safety and emergency management > Exercises** and the **Calendar** tab.
 
 | Part | Shows |
 |---|---|

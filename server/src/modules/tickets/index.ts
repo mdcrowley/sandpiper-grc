@@ -4,6 +4,7 @@ import { isDataLoad } from '../../core/dataload.ts';
 import { setWorkingCalendarSource, toWorkingCalendar, WORKING_CALENDAR_KEY } from '../../core/working-days.ts';
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
 import { registerAssist } from './assist.ts';
+import { registerRequesters } from './requesters.ts';
 import { AGENT_AUDIENCE, audienceRule, makeAudience } from './audience.ts';
 import { makeAutomation, registerAutomation } from './automation.ts';
 import { makeCatalog } from './catalog.ts';
@@ -175,6 +176,47 @@ const mod: ModuleDef = {
       ctx.fail(400, 'validation', 'Check the highlighted fields.', { resolution_code: 'Choose a resolution code to close the ticket.' });
     };
 
+    /**
+     * E18-74: whether reaching this status answers the requester (meets the Respond target). Being
+     * logged, or assigned, is not an answer: the built-in "new" and "assigned" do not count; every other
+     * status does (in progress, waiting, resolved, closed). A status's meta.counts_as_response ("yes" or
+     * "no", or true or false; Administration > Lists) overrides this. A public comment by anyone but the
+     * requester also counts (below).
+     */
+    const NOT_A_RESPONSE = new Set(['new', 'assigned']);
+    async function countsAsResponse(status: unknown): Promise<boolean> {
+      const meta = (await ctx.lookups.values('ticket_status')).find((s) => s.value === status)?.meta;
+      const set = meta?.counts_as_response;
+      if (set === true || set === 'yes') return true;
+      if (set === false || set === 'no') return false;
+      return !NOT_A_RESPONSE.has(String(status ?? 'new'));
+    }
+
+    // A public comment by staff (anyone but the requester) is the first response when none is recorded yet.
+    app.addHook('onSend', async (req, reply, payload) => {
+      if (req.method !== 'POST' || reply.statusCode !== 201 || req.url.split('?')[0] !== '/api/comments' || !req.user) return payload;
+      const b = (req.body ?? {}) as Row;
+      if (b.record_type !== 'ticket' || b.internal !== false || isDataLoad(req)) return payload;
+      try {
+        const now = clock.now().toISOString();
+        const met = await db.one<Row>(
+          `update tickets set first_responded_at = $2::timestamptz,
+                  response_breached = response_breached or coalesce(response_due_at < $2::timestamptz, false)
+            where id::text = $1 and deleted_at is null and first_responded_at is null
+              and (requester_id is null or requester_id <> $3) returning id, ref, title`,
+          [String(b.record_id), now, req.user.id]);
+        if (met) {
+          await ctx.audit(req, {
+            action: 'ticket.first_response', recordType: 'ticket', recordId: met.id,
+            summary: `First response (public comment): ${met.ref} ${met.title}`, after: { first_responded_at: now },
+          });
+        }
+      } catch (err) {
+        console.error('[tickets] could not record the first response:', err);
+      }
+      return payload;
+    });
+
     async function beforeCreate(req: FastifyRequest | null, data: Row): Promise<Row> {
       checkCommon(data);
       await catalog.applyToNewTicket(req, data);
@@ -201,7 +243,7 @@ const mod: ModuleDef = {
       data.resolve_due_at = iso(resDue);
 
       // The system (seeding, automation) may supply its own time stamps; people never can.
-      if (!data.first_responded_at && (data.status !== 'new' || data.assignee_id)) data.first_responded_at = at;
+      if (!data.first_responded_at && await countsAsResponse(data.status)) data.first_responded_at = at;
       if (cat === 'paused') data.paused_at ??= at; else data.paused_at = null;
       if (cat === 'resolved' || cat === 'closed') data.resolved_at ??= at; else data.resolved_at = null;
       if (cat === 'closed') data.closed_at ??= iso(toDate(data.resolved_at)); else data.closed_at = null;
@@ -297,8 +339,9 @@ const mod: ModuleDef = {
       }
       if (!pausedAt && cat === 'paused') patch.paused_at = at;
 
-      // First response: the first assignment, or the first move out of "new".
-      if (!responded && (m.status !== 'new' || m.assignee_id)) {
+      // First response: the first move to a status that answers the requester (not "new" or
+      // "assigned"), or a public comment (the hook above); assigning alone is not a response (E18-74).
+      if (!responded && ((loading && patch.first_responded_at) || await countsAsResponse(m.status))) {
         patch.first_responded_at = (loading && patch.first_responded_at) || at;
         patch.response_breached = existing.response_breached || !!(respDue && now > respDue);
       }
@@ -528,6 +571,7 @@ const mod: ModuleDef = {
     catalog.register();
     registerAutomation(ctx, notify);
     registerAssist(ctx, audience.isAgent);
+    registerRequesters(ctx);
     registerSharedFiles(ctx, notify);
     await seedSharedQueues(ctx);
     const intake = makeEmailIntake(ctx, notify);

@@ -7,7 +7,7 @@ import { AdminReviewers } from './AdminReviewers';
 const mod: ModuleDef = {
   key: 'outsidereviews',
   nav: [
-    { group: 'Administration', label: 'Outside reviewers', path: '/admin/outside-reviewers', icon: 'users', permission: 'admin.administer', order: 27 },
+    { group: 'Administration', label: 'Outside reviewers', path: '/admin/outside-reviewers', icon: 'users', permission: 'admin.administer', order: 24, menu: false, hub: 'People and access', hint: 'Auditors and assessors from outside, with access that ends.' },
   ],
   routes: [
     { path: '/admin/outside-reviewers', element: <AdminReviewers />, permission: 'admin.administer' },

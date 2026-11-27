@@ -1,6 +1,6 @@
 # Legal holds
 
-A **legal hold** keeps records for a matter, such as a claim, a dispute or an investigation, for as long as counsel needs them. While a hold is active, nothing under it can be **deleted**, **removed for good**, **anonymized** or **lose its files**, whoever asks and whatever parts of the application are switched on or off. Open **Administration > Legal holds**. Lists and record pages work as described in [Getting started](01-getting-started.md).
+A **legal hold** keeps records for a matter, such as a claim, a dispute or an investigation, for as long as counsel needs them. While a hold is active, nothing under it can be **deleted**, **removed for good**, **anonymized** or **lose its files**, whoever asks and whatever parts of the application are switched on or off. Open **Governance and records > Legal holds**. Lists and record pages work as described in [Getting started](01-getting-started.md).
 
 Legal holds are always on: they are not one of the parts an administrator can switch off under **Administration > Features**, and a hold keeps working when the part a held record belongs to is switched off. The record then cannot be opened until its part is back on, and it still cannot be deleted, removed or anonymized.
 

@@ -315,7 +315,7 @@ const mod: ModuleDef = {
       const closed = q.include_closed === 'true' ? [] : await statusesWith('risk_status', 'closed');
       const allClosed = await statusesWith('risk_status', 'closed');
       const rows = await ctx.db.query<Row>(
-        `select r.id, r.ref, r.title, r.status, u.display_name as owner_name, r.${basis}_likelihood as l, r.${basis}_impact as i,
+        `select r.id, r.ref, r.title, r.status, r.category, u.display_name as owner_name, r.${basis}_likelihood as l, r.${basis}_impact as i,
                 r.inherent_likelihood as il, r.inherent_impact as ii, r.residual_likelihood as rl, r.residual_impact as ri,
                 r.inherent_rating, r.residual_rating, r.${basis}_score as score
          from risks r left join users u on u.id = r.owner_id
@@ -333,7 +333,9 @@ const mod: ModuleDef = {
         m.risk_ids.push(r.id);
         moves.set(key, m);
       }
-      // E30-06: the strictest appetite among the categories scored on this scale; cells above it are outlined.
+      // E30-06: the strictest appetite among the categories scored on this scale (named in the legend).
+      // E18-80: a cell is outlined only when a risk in it is above its own category's appetite, so the
+      // outline agrees with each risk's Appetite column whatever the other categories accept.
       const categoriesHere = (await ctx.lookups.values('risk_category')).filter((c) => (c.meta?.scale ?? DEFAULT_SCALE) === scale.key);
       const appetites = await enterprise.appetite();
       const limits = categoriesHere
@@ -342,10 +344,17 @@ const mod: ModuleDef = {
       const strictest = limits.reduce<Scale['ratings'][number] | null>((m, x) => (!m || x.rating.sort < m.sort ? x.rating : m), null);
       const cells = scale.likelihood_levels.flatMap((l) => scale.impact_levels.map((i) => {
         const rating = scale.ratings.find((r) => r.key === scale.matrix[String(l.value)]?.[String(i.value)]);
-        const ids = rows.filter((r) => r.l === l.value && r.i === i.value).map((r) => r.id as string);
+        const here = rows.filter((r) => r.l === l.value && r.i === i.value);
+        const ids = here.map((r) => r.id as string);
+        const above = here.filter((r) => {
+          const a = appetites.get(r.category);
+          if (!a || allClosed.includes(r.status)) return false;
+          const max = scale.ratings.find((x) => x.key === a.max_rating);
+          return (!!max && !!rating && rating.sort > max.sort) || (a.max_score !== null && r.score !== null && Number(r.score) > Number(a.max_score));
+        }).length;
         return {
           likelihood: l.value, impact: i.value, rating: rating?.key ?? null, color: rating?.color ?? 'gray', count: ids.length, risk_ids: ids,
-          above_appetite: !!strictest && !!rating && rating.sort > strictest.sort,
+          above_appetite: above > 0, above_count: above,
         };
       }));
       const scored = cells.reduce((n, c) => n + c.count, 0);

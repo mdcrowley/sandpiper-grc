@@ -2,6 +2,7 @@
 import type { FastifyRequest } from 'fastify';
 import { guardFormula } from '../../core/export/csv.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { readableSql, tablesFor, type AccessTables } from './access.ts';
 import { ackState, ackTracking } from './acknowledgments.ts';
 import { daysBetween, localDate } from './dates.ts';
 import { renderPolicyMarkdown } from './markdown.ts';
@@ -21,9 +22,12 @@ const STATE_LABEL: Record<string, string> = {
   acknowledged: 'Acknowledged', overdue: 'Overdue', outstanding: 'Outstanding', superseded: 'Closed',
 };
 
-export function registerAckRoutes(ctx: ModuleContext) {
+export function registerAckRoutes(ctx: ModuleContext, tables: AccessTables = tablesFor(ctx)) {
   const { db } = ctx;
 
+  // E43: only documents the person may read (requests go only to readers; narrowing who may read
+  // closes open ones, and an answered one is kept but no longer shown once the person cannot read it).
+  const mine = (req: FastifyRequest) => `${MINE} and ${readableSql(req.user, 'p', tables)}`;
   const MINE = `
     select a.id, a.policy_id, a.version_id, a.requested_at, a.due_on, a.acknowledged_at, a.superseded_at, a.language as acknowledged_language,
            p.ref as policy_ref, p.title as policy_title, p.summary as policy_summary, v.version, v.effective_on
@@ -47,7 +51,7 @@ export function registerAckRoutes(ctx: ModuleContext) {
   ctx.app.get('/api/policies/acknowledgments/mine', async (req) => {
     const today = localDate();
     const rows = await db.query<Row>(
-      `${MINE} and (a.acknowledged_at is not null or a.superseded_at is null)
+      `${mine(req)} and (a.acknowledged_at is not null or a.superseded_at is null)
        order by (a.acknowledged_at is not null), a.due_on, p.title`,
       [req.user!.id],
     );
@@ -61,7 +65,7 @@ export function registerAckRoutes(ctx: ModuleContext) {
 
   async function needOwn(req: FastifyRequest): Promise<Row> {
     const id = (req.params as Row).ackId;
-    const row = typeof id === 'string' && UUID.test(id) ? await db.one<Row>(`${MINE} and a.id = $2`, [req.user!.id, id]) : undefined;
+    const row = typeof id === 'string' && UUID.test(id) ? await db.one<Row>(`${mine(req)} and a.id = $2`, [req.user!.id, id]) : undefined;
     return row ?? ctx.fail(404, 'not_found', 'Acknowledgment request not found.');
   }
 
@@ -110,8 +114,8 @@ export function registerAckRoutes(ctx: ModuleContext) {
     // Default: the version readers see now (the last one published, even after the policy is retired).
     const version = await db.one<Row>(
       Number.isInteger(wanted) && wanted > 0
-        ? `select * from policy_versions where policy_id = $1 and version = $2 and status in ('published', 'superseded')`
-        : `select * from policy_versions where policy_id = $1 and status = 'published' and $2::int is null`,
+        ? `select * from policy_versions where policy_id = $1 and version = $2 and status in ('published', 'superseded', 'withdrawn')`
+        : `select * from policy_versions where policy_id = $1 and status in ('published', 'withdrawn') and $2::int is null order by version desc limit 1`,
       [policy.id, Number.isInteger(wanted) && wanted > 0 ? wanted : null],
     );
     const data = await ackTracking(ctx, policy, version);

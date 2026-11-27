@@ -141,8 +141,12 @@ export const LIST_LABELS: Record<string, string> = {
   person_status: 'Person status',
   personal_data_kind: 'Kind of personal data',
   plan_element: 'Plan element',
-  policy_category: 'Policy category',
-  policy_document_type: 'Policy document type',
+  policy_category: 'Document category',
+  policy_document_type: 'Document type',
+  document_access: 'Document access',
+  policy_version_status: 'Document version statuses',
+  document_review_result: 'Document review results',
+  document_link_relation: 'Document link relations',
   policy_status: 'Policy status',
   privacy_assessment_status: 'Privacy impact assessment status',
   privacy_question: 'Privacy impact assessment question',
@@ -282,6 +286,13 @@ export const LIST_SETTINGS: Record<string, ListSetting[]> = {
   ],
   funding_clause: [
     { key: 'description', label: 'What the clause requires', kind: 'text', column: false, hint: 'Shown beside the clause on a contract’s funder clause checklist.' },
+  ],
+  ticket_status: [
+    {
+      key: 'counts_as_response', label: 'Meets the Respond target', kind: 'choice', fallback: 'default',
+      options: [{ value: 'default', label: 'As built in' }, { value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' }],
+      hint: 'Whether moving a ticket to this status answers the requester. As built in, New and Assigned do not, and every other status does. A public comment always does.',
+    },
   ],
   contract_clause: [
     { key: 'description', label: 'What the term requires', kind: 'text', column: false, hint: 'Shown beside the term on a contract’s security terms checklist.' },

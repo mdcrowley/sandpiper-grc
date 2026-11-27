@@ -1,10 +1,12 @@
 # Calendar feeds, work trackers and evidence links
 
-The **compliance calendar** shows everything due across the application in one place. Three ways the application works with the tools around it: a **calendar feed** puts your own due dates, reviews, meetings and changes in your calendar program; the **work-tracker bridge** sends records to an outside work-tracking tool and brings their status back; and an **evidence link** points at a document kept in your document store instead of a copy. Each connection is off until an administrator switches it on. Lists and record pages work as described in [Getting started](01-getting-started.md).
+The **Calendar** shows everything due across the application in one place. Three ways the application works with the tools around it: a **calendar feed** puts your own due dates, reviews, meetings and changes in your calendar program; the **work-tracker bridge** sends records to an outside work-tracking tool and brings their status back; and an **evidence link** points at a document kept in your document store instead of a copy. Each connection is off until an administrator switches it on. Lists and record pages work as described in [Getting started](01-getting-started.md).
 
-## Compliance calendar
+<a id="compliance-calendar"></a>
 
-**Compliance calendar** (in the top group of the left navigation, address `/calendar`) shows everything with a date across every part of the application that is switched on: evidence requests, control tests, corrective actions to verify, inspections, obligations and obligation periods to attest, risk and policy reviews, vendor reassessments, certifications coming up for renewal, funding certifications to sign, exercises, changes, meetings and the rest. Everyone has it; each person sees only records they may see, and a part an administrator has switched off under **Administration > Features** is left out entirely.
+## Calendar
+
+**Calendar** (in the top group of the left navigation, address `/calendar`) shows everything with a date across every part of the application that is switched on: evidence requests, control tests, corrective actions to verify, inspections, obligations and obligation periods to attest, risk and policy reviews, vendor reassessments, certifications coming up for renewal, funding certifications to sign, exercises, changes, meetings and the rest. Everyone has it; each person sees only records they may see, and a part an administrator has switched off under **Administration > Features** is left out entirely.
 
 - **Month** shows a month grid. Each item is colored by its area (the key is under the grid); work past its date is marked overdue, and a date to know about rather than work to do (a meeting, a change window, an exercise) has a dashed edge. Select an item to open its record, or a day's number (or "*n* more") to see that day in the list.
 - **List** shows the month as a table: due date, item, kind, person and area.
@@ -81,7 +83,7 @@ Anyone who has the address sees what the feed shows, so keep it to yourself as y
 
 ### Switch calendar feeds on
 
-*Administrators.* Open **Calendar and work trackers** in the **Administration** group. Turn on **People may make calendar feeds**; you are asked to confirm your password. Switched off, every feed address answers "not found" until it is switched on again; the feeds themselves are kept.
+*Administrators.* Open **Administration > Calendar and work trackers**. Turn on **People may make calendar feeds**; you are asked to confirm your password. Switched off, every feed address answers "not found" until it is switched on again; the feeds themselves are kept.
 
 The **Calendar feeds** card lists everyone's feeds with the person, the feed's name, what it shows and when it was last read, and marks feeds of disabled accounts. **Revoke** stops anyone's feed at once. Making, changing, replacing and revoking feeds is kept in the audit log; the secret addresses never are, and the application keeps only a fingerprint of each.
 
@@ -111,7 +113,7 @@ When the item changes in the tool, the tool sends its status back. The status is
 
 ### Set up a connection
 
-*Administrators.* Open **Calendar and work trackers** in the **Administration** group. The **Work-tracker connections** card says whether outbound connections are on; nothing is sent while they are off. Switch them on, and add the tool's host to the allowed hosts, under **Administration > Settings** (see [Administration](09-administration.md)).
+*Administrators.* Open **Administration > Calendar and work trackers**. The **Work-tracker connections** card says whether outbound connections are on; nothing is sent while they are off. Switch them on, and add the tool's host to the allowed hosts, under **Administration > Settings** (see [Administration](09-administration.md)).
 
 1. Select **Add connection**.
 2. Enter a **Name** and the **Address** where the tool receives new items (`https://`).

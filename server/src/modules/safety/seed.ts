@@ -13,16 +13,16 @@ const SAMPLE_NOTE = 'Invented sample record.';
 
 const HAZARDS: Row[] = [
   { title: 'Pedestrians stepping out between parked buses at the interchange', source: 'staff_report', mode: 'bus', likelihood: 4, severity: 3, residual_likelihood: 3, residual_severity: 3, status: 'mitigating', consequence: 'Pedestrian struck by a moving bus.', existing_controls: 'Painted walkways, speed limit in the bus station.' },
-  { title: 'Right turns across cycle lanes on the radial routes', source: 'safety_event', mode: 'bus', likelihood: 3, severity: 3, status: 'identified', consequence: 'Collision with a cyclist.', existing_controls: 'Mirror checks in driver training.' },
+  { title: 'Right turns across bike lanes on the radial routes', source: 'safety_event', mode: 'bus', likelihood: 3, severity: 3, status: 'identified', consequence: 'Collision with a cyclist.', existing_controls: 'Mirror checks in driver training.' },
   { title: 'Passengers falling when the bus pulls away', source: 'safety_event', mode: 'bus', likelihood: 5, severity: 2, residual_likelihood: 4, residual_severity: 2, status: 'mitigating', consequence: 'Passenger injury on board.', existing_controls: 'Announcements; drivers wait for passengers to be seated where possible.' },
   { title: 'Verbal and physical abuse of operators on late-evening journeys', source: 'staff_report', mode: 'bus', likelihood: 4, severity: 3, residual_likelihood: 3, residual_severity: 3, status: 'mitigating', consequence: 'Injury and distress to the operator.', existing_controls: 'Assault screens on newer buses, cameras, radio alarm.' },
-  { title: 'Light-rail vehicles at road crossings with poor sight lines', source: 'inspection', mode: 'light_rail', likelihood: 2, severity: 4, residual_likelihood: 1, residual_severity: 4, status: 'controlled', consequence: 'Collision between a tram and a road vehicle.', existing_controls: 'Crossing signals, warning bells, reduced speed.' },
+  { title: 'Light-rail vehicles at road crossings with poor sight lines', source: 'inspection', mode: 'light_rail', likelihood: 2, severity: 4, residual_likelihood: 1, residual_severity: 4, status: 'controlled', consequence: 'Collision between a light-rail vehicle and a road vehicle.', existing_controls: 'Crossing signals, warning bells, reduced speed.' },
   { title: 'Track defects in the rail yard switches', source: 'inspection', mode: 'light_rail', likelihood: 2, severity: 3, status: 'identified', consequence: 'Low-speed derailment in the yard.', existing_controls: 'Weekly switch inspection.' },
   { title: 'Battery fire while charging electric buses overnight', source: 'risk_assessment', mode: 'bus', likelihood: 1, severity: 4, status: 'controlled', consequence: 'Fire spreading through the depot.', existing_controls: 'Thermal monitoring, spacing between chargers, fire plan.' },
-  { title: 'Wet floors at depot entrances in winter', source: 'audit', likelihood: 3, severity: 2, status: 'controlled', consequence: 'Staff slips and falls.', existing_controls: 'Matting, warning signs, gritting.' },
+  { title: 'Wet floors at depot entrances in winter', source: 'audit', likelihood: 3, severity: 2, status: 'controlled', consequence: 'Staff slips and falls.', existing_controls: 'Matting, warning signs, salting.' },
   { title: 'Wheelchair ramp failures on older buses', source: 'safety_event', mode: 'bus', likelihood: 3, severity: 2, status: 'identified', consequence: 'Passenger unable to board, or injured on a ramp.', existing_controls: 'Daily ramp check.' },
   { title: 'Doors closing on passengers at busy stops', source: 'safety_event', mode: 'light_rail', likelihood: 3, severity: 2, residual_likelihood: 2, residual_severity: 2, status: 'mitigating', consequence: 'Passenger trapped or dragged.', existing_controls: 'Door sensors, operator mirrors.' },
-  { title: 'Reversing in the depot yard without a banksman', source: 'audit', likelihood: 2, severity: 3, status: 'identified', consequence: 'Staff struck by a reversing bus.', existing_controls: 'Reversing alarms.' },
+  { title: 'Reversing in the depot yard without a spotter', source: 'audit', likelihood: 2, severity: 3, status: 'identified', consequence: 'Staff struck by a reversing bus.', existing_controls: 'Reversing alarms.' },
   { title: 'Fatigue on split duties', source: 'staff_report', likelihood: 3, severity: 3, status: 'identified', consequence: 'Slower reactions leading to a collision.', existing_controls: 'Rostering rules on rest time.' },
 ];
 
@@ -36,9 +36,9 @@ const MIX: [string, string, number][] = [
 const TITLES: Record<string, string[]> = {
   collision: ['Bus mirror struck by a passing van', 'Low-speed contact with a parked car', 'Rear-end collision at traffic lights', 'Contact with a cyclist at a junction'],
   passenger_injury: ['Passenger fell when the bus braked', 'Passenger hurt boarding', 'Passenger trapped by closing doors', 'Passenger fell on the stairs'],
-  near_miss: ['Pedestrian stepped out in front of the bus', 'Car ran a red light at a tram crossing', 'Cyclist undertook at a stop', 'Child ran onto the platform edge'],
+  near_miss: ['Pedestrian stepped out in front of the bus', 'Car ran a red light at a tram crossing', 'Cyclist passed on the curb side at a stop', 'Child ran onto the platform edge'],
   operator_assault: ['Operator threatened over a fare', 'Operator spat at', 'Operator pushed by a passenger'],
-  unsafe_condition: ['Loose handrail reported', 'Damaged kerb at a stop', 'Faulty interior light', 'Trip hazard in the depot yard'],
+  unsafe_condition: ['Loose handrail reported', 'Damaged curb at a stop', 'Faulty interior light', 'Trip hazard in the depot yard'],
   slip_trip_fall: ['Staff member slipped in the depot', 'Driver tripped leaving the cab'],
   fire: ['Smoke from an engine bay'],
   derailment: ['Wheel set left the rails at a yard switch'],

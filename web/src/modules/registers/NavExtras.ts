@@ -7,7 +7,7 @@ import { useEffect, useMemo } from 'react';
 import { useAuth } from '../../core/auth';
 import { useFetch } from '../../core/hooks';
 import type { IconName } from '../../core/Icon';
-import type { CreateItem, NavGroup, NavItem } from '../../core/module';
+import { navGroupOf, type CreateItem, type NavItem } from '../../core/module';
 
 export interface RegisterSummary {
   key: string;
@@ -44,7 +44,7 @@ export function useNavExtras(): { nav: NavItem[]; create: CreateItem[] } {
     const list = Array.isArray(data) ? data : [];
     return {
       nav: list.map((r, i): NavItem => ({
-        group: r.navGroup as NavGroup, label: r.plural, path: r.route, icon: r.icon as IconName, permission: `${r.key}.view`, order: 500 + i,
+        group: navGroupOf(r.navGroup), label: r.plural, path: r.route, icon: r.icon as IconName, permission: `${r.key}.view`, order: 500 + i,
       })),
       create: list.filter((r) => r.canCreate).map((r): CreateItem => ({
         label: r.label, path: `${r.route}?new=1`, permission: `${r.key}.create`, icon: r.icon as IconName,

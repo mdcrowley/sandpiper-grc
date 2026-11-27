@@ -4,7 +4,7 @@ Every organization keeps business records: maintenance work orders for each bus,
 
 This is about your organization's own records, on paper and in its systems. It is not the retention of this application's own data, which an administrator sets under **Administration > Retention** (see [Administration](09-administration.md)). Lists and record pages work as described in [Getting started](01-getting-started.md).
 
-Open the pages from the **Governance** group in the navigation: **Retention schedule** and **Destruction log**.
+Open the pages from **Governance and records > Retention schedule** in the navigation, with the tabs **Schedule** and **Destruction log**.
 
 If your organization does not use them, an administrator can switch **Records retention schedule** off under **Administration > Features** (see [Administration](09-administration.md#features)). The pages, the series and destructions, their calendar entries, My work items and search results then disappear everywhere. Nothing is deleted: everything returns when the part is switched back on. The schedule uses the records permissions, so switching **Records requests and privacy** off hides it too.
 
@@ -30,7 +30,7 @@ Select **Retention schedule**, then **New** (or **Create > Record series**). A s
 | **At the end** | **Destroy**, **Transfer to an archive**, or **Review, then decide** |
 | **Authority** | The law, rule or policy that sets the period, as your organization cites it. The application has no built-in periods: your organization enters its own |
 | **Vital record** and **Holds personal data** | Flags for records needed to keep running after a disaster, and for records about people |
-| **Next review** | When the entry should be looked at again. The records owner sees it in **My work** and the compliance calendar when it is due, and it stays there while overdue |
+| **Next review** | When the entry should be looked at again. The records owner sees it in **My work** and the **Calendar** when it is due, and it stays there while overdue |
 
 A series without a period is refused unless it is kept permanently. Set **Status** to **Retired** when a series is no longer used; a series with destructions in the log cannot be deleted, only retired.
 
@@ -52,7 +52,7 @@ When records of a series reach the end of their time, propose a destruction: fro
 On the destruction's page, the **Progress** card shows the period, the date the records may go, and where the approval stands.
 
 1. Select **Submit for approval**. The button is available only once the records are past their period and no legal hold applies.
-2. The **Records destruction** approval workflow asks its approvers. A new installation has one step: anyone who may approve records work (`records.approve`), other than the person who submitted it. An administrator can add steps (for example the records owner, or counsel) under **Administration > Workflows** (see [Approval workflows](22-approval-workflows.md)).
+2. The **Records destruction** approval workflow asks its approvers. A new installation has one step: anyone who may approve records work (`records.approve`), other than the person who submitted it. An administrator can add steps (for example the records owner, or counsel) under **Administration > Approval workflows** (see [Approval workflows](22-approval-workflows.md)).
 3. Approved: the status becomes **Approved**, with who approved it and when. Rejected: **Rejected**, with the approver's reason; change what is needed and submit again.
 
 When no Records destruction workflow is active, someone who may approve records work approves it at once by submitting it; anyone else is told that no workflow applies.

@@ -59,7 +59,7 @@ function TicketDetail() {
 
 const mod: ModuleDef = {
   key: 'tickets',
-  nav: [{ group: 'Service desk', label: 'Tickets', path: '/tickets', icon: 'ticket', permission: 'tickets.view', order: 10 }],
+  nav: [{ group: 'IT services', label: 'Tickets', path: '/tickets', icon: 'ticket', permission: 'tickets.view', order: 10 }],
   routes: [
     { path: '/tickets', element: <TicketList />, permission: 'tickets.view' },
     { path: '/tickets/:id', element: <TicketDetail />, permission: 'tickets.view' },
@@ -74,7 +74,7 @@ export default mod;
 | Key | Shape | Notes |
 |---|---|---|
 | `key` | `string` | Module folder name |
-| `nav` | `{ group, label, path, icon, permission?, order? }[]` | `group` is one of `Home`, `Service desk`, `Inventory`, `Change`, `Vendors`, `Cybersecurity`, `Projects`, `Reports`, `Administration`, `Help`. `icon` is an icon name (section 11). Items are sorted by `order` (default 100) and hidden without `permission`; empty groups are hidden |
+| `nav` | `{ group, label, path, icon, permission?, permissions?, order?, menu?, parent?, tab?, tabs?, hub?, hint?, hubHome? }[]` | `group` is one of `NAV_GROUPS` (`navGroups.ts`): `Home`, `IT services`, `Assets`, `Vendors`, `Projects and funding`, `Security`, `Risk and compliance`, `Safety and emergency management`, `Governance and records`, `Documents`, `People and training`, `Reports`, `Administration` (old names map through `navGroupOf`). `icon` is an icon name (section 11). Items are sorted by `order` (default 100, unique in a group) and hidden without `permission`; empty groups are hidden. One menu entry per thing people work on (E44-01): every other page is `menu: false` (still in the palette, the Create menu grouping and the role checks), with `parent` (the entry highlighted while it is open) and, to be a tab, `tab` (its label; "Settings" goes last). An entry with `tabs: '<its own tab label>'` gets the shell's tab strip under its pages' `PageHeader`. `hub: '<section>'` and `hint` make the page a card on the Administration page (`/admin`); `hubHome` is that page's own entry, shown when at least one card is |
 | `routes` | `{ path, element, permission? }[]` | React Router paths rendered inside the shell. With `permission`, users without it see a "no access" page |
 | `create` | `{ label, path, permission?, icon? }[]` | Entries in the global Create menu. Use `path: '/things?new=1'`: a `ResourceList` with `createFields` opens its New dialog when it sees `?new=1` |
 | `publicRoutes` | `{ path, element }[]` | Rendered **without** the shell and **without** sign-in (e.g. `/redeem` for a one-time link). They work with or without a session and win over the sign-in screen. Inside them `useAuth()` and `useToast()` work; `useResource`, `useLookup`, `ResourceList` and other metadata-driven pieces do not (metadata loads only after sign-in). Wrap the page in `<div className="auth-page"><div className="auth-card">...</div></div>` to match the sign-in screen |
@@ -137,15 +137,24 @@ over 500 kB.
 `Shell.tsx` is a Mantine `AppShell`. Nothing in a module needs to know about it, but it helps
 to know what happens to `nav` and `create`:
 
-- **Sidebar.** `nav` entries appear under their group heading. Headings fold and unfold (the
-  choice is kept per user in `localStorage`); the entry whose `path` is the longest prefix of
-  the address is the current one, and its group opens by itself. From 1200px wide the sidebar is
+- **Sidebar.** `nav` entries without `menu: false` appear under their group heading (`navModel.ts`).
+  Groups start closed except Home and the current page's group, which opens by itself; a group the
+  person opens or closes stays so (per user in `localStorage`, `grc.nav.open.<user>`). The current
+  entry is the one whose `path` is the longest prefix of the address, or the `parent` of the page that
+  is. Pinned pages (the star in a `PageHeader`; server preference `nav.pinned`, at most ten,
+  `navMemory.ts`) come first under "Pinned", left out while their route is switched off or not allowed.
+  A group whose single entry has the group's name (Administration) is drawn without a heading. From 1200px wide the sidebar is
   full width (the user can fold it to a rail); from 768px to 1199px it is a rail of one icon per
   group with a fly-out menu of that group's pages; below 768px it is a drawer opened from the
   top bar. Up/Down move between entries, Left/Right fold and open a group.
 - **Search.** `/` or Ctrl+K opens the command palette (`CommandPalette.tsx`): every `nav`
-  entry is offered under "Go to", every `create` entry under "Create" (as "New <label>"), and
-  `/api/search` results are grouped by record type. Recent searches are kept per user.
+  entry the person may open, in the menu or not, is offered under "Go to", every `create` entry under "Create" (as "New <label>"), and
+  `/api/search` results are grouped by record type. Before anything is typed it lists the pinned pages,
+  the last eight records opened (a `PageHeader` with a `reference` records itself, per user in this
+  browser) and the recent searches.
+- **Page headers.** The main `PageHeader` of a page (not one in a dialog) also draws the star that pins
+  the page, the shell's tab strip (`PageTabs`) for an entry with `tabs` and its pages, and on an
+  Administration card's page an "Administration ›" breadcrumb when the page gives none.
 - **Top bar.** Search, a "Pilot" label with a popover while `pilot` is on, the Create menu
   (`create` entries, alphabetical), the notification bell, Help (`/help`), the theme toggle and the user menu (Notifications, Account
   security, Change password, Help, Keyboard shortcuts, Sign out). The Help button opens **Help for this page**: it
@@ -613,6 +622,7 @@ is needed around it).
 | `TableWrap` | `label` (required: the region name, usually the caption), `fit?`, `className?`, `ref?`, plus `<div>` attributes | The bordered scroll box around a data table (`.table-wrap`). While the table is wider or taller than the box, the box is a named region in the tab order so the keyboard can scroll it (WCAG 2.1.1). Every `<table>` goes in one; `tableWrap.test.ts` fails on a hand-written `table-wrap` box or Mantine `Table.ScrollContainer`. With `fit`, a hand-written table leaves out lower-priority columns while it is too wide, like the shared lists (E18-65): give a heading `data-priority={1 | 2 | 3}` (default 1 for the first column, 2 for the rest; 3 gives way first, then 2, rightmost first; 1 always shows). For one heading row without spanning headings; let long cells wrap within a set width so the measured widths are fair |
 | `Stat` | `label`, `value`, `trend?: { direction: 'up' \| 'down' \| 'flat', label, tone?: 'good' \| 'bad' \| 'neutral' }`, `color?`, `to?`, `icon?`, `hint?` | Number tile; `to` makes it a drill-down link, `icon` sits beside the label, `hint` is a short line under the value. Lay several out with `<div className="grid-stats">` |
 | `Tabs` | `tabs: { key, label, count?, content? }[]`, `active?`, `onChange?`, `label?` | Mantine `Tabs`: arrow keys, Home and End move between tabs. Uncontrolled unless `active` is passed; only the active panel is mounted. Tabs that do not fit the width go into a **More** menu after the tab list (outside the `tablist`); the active tab always stays in the strip, and a tab chosen from More gets the focus. The strip never scrolls sideways |
+| `PageTabs` | `tabs: { key, label, path }[]`, `active`, `label` | A `Tabs` strip whose tabs are pages: choosing one opens its address. The shell draws one under the heading of every page of a menu entry with `tabs` (see `nav`); a module rarely needs it directly |
 | `Modal` (alias `Dialog`) | `open`, `title`, `onClose`, `footer?`, `size?: 'sm' \| 'md' \| 'lg'`, `dirty?`, `discardPrompt?`, `children` | Mantine `Modal`: focus trap, Esc and backdrop close, focus returns to the opener. With `dirty` (or a `ResourceForm` inside that has changes) closing asks "Discard this draft?" first. Focus starts in the first form control. With several open, Esc closes only the top one, and never while a dropdown inside it is open. `footer` stays visible while the body scrolls |
 | `Drawer` | as `Modal`, plus `side?: 'left' \| 'right'` | Side panel (Mantine `Drawer`), same behavior |
 | `ConfirmDialog` | `open`, `title`, `message`, `confirmLabel?`, `danger?`, `busy?`, `onConfirm`, `onCancel` | Focus starts on Cancel when `danger`, otherwise on the confirm button |

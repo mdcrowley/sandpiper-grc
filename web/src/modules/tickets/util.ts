@@ -172,8 +172,9 @@ export function nextStep(row: Row, cat: StatusCategory): string {
   if (cat === 'closed') return row.status === 'cancelled' ? 'Canceled. Nothing more to do.' : row.satisfaction_score ? 'Finished.' : 'Finished. Record the requester\u2019s satisfaction if you have it.';
   if (cat === 'resolved') return 'Close it once the requester confirms.';
   if (cat === 'paused') return 'Clock paused. Resume when you have what you need.';
-  if (!row.assignee_id) return 'Nobody has it yet. Assign it to meet the response target.';
-  if (row.status === 'new' || row.status === 'assigned') return 'Start work when you pick it up.';
+  // E18-74: the Respond target is met by starting work or by a public comment, not by assigning.
+  if (!row.assignee_id) return row.first_responded_at ? 'Nobody has it yet. Assign it.' : 'Nobody has it yet. Assign it, then start work or answer the requester to meet the response target.';
+  if (row.status === 'new' || row.status === 'assigned') return row.first_responded_at ? 'Start work when you pick it up.' : 'Start work, or answer the requester in a public comment, to meet the response target.';
   return 'Resolve it when fixed, or pause the clock while you wait on someone.';
 }
 

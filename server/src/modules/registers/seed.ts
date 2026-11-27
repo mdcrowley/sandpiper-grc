@@ -26,7 +26,7 @@ export async function seedRegisters(ctx: ModuleContext, regs: Registers, opts: S
   const type = typeOf(KEY);
   if (!regs.rows.has(KEY)) {
     const values = await checkRegister(ctx, regs, {
-      key: KEY, label: 'Lost property item', plural: 'Lost property', prefix: 'LP', nav_group: 'Service desk', icon: 'box', title_label: 'Item',
+      key: KEY, label: 'Lost property item', plural: 'Lost property', prefix: 'LP', nav_group: 'IT services', icon: 'box', title_label: 'Item',
       description: 'Items found and handed in, kept until the owner collects them or they are disposed of.',
     }, null);
     await createRegister(ctx, regs, values, null);

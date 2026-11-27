@@ -7,7 +7,7 @@ import { PushAdminPage } from './PushAdmin';
 const mod: ModuleDef = {
   key: 'push',
   nav: [
-    { group: 'Administration', label: 'Push notifications', path: '/admin/push', icon: 'bell', permission: 'admin.administer', order: 48 },
+    { group: 'Administration', label: 'Push notifications', path: '/admin/push', icon: 'bell', permission: 'admin.administer', order: 57, menu: false, hub: 'Connections', hint: 'The credentials that send notifications to phones.' },
   ],
   routes: [
     { path: '/admin/push', element: <PushAdminPage />, permission: 'admin.administer' },

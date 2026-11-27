@@ -40,7 +40,9 @@ describe('defining a register', () => {
 
     const features = (await t.api.get('/api/admin/features')).body.areas;
     expect(features.find((a: any) => a.key === 'reg_key_log')).toMatchObject({ label: 'Key log', on: true });
-    expect((await t.api.get('/api/registers')).body).toEqual([expect.objectContaining({ key: 'key_log', navGroup: 'Inventory', icon: 'key', canCreate: true })]);
+    // "Inventory" is a menu group from before wave 24 (E44-01): it is accepted and kept as "Assets".
+    expect((await t.api.get('/api/registers')).body).toEqual([expect.objectContaining({ key: 'key_log', navGroup: 'Assets', icon: 'key', canCreate: true })]);
+    expect((await t.db.one<{ g: string }>(`select nav_group as g from register_definitions where key = 'key_log'`))?.g).toBe('Assets');
     // The role editor offers its permission module.
     expect((await t.api.get('/api/admin/roles')).body.modules).toContain('key_log');
     expect((await define({ label: 'Again', plural: 'Again', key: 'key_log', prefix: 'AG' })).body.error.fields.key).toMatch(/already/);
@@ -255,3 +257,20 @@ async function cookie(): Promise<string> {
   const admin = (await t.db.one<{ id: string }>("select id from users where username = 'admin'"))!;
   return `${SESSION_COOKIE}=${await createSession(t.db, admin.id)}`;
 }
+
+describe('menu groups from before wave 24 (E44-01)', () => {
+  it('offers the new groups and reads an old stored name as the group that took its place', async () => {
+    const lists = (await t.api.get('/api/admin/registers')).body;
+    expect(lists.navGroups).toContain('Governance and records');
+    expect(lists.navGroups).not.toContain('Cybersecurity');
+    const made = await define({ label: 'Badge issued', plural: 'Badges', key: 'badge_log', prefix: 'BDGX', nav_group: 'Cybersecurity' });
+    expect(made.status, JSON.stringify(made.body)).toBe(201);
+    expect(made.body.nav_group).toBe('Security');
+    expect((await define({ label: 'Odd', plural: 'Odds', key: 'odd_log', prefix: 'ODDX', nav_group: 'Nowhere' })).body.error.fields.nav_group).toMatch(/Choose one of/);
+    // A value stored before the rename (an installation upgraded with registers in place) reads as the new name.
+    const { currentNavGroup } = await import('./definitions.ts');
+    expect(['Service desk', 'Change', 'Inventory', 'Governance', 'People', 'Projects', 'Safety', 'Help', 'Reports'].map(currentNavGroup))
+      .toEqual(['IT services', 'IT services', 'Assets', 'Governance and records', 'People and training', 'Projects and funding', 'Safety and emergency management', 'Governance and records', 'Reports']);
+    await t.api.del('/api/admin/registers/badge_log');
+  });
+});

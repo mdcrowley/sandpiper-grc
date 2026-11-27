@@ -45,31 +45,32 @@ const dialogGuardTest = (theme, width) => ({
   async run(t) {
     const { page } = t;
     const question = () => [...document.querySelectorAll('[role=dialog]')].some((d) => /Discard this draft\?/.test(d.innerText));
-    await t.step('open the acknowledgment reminder settings and change the interval', async () => {
-      await page.goto('/policies');
-      await page.click({ text: 'Reminder settings' });
-      await page.waitFor({ label: 'Days between reminders' });
-      await page.fill({ label: 'Days between reminders' }, '17');
+    // A new distribution group (Documents > Groups, E43-03) is a dialog with a draft.
+    await t.step('open a new distribution group and type a name', async () => {
+      await page.goto('/documents/groups');
+      await page.click({ text: 'New group' });
+      await page.waitFor({ label: 'Name' });
+      await page.fill({ label: 'Name' }, 'Invented depot supervisors');
     });
     await t.step('Escape asks first; Keep editing keeps the draft', async () => {
       await page.key('Escape');
       await page.waitFor(question, { timeout: 4000 });
       await page.click({ text: 'Keep editing' });
       await page.waitFor(question, { gone: true, timeout: 4000 });
-      const value = await page.eval(`(() => { const l = [...document.querySelectorAll('[role=dialog] label')].find((x) => /Days between reminders/.test(x.innerText)); return l?.control?.value ?? ''; })()`);
-      t.soft(value === '17', `the draft was not kept (it reads "${value}")`);
+      const value = await page.eval(`(() => { const l = [...document.querySelectorAll('[role=dialog] label')].find((x) => /^Name/.test(x.innerText)); return l?.control?.value ?? ''; })()`);
+      t.soft(value === 'Invented depot supervisors', `the draft was not kept (it reads "${value}")`);
     });
     await t.step('Escape again, then Discard closes the dialog', async () => {
       await page.key('Escape');
       await page.waitFor(question, { timeout: 4000 });
       await page.click({ text: 'Discard' });
-      await page.waitFor({ label: 'Days between reminders' }, { gone: true, timeout: 4000 });
+      await page.waitFor({ label: 'Name' }, { gone: true, timeout: 4000 });
     });
     await t.step('an untouched dialog closes on Escape without asking', async () => {
-      await page.click({ text: 'Reminder settings' });
-      await page.waitFor({ label: 'Days between reminders' });
+      await page.click({ text: 'New group' });
+      await page.waitFor({ label: 'Name' });
       await page.key('Escape');
-      await page.waitFor({ label: 'Days between reminders' }, { gone: true, timeout: 4000 });
+      await page.waitFor({ label: 'Name' }, { gone: true, timeout: 4000 });
       t.soft(!(await page.fn(question).catch(() => false)), 'it asked although nothing was changed');
     });
   },

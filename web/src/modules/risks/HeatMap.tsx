@@ -8,8 +8,9 @@ export interface HeatCell {
   color: string;
   count: number;
   risk_ids: string[];
-  /** E30-06: the cell's rating is above the strictest risk appetite of the categories on this scale. */
+  /** E18-80: the cell holds a risk above its own category's appetite (above_count of them). */
   above_appetite?: boolean;
+  above_count?: number;
 }
 
 export interface HeatRisk {
@@ -128,7 +129,7 @@ export function HeatMap({ data, selected, onSelect, showMovement }: Props) {
                   <span className="rk-cell-count">{cell.count > 0 ? cell.count : ''}</span>
                   {cell.count > 0 && <span className="sr-only"> </span>}
                   <span className="rk-cell-rating">{ratingLabel(cell.rating)}</span>
-                  <span className="sr-only">{cell.count > 0 ? ` ${cell.count === 1 ? 'risk' : 'risks'}: ${name}` : `, no risks: ${name}`}{cell.above_appetite ? ', above appetite' : ''}</span>
+                  <span className="sr-only">{cell.count > 0 ? ` ${cell.count === 1 ? 'risk' : 'risks'}: ${name}` : `, no risks: ${name}`}{cell.above_appetite ? `, ${cell.above_count ?? 1} above ${(cell.above_count ?? 1) === 1 ? 'its' : 'their'} appetite` : ''}</span>
                 </button>
               );
             }))}
@@ -184,7 +185,7 @@ export function HeatMap({ data, selected, onSelect, showMovement }: Props) {
         {data.appetite && (
           <li className="muted rk-legend-appetite">
             <span className="rk-swatch rk-swatch-appetite" aria-hidden="true" />
-            Above appetite ({data.appetite.label} or lower is accepted for {data.appetite.categories.join(', ')})
+            Holds a risk above its category's appetite
           </li>
         )}
         {showMovement && (

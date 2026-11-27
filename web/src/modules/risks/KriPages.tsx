@@ -5,6 +5,7 @@ import {
   ResourceList, Select, Stat, StatusChip, TableWrap, TextArea, TextField, todayInZone, useAuth, useFetch, useToast,
 } from '../../core';
 import type { ColorName, ListResult, RecordContext, Row } from '../../core';
+import { RiskTabs } from './RiskTabs';
 
 // Key risk indicators (E30-07): the list and one indicator with its monthly values. An indicator is
 // entered by hand each month or computed every day from a metric another module offers; at red it
@@ -68,6 +69,7 @@ export function KriList() {
         title="Key risk indicators"
         subtitle="Early warnings for the risk register: a monthly value against amber and red thresholds, entered by hand or computed from the application's own records. Restricted, like risks."
       />
+      <RiskTabs active="indicators" />
       <div className="grid-stats">
         <Stat label="Active indicators" value={all.data?.total ?? '–'} color="blue" icon="target" />
         <Stat label="At red" value={red.data?.total ?? '–'} color={(red.data?.total ?? 0) > 0 ? 'red' : 'green'} to="/kris?f.last_level=red&f.status=active" />

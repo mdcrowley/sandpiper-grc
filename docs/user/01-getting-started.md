@@ -8,19 +8,19 @@ The application keeps the records an IT team needs for governance, risk and comp
 
 | Area | What you record there | Guide page |
 |---|---|---|
-| Service desk | Tickets, problems, knowledge articles and a catalog of standard requests | [Service desk](02-service-desk.md) |
-| Inventory | Systems, assets, sites, data categories and how they relate | [Inventory](03-inventory.md) |
+| IT services | Tickets, problems, knowledge articles and a catalog of standard requests | [Service desk](02-service-desk.md) |
+| Assets | Systems, assets, sites, data categories and how they relate | [Inventory](03-inventory.md) |
 | Vendors | Vendors, contracts, security terms, evidence and renewals | [Vendors and contracts](04-vendors-and-contracts.md) |
-| Cybersecurity | Framework outcomes and assessments | [Cybersecurity frameworks](05-cybersecurity-frameworks.md) |
-| Cybersecurity | Risks, actions and obligations | [Risks, actions and obligations](06-risks-actions-obligations.md) |
-| Cybersecurity | Security incidents and notification deadlines | [Security incidents](07-security-incidents.md) |
-| Change | Planned changes, their approvals and the change calendar | [Change enablement](10-change-enablement.md) |
-| Cybersecurity | Policies, acknowledgments and exceptions | [Policies and exceptions](11-policies-and-exceptions.md) |
-| Cybersecurity | Training courses and exercises | [Training and exercises](12-training-and-exercises.md) |
-| Cybersecurity | Vulnerabilities and their fix-by dates | [Vulnerabilities](13-vulnerabilities.md) |
-| Inventory | Vehicles, the services they run and the systems each depends on | [Fleet and services](19-fleet-and-services.md) |
-| Safety | Safety events, the hazard log and safety indicators | [Safety management](20-safety-management.md) |
-| Projects | Project requests, stage gates and status reports | [Projects](08-projects.md) |
+| Security | Framework outcomes and assessments | [Cybersecurity frameworks](05-cybersecurity-frameworks.md) |
+| Risk and compliance | Risks, actions and obligations | [Risks, actions and obligations](06-risks-actions-obligations.md) |
+| Security | Security incidents and notification deadlines | [Security incidents](07-security-incidents.md) |
+| IT services | Planned changes, their approvals and the change calendar | [Change enablement](10-change-enablement.md) |
+| Documents | Policies, standards, procedures, SOPs, plans and other controlled documents; acknowledgments and exceptions | [Documents and exceptions](11-policies-and-exceptions.md) |
+| People and training | Training courses and exercises | [Training and exercises](12-training-and-exercises.md) |
+| Security | Vulnerabilities and their fix-by dates | [Vulnerabilities](13-vulnerabilities.md) |
+| Assets | Vehicles, the services they run and the systems each depends on | [Fleet and services](19-fleet-and-services.md) |
+| Safety and emergency management | Safety events, the hazard log and safety indicators | [Safety management](20-safety-management.md) |
+| Projects and funding | Project requests, stage gates and status reports | [Projects](08-projects.md) |
 | Reports | Dashboards, reports, report packs and scheduled delivery | [Dashboards and reports](15-dashboards-and-reports.md) |
 | Everywhere | Approvals waiting for you, and the steps they follow | [Approval workflows](22-approval-workflows.md) |
 | Everywhere | Files attached to records, and notifications | [Attachments and notifications](14-attachments-and-notifications.md) |
@@ -125,40 +125,62 @@ To stop using a second factor, select **Turn off** on the **Account security** p
 
 ### Left navigation
 
-The menu on the left is divided into groups. You see only the items your role allows, and a group with nothing in it for you is hidden.
+The menu on the left has one entry for each thing people work on (tickets, risks, vendors, hazards), in groups named after the work. You see only the entries your role allows, and a group with nothing in it for you is hidden. Most people see three entries (**Overview**, **My work** and **Calendar**); specialists see the groups of their own areas.
 
-| Group | Items |
+| Group | Entries |
 |---|---|
-| (top) | **Overview**, **My actions**, **Compliance calendar**, **Approvals**, **Notifications**, **Self-service portal** |
-| Service desk | **Tickets**, **Service desk dashboard**, **Service catalog**, **Problems**, **Knowledge base** |
-| Inventory | **Systems**, **Relationship map**, **Assets**, **Disposal approvals**, **Sites**, **Asset condition**, **Inventory counts**, **Data categories**, **Vehicles**, **Services**, **Equipment coverage**, **What is affected**, **Inventory reports** |
-| Change | **Changes**, **Change calendar**, **New change**, **Change settings** |
-| Vendors | **Vendors**, **Security terms matrix**, **Contracts**, **Renewal calendar**, **Evidence**, **Expiring evidence**, **Reassessments due**, **Vendor issues**, **Vendor offboarding** |
-| Cybersecurity | **Framework outcomes**, **Assessments**, **Risk register**, **Risk reviews**, **Key risk indicators**, **Security incidents**, **Notification deadlines**, **Rules and checklists**, **Offline incident kit**, **Vulnerabilities**, **Vulnerability dashboard**, **OT security**, **Security zones**, **Action tracker**, **Obligations**, **Regulatory changes**, **Policies**, **My acknowledgments**, **Acknowledgment kiosk**, **Exceptions**, **Training overview**, **Courses**, **My training**, **Exercises**, **Exercise calendar** |
-| Safety | **Safety dashboard**, **Safety events**, **Hazard log**, **Safety indicators**, **Inspections**, **Business continuity**, **Continuity plans**, **Emergency activations** |
-| Governance | **Audits**, **Audit findings**, **Controls**, **Control tests**, **Corrective action plans**, **Funding and grants**, **Records requests**, **Privacy**, **Committees**, **Meetings**, **Decisions** |
-| People | **People**, **Positions**, **Qualifications**, **Certifications** |
-| Projects | **Project portfolio**, **New project request**, **Project settings** |
-| Reports | **Dashboards**, **Reports**, **Report packs**, **Schedules**, **Risk report**, **Delivered to me**, **Expiring evidence files** |
-| Administration | **Users**, **Roles**, **Sign-in providers**, **User provisioning**, **Lists**, **Asset tags**, **Organization**, **Settings**, **Features**, **Custom fields**, **Lifecycles**, **Approval workflows**, **Email**, **Reminders**, **Mobile app**, **Push notifications**, **API tokens**, **AI assistant access**, **Webhooks**, **Log forwarding**, **Calendar and work trackers**, **Background jobs**, **Retention**, **Legal holds**, **Audit log**, **Service desk settings**, **Risk scales**, **Risk appetite**, **Hazard matrix**, **Safety reporting rules**, **Confidential safety reports**, **File settings**, **Backups** |
-| Help | **User guide**, **API reference** |
+| (top) | **Overview**, **My work**, **Calendar**, **Self-service portal** |
+| IT services | **Tickets**, **Problems**, **Changes**, **Service catalog**, **Knowledge base** |
+| Assets | **Systems**, **Assets**, **Asset condition**, **Sites**, **Vehicles** |
+| Vendors | **Vendors**, **Contracts**, **Evidence** |
+| Projects and funding | **Project portfolio**, **Funding and grants** |
+| Security | **Framework outcomes**, **Security incidents**, **Vulnerabilities**, **OT security**, **Access reviews** |
+| Risk and compliance | **Risk register**, **Obligations**, **Controls**, **Audits**, **Exceptions**, **Action tracker** |
+| Safety and emergency management | **Safety dashboard**, **Safety events**, **Hazard log**, **Inspections**, **Business continuity**, **Exercises** |
+| Governance and records | **Committees**, **Records requests**, **Privacy**, **Retention schedule**, **Legal holds** |
+| Documents | **Document library** |
+| People and training | **People**, **Training overview**, **Qualifications** |
+| Reports | **Dashboards**, **Reports** |
+| (bottom) | **Administration** |
 
-A few entries are for everyone and have no permission of their own: **Overview**, **Compliance calendar**, **Approvals**, **Notifications**, **My training**, **My acknowledgments**, **New project request**, **Delivered to me**, **Expiring evidence files**, **User guide** and **API reference**. The settings entries (**Change settings**, **Project settings**, **Risk scales**, **Hazard matrix**, **File settings**) appear only for people who administer that area. **Qualifications** names people on the roster, so it appears only for people who may view both training and people. Related pages sit next to each other in their group (for example the vulnerability pages, then the OT security pages). A part of the application an administrator has switched off under **Administration > Features** (for example the self-service portal, which starts off) has no entries at all.
+A register an administrator defines (see [Registers](41-registers.md)) adds an entry to the group they chose. A part of the application an administrator has switched off under **Administration > Features** (for example the self-service portal, which starts off) has no entry, no tab and no card anywhere, and a group named after two parts drops the name of the one switched off: **Risk and compliance** reads **Compliance** while the risk register is off, **Safety and emergency management** reads **Emergency management** while safety is off, and likewise **Projects**, **Funding**, **Governance**, **Records** and **People**.
 
-Each group heading is a button: select it to fold that group away or open it again. A folded group shows how many pages it holds, and the application remembers which groups you folded. The page you are on is highlighted, and its group opens by itself when you go there.
+**Pages inside an entry are tabs.** The other pages of an area are tabs along the top of the entry's page, under its title: **Tickets** has **Dashboard** and **Settings**, **Changes** has **Calendar** and **Settings**, **Systems** has **Map**, **Data categories** and **Checks**, **Assets** has **Models**, **Tags**, **Counts** and **Disposals**, **Vendors** has **Reassessments due**, **Issues**, **Offboarding** and **Security terms**, **Contracts** has **Renewals** and **Performance**, **Evidence** has **Expiring** and **Expiring files**, **Risk register** has **Reviews**, **Indicators**, **Report**, **Scales** and **Appetite**, **Action tracker** has **Corrective action plans**, **Reports** has **Figures over time**, **Report packs** and **Schedules**, and so on. Each tab keeps its own address, so a bookmark or a link to it still works, and the menu entry stays highlighted while you are on any of its tabs. An area's settings are its last tab, **Settings**, shown only to the people who administer that area; the same pages are also cards on the [Administration page](09-administration.md#the-administration-page). Tabs that do not fit the width go into a **More** menu at the end of the strip. Every page, tab or not, can also be found by name in the search panel (**Go to**).
+
+**Groups start closed**, except the top one and the group of the page you are on, which opens by itself. Each group heading is a button: select it to open or close that group. A closed group shows how many entries it holds. The application remembers, for you in this browser, the groups you opened or closed yourself.
+
+**Pinned pages.** The star beside a page's title pins the page to the top of the menu, under **Pinned**, and to the search panel; select it again (**Unpin**) to take it off. A list is pinned with its search, filters and sort as they are, so a pinned list opens the same view. You can pin up to ten pages. Pins are saved with your account, so they follow you to another browser, and a pinned page you can no longer open (your role changed, or its part was switched off) is not shown.
+
+The **Notifications** page opens from the bell and from the menu under your name, and the user guide from the **?** button in the top bar (or **Help** in the menu under your name).
 
 The menu has three forms, depending on the width of the window:
 
 - **Wide window:** the full menu. The button at the left of the top bar folds it down to a narrow strip of icons and back; your choice is remembered.
-- **Medium window:** the strip of icons, one per group. Point at or select an icon to see that group's pages. The menu button at the left of the top bar opens the full menu over the page.
+- **Medium window:** the strip of icons, one per group (a star for your pinned pages). Point at or select an icon to see that group's entries. The menu button at the left of the top bar opens the full menu over the page.
 - **Narrow window:** the menu is hidden. Select the menu button at the top left to open it.
 
-With the keyboard, `Tab` reaches the menu; the up and down arrow keys then move from entry to entry, and the left and right arrow keys fold and open a group. **Skip to content** is the first thing `Tab` reaches on every page.
+With the keyboard, `Tab` reaches the menu; the up and down arrow keys then move from entry to entry, and the left and right arrow keys close and open a group. **Skip to content** is the first thing `Tab` reaches on every page.
 
 When you open another page from inside the application (a menu entry, a record in a list, a new
 record you have just saved), the keyboard focus moves to the new page's title, so a screen reader
 reads it, and the next `Tab` goes on from the top of the page. On a page that puts you straight into
 a box (the inventory count's **Tag number**, for example) the focus stays in that box.
+
+### The My work page
+
+**My work** (in the top group of the menu) gathers what is waiting for you from every part of the application you use, so you do not need to know which area owns it. Its first tab, **Summary**, has one card per list, each with a count, up to five items and a **View all** link; a line at the top says how many items are waiting, or that you are up to date. The other tabs are the full lists:
+
+| Tab | What it holds |
+|---|---|
+| **Summary** | The cards: **My tickets**, **My actions**, **My approvals**, **My due work**, **My training**, **My acknowledgments**, **My access reviews**, **Delivered to me** and **Watching** (the ones your role and the parts in use give you) |
+| **Actions** | Actions you own (the **My actions** page) |
+| **Approvals** | Everything waiting for your decision, what you decided and what you asked for (the [Approvals](22-approval-workflows.md#approvals-waiting-for-you) page) |
+| **Training** | Courses assigned to you (the **My training** page) |
+| **Acknowledgments** | Documents you have been asked to read and acknowledge |
+| **Access reviews** | Systems whose accounts you are asked to review |
+| **Delivered reports** | Reports and dashboards delivered to you, and packs you produced |
+
+The count on **My approvals** is the same everywhere: on the Overview, on My work and on the **Approvals** page's **Waiting for me** tab. It counts the approval steps where you are a named approver (changes, disposals, risk acceptances and every other approval), plus exception requests and documents in review that your role may decide. Reports delivered to you and records you watch are things to read, so they are not counted as work waiting; neither are notifications.
 
 ### Overview
 
@@ -172,11 +194,11 @@ Short lists of what is waiting for you. Each list shows a count beside its title
 |---|---|
 | **My tickets** | Open tickets assigned to you, with the time left to resolve each one |
 | **My actions** | Actions you own that are not done or canceled, soonest due date first |
-| **My approvals** | Things waiting for an approval your role can give: changes awaiting approval (not ones you raised yourself), exception requests and policies in review |
-| **My due work** | Every other kind of work of yours that is overdue or due in the next 30 days, overdue first: evidence requests asked of you, control tests, corrective actions to verify, inspections, obligations and obligation periods to attest, risk and policy reviews, vendor reassessments, your certifications coming up for renewal, funding certifications to sign or confirm, and the like from other parts in use. **View all** opens your due work in the [compliance calendar](36-calendar-feeds-work-trackers-and-evidence-links.md#compliance-calendar) |
-| **My acknowledgments** | Policies you have been asked to read and acknowledge |
+| **My approvals** | Everything waiting for your decision: approval steps where you are a named approver (changes, disposals, risk acceptances and the rest), and exception requests and documents in review that your role may decide. The same list, and the same count, as **My work > Approvals** |
+| **My due work** | Every other kind of work of yours that is overdue or due in the next 30 days, overdue first: evidence requests asked of you, control tests, corrective actions to verify, inspections, obligations and obligation periods to attest, risk and policy reviews, vendor reassessments, your certifications coming up for renewal, funding certifications to sign or confirm, and the like from other parts in use. **View all** opens your due work in the [Calendar](36-calendar-feeds-work-trackers-and-evidence-links.md#calendar) |
+| **My acknowledgments** | Documents you have been asked to read and acknowledge |
 | **My training** | Courses assigned to you that you have not completed |
-| **My notifications** | Your unread notifications; opening one from here marks it as read |
+| **My notifications** | Your unread notifications; opening one from here marks it as read. They are not counted as work waiting: the bell counts them |
 | **Watching** | Records you watch (the **Watch** button on a record page), newest first. They are not counted as work waiting |
 
 Due dates turn amber in their last week and red once they have passed. A list with nothing in it says so, and when every list is empty a green line tells you that you are up to date.
@@ -188,7 +210,7 @@ Figures, charts and tables for the areas you can see. You need the dashboards pe
 - **Needs attention:** one box for each thing that is late or at risk: tickets past their target, overdue actions, vulnerabilities past their fix-by date, expired risk acceptances and risks that need review (only if you can see risks), security incident notification clocks that are running or overdue, contracts past their notice date, and actions with no owner. Each box is a link to the place where you deal with it. When there is nothing, a green line says so.
 - **Headline numbers:** **Open tickets**, **Tickets within target**, **Open actions**, **Changes this week**, **Changes awaiting approval**, **Open vulnerabilities**, **Vulnerabilities overdue**, **Risks on the register**, **Training completed**, **Projects** and **Notice dates in 120 days**. Each is a link to the list behind it.
 - **Incident notification clocks:** the deadlines that are running for security incidents.
-- **Open tickets by priority** and **Policies by status:** charts. Select a bar to open the list of those records.
+- **Open tickets by priority** and **Documents by status:** charts. Select a bar to open the list of those records.
 - **Changes this week:** the changes planned to start this week, with how many are awaiting approval, in progress or due a review.
 - **Open vulnerabilities by severity:** a chart of open findings, how many are past their fix-by date and how many are known to be exploited. Select a bar or a figure to open that list.
 - **Top risks**, **Framework progress**, **Training completion**, **Contracts approaching notice** and **Projects by status.**
@@ -219,15 +241,15 @@ Your layout is yours alone. It is saved with your account, so it follows you to 
 The search box in the middle of the top bar finds records, pages and things to create.
 
 1. Select the box, or press `/` (when you are not typing in a field) or `Ctrl+K` from anywhere. A search panel opens over the page.
-2. Before you type, the panel lists your **Recent searches** and what you can **Create**.
-3. Type. From the first letter, **Go to** lists pages whose name matches (for example "ren" offers **Renewal calendar**) and **Create** lists matching kinds of record (typing "new" lists them all). From two letters, records you are allowed to see appear below, grouped by kind, each with its reference.
+2. Before you type, the panel lists your **Pinned** pages, the records you **Recently opened** (the last eight, kept in this browser for you), your **Recent searches** and what you can **Create**.
+3. Type. From the first letter, **Go to** lists pages whose name matches (for example "ren" offers **Renewal calendar**, the **Renewals** tab of **Contracts**), including pages that are tabs or cards on the Administration page, and **Create** lists matching kinds of record (typing "new" lists them all). From two letters, records you are allowed to see appear below, grouped by kind, each with its reference.
 4. Select a result, or use the up and down arrow keys and press `Enter`. Press `Esc` to close the panel.
 
 Search looks in titles, references and text, and also in comments, the names of attached files and the words inside attached PDF, Word and text files (see [Attachments](14-attachments-and-notifications.md#finding-a-record-by-what-its-files-say)). The best matches come first: a record whose reference is exactly what you typed, and records with the words in their title usually come before those with them only in their text. Under each record found is a short passage with the words you typed highlighted; "In a comment" or "In a file" says where they were found. Depending on how the server is set up, search matches whole words (with their other forms, such as "renew" for "renewal") or any part of a word. It does not understand misspellings. Recent searches are kept in this browser only.
 
 ### Create button
 
-The **Create** button at the top right lists everything you are allowed to create, grouped under the same headings as the navigation (for example **Service desk**, **Inventory**, **Change**), A to Z within each group, each with its icon. A filter box at the top takes the cursor when the menu opens: type part of a name or a group (for example "haz" or "safety") to narrow the list, use the Down and Up arrows to move through what is left, and Enter to open the first one; **No match** says when nothing fits. Choosing an item opens the form for a new record of that kind. The same choices are in the search panel.
+The **Create** button at the top right lists everything you are allowed to create, grouped under the same headings as the navigation (for example **IT services**, **Assets**, **Vendors**), A to Z within each group, each with its icon. A filter box at the top takes the cursor when the menu opens: type part of a name or a group (for example "haz" or "safety") to narrow the list, use the Down and Up arrows to move through what is left, and Enter to open the first one; **No match** says when nothing fits. Choosing an item opens the form for a new record of that kind. The same choices are in the search panel.
 
 ### Notifications bell
 

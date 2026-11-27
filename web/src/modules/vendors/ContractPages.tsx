@@ -37,7 +37,7 @@ export function ContractList() {
       title="Contracts"
       columns={[
         'ref', 'title', 'vendor_id', 'status',
-        { field: 'notice_date', label: 'Notice date', sortable: true, render: (row) => <NoticeChip date={row.notice_date} /> },
+        { field: 'notice_date', label: 'Notice date', sortable: true, render: (row) => <NoticeChip date={row.notice_date} status={row.status} /> },
         'end_date', 'renewal_mechanism', 'total_value', 'owner_id',
         { field: 'document_type', hidden: true }, { field: 'start_date', hidden: true },
         { field: 'notice_days', hidden: true }, ...(approval ? [{ field: 'resolution_number', hidden: true }] : []),

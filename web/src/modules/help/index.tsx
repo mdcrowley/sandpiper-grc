@@ -17,8 +17,9 @@ function Lazy({ children }: { children: ReactNode }) {
 const mod: ModuleDef = {
   key: 'help',
   nav: [
-    { group: 'Help', label: 'User guide', path: '/help', icon: 'book', order: 10 },
-    { group: 'Help', label: 'API reference', path: '/help/api', icon: 'file-text', order: 20 },
+    // Not in the menu (E44-01): the top bar's "?" opens the guide at the page on screen, and the account menu has Help.
+    { group: 'Home', label: 'User guide', path: '/help', icon: 'book', order: 95, menu: false },
+    { group: 'Administration', label: 'API reference', path: '/help/api', icon: 'file-text', permission: 'admin.administer', order: 59, menu: false, hub: 'Connections', hint: 'Every route of the API, with what it needs and answers.' },
   ],
   routes: [
     // /help?for=<pathname> goes to the guide section for that screen (see routeMap.ts);

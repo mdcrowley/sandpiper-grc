@@ -1,6 +1,6 @@
 # People and qualifications
 
-The roster holds everyone on staff, whether or not they have an account: bus and rail operators, maintainers, dispatchers, station agents and office staff. Each person has a position, and each position lists the courses and certifications it requires. From that the application works out who is qualified now, which certifications are about to expire, and which documents each person has been asked to acknowledge. Open **People**, **Positions** and **Departments** in the **People** group. Lists and record pages work as described in [Getting started](01-getting-started.md).
+The roster holds everyone on staff, whether or not they have an account: bus and rail operators, maintainers, dispatchers, station agents and office staff. Each person has a position, and each position lists the courses and certifications it requires. From that the application works out who is qualified now, which certifications are about to expire, and which documents each person has been asked to acknowledge. Open **People and training > People**; **People**, **Positions** and **Departments** are its tabs. Lists and record pages work as described in [Getting started](01-getting-started.md).
 
 The roster is always on: it is not one of the parts an administrator can switch off, because policies, committees and safety use it. Training, certifications and the qualification matrix belong to training (see [Training and exercises](12-training-and-exercises.md)), and acknowledgments to policies (see [Policies and exceptions](11-policies-and-exceptions.md#staff-on-the-roster)); when one of those is switched off, its tabs and columns on the roster go with it.
 
@@ -20,7 +20,7 @@ Names, employee numbers, email addresses, phone numbers, hire dates, accounts an
 
 ## Positions
 
-Open **People > Positions**. Each position (`POS-` numbers) has a **Name** (unique), a **Code**, a **Description**, whether it is **Safety-sensitive** (shown only while safety management is switched on), and whether it is **Active**, and its **Department**.
+Open **People and training > People** and the **Positions** tab. Each position (`POS-` numbers) has a **Name** (unique), a **Code**, a **Description**, whether it is **Safety-sensitive** (shown only while safety management is switched on), and whether it is **Active**, and its **Department**.
 
 ### What a position requires
 
@@ -35,7 +35,7 @@ The **People** tab lists everyone in the position.
 
 ## Departments
 
-Open **People > Departments**. A department has a **Name** (unique), the department it is **Part of** (so a night shift can sit under depot operations), a **Manager** and a **Description**. Its page lists its **People** and the **Departments below** it. Anyone signed in can choose a department on a record, even without access to this list.
+Open **People and training > People** and the **Departments** tab. A department has a **Name** (unique), the department it is **Part of** (so a night shift can sit under depot operations), a **Manager** and a **Description**. Its page lists its **People** and the **Departments below** it. Anyone signed in can choose a department on a record, even without access to this list.
 
 People, positions, assets, actions, projects and business processes each point at one department. Earlier versions kept the department of assets, actions, projects and business processes as typed text; on upgrading, each name was matched to the department of that name, and a name that was not yet in the list was added to it, so every record keeps its department. The name still shows in reports and figures grouped by department, and it follows when a department is renamed.
 
@@ -49,7 +49,7 @@ Because these fields decide what people reach, someone with a limited role canno
 
 ## The roster
 
-Open **People > People**. The title and **New person** come first, then the tiles. They count people who are **Active** and **On leave**, how many are **With an account**, and the **Positions**. The list shows each person's reference (`PER-` numbers), name, employee number, position, department and status; more columns (account, supervisor, work site, hire date, source) are in the column chooser.
+Open **People and training > People**. The title and **New person** come first, then the tiles. They count people who are **Active** and **On leave**, how many are **With an account**, and the **Positions**. The list shows each person's reference (`PER-` numbers), name, employee number, position, department and status; more columns (account, supervisor, work site, hire date, source) are in the column chooser.
 
 ### Add a person
 
@@ -93,11 +93,11 @@ Each requirement shows as **In date**, **Expiring** (in date but running out wit
 
 ### The qualification matrix
 
-Open **People > Qualifications** (shown only to people who may view both training and the roster). The tiles count who is **Qualified** and **Not qualified** among the people whose position has requirements, and the certifications that have expired or expire within 90 days. Filter by **Position** or **Department**, and **Show** only people who are not qualified. Each row is a person; each column a requirement, with a dash where their position does not need it. Hover a cell for its date. People whose position has no requirements show **No requirements**.
+Open **People and training > Qualifications** (shown only to people who may view both training and the roster). The tiles count who is **Qualified** and **Not qualified** among the people whose position has requirements, and the certifications that have expired or expire within 90 days. Filter by **Position** or **Department**, and **Show** only people who are not qualified. Each row is a person; each column a requirement, with a dash where their position does not need it. Hover a cell for its date. People whose position has no requirements show **No requirements**.
 
 ## Certifications
 
-Certifications (`CRT-` numbers) are recorded under **People > Certifications** or from a person's page; see [Training and exercises](12-training-and-exercises.md#qualifications-and-certifications). The certification types (for example **Driver or operator license**, **Medical fitness certificate**, **First aid**, **Track access permit**) are a list an administrator can change under **Administration > Lists** (list **Certification type**). Each type also says how many months a certification of it is valid (**Valid for (months)**: a new certification's expiry date is worked out from its issue date) and who usually issues it (**Usually issued by**: filled in when no issuer is given). Both are shown as columns on the **Lists** page and changed in the type's **Edit** dialog, with its name and color; leave **Valid for (months)** empty for a type that does not expire.
+Certifications (`CRT-` numbers) are recorded under **People and training > Qualifications**, **Certifications** tab, or from a person's page; see [Training and exercises](12-training-and-exercises.md#qualifications-and-certifications). The certification types (for example **Driver or operator license**, **Medical fitness certificate**, **First aid**, **Track access permit**) are a list an administrator can change under **Administration > Lists** (list **Certification type**). Each type also says how many months a certification of it is valid (**Valid for (months)**: a new certification's expiry date is worked out from its issue date) and who usually issues it (**Usually issued by**: filled in when no issuer is given). Both are shown as columns on the **Lists** page and changed in the type's **Edit** dialog, with its name and color; leave **Valid for (months)** empty for a type that does not expire.
 
 Certifications that expire within 90, 60 and 30 days, or have expired, without a renewal are reminded to the person and their supervisor once at each step. **Expiring** on the certifications list shows them all.
 

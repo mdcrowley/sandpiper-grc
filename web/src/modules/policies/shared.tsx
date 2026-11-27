@@ -9,7 +9,7 @@ export interface PolicyVersion {
   id: string;
   policy_id: string;
   version: number;
-  status: 'draft' | 'in_review' | 'approved' | 'published' | 'superseded';
+  status: 'draft' | 'in_review' | 'approved' | 'published' | 'superseded' | 'withdrawn';
   /** The person who wrote the version; they cannot approve it. */
   created_by?: string | null;
   change_summary: string | null;
@@ -86,8 +86,9 @@ export const VERSION_STATUS: Record<PolicyVersion['status'], { label: string; co
   draft: { label: 'Draft', color: 'gray' },
   in_review: { label: 'In review', color: 'amber' },
   approved: { label: 'Approved', color: 'blue' },
-  published: { label: 'Published', color: 'green' },
+  published: { label: 'Effective', color: 'green' },
   superseded: { label: 'Superseded', color: 'gray' },
+  withdrawn: { label: 'Withdrawn', color: 'purple' },
 };
 
 export function VersionChip({ status }: { status: PolicyVersion['status'] }) {

@@ -6,7 +6,7 @@ Inventory is always on. When an administrator switches **Fleet and services** of
 
 ## Systems
 
-A system is an application or service that people use, for example the scheduling system, the fare collection back office or the email service. Equipment on the vehicles themselves, such as the fareboxes or the onboard video, can be recorded as a system too. Open **Systems** in the **Inventory** group. The list shows 50 systems per page.
+A system is an application or service that people use, for example the scheduling system, the fare collection back office or the email service. Equipment on the vehicles themselves, such as the fareboxes or the onboard video, can be recorded as a system too. Open **Assets > Systems**; its tabs are **Systems**, **Map**, **Data categories** and **Checks**. The list shows 50 systems per page.
 
 Use the column chooser to add **Technical owner**, **Vendor (as recorded)**, **Recovery time (h)**, **Recovery point (h)** or **Updated**. To change several systems at once, check them and select **Edit selected…**: you can set **Status**, **Criticality**, **Hosting**, **Multi-factor**, **Business owner** or **Technical owner**.
 
@@ -84,7 +84,7 @@ The **Changes and issues** tab on a system (and on an asset) starts with the **C
 
 ## The relationship map
 
-The map draws systems, the integrations between them, and the vendors, sites, data categories, assets and services around them. Open **Relationship map** in the **Inventory** group.
+The map draws systems, the integrations between them, and the vendors, sites, data categories, assets and services around them. Open **Assets > Systems** and the **Map** tab.
 
 ### Read the map
 
@@ -137,7 +137,7 @@ On the map, everything affected is outlined with a red dashed line and the lines
 
 The list is only as good as the integrations, sites and data categories you have recorded. A system with none shows "Nothing recorded depends on" it.
 
-**What is affected**, in the **Inventory** group, shows the vehicles and services for one system on its own page; see [Fleet and services](19-fleet-and-services.md).
+**What is affected**, a tab of **Assets > Vehicles**, shows the vehicles and services for one system on its own page; see [Fleet and services](19-fleet-and-services.md).
 
 ### Start the map from a change
 
@@ -155,7 +155,7 @@ Select **Save picture**. The picture holds the whole map as it is filtered and a
 
 ## Assets
 
-An asset is a piece of equipment, a license or a subscription. Open **Assets** in the **Inventory** group.
+An asset is a piece of equipment, a license or a subscription. Open **Assets > Assets**; its tabs are **Assets**, **Models**, **Tags**, **Counts** and, for approvers, **Disposals**.
 
 Equipment fitted to vehicles (onboard computers, CAD/AVL units, fareboxes, card validators, on-vehicle routers, cameras, radios and passenger information displays) is recorded here as assets with those types, and installed on a vehicle from the vehicle's **Equipment** tab. See [Fleet and services](19-fleet-and-services.md).
 
@@ -182,7 +182,7 @@ The top of the record shows where the asset is in its life: **Ordered**, **In st
 - A **Funder interest** notice appears when an outside funder keeps an interest in the asset.
 - **Disposal awaiting approval** or **Disposal approved** appears while a disposal is in progress.
 
-The **Details** card holds what the asset is, with its **Asset model** when it has one: each value it takes from the model says **From model** under it, and a value the asset keeps as its own says **Overridden**, with **Use the model's value** to clear it (see [Asset models](#asset-models)). The **Who has it and where** card shows **Assigned to**, **Owner**, **Department**, **Site** and **Location**; select **Edit** to change the owner, department, site or location. **Department** is one of the organization's departments (**People > Departments**).
+The **Details** card holds what the asset is, with its **Asset model** when it has one: each value it takes from the model says **From model** under it, and a value the asset keeps as its own says **Overridden**, with **Use the model's value** to clear it (see [Asset models](#asset-models)). The **Who has it and where** card shows **Assigned to**, **Owner**, **Department**, **Site** and **Location**; select **Edit** to change the owner, department, site or location. **Department** is one of the organization's departments (**People and training > People**, **Departments** tab).
 
 While **OT and rail-systems security** is on, an **Operational technology (OT)** section under the details records whether the asset is OT, its control level, whether it is life-critical, its security zone and its firmware version ([OT security](32-ot-security.md)).
 
@@ -223,7 +223,7 @@ The asset shows **Awaiting approval**, and the request runs on the **Asset dispo
 1. **Inventory manager**: anyone who may approve asset disposals, except you.
 2. **Funder's approval**: only when **Funder interest** is checked on the asset (and the funder-interest option is on). Someone who may approve asset disposals confirms that the funder has agreed.
 
-Each approver is notified, and the request appears on their **Approvals** page, with the due time and escalation the workflow sets. An approver decides it on the **Approvals** page, in the approval panel at the top of the asset, or on **Disposal approvals** in the **Inventory** group, with **Approve** or **Refuse** and a **Comment**; a refusal must say why. The person who asked cannot decide their own request. An approver's stand-in can decide while they are away; the decision is recorded as made on their behalf. You are notified of the outcome. The **Disposal** tab and **Disposal approvals** show how many approvals the workflow has and who it is waiting for.
+Each approver is notified, and the request appears on their **Approvals** page, with the due time and escalation the workflow sets. An approver decides it on the **Approvals** page, in the approval panel at the top of the asset, or on the **Disposals** tab of **Assets > Assets**, with **Approve** or **Refuse** and a **Comment**; a refusal must say why. The person who asked cannot decide their own request. An approver's stand-in can decide while they are away; the decision is recorded as made on their behalf. You are notified of the outcome. The **Disposal** tab and **Disposal approvals** show how many approvals the workflow has and who it is waiting for.
 
 An administrator changes who approves, the steps, due times and escalation under **Administration > Approval workflows** (the workflows of the kind **Asset disposal**), and can add more of them with conditions, for example a different approver for vehicles. The one whose conditions hold, with the most conditions, is used. While no disposal workflow is active, a request is decided once by anyone who may approve asset disposals, as before.
 
@@ -274,7 +274,7 @@ Retired and disposed assets are left out. Each reminder is sent once. In your no
 
 ## Asset models
 
-Many assets are copies of one another: a station camera model installed in dozens of places, a card validator fitted at every door. An **asset model** holds what they share; each asset keeps its own tag, serial number and location, points at its model and takes the shared values from it. Open **Asset models** in the **Inventory** group. (An asset's **Type** stays the kind of thing, such as a camera; a model is a particular specification of it.)
+Many assets are copies of one another: a station camera model installed in dozens of places, a card validator fitted at every door. An **asset model** holds what they share; each asset keeps its own tag, serial number and location, points at its model and takes the shared values from it. Open **Assets > Assets** and the **Models** tab. (An asset's **Type** stays the kind of thing, such as a camera; a model is a particular specification of it.)
 
 An asset model has a **Name**, the values its assets share: **Type**, **Make**, **Model**, **Vendor**, **Asset class** (where asset condition is in use), **Funding source** and **Support end**, plus a **Description** and an **Active** switch. A field left empty on the model is not shared: each asset keeps its own value. Add one with **New asset model**, or **Create** then **Asset model**.
 
@@ -290,7 +290,7 @@ Asset models work exactly like vehicle models; the details are in [Fleet and ser
 
 ## Sites
 
-A site is a building or location. Open **Sites** in the **Inventory** group.
+A site is a building or location. Open **Assets > Sites**.
 
 To add one, select **New site** and enter the **Name**, **Address**, **Function**, **Power protection**, **Physical security**, **Third parties on site** and **Network links**. Only the name is required. A site can be **Part of** another one (a wash bay within a depot) and have a **Site manager**: a role limited to **Their sites** gives its members the records of the sites they manage or work at and every site within them (see [Administration](09-administration.md#which-records-a-role-reaches)).
 
@@ -303,7 +303,7 @@ System and site pages show a **Business processes** section (a tab on systems) l
 
 ## Data categories
 
-A data category is a kind of information the organization holds, for example staff records or payment details. Open **Data categories** in the **Inventory** group.
+A data category is a kind of information the organization holds, for example staff records or payment details. Open **Assets > Systems** and the **Data categories** tab.
 
 To add one:
 
@@ -319,7 +319,7 @@ The **Systems** tab on a data category lists the systems holding it, with their 
 
 ## Inventory reports
 
-Open **Inventory reports** in the **Inventory** group. Each card is a ready-made check with the number it finds now, under the headings **Assets** and **Systems**. A check that finds nothing reads "all clear". Select a card to see its rows; select it again, or **Close**, to hide them.
+Open **Assets > Systems** and the **Checks** tab (the inventory reports). Each card is a ready-made check with the number it finds now, under the headings **Assets** and **Systems**. A check that finds nothing reads "all clear". Select a card to see its rows; select it again, or **Close**, to hide them.
 
 | Report | Lists |
 |---|---|

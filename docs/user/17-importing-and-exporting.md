@@ -76,3 +76,29 @@ Values are read like this:
 Restricted kinds of record need security access to import, as they do to create by hand.
 
 The asset import under **Inventory** keeps its own screen with the asset-specific checks (see [Inventory](03-inventory.md)); the generic **Import** works for assets too. Training completions ([Import completions](12-training-and-exercises.md#import-completions)) and vulnerability scan results ([Import findings](13-vulnerabilities.md#import-findings)) also have imports of their own.
+
+## Importing a document package
+
+*Document controllers (people who may administer documents).* A set of controlled documents with their older versions can be loaded in one go from a `.zip` file under **Documents > Import**. The archive holds the files (in any folders) and a file named `manifest.csv` at its top, with one row per **version**:
+
+| Column | Meaning |
+|---|---|
+| `doc_number` | The document's controlled number, for example `SOP-IT-014`. Rows with the same number are versions of one document. Without a number, rows are grouped by title and the document is numbered by the usual pattern |
+| `title`, `document_type`, `department`, `owner`, `parent_number` | The document's title, type (value or label, for example `sop` or `Standard operating procedure`), owning department (name), owner (user name, email or full name) and the number of the document it sits under. The newest row that gives a value wins |
+| `access`, `access_departments`, `access_roles` | Who may read it: `organization` (everyone) or `restricted`, and the departments and roles (separated by `;`) that may read a restricted one |
+| `version`, `version_label` | The version number (1, 2, 3) and the organization's own label, for example `Rev. C` |
+| `status` | `draft`, `in_review`, `approved`, `published` (or `effective`), `superseded` or `withdrawn` (or `obsolete`) |
+| `approved_on`, `effective_on`, `superseded_on`, `withdrawn_on` | Dates, as `YYYY-MM-DD` (month/day/year is read too) |
+| `approved_by_name`, `approval_body`, `approval_reference`, `change_summary` | Who approved it, the board or committee that adopted it and its resolution number, and what changed |
+| `file` | The version's file in the archive: its path, or just its name when that is unique |
+
+1. Upload the `.zip` and select **Check** (a dry run). Every row is checked: the manifest values, that the file is there, that the owner, departments, roles and parent exist, and each Word file is converted to show its warnings. Nothing is saved.
+2. Read the result of each row, fix the manifest where needed, and upload it again.
+3. Select **Load**. Documents are created, or updated when one with the same number already exists, and their versions are added oldest first. The page shows the progress and then the result of every row.
+
+- **Word files** (`.docx`) become the version's text, with their pictures; the original is kept. Tracked changes are converted as they are (insertions kept, deletions left out) and the row says so.
+- **PDF files** are kept as the version itself, and their text is read for search. **Older Word files** (`.doc`) and other types are kept as the original only, with the note "Could not convert" (save them as `.docx` to convert them).
+- Office lock files (names starting with `~$`), thumbnail caches (`Thumbs.db`, `.DS_Store`, `desktop.ini`) and `__MACOSX` folders are skipped and counted.
+- The original statuses and dates are kept only while [data load mode](09-administration.md#data-load-mode) is on. Without it, documents are created and each document gets its first version as a draft; a row asking for a status says it was saved as a draft, and a second version of the same document is refused until the first is finished. In data load mode nothing is sent (no acknowledgment requests or notifications) and every document loaded is listed under **Administration > Data loads**, where the load can be undone.
+- Every row is saved as you, through the same checks as a document made by hand, so you can load only into documents you may read. Starting and finishing an import are recorded in the audit log. An import cut short by a restart of the server is marked as failed; running it again updates the documents already loaded but adds their versions again.
+- An AI assistant can load the same kind of package without a manifest ([AI assistants and MCP](21-ai-assistants-and-mcp.md#loading-a-document-package)).

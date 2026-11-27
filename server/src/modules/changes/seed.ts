@@ -163,18 +163,37 @@ async function walk(svc: ChangeService, change: Row, steps: Step[]): Promise<Row
   return row;
 }
 
+/**
+ * The system each sample change is about, by part of its title and the sample system's name (E18-82:
+ * never a system picked in turn, which put a call-routing change on the rail signaling interface).
+ * A change about something with no sample system (a printer, the firewall, a door controller, the
+ * telephone queues) has none.
+ */
+const SYSTEM_OF: [string, string][] = [
+  ['finance system', 'Example Finance System'],
+  ['timetable file server', 'Example Scheduling System'],
+  ['journey planner web certificate', 'Example Public Website'],
+  ['email gateway', 'Example Directory'],
+  ['ridership reporting server', 'Example Fare Collection System'],
+  ['fare card database', 'Example Fare Collection System'],
+  ['crew rostering server', 'Example Crew Rostering System'],
+];
+
 /** Later runs attach systems and related records once the modules that own them have been seeded. */
 async function attachRelated(ctx: ModuleContext): Promise<string> {
   const notes: string[] = [];
   const samples = await ctx.db.query<Row>(`select id, title, system_id from changes where title like '[Sample]%' and deleted_at is null order by ref`);
   const systemDef = ctx.resources.get('system');
   if (systemDef && samples.length && samples.every((s) => !s.system_id)) {
-    const systems = await ctx.db.query<{ id: string }>(`select id from ${systemDef.table} where deleted_at is null order by created_at, id limit 6`);
-    if (systems.length) {
-      // Sample windows never overlap, so sharing a system cannot create a second conflict.
-      for (const [i, s] of samples.entries()) await ctx.resources.update('change', s.id, { system_id: systems[i % systems.length].id }, null);
-      notes.push('systems attached');
+    const systems = await ctx.db.query<{ id: string; name: string }>(`select id, name from ${systemDef.table} where deleted_at is null`);
+    let attached = 0;
+    // Sample windows never overlap, so sharing a system cannot create a second conflict.
+    for (const s of samples) {
+      const name = SYSTEM_OF.find(([part]) => String(s.title).includes(part))?.[1];
+      const system = name ? systems.find((x) => x.name === name) : undefined;
+      if (system) { await ctx.resources.update('change', s.id, { system_id: system.id }, null); attached += 1; }
     }
+    if (attached) notes.push('systems attached');
   }
   const link = async (titlePart: string, type: string, relation: string) => {
     const def = ctx.resources.get(type);

@@ -6,7 +6,7 @@ Corrective action plans belong to the action tracker, so they are always availab
 
 ## The register
 
-Open **Governance > Corrective action plans**. The tiles count every plan, the same for everyone:
+Open **Risk and compliance > Action tracker** and the **Corrective action plans** tab. The tiles count every plan, the same for everyone:
 
 | Tile | Counts |
 |---|---|
@@ -15,7 +15,7 @@ Open **Governance > Corrective action plans**. The tiles count every plan, the s
 | **Awaiting approval** | Plans submitted and waiting for an approver. |
 | **Actions to verify** | Actions in plans whose work is finished but whose effectiveness has not been checked yet; the hint says how many are past their verification date. |
 
-Select a tile to filter the list. The list has the usual search, filters (**Status**, **Source**, **Responsible**, **Root cause category**, **Due after** and **Due before**, **Tags**), sorting, saved views, column options and export. Each row shows how many of the plan's actions are done and how many wait for verification. **Raised on** links to the record the plan came from.
+Select a tile to filter the list. The list has the usual search, filters (**Status**, **Source**, **Responsible**, **Root cause category**, **Due after** and **Due before**, **Tags**), sorting, saved views, column options and export. Each row shows how many of the plan's actions are done and how many wait for verification, or **No actions yet** for a plan with none. **Raised on** links to the record the plan came from.
 
 A plan raised on a restricted record (for example a risk or a security incident) is itself restricted: only people who may see security records see it in the list. It still counts in the tiles. **Actions awaiting verification** at the top opens the action tracker filtered to those actions.
 
@@ -50,7 +50,7 @@ After approval the plan follows its actions by itself: it moves to **In progress
 
 ## Approval
 
-Select **Submit for approval** on a draft or rejected plan (needs **Edit** on **Actions**). The plan needs a problem statement, a root cause and at least one action. Submitting starts the **Corrective action plan approval** workflow: one step for someone who may approve actions. Approvers find it under **Home > Approvals**, as for every other approval; see [Approval workflows](22-approval-workflows.md). An administrator can change the workflow (more steps, conditions, due times) under **Administration > Approval workflows**.
+Select **Submit for approval** on a draft or rejected plan (needs **Edit** on **Actions**). The plan needs a problem statement, a root cause and at least one action. Submitting starts the **Corrective action plan approval** workflow: one step for someone who may approve actions. Approvers find it under **My work > Approvals**, as for every other approval; see [Approval workflows](22-approval-workflows.md). An administrator can change the workflow (more steps, conditions, due times) under **Administration > Approval workflows**.
 
 - **Approved**: the plan records who approved it and when, and becomes **Approved**.
 - **Rejected**: the plan becomes **Rejected**, with the reason in its history.
@@ -70,7 +70,7 @@ To record the verification, open the action, select the **Verification** tab and
 
 Actions outside a plan can need verification too: tick **Needs verification** on the action.
 
-**Home > My actions** has a **To verify** section with the actions that name you as their verifier, and a **Finished, awaiting verification** section with your own actions that wait for someone else's check. On the action tracker, the **Awaiting verification** tile shows every such action.
+**My work > Actions** (**My actions**) has a **To verify** section with the actions that name you as their verifier, and a **Finished, awaiting verification** section with your own actions that wait for someone else's check. On the action tracker, the **Awaiting verification** tile shows every such action.
 
 ### Verification reminders
 

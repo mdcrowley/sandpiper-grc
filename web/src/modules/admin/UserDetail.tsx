@@ -246,9 +246,10 @@ function RolesCard({ user, isSelf, onSaved }: { user: AdminUser; isSelf: boolean
             {roles.data.roles.map((r) => (
               <Checkbox
                 key={r.key}
-                label={`${r.name}${r.enabled ? '' : ' (switched off)'}${r.requires_mfa ? ' · needs a second factor' : ''}`}
+                label={`${r.name}${r.enabled ? '' : ' (switched off under Roles)'}${r.requires_mfa ? ' · needs a second factor' : ''}`}
                 hint={r.description ?? undefined}
                 checked={picked.includes(r.key)}
+                disabled={!r.enabled && !current.includes(r.key)}
                 onChange={(on) => setPicked((p) => (on ? [...p, r.key] : p.filter((k) => k !== r.key)))}
               />
             ))}

@@ -12,6 +12,7 @@ import { matchPath } from 'react-router-dom';
 import { entries } from 'virtual:grc-modules';
 import type { IconName } from './Icon';
 import { lazyRouteElement } from './lazyRoutes';
+import type { HubSection, NavGroup } from './navGroups';
 
 /**
  * The optional area (Administration > Features, server/src/core/features.ts) each whole web module
@@ -39,14 +40,7 @@ export const MODULE_AREA: Record<string, string> = {
 /** Whether a web module's area is on (always true for a module that is not part of an area). */
 export const moduleOn = (key: string, areaOn: (area: string) => boolean) => !MODULE_AREA[key] || areaOn(MODULE_AREA[key]);
 
-/** Whether a person may see a navigation entry: its permission and every one of its `permissions`. */
-export const navAllowed = (item: Pick<NavItem, 'permission' | 'permissions'>, can: (permission: string | undefined) => boolean) =>
-  can(item.permission) && (item.permissions ?? []).every((p) => can(p));
-
-export const NAV_GROUPS = [
-  'Home', 'Service desk', 'Inventory', 'Change', 'Vendors', 'Cybersecurity', 'Safety', 'Governance', 'People', 'Projects', 'Reports', 'Administration', 'Help',
-] as const;
-export type NavGroup = (typeof NAV_GROUPS)[number];
+export { HUB_SECTIONS, LEGACY_NAV_GROUPS, NAV_GROUPS, navAllowed, navGroupOf, type HubSection, type NavGroup } from './navGroups';
 
 export interface NavItem {
   group: NavGroup;
@@ -59,6 +53,26 @@ export interface NavItem {
   permissions?: string[];
   /** Position within the group, ascending (default 100); unique within its group (navOrder.test.ts). */
   order?: number;
+  /**
+   * `false`: a page, not a side-menu entry. It stays in the command palette ("Go to"), in the Create
+   * menu's grouping, as a tab (`tab`) and on the Administration page (`hub`).
+   */
+  menu?: false;
+  /** The menu entry this page sits under: highlighted while it is open, and the page whose tab strip shows it. */
+  parent?: string;
+  /** Its label in the parent's tab strip ("Settings" is always drawn last). */
+  tab?: string;
+  /**
+   * On a menu entry: the label of its own first tab. The shell then draws the tab strip of the entry and
+   * every page whose `parent` it is under the page heading (pages with a tab strip of their own leave it out).
+   */
+  tabs?: string;
+  /** A card in this section of the Administration page (/admin). */
+  hub?: HubSection;
+  /** One line under the card's title on the Administration page. */
+  hint?: string;
+  /** The Administration entry itself: shown to whoever may open at least one card of the page. */
+  hubHome?: true;
 }
 
 export interface ModuleRoute {

@@ -4,13 +4,13 @@ import type { NavItem } from './module';
 
 // E18-63: the Create menu is grouped like the navigation and every entry has an icon.
 const nav = (group: NavItem['group'], path: string, icon: NavItem['icon']): NavItem => ({ group, label: path, path, icon });
-const GROUPS = ['Home', 'Service desk', 'Inventory', 'Change', 'Governance'] as const;
+const GROUPS = ['Home', 'IT services', 'Assets', 'Risk and compliance', 'Governance and records'] as const;
 
 describe('Create menu entries', () => {
-  const tickets = nav('Service desk', '/tickets', 'ticket');
-  const catalog = nav('Service desk', '/tickets/catalog', 'book');
-  const assets = nav('Inventory', '/assets', 'box');
-  const changes = nav('Change', '/changes', 'refresh');
+  const tickets = nav('IT services', '/tickets', 'ticket');
+  const catalog = nav('IT services', '/tickets/catalog', 'book');
+  const assets = nav('Assets', '/assets', 'box');
+  const changes = nav('Risk and compliance', '/changes', 'refresh');
 
   it('finds the navigation entry an address belongs under, longest path first', () => {
     expect(createHome('/tickets?new=1', [tickets, catalog], [])?.path).toBe('/tickets');
@@ -29,10 +29,10 @@ describe('Create menu entries', () => {
     ], [tickets, catalog, assets, changes], GROUPS);
     expect(entries.map((e) => `${e.group}: ${e.label} (${e.icon})`)).toEqual([
       'Home: Plan activation (plus)',
-      'Service desk: Catalog item (book)',
-      'Service desk: Ticket (ticket)',
-      'Inventory: Asset (box)',
-      'Change: Change (refresh)',
+      'IT services: Catalog item (book)',
+      'IT services: Ticket (ticket)',
+      'Assets: Asset (box)',
+      'Risk and compliance: Change (refresh)',
     ]);
   });
 });

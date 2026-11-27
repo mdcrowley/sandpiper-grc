@@ -8,7 +8,9 @@ import './work.css';
 
 const mod: ModuleDef = {
   key: 'work',
-  nav: [{ group: 'Home', label: 'Compliance calendar', path: '/calendar', icon: 'calendar', order: 40 }],
+  nav: [
+    { group: 'Home', label: 'Calendar', path: '/calendar', icon: 'calendar', order: 20 },
+  ],
   routes: [{ path: '/calendar', element: <CompliancePage /> }],
 };
 export default mod;

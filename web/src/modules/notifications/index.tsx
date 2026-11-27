@@ -14,10 +14,11 @@ const ADMIN = 'admin.administer';
 const mod: ModuleDef = {
   key: 'notifications',
   nav: [
-    { group: 'Home', label: 'Notifications', path: '/notifications', icon: 'message', order: 50 },
-    { group: 'Administration', label: 'Email', path: '/admin/email', icon: 'message', permission: ADMIN, order: 45 },
-    { group: 'Administration', label: 'Background jobs', path: '/admin/jobs', icon: 'refresh', permission: ADMIN, order: 54 },
-    { group: 'Administration', label: 'Reminders', path: '/admin/reminders', icon: 'clock', permission: ADMIN, order: 46 },
+    // The bell and the account menu open the notifications page (E44-01), so it is not a menu entry.
+    { group: 'Home', label: 'Notifications', path: '/notifications', icon: 'message', order: 50, menu: false },
+    { group: 'Administration', label: 'Email', path: '/admin/email', icon: 'message', permission: ADMIN, order: 56, menu: false, hub: 'Connections', hint: 'The mail server, sender address and email templates.' },
+    { group: 'Administration', label: 'Reminders', path: '/admin/reminders', icon: 'clock', permission: ADMIN, order: 43, menu: false, hub: 'Records setup', hint: 'When people are reminded of work that is due.' },
+    { group: 'Administration', label: 'Background jobs', path: '/admin/jobs', icon: 'refresh', permission: ADMIN, order: 65, menu: false, hub: 'Data and operations', hint: 'Scheduled work, what ran and what failed.' },
   ],
   routes: [
     { path: '/notifications', element: <NotificationsPage /> },

@@ -135,8 +135,8 @@ describe('versions', () => {
     expect((await agentA.post(`/api/policies/${policyId}/versions/${v1}/approve`)).status).toBe(403);
     expect((await lead.post(`/api/policies/${policyId}/versions/${v1}/approve`)).body.error.code).toBe('own_version'); // the author cannot approve
     expect((await lead2.post(`/api/policies/${policyId}/versions/${v1}/approve`, { approved_on: 'tomorrow' })).status).toBe(400);
-    const approved = await lead2.post(`/api/policies/${policyId}/versions/${v1}/approve`, { approved_on: '2026-11-01', effective_on: '2026-12-01' });
-    expect(approved.body).toMatchObject({ status: 'approved', approved_by_name: 'Invented Approver', approved_on: '2026-11-01', effective_on: '2026-12-01' });
+    const approved = await lead2.post(`/api/policies/${policyId}/versions/${v1}/approve`, { approved_on: '2026-11-01', effective_on: '2026-11-15' });
+    expect(approved.body).toMatchObject({ status: 'approved', approved_by_name: 'Invented Approver', approved_on: '2026-11-01', effective_on: '2026-11-15' });
     expect((await lead.get(`/api/policies/${policyId}`)).body.status).toBe('approved');
     // An approved version is fixed: changes need a new version.
     expect((await lead.patch(`/api/policies/${policyId}/versions/${v1}`, { body: 'changed' })).body.error.code).toBe('not_draft');

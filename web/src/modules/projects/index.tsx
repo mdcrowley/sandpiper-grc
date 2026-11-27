@@ -10,12 +10,9 @@ import './projects.css';
 const mod: ModuleDef = {
   key: 'projects',
   nav: [
-    { group: 'Projects', label: 'Project portfolio', path: '/projects', icon: 'folder', permission: 'projects.view', order: 10 },
-    // Shown to whoever may send a request: who may is a setting (E11-16), so the server grants
-    // "projects.request" per person in /api/auth/state (BW-06).
-    { group: 'Projects', label: 'New project request', path: '/projects/new', icon: 'plus', permission: 'projects.request', order: 20 },
-    { group: 'Projects', label: 'Certifiable items', path: '/projects/certifiable-items', icon: 'shield', permission: 'projects.view', order: 30 },
-    { group: 'Projects', label: 'Project settings', path: '/projects/settings', icon: 'settings', permission: 'projects.administer', order: 90 },
+    { group: 'Projects and funding', label: 'Project portfolio', path: '/projects', icon: 'folder', permission: 'projects.view', order: 10, tabs: 'Portfolio' },
+    { group: 'Projects and funding', label: 'Certifiable items', path: '/projects/certifiable-items', icon: 'shield', permission: 'projects.view', order: 11, menu: false, parent: '/projects', tab: 'Certifiable items' },
+    { group: 'Projects and funding', label: 'Project settings', path: '/projects/settings', icon: 'settings', permission: 'projects.administer', order: 12, menu: false, parent: '/projects', tab: 'Settings', hub: 'Area settings', hint: 'Scoring, gates, who may send a request, and the request form.' },
   ],
   routes: [
     { path: '/projects', element: <PortfolioPage />, permission: 'projects.view' },

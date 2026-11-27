@@ -1,6 +1,6 @@
 # Change enablement
 
-The Change area is where changes to systems are planned, assessed for risk, approved, scheduled, carried out and reviewed, so that everyone can see what is about to change and anything that goes wrong can be traced back. This page covers raising a change, the three types of change, the risk questionnaire, approvals, the calendar with blackout periods and conflicts, completing and reviewing a change, and the settings an administrator maintains. The screens are in the **Change** group of the menu: **Changes**, **Change calendar**, **New change** and **Change settings**.
+The Change area is where changes to systems are planned, assessed for risk, approved, scheduled, carried out and reviewed, so that everyone can see what is about to change and anything that goes wrong can be traced back. This page covers raising a change, the three types of change, the risk questionnaire, approvals, the calendar with blackout periods and conflicts, completing and reviewing a change, and the settings an administrator maintains. The screens are under **IT services > Changes**, with the tabs **Changes**, **Calendar** and, for people who administer change enablement, **Settings**; a new change starts from the **Create** menu or **New change** on the register.
 
 An administrator can switch change enablement off under **Administration > Features** (see [Administration](09-administration.md#features)); the changes panel on system pages then goes too. Records are kept and return when it is switched back on.
 
@@ -47,7 +47,7 @@ The application enforces the order. A change cannot be scheduled or started unti
 
 ## The register
 
-Open **Change > Changes**. The tiles at the top count changes that are **Awaiting approval**, **Planned this week** (Monday to Sunday of the current week), **In progress**, with a **Review due**, and **Open emergency changes**. Select a tile to see those changes.
+Open **IT services > Changes**. The tiles at the top count changes that are **Awaiting approval**, **Planned this week** (Monday to Sunday of the current week), **In progress**, with a **Review due**, and **Open emergency changes**. Select a tile to see those changes.
 
 If you approve changes, **Waiting for your decision** appears under the tiles whenever a change is waiting for you, with its planned start and how many approvals it has. Select a change to open its **Approvals** tab.
 
@@ -64,7 +64,7 @@ The **View** menu beside **Filters** holds ready-made saved views, which you can
 
 ## Raising a change
 
-1. Open **Change > New change**, or select **New change** on the register or the calendar.
+1. Select **New change** on the register or the calendar, or choose **Change** from the **Create** menu.
 2. On the **Type** step, choose **Standard**, **Normal** or **Emergency**, then select **Next**.
 3. Follow the steps for that type, below. Select a step name at the top to go back to an earlier step.
 
@@ -136,7 +136,7 @@ Submitting starts the rule's approval workflow. Its approvers are worked out at 
 2. In the approval panel at the top of the change, select **Approve** or **Reject**.
 3. For an approval, add any comment (for example conditions for the implementer). For a rejection, say why; it is required.
 
-You can also decide from **Home > Approvals**, or through an AI assistant (`my_approvals`, `decide_approval`). The decision is recorded under your name with today's date, and someone standing in for an approver is recorded as deciding on their behalf. Each person decides once per submission. When the workflow's last step is approved the change becomes **Approved**; a rejection makes it **Rejected** at once. The person who asked for approval (or an administrator) can **Cancel request** on the panel, which returns the change to draft.
+You can also decide from **My work > Approvals**, or through an AI assistant (`my_approvals`, `decide_approval`). The decision is recorded under your name with today's date, and someone standing in for an approver is recorded as deciding on their behalf. Each person decides once per submission. When the workflow's last step is approved the change becomes **Approved**; a rejection makes it **Rejected** at once. The person who asked for approval (or an administrator) can **Cancel request** on the panel, which returns the change to draft.
 
 ### Recording a decision given outside the application
 
@@ -212,7 +212,7 @@ The name of the person and the reason are shown beside the conflict and recorded
 
 ## The change calendar
 
-Open **Change > Change calendar**.
+Open **IT services > Changes** and the **Calendar** tab.
 
 - Switch between **Month** and **Week**. Use the arrows to move, and **Today** to come back.
 - To see one system, search for it in the box beside **Month** and **Week** (it shows **All systems** until you choose one). The calendar then shows only the changes that affect that system (as main system or as another affected system) and the blackout periods that apply to it. Select **Show all systems** in the notice to go back. The address can be bookmarked or sent from a system's page.
@@ -258,7 +258,7 @@ Every change has the **Activity**, **Attachments**, **Related** and **History** 
 
 ## Change settings
 
-Open **Change > Change settings**. You need **Administer** on **Change enablement**. Every change made here is recorded in the audit log.
+Open **IT services > Changes** and the **Settings** tab (also on the **Administration** page). You need **Administer** on **Change enablement**. Every change made here is recorded in the audit log.
 
 ### Templates
 

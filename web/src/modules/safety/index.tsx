@@ -14,13 +14,14 @@ const view = 'safety.view';
 const mod: ModuleDef = {
   key: 'safety',
   nav: [
-    { group: 'Safety', label: 'Safety dashboard', path: '/safety', icon: 'chart', permission: view, order: 95 },
-    { group: 'Safety', label: 'Safety events', path: '/safety/events', icon: 'alert', permission: view, order: 96 },
-    { group: 'Safety', label: 'Hazard log', path: '/safety/hazards', icon: 'shield', permission: view, order: 97 },
-    { group: 'Safety', label: 'Safety indicators', path: '/safety/indicators', icon: 'target', permission: view, order: 98 },
-    { group: 'Administration', label: 'Hazard matrix', path: '/safety/matrix', icon: 'target', permission: 'safety.administer', order: 63 },
-    { group: 'Administration', label: 'Safety reporting rules', path: '/safety/reporting-rules', icon: 'clock', permission: 'safety.administer', order: 64 },
-    { group: 'Administration', label: 'Confidential safety reports', path: '/safety/confidential', icon: 'eye-off', permission: 'safety.administer', order: 65 },
+    { group: 'Safety and emergency management', label: 'Safety dashboard', path: '/safety', icon: 'chart', permission: view, order: 10 },
+    { group: 'Safety and emergency management', label: 'Safety indicators', path: '/safety/indicators', icon: 'target', permission: view, order: 11, menu: false, parent: '/safety' },
+    { group: 'Safety and emergency management', label: 'Safety events', path: '/safety/events', icon: 'alert', permission: view, order: 20 },
+    { group: 'Safety and emergency management', label: 'Hazard log', path: '/safety/hazards', icon: 'shield', permission: view, order: 30 },
+    // The safety administrators' settings: the Settings tab of the safety pages opens the first; they share a tab strip.
+    { group: 'Safety and emergency management', label: 'Hazard matrix', path: '/safety/matrix', icon: 'target', permission: 'safety.administer', order: 12, menu: false, parent: '/safety', tabs: 'Hazard matrix', hub: 'Area settings', hint: 'The likelihood and severity levels hazards are scored on.' },
+    { group: 'Safety and emergency management', label: 'Safety reporting rules', path: '/safety/reporting-rules', icon: 'clock', permission: 'safety.administer', order: 13, menu: false, parent: '/safety/matrix', tab: 'Reporting rules', hub: 'Area settings', hint: 'When a safety event must be reported, to whom and how fast.' },
+    { group: 'Safety and emergency management', label: 'Confidential safety reports', path: '/safety/confidential', icon: 'eye-off', permission: 'safety.administer', order: 14, menu: false, parent: '/safety/matrix', tab: 'Confidential reports', hub: 'Area settings', hint: 'Who may see the identity of a reporter who asked to stay confidential.' },
   ],
   routes: [
     { path: '/safety', element: <SafetyDashboard />, permission: view },

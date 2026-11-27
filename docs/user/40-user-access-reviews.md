@@ -4,7 +4,7 @@ People keep accounts on systems long after they need them: someone changes jobs 
 
 The access review pages keep a register of the **accounts on each system** (imported from each system's own export, or entered by hand), match each account to a person on the [staff roster](29-people-and-qualifications.md), and flag active accounts of people who have left or are on leave. A **review campaign** then asks each system's owner to keep or remove every account by a due date, with reminders. Removals are tracked until they are done, the decisions can be exported for the evidence file, and a finished campaign can be recorded as a test of a control in the [control library](26-controls-and-testing.md). Lists and record pages work as described in [Getting started](01-getting-started.md).
 
-Open the pages from the **Cybersecurity** group in the navigation: **Access reviews** (the campaigns, with the figures), **Accounts on systems** and **My access reviews**. The pages share tabs along the top. A system's page also has an **Accounts** tab listing the accounts it holds.
+Open the pages from **Security > Access reviews** in the navigation: the campaigns, with the figures, and the tabs **Accounts on systems** and **My access reviews**. Your own reviews are also under **My work > Access reviews**. The pages share tabs along the top. A system's page also has an **Accounts** tab listing the accounts it holds.
 
 If your organization does not use them, an administrator can switch **User access reviews** off under **Administration > Features** (see [Administration](09-administration.md#features)). The pages, the accounts and campaigns, the Accounts tab on systems, their notifications and calendar entries then disappear everywhere. Nothing is deleted: everything returns as it was when the part is switched back on.
 
@@ -123,7 +123,7 @@ When the control library is switched on, a completed campaign can be recorded as
 
 ## In your calendar
 
-Each system you are asked to review appears in **My work**, on the compliance calendar and, if you choose **My access reviews due**, in your calendar feed, on the day decisions are due, as "Access review UAR-00012: Payroll system, 5 accounts to decide" (or "ready to sign off" once every account is decided). It links to your review page and stays while overdue, until you sign the system off. This needs no permission: being the named reviewer is enough, and nobody else sees your items. They are left out while **User access reviews** is switched off.
+Each system you are asked to review appears in **My work**, on the **Calendar** and, if you choose **My access reviews due**, in your calendar feed, on the day decisions are due, as "Access review UAR-00012: Payroll system, 5 accounts to decide" (or "ready to sign off" once every account is decided). It links to your review page and stays while overdue, until you sign the system off. This needs no permission: being the named reviewer is enough, and nobody else sees your items. They are left out while **User access reviews** is switched off.
 
 ## Sample data
 

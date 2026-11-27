@@ -84,12 +84,24 @@ describe('SLA clocks', () => {
     expect(made.body.resolve_due_at).toBe('2026-11-23T20:00:00.000Z');
     expect(made.body.first_responded_at).toBeNull();
 
-    // 15:10: picked up. First response is stamped, inside the target.
-    clock.set('2026-11-20T20:10:00Z');
+    // 15:05: picked up. Assigning is not a response (E18-74).
+    clock.set('2026-11-20T20:05:00Z');
     const agent = await t.as('agent');
-    const taken = await agent.patch(`/api/tickets/${id}`, { assignee_id: agent.userId, status: 'assigned' });
+    const assigned = await agent.patch(`/api/tickets/${id}`, { assignee_id: agent.userId, status: 'assigned' });
+    expect(assigned.body.first_responded_at).toBeNull();
+    // 15:10: a public comment to the requester is the first response, inside the target. An internal note is not.
+    clock.set('2026-11-20T20:08:00Z');
+    expect((await agent.post('/api/comments', { record_type: 'ticket', record_id: id, body: 'Looking at it.', internal: true })).status).toBe(201);
+    expect((await agent.get(`/api/tickets/${id}`)).body.first_responded_at).toBeNull();
+    clock.set('2026-11-20T20:10:00Z');
+    expect((await agent.post('/api/comments', { record_type: 'ticket', record_id: id, body: 'We are on it.', internal: false })).status).toBe(201);
+    const taken = await agent.get(`/api/tickets/${id}`);
     expect(taken.body.first_responded_at).toBe('2026-11-20T20:10:00.000Z');
     expect(taken.body.response_breached).toBe(false);
+    // A second public comment does not move it.
+    clock.set('2026-11-20T20:20:00Z');
+    await agent.post('/api/comments', { record_type: 'ticket', record_id: id, body: 'Still on it.', internal: false });
+    expect((await agent.get(`/api/tickets/${id}`)).body.first_responded_at).toBe('2026-11-20T20:10:00.000Z');
 
     // 16:00 Friday: waiting on the requester. The clock stops.
     clock.set('2026-11-20T21:00:00Z');
@@ -206,9 +218,9 @@ describe('ticket lifecycle', () => {
 
     clock.set('2026-12-01T15:20:00Z');
     const mine = await agent.patch(`/api/tickets/${id}`, { assignee_id: agent.userId });
-    expect(mine.body.first_responded_at).toBe('2026-12-01T15:20:00.000Z');
+    expect(mine.body.first_responded_at).toBeNull(); // assigning is not a response (E18-74)
     expect((await agent.get('/api/tickets?f.assignee_id=me')).body.rows.map((r: any) => r.id)).toContain(id);
-    await agent.patch(`/api/tickets/${id}`, { status: 'in_progress' });
+    expect((await agent.patch(`/api/tickets/${id}`, { status: 'in_progress' })).body.first_responded_at).toBe('2026-12-01T15:20:00.000Z');
 
     const vendor = await agent.patch(`/api/tickets/${id}`, { with_vendor: true, vendor_ref: 'CASE-1', status: 'waiting_vendor' });
     expect(vendor.body.vendor_raised_at).toBe('2026-12-01T15:20:00.000Z');

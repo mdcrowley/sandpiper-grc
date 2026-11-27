@@ -14,14 +14,14 @@ import './training.css';
 const mod: ModuleDef = {
   key: 'training',
   nav: [
-    { group: 'Cybersecurity', label: 'Training overview', path: '/training', icon: 'graduation', permission: 'training.view', order: 85 },
-    { group: 'Cybersecurity', label: 'Courses', path: '/training/courses', icon: 'book', permission: 'training.view', order: 86 },
-    { group: 'Cybersecurity', label: 'My training', path: '/training/mine', icon: 'user', order: 87 },
+    { group: 'Home', label: 'My training', path: '/training/mine', icon: 'user', order: 33, menu: false, parent: '/my-work', tab: 'Training' },
+    { group: 'People and training', label: 'Training overview', path: '/training', icon: 'graduation', permission: 'training.view', order: 20, tabs: 'Overview' },
+    { group: 'People and training', label: 'Courses', path: '/training/courses', icon: 'book', permission: 'training.view', order: 21, menu: false, parent: '/training', tab: 'Courses' },
     // Qualifications of the roster (E29) are about people: the matrix needs people.view as well as training.view.
-    { group: 'People', label: 'Qualifications', path: '/training/qualifications', icon: 'check-square', permission: 'training.view', permissions: ['people.view'], order: 30 },
-    { group: 'People', label: 'Certifications', path: '/training/certifications', icon: 'star', permission: 'training.view', order: 40 },
-    { group: 'Cybersecurity', label: 'Exercises', path: '/exercises', icon: 'clipboard', permission: 'exercises.view', order: 88 },
-    { group: 'Cybersecurity', label: 'Exercise calendar', path: '/exercises/calendar', icon: 'calendar', permission: 'exercises.view', order: 89 },
+    { group: 'People and training', label: 'Qualifications', path: '/training/qualifications', icon: 'check-square', permission: 'training.view', permissions: ['people.view'], order: 30, tabs: 'Qualifications' },
+    { group: 'People and training', label: 'Certifications', path: '/training/certifications', icon: 'star', permission: 'training.view', order: 31, menu: false, parent: '/training/qualifications', tab: 'Certifications' },
+    { group: 'Safety and emergency management', label: 'Exercises', path: '/exercises', icon: 'clipboard', permission: 'exercises.view', order: 60, tabs: 'Exercises' },
+    { group: 'Safety and emergency management', label: 'Exercise calendar', path: '/exercises/calendar', icon: 'calendar', permission: 'exercises.view', order: 61, menu: false, parent: '/exercises', tab: 'Calendar' },
   ],
   routes: [
     { path: '/training', element: <TrainingOverview />, permission: 'training.view' },

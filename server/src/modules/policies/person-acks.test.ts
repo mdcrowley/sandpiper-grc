@@ -38,8 +38,8 @@ afterAll(async () => { await t.close(); });
 describe('document types (contract C6)', () => {
   it('offers the document types with their review cycles; plan is a plan', async () => {
     const list = (await t.api.get('/api/lookups/policy_document_type')).body as any[];
-    expect(list.map((v) => v.value)).toEqual(['policy', 'procedure', 'rulebook_section', 'bulletin', 'standard', 'plan']);
-    expect(list.find((v) => v.value === 'plan').meta).toEqual({ plan: true, review_months: 12 });
+    expect(list.map((v) => v.value)).toEqual(['policy', 'plan', 'charter', 'standard', 'program', 'procedure', 'sop', 'rulebook_section', 'bulletin', 'work_instruction', 'guideline', 'form_template', 'external', 'reference']);
+    expect(list.find((v) => v.value === 'plan').meta).toEqual({ tier: 1, prefix: 'PLN', plan: true, review_months: 12 });
   });
 
   it('defaults to policy and moves the review date by the type\'s cycle on publishing', async () => {

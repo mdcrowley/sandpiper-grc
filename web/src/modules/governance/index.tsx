@@ -11,9 +11,9 @@ const view = 'governance.view';
 const mod: ModuleDef = {
   key: 'governance',
   nav: [
-    { group: 'Governance', label: 'Committees', path: '/governance/committees', icon: 'users', permission: view, order: 101 },
-    { group: 'Governance', label: 'Meetings', path: '/governance/meetings', icon: 'calendar', permission: view, order: 102 },
-    { group: 'Governance', label: 'Decisions', path: '/governance/decisions', icon: 'check-square', permission: view, order: 103 },
+    { group: 'Governance and records', label: 'Committees', path: '/governance/committees', icon: 'users', permission: view, order: 10 },
+    { group: 'Governance and records', label: 'Meetings', path: '/governance/meetings', icon: 'calendar', permission: view, order: 11, menu: false, parent: '/governance/committees' },
+    { group: 'Governance and records', label: 'Decisions', path: '/governance/decisions', icon: 'check-square', permission: view, order: 12, menu: false, parent: '/governance/committees' },
   ],
   routes: [
     { path: '/governance/committees', element: <CommitteeList />, permission: view },

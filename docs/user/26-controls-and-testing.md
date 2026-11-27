@@ -2,7 +2,7 @@
 
 The control library keeps one list of your organization's **controls**: the checks, safeguards and routines that keep risks in hand, such as a second factor on remote access, a backup restore test, a pre-service vehicle check or a weekly track switch inspection. For each control it records what the control **covers** (risks, hazards, framework outcomes, obligations and policies), and it holds the **tests** that show whether the control is designed well and works in practice. Test a control once, and every record it covers benefits.
 
-Open the pages from the **Governance** group in the navigation: **Controls** and **Control tests**. The pages share tabs along the top: **Dashboard**, **Controls**, **Tests** and **Coverage**. Lists and record pages work as described in [Getting started](01-getting-started.md).
+Open the pages from **Risk and compliance > Controls** in the navigation. The pages share tabs along the top: **Dashboard**, **Controls**, **Tests** and **Coverage**. Lists and record pages work as described in [Getting started](01-getting-started.md).
 
 If your organization does not use the control library, an administrator can switch **Control library and testing** off under **Administration > Features** (see [Administration](09-administration.md#features)). The pages, their reminders and their notifications then disappear. Records are kept and return when it is switched back on.
 

@@ -137,8 +137,12 @@ export async function seedLifecycle(ctx: ModuleContext): Promise<string[]> {
       // Things the vendor supplied under it, so the checklist has system, remote-access and asset items.
       const sys = ctx.resources.get('system');
       if (sys?.fields.vendor_id) {
-        const s = await db.one<Row>(`select id from ${sys.table} where deleted_at is null and vendor_id is null order by created_at limit 1`);
-        if (s) await ctx.resources.update('system', s.id, { vendor_id: vendor.id, ...(sys.fields.contract_id ? { contract_id: contract.id } : {}) });
+        // The system this vendor ran under the contract (its backups), never an unrelated one (E18-82).
+        const s = await db.one<Row>(
+          `select id from ${sys.table} where deleted_at is null and (vendor_id is null or vendor_id = $1)
+             and (lower(coalesce(vendor_name, '')) = lower($2) or name ilike '%backup%')
+           order by (lower(coalesce(vendor_name, '')) = lower($2) and name ilike '%backup%') desc, created_at limit 1`, [vendor.id, vendor.name]);
+        if (s) await ctx.resources.update('system', s.id, { vendor_id: vendor.id, vendor_name: vendor.name, ...(sys.fields.contract_id ? { contract_id: contract.id } : {}) });
       }
       const asset = ctx.resources.get('asset');
       if (asset?.fields.vendor_id) {

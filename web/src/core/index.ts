@@ -14,6 +14,7 @@ export * from './display';
 export * from './tags';
 export { loadPreferences, savePreference, serverPreference, usePreferences, useSyncedPreference } from './preferences';
 export { RouteLoading } from './lazyRoutes';
+export { allowedNav, hubCards, menuGroups, sectionTabs, type HubCard, type SectionTab } from './navModel';
 export * from './fields';
 export * from './Chart';
 export * from './FieldValue';

@@ -56,6 +56,8 @@ export const SECRET_TABLES = [
   'push_registrations',
   // Call-out links a reminder replaced (continuity): dead links, kept only so opening one is not counted as a wrong link.
   'activation_callout_replaced_links',
+  // Uploads in parts not yet attached (E43-07): they expire within 24 hours and belong to the session that sent them.
+  'uploads_pending',
 ];
 
 /** A token hash replaced by a value no token can hash to (still unique, so the row loads). */

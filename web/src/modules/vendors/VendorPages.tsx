@@ -95,6 +95,10 @@ function Profile({ row, version }: { row: Row; version: number }) {
       : []),
     ...data.incident_contacts.filter((c) => c.name !== row.incident_contact_name),
   ];
+  // A passed notice date on an open contract is the most urgent state, so it is the headline (E18-75).
+  const passedDate = data.last_passed_notice_date ?? null;
+  const headline = passedDate ?? data.next_notice_date;
+  const headlineContract = passedDate ? data.last_passed_contract : data.next_notice_contract;
   const next = data.next_notice_date;
   const assessed = data.assessment;
   const evidenceBad = data.evidence_expired > 0;
@@ -123,16 +127,17 @@ function Profile({ row, version }: { row: Row; version: number }) {
           tone={data.notice_dates_passed ? 'red' : next ? noticeTone(next) : undefined}
           to={tab('contracts')} linkLabel={`${data.contracts} contract${data.contracts === 1 ? '' : 's'}`}
         >
-          {next ? (
+          {headline ? (
             <>
-              <p className="vnd-fact-big">{formatDate(next)}</p>
-              <p><NoticeChip date={next} /></p>
-              {data.next_notice_contract && (
+              <p className="vnd-fact-big">{formatDate(headline)}</p>
+              <p><NoticeChip date={headline} /></p>
+              {headlineContract && (
                 <>
-                  <p><Link to={`/contracts/${data.next_notice_contract.id}`}>{contractName(data.next_notice_contract)}</Link></p>
-                  <p className="muted"><strong>If we do nothing:</strong> {ifWeDoNothing({ ...data.next_notice_contract, notice_date: next })}</p>
+                  <p><Link to={`/contracts/${headlineContract.id}`}>{contractName(headlineContract)}</Link></p>
+                  <p className="muted"><strong>If we do nothing:</strong> {ifWeDoNothing({ ...headlineContract, notice_date: headline })}</p>
                 </>
               )}
+              {passedDate && next && <p className="muted">Next notice date: {formatDate(next)}</p>}
             </>
           ) : (
             <>
@@ -142,8 +147,8 @@ function Profile({ row, version }: { row: Row; version: number }) {
               </p>
             </>
           )}
-          {data.notice_dates_passed > 0 && <p><StatusChip color="red" label={`${data.notice_dates_passed} notice date${data.notice_dates_passed === 1 ? '' : 's'} passed`} /></p>}
-          {data.contracts_undated > 0 && next && <p className="muted">{data.contracts_undated} open with no notice date</p>}
+          {data.notice_dates_passed > 1 && <p><StatusChip color="red" label={`${data.notice_dates_passed} notice date${data.notice_dates_passed === 1 ? '' : 's'} passed`} /></p>}
+          {data.contracts_undated > 0 && headline && <p className="muted">{data.contracts_undated} open with no notice date</p>}
         </Fact>
       )}
 
@@ -249,7 +254,7 @@ function ContractsTab({ vendorId }: { vendorId: string }) {
       baseFilter={{ vendor_id: vendorId }}
       columns={[
         'ref', 'title', 'status',
-        { field: 'notice_date', label: 'Notice date', sortable: true, render: (row) => <NoticeChip date={row.notice_date} /> },
+        { field: 'notice_date', label: 'Notice date', sortable: true, render: (row) => <NoticeChip date={row.notice_date} status={row.status} /> },
         'end_date', 'renewal_mechanism', 'total_value', { field: 'owner_id', hidden: true },
       ]}
       filters={['status', 'renewal_mechanism']}

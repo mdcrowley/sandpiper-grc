@@ -7,8 +7,9 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { ActionIcon, Alert as MAlert, Button as MButton, Menu as MMenu, Skeleton, Tabs as MTabs, Tooltip } from '@mantine/core';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { errorMessage } from './api';
+import { rememberRecord, useShellPage } from './navMemory';
 import { fitTableColumns, fitTabs } from './fit';
 import { appTitle } from './branding';
 import { formatDateTime, formatDuration } from './format';
@@ -814,18 +815,39 @@ export function PageHeader({ title, reference, subtitle, status, actions, breadc
   const [last, setLast] = useState<HTMLElement | null>(null);
   const [listSlot, setListSlot] = useState<HTMLElement | null>(null);
   // The page's main header (not one inside a dialog) offers a slot for the New button of a list on the page.
-  useEffect(() => {
+  // Claimed before the browser paints, so the main header's tab strip and pin button do not flash in.
+  useLayoutEffect(() => {
     if (!listSlot || listSlot.closest('[role="dialog"]') || pageActionsSlot) return undefined;
     setPageActionsSlot(listSlot);
     return () => { if (pageActionsSlot === listSlot) setPageActionsSlot(null); };
   }, [listSlot]);
+  const main = usePageActionsSlot() === listSlot && listSlot !== null;
+  const shell = useShellPage();
+  const { pathname, search } = useLocation();
+  // A record page (its header has a reference) goes to the top of the person's recent records (palette).
+  useEffect(() => {
+    if (main && reference && title) rememberRecord({ path: pathname, label: title, reference });
+  }, [main, reference, title, pathname]);
+  const crumbs = breadcrumbs && breadcrumbs.length > 0 ? breadcrumbs
+    : main && shell?.hubCrumb ? [{ label: 'Administration', to: '/admin' }, { label: shell.hubCrumb.label }] : undefined;
+  const here = `${pathname}${search}`;
+  const pinned = Boolean(main && shell?.pinned(here));
+  const pinLabel = pinned ? `Unpin ${title} from the menu` : `Pin ${title} to the menu`;
+  const pin = main && shell && (pinned || !shell.pinsFull) ? (
+    <Tooltip label={pinned ? 'Unpin from the menu' : 'Pin to the menu'}>
+      <ActionIcon size={28} variant="subtle" className={cx('ui-btn-ghost page-pin no-print', pinned && 'page-pin-on')} aria-label={pinLabel} aria-pressed={pinned}
+        onClick={() => shell.togglePin({ path: here, label: reference ? `${reference} ${title}` : title })}>
+        <Icon name={pinned ? 'star-filled' : 'star'} size={16} />
+      </ActionIcon>
+    </Tooltip>
+  ) : null;
 
   return (
     <header className="page-header">
-      {breadcrumbs && breadcrumbs.length > 0 && (
+      {crumbs && (
         <nav aria-label="Breadcrumb">
           <ol className="breadcrumbs">
-            {breadcrumbs.map((c, i) => (
+            {crumbs.map((c, i) => (
               <li key={i}>{c.to ? <Link to={c.to}>{c.label}</Link> : <span aria-current="page">{c.label}</span>}</li>
             ))}
           </ol>
@@ -838,6 +860,7 @@ export function PageHeader({ title, reference, subtitle, status, actions, breadc
             {title}
           </h1>
           {status}
+          {pin}
         </div>
         <div className="page-actions">
           <span className="page-actions-slot" ref={setFirst} />
@@ -847,7 +870,22 @@ export function PageHeader({ title, reference, subtitle, status, actions, breadc
         </div>
       </div>
       {subtitle && <p className="page-subtitle">{subtitle}</p>}
+      {main && shell?.tabs && <PageTabs label={shell.tabs.label} active={shell.tabs.active} tabs={shell.tabs.tabs} />}
     </header>
+  );
+}
+
+/**
+ * A tab strip whose tabs are pages (each keeps its own address): choosing one opens its page. The shell
+ * draws one under the heading of every page of a menu entry with sections (core/navModel.ts).
+ */
+export function PageTabs({ tabs, active, label }: { tabs: { key: string; label: string; path: string }[]; active: string; label: string }) {
+  const navigate = useNavigate();
+  return (
+    <div className="page-tabs no-print">
+      <Tabs label={label} active={active} tabs={tabs.map((t) => ({ key: t.key, label: t.label }))}
+        onChange={(key) => { const to = tabs.find((t) => t.key === key)?.path; if (to && key !== active) navigate(to); }} />
+    </div>
   );
 }
 

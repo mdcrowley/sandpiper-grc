@@ -93,13 +93,18 @@ With a **read only** connection it can:
 - run a **saved report** you can open;
 - say **what is affected if a system fails**: the systems that depend on it, and the sites, data, assets, vehicles and services involved, where you may see them;
 - **search the audit log**, if you may read it: for example everything one request did (give it the request id shown with an error or in the call log), or what happened to a record in a time span. It sees who, when and what, never the values before and after a change;
-- read the pages of this user guide.
+- read the pages of this user guide;
+- **find and read controlled documents** you may read (policies, plans, procedures, standard operating procedures, forms, external and reference documents): by words, type, department, status or review state; one document with its versions, their labels and dates, the text of a version (or the text read from its PDF), its place under other documents and its links; the **register figures** (the same for everyone); and a **check** of documents for problems such as two versions in force at once, gaps between versions' dates or missing original files.
+
+A document whose distribution leaves you out does not exist for the assistant either: it is not found, not read and not named, although the register figures count it, as they do on screen.
 
 For the longer summaries (your work, what is overdue, framework progress, saved reports and what a failure affects) the assistant can show progress while it works, if it supports that.
 
 With a **read and write** connection, and while your administrator allows write access, it can also **create records**, **update fields**, **add comments** (internal notes unless asked otherwise), **link records** and **approve or reject** an approval step waiting for you (a rejection needs a reason, and it can never decide a request you made yourself). The same rules apply as on screen: required fields, allowed values and permissions. If something is not valid, the assistant is told which field and why.
 
-Assistants also offer ready-made requests: **Weekly risk and action review**, **Prepare a board summary**, **Triage open tickets** and **Incident status update**.
+With a read and write connection and the right to write documents, it can also **upload files** (in parts of at most 1 MB, checked and scanned like any upload), **preview the conversion of a Word file**, **create or update a document** by its number, **add a version** (as Markdown text, or from an uploaded Word file, which is converted with its images kept, or from a PDF or older file, kept as the original), **set who may read a document**, **link a document** to controls, obligations, systems, courses, framework outcomes and other documents, and **record a review**. Outside data load mode a new version is always a draft, to be sent for review and approved in the application.
+
+Assistants also offer ready-made requests: **Weekly risk and action review**, **Prepare a board summary**, **Triage open tickets**, **Incident status update** and **Load a document package**.
 
 ## Loading historical records
 
@@ -109,7 +114,29 @@ To load past records from source documents (for example a service desk's old tic
 - **create_record** and **update_record** may also set the read-only fields (for a ticket `opened_at`, `first_responded_at`, `resolved_at`, `closed_at`, `response_due_at`, `resolve_due_at`, `response_breached`, `resolve_breached`, `paused_minutes`, the satisfaction answer and so on), any status, `created_at`, `created_by`, `updated_at` and the reference `ref`. Dates and times are given as ISO 8601, for example `2024-03-04T14:00:00Z`. Values given are kept; what is left out is worked out from the dates given. Field errors come back as usual, field by field;
 - **delete_record** deletes a record that was created in data load mode, for example to correct a wrong load. It is offered only while data load mode is on, never deletes any other record, and is refused for a record under a legal hold.
 
+**Writing in other people's names.** While data load mode is on (and only for an administrator's token with write access), the tools that write (`create_record`, `update_record`, `add_comment`, `link_records`, `decide_approval`, `save_document` and `add_document_version`) gain an `as` argument: the person who really wrote or did the thing. Give a user name or email (disabled accounts too), `person:` and a roster reference or email for someone on the people roster, or `name:` and a name for someone with neither. `add_comment` also takes `created_at`, the time the comment was written. The assistant is refused when the person is not found; it never writes as you instead. The audit log still records you and your token, "on behalf of" the person. For example: *"Load these 2021 records. Each row's 'Opened by' is the author; add the notes as comments in the names of the people who wrote them."* When data load mode is off the argument is not offered at all.
+
 Nothing is sent for loaded records: no notifications, email, webhooks or approvals. Every record loaded is listed under **Administration > Data loads**, where an administrator can delete everything one load created. For anyone who is not an administrator, and once data load mode ends, the assistant works as before.
+
+### Loading a document package
+
+An assistant such as Claude Desktop can load a whole set of controlled documents, for example a department's procedures with every older revision, keeping the organization's own numbers and the original approval, effective and superseded dates. Use the ready-made request **Load a document package** and tell it which folder to load. It then:
+
+1. lists the files, leaving out Office lock files (names starting with `~$`) and thumbnail caches, and groups them into documents and versions;
+2. proposes, for your approval, each document's number, title, type, owner, department, parent document and readers, and each version's label, status and dates, marking what it had to guess;
+3. checks that data load mode is on (without it, dates and statuses are not kept and every version is a draft);
+4. creates each document, then adds its versions oldest first: it uploads each original in parts, shows you what a Word file converts to (tracked changes, comments and anything left out, such as text boxes or SmartArt) and adds the version with its dates;
+5. checks every document it loaded and reports what it loaded, which files were kept only as originals and why, and any problems left.
+
+What happens to each kind of file:
+
+| File | Kept as |
+|---|---|
+| Word (`.docx`) | Markdown text, with its headings, lists, tables, bold and italic text and links; its pictures become files on the document, shown in the text; the original `.docx` is kept on the version. A file with tracked changes is refused until you say to convert it as it is |
+| PDF | The PDF itself is the version; its text is read for search. A scanned PDF with no text layer is found by title and number only (there is no text recognition) |
+| Word 97-2003 (`.doc`) and other types | The original file only, with the note "Could not convert": open it in Word and save it as `.docx` to convert it |
+
+The documents' distribution applies throughout: the assistant acts as you, so it can load into and read back only documents you may read. Documents loaded this way are listed under **Administration > Data loads** and can be undone there; the assistant can delete a document it loaded (and nothing else) while data load mode is on. The same package can also be loaded without an assistant, as a `.zip` with a manifest, under **Documents > Import** ([Importing and exporting](17-importing-and-exporting.md#importing-a-document-package)).
 
 ## What an assistant cannot do
 

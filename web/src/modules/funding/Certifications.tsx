@@ -172,7 +172,7 @@ function Checklist({ row, canEdit, reloadRecord }: { row: Row; canEdit: boolean;
                         <td>{i.responsible_name ?? <span className="muted">No one</span>}</td>
                         <td>
                           {!i.applies ? <span className="muted">Does not apply</span>
-                            : i.confirmed_on ? <span>Confirmed by {i.confirmed_by_name ?? 'someone'}, {formatDate(i.confirmed_on)}</span>
+                            : i.confirmed_on ? <span>{i.confirmed_by_name ? `Confirmed by ${i.confirmed_by_name}` : 'Confirmed (imported, no user recorded)'}, {formatDate(i.confirmed_on)}</span>
                             : <span className="fd-todo">Not confirmed</span>}
                         </td>
                         <td className="fd-actions">

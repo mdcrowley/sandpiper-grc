@@ -531,8 +531,10 @@ What still protects details in a figure:
   they count for everyone, but a search or a filter on their words never matches them, and
   grouping by their words puts them under "Restricted records", for agents and others alike.
 - **Row rules.** A record type can carry a rule of its own about which rows a person sees
-  (`ResourceDef.rowRule`): knowledge articles for IT agents only, and the sharing of saved
-  reports, dashboards, packs and schedules. The rule is part of the visibility rule core
+  (`ResourceDef.rowRule`): knowledge articles for IT agents only, controlled documents for the
+  readers in their distribution (departments with those below them, roles, groups, people;
+  `modules/policies/access.ts`, E43-03), and the sharing of saved reports, dashboards, packs and
+  schedules. The rule is part of the visibility rule core
   applies to every reader (`visibleWhere`, `find`, labels), not a hook on a URL, so lists,
   record reads, search, pickers and labels, history, comments, links, tags, watchers, files,
   fact sheets, exports, the report builder, dashboard widgets and the MCP tools all follow it,
@@ -982,6 +984,12 @@ records with their original dates.
   after a fresh password confirmation, as soft deletes through the resource engine; records under a
   legal hold are kept. `DELETE /api/data-load/records/:type/:id` (the MCP tool `delete_record`) deletes
   one loaded record while the mode is on and nothing else.
+- **On behalf of someone (E18-71).** A load may name the person who really wrote or did each thing
+  (`on_behalf_of` or `X-On-Behalf-Of`). It borrows nothing: the request's permissions are the loader's;
+  the named person needs no access and is told nothing. The audit log stays truthful: `actor_id`,
+  `actor_name` and `token_name` are always the real caller; `on_behalf_id`, `on_behalf_name` and the
+  summary say whom the work was written for. Outside data load mode the field and header are refused
+  (400), so nobody can forge an author.
 
 ### AI assistant access (MCP)
 
@@ -1358,6 +1366,16 @@ Sending a meeting's invitations is limited to 10 sends per meeting per hour (rat
 Attached files' text (E41-16) is extracted with pdf.js and fflate (30 s, 25 MB, 300,000
 characters); no macros, scripts or outside programs run. The text is reached
 only through its record's visibility rules and is deleted when the file is removed.
+
+Document control (E43) converts Word originals (mammoth, turndown) and stamps PDF originals (pdf-lib)
+in the same kind of separate, limited process (`policies/convert/sandbox.ts`: time, memory, page and
+unpacked-size limits; no macros or outside programs). Uploads in parts (`attachments/uploads.ts`)
+belong to the person who started them, are checked part by part (SHA-256) and as a whole, go through
+the full intake (type, content, malware scan) when finished, are attached once and expire after 24
+hours. A package import runs each row as the person importing, under their permissions and the
+documents' distribution. The original of a released version cannot be removed, and a version's
+original is downloaded only by people who write or approve documents (except the PDF of a version that
+has been in force).
 
 Reading the text of attached files cannot affect the server. Each file is read in a separate Node
 process (`attachments/text-reader.mjs`, started with `child_process.fork` and plain options). That

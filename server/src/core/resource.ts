@@ -4,7 +4,7 @@ import { CURRENCY } from './config.ts';
 import { afterCommit, type Db } from './db.ts';
 import { ApiError, fail, UUID_RE } from './errors.ts';
 import { assertNotHeld } from './holds.ts';
-import { asDataLoad, dataLoadFor, inDataLoad, noteLoaded } from './dataload.ts';
+import { actorOf, asDataLoad, dataLoadFor, findAccount, inDataLoad, noteLoaded } from './dataload.ts';
 import { etagOf, ifMatchAccepts, pageOf } from './api/conventions.ts';
 import { routePattern } from './api/versioning.ts';
 import type { CreateOptions, FieldDef, RecordRouteHandlers, ResourceDef, ResourceRegistry, Row, RuntimeResources, SessionUser, UpdateOptions } from './module.ts';
@@ -412,7 +412,12 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
           break;
         }
         case 'user': case 'ref':
-          if (UUID_RE.test(String(v))) out[name] = String(v); else errors[name] = `${f.label} is not a valid reference.`;
+          if (UUID_RE.test(String(v))) out[name] = String(v);
+          // A data load may name a person by username or email too (E18-71), disabled accounts included.
+          else if (f.type === 'user' && loading && typeof v === 'string') {
+            const account = await findAccount(db, v);
+            if (account) out[name] = account.id; else errors[name] = `${f.label}: no account has the username or email "${v}".`;
+          } else errors[name] = `${f.label} is not a valid reference.`;
           break;
         case 'json':
           out[name] = v;
@@ -472,8 +477,9 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
   // ---------- data load mode (E18-70, core/dataload.ts) ----------
 
   /**
-   * The standard columns a load may set: `created_at`, `updated_at` (date and time) and
-   * `created_by` (an existing person). Field errors as for any field.
+   * The standard columns a load may set: `created_at`, `updated_at` (date and time), `created_by`
+   * and `updated_by` (an account by user id, username or email, disabled ones included: E18-71).
+   * Field errors as for any field.
    */
   async function loadStandard(input: Row): Promise<Row> {
     const out: Row = {};
@@ -485,10 +491,12 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
       if (Number.isNaN(d.getTime())) errors[name] = `${STD_FIELDS[name].label} must be a date and time.`;
       else out[name] = d.toISOString();
     }
-    const by = input.created_by;
-    if (by !== undefined && by !== null && by !== '') {
-      if (!UUID_RE.test(String(by)) || !(await db.one('select 1 from users where id = $1', [String(by)]))) errors.created_by = 'Created by is not a person in this installation.';
-      else out.created_by = String(by);
+    for (const name of ['created_by', 'updated_by'] as const) {
+      const by = input[name];
+      if (by === undefined || by === null || by === '') continue;
+      const account = typeof by === 'string' ? await findAccount(db, by) : undefined;
+      if (!account) errors[name] = `${STD_FIELDS[name].label} is not a person in this installation (give a user id, username or email).`;
+      else out[name] = account.id;
     }
     if (Object.keys(errors).length) fail(400, 'validation', 'Check the highlighted fields.', errors);
     return out;
@@ -630,10 +638,12 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
       data.restricted = await sourceRestricted(def, data);
     }
     if (def.ref && !data[def.ref.field]) data[def.ref.field] = await nextRef(def.ref.prefix);
-    data.created_by = data.updated_by = req?.user?.id ?? null;
+    // The person a load names (E18-71) is the author; null for someone without an account.
+    data.created_by = data.updated_by = actorOf(req).id;
     if (loading) {
       // The original times and author, when the load gives them (E18-70).
-      if (std.created_by) data.created_by = std.created_by;
+      if (std.created_by) data.created_by = data.updated_by = std.created_by;
+      if (std.updated_by) data.updated_by = std.updated_by;
       if (std.created_at) data.created_at = std.created_at;
       if (std.updated_at ?? std.created_at) data.updated_at = std.updated_at ?? std.created_at;
     }
@@ -646,7 +656,7 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
     await audit(req, {
       action: `${type}.create`, recordType: type, recordId: row.id,
       summary: loading ? `${def.label} loaded (data load mode): ${labelOf(def, row)}` : `${def.label} created: ${labelOf(def, row)}`,
-      after: { ...pickFields(def, row), ...customOf(row), ...(loading ? { created_at: row.created_at, created_by: row.created_by } : {}) },
+      after: { ...pickFields(def, row), ...customOf(row), ...(loading ? { created_at: row.created_at, created_by: row.created_by, updated_by: row.updated_by } : {}) },
     });
     await def.hooks?.afterCreate?.(req, row);
     await emit({ action: 'create', def, row, req });
@@ -681,6 +691,8 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
       if (std.created_at) patch.created_at = std.created_at;
       if (std.created_by) patch.created_by = std.created_by;
     }
+    // Who made the change: given as updated_by or named by the load (E18-71), else the caller.
+    const changedBy = loading && std.updated_by ? std.updated_by : actorOf(req).id;
     if (def.restrictedFrom && (def.restrictedFrom.typeField in patch || def.restrictedFrom.idField in patch)) {
       const merged = { ...existing, ...patch };
       await checkSourceVisible(def, merged, req);
@@ -730,7 +742,7 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
     const row = await db.one<Row>(
       `update ${def.table} set ${[...assignments, stamp, 'updated_by = $2'].join(', ')}
        where id = $1 and deleted_at is null${versionCond} returning *`,
-      [id, req?.user?.id ?? null, ...params, ...extra],
+      [id, changedBy, ...params, ...extra],
     );
     if (!row) throw versionConflict(def);
     await audit(req, {
@@ -826,6 +838,8 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
   /** Adds `_display` labels for user, ref and lookup fields. */
   async function decorate(def: ResourceDef, rows: Row[], user: SessionUser | null): Promise<Row[]> {
     if (!rows.length) return rows;
+    // Columns kept only for search are never returned (ResourceDef.omit, E43).
+    for (const c of def.omit ?? []) for (const row of rows) delete row[c];
     // Custom values appear beside the built-in fields as cf_<key> (the raw `custom` column stays too).
     const customFields = await custom.active(def.type);
     for (const row of rows) for (const f of customFields) row[customName(f)] = row.custom?.[f.key] ?? null;

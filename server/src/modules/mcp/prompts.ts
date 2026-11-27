@@ -71,4 +71,29 @@ export const PROMPTS: PromptSpec[] = [
       CLOSING,
     ].join('\n'),
   },
+  // E43-10: loading a whole document package with its history (developer B, wave 24).
+  {
+    name: 'load_document_package',
+    title: 'Load a document package',
+    description: 'Walks through loading a folder of controlled documents (policies, plans, procedures, SOPs, forms, external documents) with their full version history and original dates: inventory, a plan for my approval, uploads, conversion, loading oldest first, checks and a report.',
+    args: {
+      folder: 'The folder or package to load, as you can see it (e.g. "the IT SOPs folder").',
+      department: 'Optional owning department for the documents, e.g. "Information technology".',
+    },
+    text: (a) => [
+      `Help me load the controlled documents in ${a.folder || 'the folder I give you'} into Sandpiper GRC with their full version history${a.department ? `, owned by the ${a.department} department` : ''}.`,
+      '1. Inventory: list every file with its folder, name, type and size. Skip Office lock files (names starting with ~$), thumbnail caches (Thumbs.db, .DS_Store, desktop.ini) and anything that is not a document. '
+        + 'Group the files into documents and versions (older revisions, "superseded" or "archive" folders, revision letters or dates in names), and read each Word or PDF file only as far as needed to find its number, title, revision and dates.',
+      '2. Call list_record_types with type "policy" and find_documents to learn the document types and what already exists, so nothing is loaded twice (save_document updates a document with the same number).',
+      '3. Propose a plan as a table and wait for my approval before changing anything: per document its number (keep the organization\'s own numbers), title, type, owner, owning department, parent document, who may read it '
+        + '(everyone, or restricted to departments, roles, distribution groups or people), whether readers must acknowledge it, and per version its file, version number, label, status and approved, effective and superseded dates. Mark every guess.',
+      '4. Check that data load mode is on (list_record_types says so); without it the original dates and statuses are not kept and every version is a draft. If it is off, tell me to switch it on under Administration > Settings > Data load mode, and stop.',
+      '5. For each document, after my approval: save_document with its details and access. Then for each version, oldest first: start_upload, upload_part for each part (at most 1 MB each, base64), finish_upload with the SHA-256; '
+        + 'for a Word file call convert_upload and tell me about tracked changes, comments and left-out content before going on; then add_document_version with the upload, the version number, label, status and dates. '
+        + 'A legacy .doc or a scanned PDF is kept as the original file only: say so in the report. Add links (link_document) and past reviews (record_document_review) when the files show them.',
+      '6. Call check_document for every document loaded and fix what it reports, or list it for me.',
+      '7. Report: documents and versions loaded, files kept as originals only (and why), conversion warnings, problems left, and the link to each document. Nothing is sent to anyone during a data load; a wrong load can be undone under Administration > Data loads.',
+      'Only use what the tools return. Never invent a number, date, owner or reader; ask me instead. Do not delete anything.',
+    ].join('\n'),
+  },
 ];

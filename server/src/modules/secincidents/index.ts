@@ -330,6 +330,7 @@ const mod: ModuleDef = {
         review_skip_reason: { label: 'Why no review is needed', type: 'longtext' },
         review_completed_at: { label: 'Review completed', type: 'datetime', readOnly: true },
         review_completed_by: { label: 'Review completed by', type: 'user', readOnly: true },
+        answers_confirmed_at: { label: 'Notification questions answered', type: 'datetime', readOnly: true },
         ransom_payment_status: { label: 'Ransom payment', type: 'lookup', list: 'ransom_payment_status', default: 'not_applicable', required: true },
         board_resolution_ref: { label: 'Payment approval reference', type: 'text' },
       },
@@ -337,6 +338,10 @@ const mod: ModuleDef = {
         beforeCreate: async (_req, data) => {
           const now = new Date().toISOString();
           const loading = isDataLoad(_req);
+          // E18-77: answering every question (the declare flow does) records that they were answered.
+          // (What was sent, not the record with its defaults filled in; the seed and automation give `data`.)
+          const sent = ((_req?.body && typeof _req.body === 'object') ? _req.body : data) as Row;
+          if (FLAG_FIELDS.every((f) => typeof sent[f] === 'boolean') && !data.answers_confirmed_at) data.answers_confirmed_at = now;
           for (const f of FLAG_FIELDS) if (data[f] === null || data[f] === undefined) data[f] = f === 'is_cyber_incident';
           data.data_kinds = await cleanKinds(data.data_kinds, []);
           // A loaded incident (E18-70) counts from its own earliest time, never from today.
@@ -353,6 +358,8 @@ const mod: ModuleDef = {
           await checkReview(_req, existing, patch, now);
           for (const f of FLAG_FIELDS) if (patch[f] === null) patch[f] = false;
           if (patch.data_kinds !== undefined) patch.data_kinds = await cleanKinds(patch.data_kinds, existing.data_kinds ?? []);
+          // E18-77: an answer given on the Affected tab (or every answer confirmed as it stands) is recorded.
+          if ((FLAG_FIELDS.some((f) => f in patch) || 'data_kinds' in patch) && !existing.answers_confirmed_at) patch.answers_confirmed_at = now;
           if (patch.discovered_at === null) {
             ctx.fail(400, 'validation', 'Check the highlighted fields.', { discovered_at: 'Discovered is required: the notification deadlines count from it.' });
           }
@@ -748,6 +755,9 @@ const mod: ModuleDef = {
       return {
         now: now.toISOString(), amber_fraction: fraction,
         incident: { id: incident.id, ref: incident.ref, title: incident.title, discovered_at: incident.discovered_at, declared_at: incident.declared_at },
+        // E18-77: why there may be no clock: the questions not answered yet, or no rule switched on.
+        answers_confirmed: Boolean(incident.answers_confirmed_at),
+        rules_active: (await db.one<{ n: number }>(`select count(*)::int as n from notification_rules where deleted_at is null and active and deadline_hours is not null`))!.n,
         clocks: tasks.map((t) => clockOf(t, incident.discovered_at, now, fraction)).sort(byUrgency),
       };
     });

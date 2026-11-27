@@ -35,7 +35,13 @@
 .trn-cal-main { display: grid; gap: var(--s-1); min-width: 0; }
 .trn-cal-late .trn-cal-date { padding-inline-start: var(--s-3); border-inline-start: 3px solid var(--c-red-solid); }
 @media (max-width: 560px) { .trn-cal li { grid-template-columns: minmax(0, 1fr); gap: var(--s-1); } }
-.table.trn-breakdown td a.row-title { max-width: 26ch; }
+/* E18-86: the breakdown tables fit their half-width card at 1440: names wrap instead of pushing the
+   Overdue and Rate columns behind a sideways scroll, and the figure columns are narrower. */
+.table.trn-breakdown { width: 100%; }
+.table.trn-breakdown td:first-child { white-space: normal; min-width: 12ch; }
+.table.trn-breakdown td a.row-title { display: inline; max-width: none; white-space: normal; overflow-wrap: break-word; }
+.table.trn-breakdown th.num, .table.trn-breakdown td.num { padding-inline: 8px; }
+.table.trn-breakdown th.num { letter-spacing: 0; }
 
 /* ---- My training: tables scroll inside their card, never the page ---- */
 /* Positioned, so screen-reader-only text in a far-right column is clipped with the table instead of widening the page. */

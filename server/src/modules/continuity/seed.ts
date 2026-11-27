@@ -42,7 +42,7 @@ const PROCESSES: { name: string; department: string; criticality: string; mtd: n
   },
   {
     name: 'Bus dispatch', department: 'Operations', criticality: 'vital', mtd: 4, rto: 2, rpo: 0.25, staff: 4, owner: 0, peak: 'Weekday peaks',
-    description: 'Dispatches buses, handles breakdowns and diversions, and keeps services on time.',
+    description: 'Dispatches buses, handles breakdowns and detours, and keeps services on time.',
     workaround: 'Radio voice dispatch with paper running boards; depot supervisors cover missed trips.',
     deps: [['system', 'Example CAD/AVL System', true], ['system', 'Example Radio Dispatch System', true], ['site', 'Example Operations Control Center', true],
       ['service', '1', false], ['service', '7', false], ['vendor', 'Harbour Signal Systems', false], ['position', '[Sample] Dispatcher', true]],
@@ -96,7 +96,7 @@ const PROCESSES: { name: string; department: string; criticality: string; mtd: n
   {
     name: 'Radio communications', department: 'Operations', criticality: 'vital', mtd: 2, rto: 1, rpo: null, staff: 1, owner: 0, peak: 'Always',
     description: 'Voice and data radio between control, vehicles and depots.',
-    workaround: 'Mobile phones to depot supervisors and line supervisors.',
+    workaround: 'Cell phones to depot supervisors and line supervisors.',
     deps: [['system', 'Example Radio Dispatch System', true], ['site', 'Example Operations Control Center', true], ['vendor', 'Castle Peak Telecom', false]],
   },
 ];

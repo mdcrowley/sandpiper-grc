@@ -106,6 +106,12 @@
 @media (max-width: 899px) { .rp-pack-contents ol { columns: 1; } }
 .rp-pack-note, .rp-pack-end { font-size: var(--fs-xs); color: var(--text-muted); margin: 0; }
 .rp-pack-end { text-align: center; }
+/* E18-87: a pack is a document: its tables wrap their text to fit the page instead of scrolling
+   sideways inside it with columns cut off (and print keeps every column). */
+.rp-pack-section .table { width: 100%; }
+.rp-pack-section .table th, .rp-pack-section .table td { white-space: normal; overflow-wrap: break-word; padding-inline: 10px; }
+.rp-pack-section .table td a { display: inline; max-width: none; white-space: normal; }
+.rp-pack-section .table th { letter-spacing: 0; }
 .rp-pack-h { display: flex; gap: var(--s-2); align-items: center; font-size: var(--fs-xl); margin: 0 0 var(--s-3); }
 .rp-pack-n { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--brand); color: var(--brand-contrast); font-size: var(--fs-sm); }
 .rp-snap-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s-1); }

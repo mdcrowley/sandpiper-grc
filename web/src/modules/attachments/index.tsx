@@ -9,9 +9,10 @@ import { FileSettings } from './FileSettings';
 const mod: ModuleDef = {
   key: 'attachments',
   nav: [
-    { group: 'Reports', label: 'Expiring evidence files', path: '/attachments/expiring', icon: 'file-text', order: 60 },
-    { group: 'Administration', label: 'File settings', path: '/admin/attachments', icon: 'upload', permission: 'admin.administer', order: 70 },
-    { group: 'Administration', label: 'Backups', path: '/admin/backups', icon: 'database', permission: 'admin.administer', order: 71 },
+    // Files on any record whose evidence date is near, under Vendors > Evidence (E44-06: it needs the vendors permission to be offered).
+    { group: 'Vendors', label: 'Expiring evidence files', path: '/attachments/expiring', icon: 'file-text', permission: 'vendors.view', order: 32, menu: false, parent: '/evidence', tab: 'Expiring files' },
+    { group: 'Administration', label: 'File settings', path: '/admin/attachments', icon: 'upload', permission: 'admin.administer', order: 63, menu: false, hub: 'Data and operations', hint: 'Allowed file types, size limits, malware scanning and storage.' },
+    { group: 'Administration', label: 'Backups', path: '/admin/backups', icon: 'database', permission: 'admin.administer', order: 64, menu: false, hub: 'Data and operations', hint: 'The daily verified copy and how many to keep.' },
   ],
   routes: [
     { path: '/attachments/expiring', element: <ExpiringEvidenceFiles /> },

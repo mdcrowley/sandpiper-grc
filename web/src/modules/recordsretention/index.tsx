@@ -9,8 +9,8 @@ const view = 'records.view';
 const mod: ModuleDef = {
   key: 'recordsretention',
   nav: [
-    { group: 'Governance', label: 'Retention schedule', path: '/retention-schedule', icon: 'clock', permission: view, order: 62 },
-    { group: 'Governance', label: 'Destruction log', path: '/destruction-log', icon: 'trash', permission: view, order: 63 },
+    { group: 'Governance and records', label: 'Retention schedule', path: '/retention-schedule', icon: 'clock', permission: view, order: 30, tabs: 'Schedule' },
+    { group: 'Governance and records', label: 'Destruction log', path: '/destruction-log', icon: 'trash', permission: view, order: 31, menu: false, parent: '/retention-schedule', tab: 'Destruction log' },
   ],
   routes: [
     { path: '/retention-schedule', element: <SeriesList />, permission: view },

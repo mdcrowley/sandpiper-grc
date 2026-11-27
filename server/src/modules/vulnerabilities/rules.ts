@@ -150,6 +150,23 @@ async function checkRefs(ctx: ModuleContext, req: FastifyRequest | null, patch: 
   }
 }
 
+/** The owner a finding takes from its asset, else its system (technical, then business owner); active users only (E18-76). */
+async function derivedOwner(ctx: ModuleContext, f: Row): Promise<string | null> {
+  const active = `exists (select 1 from users u where u.id = x.o and u.status = 'active' and u.deleted_at is null)`;
+  if (f.asset_id && ctx.resources.get('asset')) {
+    const a = await ctx.db.one<{ o: string }>(
+      `select x.o from (select owner_id as o from assets where id = $1 and deleted_at is null) x where x.o is not null and ${active}`, [f.asset_id]);
+    if (a) return a.o;
+  }
+  if (f.system_id && hasSystems(ctx)) {
+    const s = await ctx.db.one<{ o: string }>(
+      `select x.o from systems s cross join lateral (values (s.technical_owner_id, 1), (s.business_owner_id, 2)) as x(o, n)
+        where s.id = $1 and s.deleted_at is null and x.o is not null and ${active} order by x.n limit 1`, [f.system_id]);
+    if (s) return s.o;
+  }
+  return null;
+}
+
 async function applyRules(ctx: ModuleContext, req: FastifyRequest | null, existing: Row | null, patch: Row): Promise<Row> {
   const merged: Row = { ...(existing ?? {}), ...patch };
   await checkRefs(ctx, req, patch);
@@ -172,6 +189,15 @@ async function applyRules(ctx: ModuleContext, req: FastifyRequest | null, existi
   if (patch.asset_id && !merged.system_id && hasSystems(ctx) && ctx.resources.get('asset')) {
     const asset = await ctx.db.one<{ system_id: string | null }>('select system_id from assets where id = $1 and deleted_at is null', [patch.asset_id]);
     if (asset?.system_id) patch.system_id = merged.system_id = asset.system_id;
+  }
+
+  // E18-76: a finding with no owner takes one from what it is on, when it is added or linked: the
+  // asset's owner, else the system's technical owner, else its business owner (active people only).
+  // An owner given (or cleared) in the same save is kept.
+  const linked = !existing || ('asset_id' in patch && patch.asset_id) || ('system_id' in patch && patch.system_id);
+  if (linked && !merged.owner_id && !('owner_id' in patch && existing)) {
+    const owner = await derivedOwner(ctx, merged);
+    if (owner) patch.owner_id = merged.owner_id = owner;
   }
 
   // Status rules come from the status list's meta, so an administrator can add statuses.

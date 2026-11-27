@@ -3,6 +3,7 @@
 import type { FastifyRequest } from 'fastify';
 import { featureState, rolesShown } from '../../core/features.ts';
 import { approvalKind, approvalKinds } from '../../core/approval-kinds.ts';
+import { onBehalfOf } from '../../core/dataload.ts';
 import { UUID_RE } from '../../core/errors.ts';
 import type { FieldDef, ModuleContext, ResourceDef, Row } from '../../core/module.ts';
 import { checkDefinition, groupStatus, isGroup, type DefinitionContext, type WorkflowDef } from './engine.ts';
@@ -496,12 +497,24 @@ export function registerRoutes(ctx: ModuleContext, svc: Service) {
 
   app.post('/api/workflows/steps/:id/decision', async (req) => {
     const body = (req.body ?? {}) as Row;
-    return svc.decide(param(req), req, String(body.decision ?? ''), text(body.comment));
+    // A data load may record the decision of the approver it names (E18-71): it is theirs, made with
+    // the loader's own permissions; the step's rules (approvers, requester, one step each) apply as
+    // always, nothing is sent, and the audit event names the loader with "on behalf of".
+    const named = onBehalfOf(req);
+    let actor;
+    if (named) {
+      if (!named.userId) {
+        ctx.fail(400, 'validation', 'Check the highlighted fields.', { on_behalf_of: 'An approval decision belongs to a person with an account (disabled accounts too).' });
+      }
+      const u = (await ctx.db.one<Row>('select id, username, email, display_name from users where id = $1', [named.userId]))!;
+      actor = { ...req.user!, id: u.id, username: u.username, email: u.email, displayName: u.display_name };
+    }
+    return svc.decide(param(req), req, String(body.decision ?? ''), text(body.comment), undefined, actor);
   });
   ctx.describeRoute({
     method: 'POST', path: '/api/workflows/steps/:id/decision', tag: 'Workflows',
     summary: 'Approve or reject a step waiting for you (the person who asked can never decide; a rejection needs a comment)',
-    body: '{ decision: "approved" | "rejected", comment?: string }', response: '{ stepOutcome: approved | rejected | pending, approvalsReceived, approvalsRequired, onBehalfOf, onBehalfOfName, instance }',
+    body: '{ decision: "approved" | "rejected", comment?: string, on_behalf_of?: (data load mode only) the approver whose decision this is }', response: '{ stepOutcome: approved | rejected | pending, approvalsReceived, approvalsRequired, onBehalfOf, onBehalfOfName, instance }',
   });
 
   app.post('/api/workflows/steps/:id/reassign', admin, async (req) => {

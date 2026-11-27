@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { ToolError } from './caller.ts';
 import { fail, isUuid, plural, type ToolContext, type ToolSpec } from './toolkit.ts';
+import { AS_INPUT, named } from './tools-records.ts';
 
 // Approval workflows (E14-06): what is waiting for the caller's decision, and deciding it. Both go
 // through /api/workflows with the caller's token, so the same rules apply as in the application:
@@ -50,13 +51,27 @@ const decideApproval: ToolSpec = {
     decision: z.enum(['approve', 'reject']).describe('approve or reject.'),
     comment: z.string().max(2000).optional().describe('Why; required when rejecting.'),
   },
+  dataLoadInput: AS_INPUT,
+  dataLoadNote: 'Data load mode is on: give "as" to record the decision of the approver named (one of the step\'s approvers, with an account); '
+    + 'the step need not be waiting for you, the usual step rules apply, and nobody is told.',
   async run(args, t) {
     if (!isUuid(args.step_id)) fail('Give the step_id from my_approvals.', 'validation', { step_id: 'Not a step id.' });
     if (args.decision === 'reject' && !args.comment?.trim()) fail('Say why you reject it.', 'validation', { comment: 'Say why you reject it.' });
-    const item = (await waiting(t)).find((a) => a.step_id === args.step_id);
-    if (!item) fail('That step is not waiting for your decision. Use my_approvals for the current list.', 'not_found');
-    const res = await t.api.post<{ stepOutcome: string; approvalsReceived: number; approvalsRequired: number; instance: { status: string } }>(
-      `/api/workflows/steps/${args.step_id}/decision`, { decision: args.decision === 'approve' ? 'approved' : 'rejected', comment: args.comment ?? null });
+    const who = await named(t, args.as);
+    // In a load the decision may be another approver's (E18-71): the step need not wait for the caller.
+    const item = who ? null : (await waiting(t)).find((a) => a.step_id === args.step_id);
+    if (!who && !item) fail('That step is not waiting for your decision. Use my_approvals for the current list.', 'not_found');
+    const res = await t.api.post<{ stepOutcome: string; approvalsReceived: number; approvalsRequired: number; instance: { status: string; record_type?: string; record_id?: string; name?: string } }>(
+      `/api/workflows/steps/${args.step_id}/decision`, { decision: args.decision === 'approve' ? 'approved' : 'rejected', comment: args.comment ?? null, ...(who ? { on_behalf_of: who.send } : {}) });
+    if (who) {
+      const what = args.decision === 'approve' ? 'Approved' : 'Rejected';
+      const inst = res.instance ?? { status: 'unknown' };
+      return {
+        text: `${what} on behalf of ${who.name} (data load mode). The workflow is now ${inst.status}${res.stepOutcome === 'pending' ? `; the step has ${res.approvalsReceived} of ${res.approvalsRequired} approvals` : ''}.`,
+        data: { step_id: args.step_id, decision: args.decision, on_behalf_of: who.name, step_outcome: res.stepOutcome, workflow_status: inst.status ?? null },
+        audit: { recordType: String(inst.record_type ?? 'workflow'), recordId: String(inst.record_id ?? args.step_id), summary: `${what} a step of ${inst.name ?? 'an approval workflow'}`, onBehalf: who.name },
+      };
+    }
     const name = `${item!.record_type_label.toLowerCase()} ${item!.record_ref ?? `"${item!.record_title}"`}`;
     const what = args.decision === 'approve' ? 'Approved' : 'Rejected';
     const after = res.instance?.status === 'running'

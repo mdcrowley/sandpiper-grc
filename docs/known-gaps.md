@@ -218,6 +218,11 @@ content, which belongs in a document tool (E25-13, E29-11, E32-06, E34-09).
   `list_record_types` lists every read-only field as settable in a load, including the few the
   database works out (refused with a field error on save). A load is undone per record type and day,
   not per assistant conversation.
+- **On behalf of someone in a load (E18-71):** module-specific actor columns (policy
+  acknowledgments, change approvals, incident log entries and others listed in E18-94) still name the
+  loader in their own column; their audit events do say "on behalf of". A loaded comment is not listed
+  on the Data loads page and is not removed by undoing a load (it disappears from view with its record
+  when that record was loaded). Approval decisions keep the time they are recorded.
 - **Search inside files (E41-16)** covers PDF, .docx and plain text only; scanned PDFs (no
   OCR), .doc, spreadsheets and presentations are found by name only. File previews cover images and
   PDFs (first 30 pages).

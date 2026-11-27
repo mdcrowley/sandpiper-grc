@@ -211,7 +211,16 @@ export function registerIndicators(ctx: ModuleContext) {
     });
   }
 
+  /**
+   * E18-79: the current month is not over, so its figure is month to date: marked `partial` and never
+   * judged against the target (a month of events half counted would look "on target").
+   */
   async function trend(ind: Row, user: SessionUser | null, periods: string[]) {
+    const current = dayInZone().slice(0, 7);
+    return (await fullTrend(ind, user, periods)).map((p) => (p.period === current ? { ...p, partial: true, met: null } : { ...p, partial: false }));
+  }
+
+  async function fullTrend(ind: Row, user: SessionUser | null, periods: string[]) {
     if (!EVENT_MEASURES.includes(ind.measure ?? 'count')) return otherTrend(ind, periods);
     const types = strList(ind.event_types);
     const sevs = strList(ind.severities);
@@ -310,7 +319,8 @@ export function registerIndicators(ctx: ModuleContext) {
     const shown = [];
     for (const ind of indicators) {
       const pts = await trend(ind, user, periods);
-      const last = [...pts].reverse().find((p) => p.value !== null) ?? null;
+      // The latest complete month with a figure; the month to date only when there is none (E18-79).
+      const last = [...pts].reverse().find((p) => p.value !== null && !p.partial) ?? [...pts].reverse().find((p) => p.value !== null) ?? null;
       shown.push({
         id: ind.id, name: ind.name, measure: ind.measure, metric_key: ind.metric_key ?? null, exposure: ind.exposure, per_units: num(ind.per_units),
         target: num(ind.target), target_direction: ind.target_direction, latest: last, points: pts,

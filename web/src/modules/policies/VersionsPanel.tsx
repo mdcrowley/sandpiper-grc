@@ -1,42 +1,38 @@
-// Version history, and two versions side by side to compare by reading.
+// Version history with each version's dates (effective, in force from and to, withdrawn), its
+// adoption record and original file, and two versions side by side to compare by reading.
 import { useState } from 'react';
-import { Button, Card, EmptyState, Select, formatDate, formatDateTime, TableWrap } from '../../core';
-import { PolicyBody, VersionChip, type PolicyVersion } from './shared';
+import { Card, EmptyState, Select, useAuth } from '../../core';
+import { PolicyBody } from './shared';
+import { DocVersionChip, VersionFacts, VersionTable, versionName } from './documents/parts';
+import type { FullVersion } from './documents/types';
 
-export function VersionMeta({ v }: { v: PolicyVersion }) {
-  return (
-    <p className="pol-meta">
-      {v.approved_by_name && <span>Approved by {v.approved_by_name}{v.approved_on ? ` on ${formatDate(v.approved_on)}` : ''}</span>}
-      {v.effective_on && <span>Effective {formatDate(v.effective_on)}</span>}
-      {v.published_at && <span>Published {formatDateTime(v.published_at)}</span>}
-      {!v.approved_by_name && <span>Written {formatDate(v.created_at)}{v.author_name ? ` by ${v.author_name}` : ''}</span>}
-      {v.change_summary && <span>Change: {v.change_summary}</span>}
-    </p>
-  );
+/** One line of facts about a version (kept for the screens that show a single version). */
+export function VersionMeta({ v }: { v: FullVersion }) {
+  return <VersionFacts v={v} />;
 }
 
-function Pane({ label, versions, value, onChange }: { label: string; versions: PolicyVersion[]; value: string; onChange: (id: string) => void }) {
+function Pane({ label, versions, value, onChange }: { label: string; versions: FullVersion[]; value: string; onChange: (id: string) => void }) {
   const v = versions.find((x) => x.id === value) ?? versions[0];
   return (
     <div className="pol-pane">
       <div className="row">
-        <Select
-          label={label} value={v.id} onChange={(id) => onChange(id || v.id)}
-          options={versions.map((x) => ({ value: x.id, label: `Version ${x.version}` }))}
-        />
-        <VersionChip status={v.status} />
+        <Select label={label} value={v.id} onChange={(id) => onChange(id || v.id)} options={versions.map((x) => ({ value: x.id, label: versionName(x) }))} />
+        <DocVersionChip v={v} />
       </div>
-      <VersionMeta v={v} />
-      <PolicyBody html={v.body_html} />
+      <VersionFacts v={v} />
+      {v.content_kind === 'file'
+        ? <p className="muted">This version is kept as a file. <a href={`/api/policies/${v.policy_id}/versions/${v.id}/pdf`} target="_blank" rel="noopener">Open it</a>.</p>
+        : <PolicyBody html={v.body_html} />}
     </div>
   );
 }
 
-export function VersionsPanel({ versions }: { versions: PolicyVersion[] }) {
+export function VersionsPanel({ versions }: { versions: FullVersion[] }) {
+  const { can } = useAuth();
   const [left, setLeft] = useState('');
   const [right, setRight] = useState('');
   if (!versions.length) {
-    return <Card><EmptyState icon="file-text" title="No versions yet" message="Nothing has been published for this policy." /></Card>;
+    return <Card><EmptyState icon="file-text" title="No versions yet" message="Nothing has been written or uploaded for this document." /></Card>;
   }
   // Newest first. By default the newest is on the right and the one before it on the left.
   const rightId = right || versions[0].id;
@@ -45,34 +41,12 @@ export function VersionsPanel({ versions }: { versions: PolicyVersion[] }) {
     setRight(id);
     document.getElementById('pol-compare')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
+  const original = (v: FullVersion) => (can('policies.edit') && v.source_attachment_id ? `/api/policies/${v.policy_id}/versions/${v.id}/original` : null);
 
   return (
     <div className="stack">
       <Card title="Version history" flush>
-        <TableWrap label="Every version of this policy, newest first" className="pol-tw">
-          <table className="table">
-            <caption className="sr-only">Every version of this policy, newest first</caption>
-            <thead>
-              <tr>
-                <th scope="col">Version</th><th scope="col">Status</th><th scope="col">What changed</th>
-                <th scope="col">Approved by</th><th scope="col">Approved</th><th scope="col">Effective</th><th scope="col"><span className="sr-only">Read</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {versions.map((v) => (
-                <tr key={v.id}>
-                  <td className="pol-rowhead">Version {v.version}</td>
-                  <td><VersionChip status={v.status} /></td>
-                  <td className="pol-wrap">{v.change_summary ?? <span className="muted">—</span>}</td>
-                  <td>{v.approved_by_name ?? <span className="muted">—</span>}</td>
-                  <td>{formatDate(v.approved_on)}</td>
-                  <td>{formatDate(v.effective_on)}</td>
-                  <td><Button size="sm" variant="ghost" icon="eye" onClick={() => read(v.id)}>Read</Button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </TableWrap>
+        <VersionTable versions={versions} caption="Every version of this document, newest first" onRead={(v) => read(v.id)} original={original} />
       </Card>
 
       <section id="pol-compare" className="stack" aria-label="Read and compare versions">

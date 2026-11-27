@@ -419,6 +419,10 @@ const mod: ModuleDef = {
       const upcoming = open.map((c) => c.notice_date).filter((d): d is string => !!d && d >= today).sort();
       const passed = open.map((c) => c.notice_date).filter((d): d is string => !!d && d < today).sort();
       const nextContract = upcoming[0] ? open.find((c) => c.notice_date === upcoming[0]) : undefined;
+      // E18-75: a passed notice date on a contract still open is the most urgent state; the latest one is the headline.
+      const lastPassed = passed[passed.length - 1];
+      const passedContract = lastPassed ? open.find((c) => c.notice_date === lastPassed) : undefined;
+      const brief = (c: Row) => ({ id: c.id, ref: c.ref, title: c.title, renewal_mechanism: c.renewal_mechanism, end_date: c.end_date });
       const incidentContacts = await db.query<Row>(
         `select name, role, email, phone from vendor_contacts
          where vendor_id = $1 and deleted_at is null and is_incident_contact order by name`, [vendor.id],
@@ -454,10 +458,10 @@ const mod: ModuleDef = {
         contracts_open: open.length,
         contracts_undated: open.filter((c) => !c.notice_date).length,
         next_notice_date: upcoming[0] ?? null,
-        next_notice_contract: nextContract
-          ? { id: nextContract.id, ref: nextContract.ref, title: nextContract.title, renewal_mechanism: nextContract.renewal_mechanism, end_date: nextContract.end_date }
-          : null,
+        next_notice_contract: nextContract ? brief(nextContract) : null,
         notice_dates_passed: passed.length,
+        last_passed_notice_date: lastPassed ?? null,
+        last_passed_contract: passedContract ? brief(passedContract) : null,
         terms,
         incident_contacts: incidentContacts,
         evidence_latest_received: received[received.length - 1] ?? null,

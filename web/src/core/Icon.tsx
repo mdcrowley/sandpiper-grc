@@ -9,7 +9,7 @@ import {
   IconFilter, IconFlask, IconFolder, IconHelpCircle, IconHistory, IconHome, IconInfoCircle, IconKey,
   IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand, IconLink, IconLock, IconLogout, IconMapPin,
   IconMenu2, IconMessage, IconMinus, IconMoon, IconPencil, IconPlus, IconRefresh, IconRoute, IconScale, IconSchool,
-  IconSearch, IconServer, IconSettings, IconShield, IconSquareCheck, IconStar, IconSun, IconTag, IconPaperclip, IconTarget, IconTicket,
+  IconSearch, IconServer, IconSettings, IconShield, IconSquareCheck, IconStar, IconStarFilled, IconSun, IconTag, IconPaperclip, IconTarget, IconTicket,
   IconTrash, IconUpload, IconUser, IconUsers, IconX,
 } from '@tabler/icons-react';
 
@@ -73,6 +73,7 @@ const ICONS = {
   history: IconHistory,
   eye: IconEye,
   star: IconStar,
+  'star-filled': IconStarFilled,
   tag: IconTag,
   paperclip: IconPaperclip,
   logout: IconLogout,

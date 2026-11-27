@@ -13,9 +13,9 @@ const view = 'systems.view';
 const mod: ModuleDef = {
   key: 'accessreviews',
   nav: [
-    { group: 'Cybersecurity', label: 'Access reviews', path: '/access-reviews', icon: 'key', permission: view, order: 45 },
-    { group: 'Cybersecurity', label: 'Accounts on systems', path: '/access-reviews/accounts', icon: 'users', permission: view, order: 46 },
-    { group: 'Cybersecurity', label: 'My access reviews', path: '/access-reviews/mine', icon: 'check-square', permission: view, order: 47 },
+    { group: 'Security', label: 'Access reviews', path: '/access-reviews', icon: 'key', permission: view, order: 50 },
+    { group: 'Security', label: 'Accounts on systems', path: '/access-reviews/accounts', icon: 'users', permission: view, order: 51, menu: false, parent: '/access-reviews' },
+    { group: 'Home', label: 'My access reviews', path: '/access-reviews/mine', icon: 'check-square', permission: view, order: 35, menu: false, parent: '/my-work', tab: 'Access reviews' },
   ],
   routes: [
     { path: '/access-reviews', element: <ReviewList />, permission: view },

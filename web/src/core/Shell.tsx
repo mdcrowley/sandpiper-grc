@@ -2,26 +2,33 @@
 // top bar (command-palette search, Create, Help, theme, user menu) and slim notices.
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type KeyboardEvent, type ReactNode } from 'react';
 import { ActionIcon, AppShell, Avatar, Drawer, Menu as MMenu, Popover, Tooltip, UnstyledButton } from '@mantine/core';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, matchPath, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from './auth';
 import { BreakGlassBanner, ChangePasswordDialog } from './AuthPages';
 import { CommandPalette, type PaletteLink } from './CommandPalette';
 import { useFetch, useMediaQuery } from './hooks';
 import { Icon, type IconName } from './Icon';
 import { Logo, Wordmark } from './Logo';
-import { moduleOn, modules, navAllowed, NAV_GROUPS, preloadRoute, type CreateItem, type NavGroup, type NavItem } from './module';
+import { moduleOn, modules, NAV_GROUPS, preloadRoute, type CreateItem, type NavGroup, type NavItem } from './module';
+import { groupLabel } from './navGroups';
+import { allowedNav, currentMenuPath, hubCardAt, menuGroups, sectionTabs } from './navModel';
+import { cleanPins, MAX_PINS, PINS_KEY, pinsLocalKey, setRecentUser, ShellPage, togglePin, type PinnedPage, type ShellPageContext } from './navMemory';
 import { FilterMenu } from './overlay';
 import { createEntries } from './createMenu';
 import { formatDate, formatDateTime } from './format';
+import { useSyncedPreference } from './preferences';
 import { ShortcutsDialog } from './Shortcuts';
 import { useRouteFocus } from './routeFocus';
 import { useTheme } from './theme';
 import { cx } from './ui';
 
 const GROUP_ICON: Record<NavGroup, IconName> = {
-  Home: 'home', 'Service desk': 'ticket', Inventory: 'server', Change: 'refresh', Vendors: 'building',
-  Cybersecurity: 'shield', Safety: 'alert', Governance: 'scale', People: 'users', Projects: 'folder', Reports: 'chart', Administration: 'settings', Help: 'help',
+  Home: 'home', 'IT services': 'ticket', Assets: 'server', Vendors: 'building', 'Projects and funding': 'folder',
+  Security: 'shield', 'Risk and compliance': 'scale', 'Safety and emergency management': 'alert',
+  'Governance and records': 'clipboard', Documents: 'file-text', 'People and training': 'users', Reports: 'chart', Administration: 'settings',
 };
+/** The pinned pages' block at the top of the menu. */
+const PINNED = 'Pinned';
 
 // The notification bell belongs to the notifications module. It is looked up rather than imported, so the
 // core builds and runs without that module, and loaded on demand so it stays out of the core bundle.
@@ -62,23 +69,19 @@ function useStored<T>(key: string, initial: T): [T, (value: T) => void] {
   return [value, set];
 }
 
-/** The one navigation entry that best matches the address: the longest path that is a prefix of it. */
-function activePath(pathname: string, items: NavItem[]): string | null {
-  let best: string | null = null;
-  for (const { path } of items) {
-    const hit = path === '/' ? pathname === '/' : pathname === path || pathname.startsWith(`${path}/`);
-    if (hit && (best === null || path.length > best.length)) best = path;
-  }
-  return best;
-}
-
 interface NavData {
-  groups: { group: NavGroup; items: NavItem[] }[];
+  /** The menu's groups; a "Pinned" group (the person's pinned pages) comes first when there are any. */
+  /** `label`: the name shown, shorter while one of a joined group's areas is off (navGroups.ts groupLabel). */
+  groups: { group: NavGroup | typeof PINNED; label?: string; items: NavItem[] }[];
   current: string | null;
 }
 
-/** Full sidebar: collapsible groups. Up/Down move between entries, Left/Right close and open a group. */
-function NavFull({ groups, current, closed, onToggle }: NavData & { closed: Record<string, boolean>; onToggle: (group: string, open?: boolean) => void }) {
+/**
+ * Full sidebar: collapsible groups. Home and the pinned pages are always open; the group of the page
+ * on screen opens by itself; the others start closed and stay as the person leaves them (per person,
+ * in this browser). Up/Down move between entries, Left/Right close and open a group.
+ */
+function NavFull({ groups, current, open: openGroups, onToggle }: NavData & { open: Record<string, boolean>; onToggle: (group: string, open?: boolean) => void }) {
   const onKeyDown = (e: KeyboardEvent<HTMLElement>) => {
     const all = Array.from(e.currentTarget.querySelectorAll<HTMLElement>('a[href], button'));
     const at = all.indexOf(document.activeElement as HTMLElement);
@@ -97,12 +100,17 @@ function NavFull({ groups, current, closed, onToggle }: NavData & { closed: Reco
 
   return (
     <nav className="nav" aria-label="Main" onKeyDown={onKeyDown}>
-      {groups.map(({ group, items }, g) => {
-        const open = group === 'Home' || !closed[group];
+      {groups.map(({ group, label, items }, g) => {
+        const name = label ?? group;
         const holdsCurrent = items.some((i) => i.path === current);
+        // A group whose one entry has the group's own name (Administration) is that entry alone, without a heading.
+        const alone = items.length === 1 && items[0].label === name;
+        const fixed = group === 'Home' || group === PINNED || alone;
+        const open = fixed || (openGroups[group] ?? holdsCurrent);
         return (
-          <div key={group} className="nav-group">
-            {group !== 'Home' && (
+          <div key={group} className={cx('nav-group', group === PINNED && 'nav-group-pinned', alone && 'nav-group-alone')}>
+            {group === PINNED && <p className="nav-group-title" id={`nav-group-${g}-title`}><Icon name="star" size={13} /> {PINNED}</p>}
+            {!fixed && (
               <button
                 type="button"
                 className={cx('nav-heading', !open && holdsCurrent && 'nav-heading-current')}
@@ -111,19 +119,19 @@ function NavFull({ groups, current, closed, onToggle }: NavData & { closed: Reco
                 data-group={group}
                 onClick={() => onToggle(group)}
               >
-                <span>{group}</span>
+                <span>{name}</span>
                 {!open && <span className="nav-count">{items.length}</span>}
                 <Icon name={open ? 'chevron-down' : 'chevron-right'} size={14} />
               </button>
             )}
-            <ul id={`nav-group-${g}`} hidden={!open} aria-label={group}>
+            <ul id={`nav-group-${g}`} hidden={!open} aria-label={group === PINNED ? 'Pinned pages' : name}>
               {items.map((item) => (
                 <li key={item.path}>
                   <Link
                     to={item.path}
                     {...preload(item.path)}
-                    className={cx('nav-link', item.path === current && 'nav-link-active')}
-                    aria-current={item.path === current ? 'page' : undefined}
+                    className={cx('nav-link', group !== PINNED && item.path === current && 'nav-link-active')}
+                    aria-current={group !== PINNED && item.path === current ? 'page' : undefined}
                   >
                     <Icon name={item.icon} size={17} />
                     <span className="nav-label">{item.label}</span>
@@ -142,9 +150,10 @@ function NavFull({ groups, current, closed, onToggle }: NavData & { closed: Reco
 function NavRail({ groups, current }: NavData) {
   return (
     <nav className="nav nav-rail" aria-label="Main">
-      {groups.map(({ group, items }) => {
-        const active = items.some((i) => i.path === current);
-        if (items.length === 1) {
+      {groups.map(({ group, label, items }) => {
+        const name = label ?? group;
+        const active = group !== PINNED && items.some((i) => i.path === current);
+        if (items.length === 1 && group !== PINNED) {
           return (
             <Tooltip key={group} label={items[0].label} position="right">
               <Link to={items[0].path} {...preload(items[0].path)} className={cx('rail-link', active && 'rail-link-active')} aria-label={items[0].label} aria-current={active ? 'page' : undefined}>
@@ -156,20 +165,20 @@ function NavRail({ groups, current }: NavData) {
         return (
           <MMenu key={group} position="right-start" offset={10} trigger="click-hover" openDelay={80} closeDelay={160}>
             <MMenu.Target>
-              <UnstyledButton className={cx('rail-link', active && 'rail-link-active')} aria-label={group}>
-                <Icon name={GROUP_ICON[group] ?? items[0].icon} size={20} />
+              <UnstyledButton className={cx('rail-link', active && 'rail-link-active')} aria-label={group === PINNED ? 'Pinned pages' : name}>
+                <Icon name={group === PINNED ? 'star' : GROUP_ICON[group] ?? items[0].icon} size={20} />
               </UnstyledButton>
             </MMenu.Target>
             <MMenu.Dropdown className="ui-menu">
-              <MMenu.Label>{group}</MMenu.Label>
+              <MMenu.Label>{group === PINNED ? 'Pinned pages' : name}</MMenu.Label>
               {items.map((item) => (
                 <MMenu.Item
                   key={item.path}
                   component={Link}
                   to={item.path}
                   {...preload(item.path)}
-                  className={cx('ui-menu-item', item.path === current && 'ui-menu-item-current')}
-                  aria-current={item.path === current ? 'page' : undefined}
+                  className={cx('ui-menu-item', group !== PINNED && item.path === current && 'ui-menu-item-current')}
+                  aria-current={group !== PINNED && item.path === current ? 'page' : undefined}
                   leftSection={<Icon name={item.icon} size={16} />}
                 >
                   {item.label}
@@ -199,7 +208,10 @@ export function Shell({ children }: { children: ReactNode }) {
   const tight = useMediaQuery('(max-width: 62em)');
   const userKey = user?.id ?? 'anon';
   const [collapsed, setCollapsed] = useStored<boolean>(`grc.nav.collapsed.${userKey}`, false);
-  const [closed, setClosed] = useStored<Record<string, boolean>>(`grc.nav.groups.${userKey}`, {});
+  // Groups the person opened or closed themselves (wave 24: the others start closed, the current one opens).
+  const [openGroups, setOpenGroups] = useStored<Record<string, boolean>>(`grc.nav.open.${userKey}`, {});
+  const [storedPins, setPins] = useSyncedPreference<unknown>(PINS_KEY, pinsLocalKey(userKey), []);
+  useEffect(() => { setRecentUser(user ? userKey : null); }, [user, userKey]);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
@@ -215,42 +227,82 @@ export function Shell({ children }: { children: ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const extra = useMemo(() => ({ nav: extras.flatMap((e) => e.nav), create: extras.flatMap((e) => e.create) }), [extrasKey]);
 
+  // Every entry the person may open (menu entries and the pages that are tabs or Administration cards).
+  // Modules of a switched-off area (Administration > Features) contribute nothing.
+  const allowed = useMemo(
+    () => allowedNav([...modules.filter((m) => moduleOn(m.key, areaOn)).flatMap((m) => m.nav ?? []), ...extra.nav], can),
+    [can, areaOn, extra],
+  );
+
+  // Pinned pages, left out while their page is switched off or the person may no longer open it.
+  const pins = useMemo(() => cleanPins(storedPins), [storedPins]);
+  /** Whether an address is a page the person may open now (its module on, its route's permission held). */
+  const pathOpen = useCallback((path: string) => {
+    const pathname = path.split(/[?#]/)[0];
+    if (extra.nav.some((i) => pathname === i.path || pathname.startsWith(`${i.path}/`))) return true;
+    for (const m of modules) {
+      const route = (m.routes ?? []).find((r) => matchPath({ path: r.path, end: true }, pathname));
+      if (route) return moduleOn(m.key, areaOn) && can(route.permission);
+    }
+    return false;
+  }, [extra, areaOn, can]);
+  const shownPins = useMemo(() => pins.filter((pin) => pathOpen(pin.path)), [pins, pathOpen]);
+
   const nav = useMemo<NavData & { pages: PaletteLink[] }>(() => {
-    // Modules of a switched-off area (Administration > Features) contribute nothing.
-    const items = [...modules.filter((m) => moduleOn(m.key, areaOn)).flatMap((m) => m.nav ?? []), ...extra.nav].filter((item) => navAllowed(item, can));
-    const groups = NAV_GROUPS
-      .map((group) => ({ group, items: items.filter((i) => i.group === group).sort((a, b) => (a.order ?? 100) - (b.order ?? 100)) }))
-      .filter((g) => g.items.length > 0);
+    const groups: NavData['groups'] = menuGroups(allowed).map((g) => ({ ...g, label: groupLabel(g.group, areaOn) }));
+    const byPath = new Map(allowed.map((i) => [i.path, i]));
+    if (shownPins.length > 0) {
+      groups.unshift({
+        group: PINNED,
+        items: shownPins.map((p): NavItem => ({ group: 'Home', label: p.label, path: p.path, icon: byPath.get(p.path)?.icon ?? 'star' })),
+      });
+    }
     return {
       groups,
-      current: activePath(location.pathname, items),
-      pages: groups.flatMap((g) => g.items.map((i) => ({ label: i.label, path: i.path, icon: i.icon, group: g.group }))),
+      current: currentMenuPath(location.pathname, allowed),
+      // The palette's "Go to" offers every page, in the menu or not.
+      pages: allowed.map((i) => ({ label: i.label, path: i.path, icon: i.icon, group: i.hub && !i.parent ? 'Administration' : groupLabel(i.group, areaOn) })),
     };
-  }, [can, areaOn, location.pathname, extra]);
+  }, [allowed, shownPins, location.pathname, areaOn]);
 
   // The Create menu is grouped like the navigation, A to Z within a group, and every entry has an
   // icon: its own, or that of the navigation page it opens (E18-63).
   const createItems = useMemo(() => createEntries(
     [...modules.filter((m) => moduleOn(m.key, areaOn)), extra],
-    nav.groups.flatMap((g) => g.items),
+    allowed,
     NAV_GROUPS,
-  ).filter((item) => can(item.permission)), [can, areaOn, nav.groups, extra]);
+  ).filter((item) => can(item.permission)), [can, areaOn, allowed, extra]);
 
-  const closedRef = useRef(closed);
-  closedRef.current = closed;
+  const openRef = useRef(openGroups);
+  openRef.current = openGroups;
+  const currentGroup = nav.groups.find((g) => g.group !== PINNED && g.items.some((i) => i.path === nav.current))?.group;
   const toggleGroup = useCallback((group: string, open?: boolean) => {
-    const isClosed = Boolean(closedRef.current[group]);
-    setClosed({ ...closedRef.current, [group]: open === undefined ? !isClosed : !open });
-  }, [setClosed]);
+    const isOpen = openRef.current[group] ?? group === currentGroup;
+    setOpenGroups({ ...openRef.current, [group]: open === undefined ? !isOpen : open });
+  }, [setOpenGroups, currentGroup]);
 
   // On every page change: close the drawer, start at the top, and make sure the current page's group is open.
   useEffect(() => {
     setDrawerOpen(false);
     mainRef.current?.scrollTo(0, 0);
-    const group = nav.groups.find((g) => g.items.some((i) => i.path === nav.current))?.group;
-    if (group && closedRef.current[group]) setClosed({ ...closedRef.current, [group]: false });
+    if (currentGroup && openRef.current[currentGroup] === false) {
+      const { [currentGroup]: _dropped, ...rest } = openRef.current;
+      setOpenGroups(rest);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname]);
+
+  // What page headers show: the tab strip of the page's menu entry, the Administration breadcrumb, the pin button.
+  const pageContext = useMemo<ShellPageContext>(() => {
+    const card = hubCardAt(location.pathname, allowed);
+    return {
+      tabs: sectionTabs(location.pathname, allowed),
+      hubCrumb: card && !card.parent ? { label: card.label, to: card.path } : null,
+      pinned: (path) => pins.some((p) => p.path === path),
+      togglePin: (page: PinnedPage) => setPins(togglePin(pins, page)),
+      pinsFull: pins.length >= MAX_PINS,
+    };
+  }, [location.pathname, allowed, pins, setPins]);
 
   // Keyboard shortcuts: "/" or Ctrl+K opens the search, "?" the list of shortcuts, and "g" followed
   // by a letter goes somewhere. Single keys are ignored while typing and while a dialog is open.
@@ -355,7 +407,7 @@ export function Shell({ children }: { children: ReactNode }) {
             )}
             {createItems.length > 0 && (
               <FilterMenu label="Create" icon="plus" variant="primary" align="end" iconOnly={small} filterLabel="Filter what to create"
-                items={createItems.map((item) => ({ label: item.label, icon: item.icon, to: item.path, group: item.group }))} />
+                items={createItems.map((item) => ({ label: item.label, icon: item.icon, to: item.path, group: item.group ? groupLabel(item.group, areaOn) : item.group }))} />
             )}
             {hasNotifications && NotificationBell && (
               <Suspense fallback={<span className="topbar-slot" aria-hidden="true" />}>
@@ -433,13 +485,13 @@ export function Shell({ children }: { children: ReactNode }) {
           {rail ? <Logo size={30} surface="dark" /> : <Wordmark name={appName} surface="dark" />}
         </Link>
         <div className="sidebar-scroll">
-          {rail ? <NavRail groups={nav.groups} current={nav.current} /> : <NavFull groups={nav.groups} current={nav.current} closed={closed} onToggle={toggleGroup} />}
+          {rail ? <NavRail groups={nav.groups} current={nav.current} /> : <NavFull groups={nav.groups} current={nav.current} open={openGroups} onToggle={toggleGroup} />}
         </div>
       </AppShell.Navbar>
 
       <AppShell.Main id="main" className="content shell-main" tabIndex={-1} ref={mainRef}>
         <BreakGlassBanner />
-        {children}
+        <ShellPage.Provider value={pageContext}>{children}</ShellPage.Provider>
       </AppShell.Main>
 
       <Drawer
@@ -450,13 +502,15 @@ export function Shell({ children }: { children: ReactNode }) {
         closeButtonProps={{ 'aria-label': 'Close navigation' }}
         classNames={{ content: 'nav-drawer', header: 'nav-drawer-head', body: 'nav-drawer-body' }}
       >
-        <NavFull groups={nav.groups} current={nav.current} closed={closed} onToggle={toggleGroup} />
+        <NavFull groups={nav.groups} current={nav.current} open={openGroups} onToggle={toggleGroup} />
       </Drawer>
       <CommandPalette
         opened={paletteOpen}
         onClose={() => setPaletteOpen(false)}
         pages={nav.pages}
         create={createItems}
+        pinned={shownPins.map((p) => ({ label: p.label, path: p.path, icon: nav.pages.find((g) => g.path === p.path)?.icon }))}
+        pathOpen={pathOpen}
         userId={userKey}
       />
       <ChangePasswordDialog open={changingPassword} onClose={() => setChangingPassword(false)} />

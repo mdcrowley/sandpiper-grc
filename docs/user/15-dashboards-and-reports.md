@@ -1,6 +1,6 @@
 # Dashboards and reports
 
-You can build your own reports and dashboards without help from a developer: choose what to report on, pick the columns or groups you want, and see the answer straight away. Everything is under the **Reports** group: **Dashboards**, **Reports**, **Figures over time**, **Report packs**, **Schedules** and **Delivered to me**. The same group also holds the **Risk report** (see [Risks, actions and obligations](06-risks-actions-obligations.md#the-risk-report)) and **Expiring evidence files** (see [Attachments and notifications](14-attachments-and-notifications.md#expiring-evidence-files)), which are fixed pages rather than reports you build.
+You can build your own reports and dashboards without help from a developer: choose what to report on, pick the columns or groups you want, and see the answer straight away. Everything is under the **Reports** group: **Dashboards**, and **Reports** with the tabs **Catalog**, **Figures over time**, **Report packs** and **Schedules**. What is delivered to you is under **My work > Delivered reports**. The **Risk report** (see [Risks, actions and obligations](06-risks-actions-obligations.md#the-risk-report)) is a tab of the risk register, and **Expiring evidence files** (see [Attachments and notifications](14-attachments-and-notifications.md#expiring-evidence-files)) a tab of **Vendors > Evidence**: fixed pages rather than reports you build.
 
 An administrator can switch dashboards and reports off under **Administration > Features** (see [Administration](09-administration.md#features)); the **Overview** page and its figures stay. Saved dashboards, reports and schedules are kept and return when it is switched back on.
 
@@ -181,7 +181,7 @@ To start a new pack, select **New report pack** on the **Report packs** page, or
 
 ## Figures over time
 
-A board usually wants to see how a figure moves from month to month: open risks by level, overdue actions, open audit findings. Open **Reports > Figures over time**. Each figure the organization follows is shown with its latest value and a small chart of the last twelve months; select its name to open it.
+A board usually wants to see how a figure moves from month to month: open risks by level, overdue actions, open audit findings. Open **Reports > Reports** and the **Figures over time** tab. Each figure the organization follows is shown with its latest value and a small chart of the last twelve months; select its name to open it.
 
 **How figures are recorded.**
 
@@ -225,7 +225,7 @@ At each delivery, every recipient gets a notification in the application with a 
 
 **Schedules** lists every schedule you own, with how each uses email. Select one to see its **Deliveries** (who received it, when, and any reason it was skipped), and to **Edit**, **Send now** or **Delete** it.
 
-**Delivered to me** lists every copy delivered to you or produced by you. Select one to read it in the application. A copy opens only while you can still see the report, dashboard or pack it was made from and every saved report in it. A PDF or Excel copy is only offered as a file to download. Taking a copy out of the application, with **Download PDF**, **Download Excel file**, **Download CSV** or **Download to print or save as PDF**, needs the reports (or dashboards) export permission and is recorded in the audit log.
+**Delivered to me** (**My work > Delivered reports**) lists every copy delivered to you or produced by you. Select one to read it in the application. A copy opens only while you can still see the report, dashboard or pack it was made from and every saved report in it. A PDF or Excel copy is only offered as a file to download. Taking a copy out of the application, with **Download PDF**, **Download Excel file**, **Download CSV** or **Download to print or save as PDF**, needs the reports (or dashboards) export permission and is recorded in the audit log.
 
 ## Accessible PDFs
 

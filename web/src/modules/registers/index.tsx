@@ -12,7 +12,7 @@ const ADMIN = 'admin.administer';
 const mod: ModuleDef = {
   key: 'registers',
   nav: [
-    { group: 'Administration', label: 'Registers', path: '/admin/registers', icon: 'folder', permission: ADMIN, order: 37 },
+    { group: 'Administration', label: 'Registers', path: '/admin/registers', icon: 'folder', permission: ADMIN, order: 44, menu: false, hub: 'Records setup', hint: 'Simple record types of your own, each with a menu entry.' },
   ],
   routes: [
     { path: '/registers', element: <RegisterHome /> },

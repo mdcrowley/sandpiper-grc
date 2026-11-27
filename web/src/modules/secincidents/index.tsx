@@ -24,10 +24,10 @@ const view = 'security.view';
 const mod: ModuleDef = {
   key: 'secincidents',
   nav: [
-    { group: 'Cybersecurity', label: 'Security incidents', path: '/security-incidents', icon: 'alert', permission: view, order: 30 },
-    { group: 'Cybersecurity', label: 'Notification deadlines', path: '/security-incidents/notifications', icon: 'clock', permission: view, order: 31 },
-    { group: 'Cybersecurity', label: 'Rules and checklists', path: '/security-incidents/rules', icon: 'settings', permission: view, order: 32 },
-    { group: 'Cybersecurity', label: 'Offline incident kit', path: '/security-incidents/kit', icon: 'clipboard', permission: view, order: 33 },
+    { group: 'Security', label: 'Security incidents', path: '/security-incidents', icon: 'alert', permission: view, order: 20, tabs: 'Incidents' },
+    { group: 'Security', label: 'Notification deadlines', path: '/security-incidents/notifications', icon: 'clock', permission: view, order: 21, menu: false, parent: '/security-incidents', tab: 'Notification deadlines' },
+    { group: 'Security', label: 'Rules and checklists', path: '/security-incidents/rules', icon: 'settings', permission: view, order: 22, menu: false, parent: '/security-incidents', tab: 'Rules and checklists' },
+    { group: 'Security', label: 'Offline incident kit', path: '/security-incidents/kit', icon: 'clipboard', permission: view, order: 23, menu: false, parent: '/security-incidents' },
   ],
   routes: [
     { path: '/security-incidents', element: <IncidentList />, permission: view },

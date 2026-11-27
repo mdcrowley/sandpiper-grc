@@ -90,7 +90,7 @@ export function RosterAcks({ policy, versionNumber }: { policy: Row; versionNumb
     <Card title="Staff on the roster" flush={!!data.rows.length}
       actions={canRecord && (
         <span className="row">
-          <Link className="btn btn-secondary btn-sm" to="/policies/kiosk">Open the kiosk</Link>
+          <Link className="btn btn-secondary btn-sm" to="/documents/kiosk">Open the kiosk</Link>
           <Button size="sm" icon="check" onClick={() => setRecording(true)}>Record acknowledgments</Button>
         </span>
       )}>

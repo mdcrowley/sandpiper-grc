@@ -152,7 +152,7 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | [E15](epics/E15-self-service-portal.md) | Self-service portal | done | 14 / 14 |
 | [E16](epics/E16-hosting-operations-and-hardening.md) | Hosting, operations and hardening | in progress | 35 / 39 |
 | [E17](epics/E17-documentation.md) | Documentation | done | 14 / 14 |
-| [E18](epics/E18-quality-and-known-defects.md) | Quality and known defects | done | 70 / 70 |
+| [E18](epics/E18-quality-and-known-defects.md) | Quality and known defects | in progress | 93 / 94 |
 | [E19](epics/E19-fleet-and-services.md) | Fleet and services | done | 14 / 14 |
 | [E20](epics/E20-safety-management.md) | Safety management | done | 15 / 15 |
 | [E21](epics/E21-mcp-server.md) | MCP server (AI assistant access) | done | 25 / 25 |
@@ -177,9 +177,20 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | [E40](epics/E40-production-hardening.md) | Production hardening | done | 14 / 14 |
 | [E41](epics/E41-product-gaps-wave-19.md) | Product gaps found in the wave 19 review | done | 17 / 17 |
 | [E42](epics/E42-windows-installer.md) | Windows installer, in-place updates and the update check | in progress | 7 / 8 |
-| | **Total** | | **785 / 796** |
+| [E43](epics/E43-document-control.md) | Document control: policies, standards, procedures, SOPs and plans | in progress | 15 / 19 |
+| [E44](epics/E44-navigation-and-usability.md) | Navigation and usability | in progress | 6 / 10 |
+| | **Total** | | **829 / 849** |
 
-Of the 11 issues not done, E42-07 (the Windows installer on a real Windows Server, by hand) needs a
+Wave 24 reviewed the application as its staff use it and rebuilt the navigation (E44: 13 groups
+named after the work, 46 menu entries for an administrator instead of 154, a My work page, one
+Administration page, pinned pages and recent records), added document control (E43: policies,
+standards, procedures, SOPs, work instructions and plans with types, hierarchy, controlled numbers,
+distribution limited to departments, roles or groups, versions with their real dates, reviews, Word
+conversion, PDF originals, printing as controlled copies, package import and MCP loading tools), let a
+data load name the real author of what it loads (E18-71), and fixed 22 problems the review found
+(E18-72 to E18-93). The 20 issues not done are listed in their epics.
+
+Before wave 24, of the 11 issues not done, E42-07 (the Windows installer on a real Windows Server, by hand) needs a
 person. Every product gap of the wave 19 review (E41) is built. Wave 20 built E41-01
 (departments are records (parent, manager, merge); role grants can be limited per area to the members'
 departments or sites and those below them; out-of-scope records are hidden like restricted ones;

@@ -1,6 +1,6 @@
 # Safety management
 
-The safety pages hold the safety side of the operation: the **hazard log**, **safety events** (collisions, injuries, near misses, assaults, fires, derailments and unsafe conditions) with their investigation and corrective actions, and **safety performance indicators** measured against targets. Open them from the **Safety** group in the navigation: **Safety dashboard**, **Safety events**, **Hazard log** and **Safety indicators**. The pages share tabs along the top: **Dashboard**, **Safety events**, **Hazard log**, **Indicators** and **Exposure**. Lists and record pages work as described in [Getting started](01-getting-started.md).
+The safety pages hold the safety side of the operation: the **hazard log**, **safety events** (collisions, injuries, near misses, assaults, fires, derailments and unsafe conditions) with their investigation and corrective actions, and **safety performance indicators** measured against targets. Open them from the **Safety and emergency management** group in the navigation: **Safety dashboard**, **Safety events** and **Hazard log**. The pages share tabs along the top: **Dashboard**, **Safety events**, **Hazard log**, **Indicators**, **Exposure** and, for safety administrators, **Settings** (the hazard matrix, the reporting rules and the confidential reports, which share tabs of their own). Lists and record pages work as described in [Getting started](01-getting-started.md).
 
 If your organization does not run its safety program here, an administrator can switch **Safety management** off under **Administration > Features** (see [Administration](09-administration.md#features)). The safety pages, their reminders and **Report a safety concern** in the portal then disappear. Records are kept and return when it is switched back on.
 
@@ -15,7 +15,7 @@ Open **Safety dashboard**. It covers the last twelve months:
 - Tiles for **Safety events**, **Serious or worse**, **Open events** (and how many are past their investigation date), **Corrective actions open** (and how many are overdue), **Open hazards** (how many are rated serious or high, and how many are past their review date) and **Notification clocks running** (how many are overdue or due soon; see [Reporting and notification clocks](#reporting-and-notification-clocks)). Each tile opens the records behind it. The clock count includes restricted events, so it is the same for everyone.
 - **Safety events by month**, **By type** and **By severity**. Select a bar to open those events.
 - **Open hazards on the hazard matrix**: how many open hazards sit in each cell, rated after mitigation where that is scored, otherwise as they are now.
-- **Safety performance indicators**: each active indicator's latest value, whether it is **On target** or **Off target**, and its trend with the target as a dashed line.
+- **Safety performance indicators**: each active indicator's value for the latest complete month, whether it is **On target** or **Off target**, and its trend with the target as a dashed line. The current month is not over, so its figure is **Month to date** and is not judged against the target; it is shown only when there is no complete month yet.
 
 Select **Report a safety event** to record a new one.
 
@@ -51,9 +51,9 @@ People are more willing to report a mistake, a near miss or an unsafe instructio
 
 The event is then saved without the reporter's name. **Reported by** stays empty and is not shown, a portal report is created by the application rather than by the reporter (so neither **Created by** nor the **History** names them), and the notes and notifications say only that the reporter asked to stay confidential. Lists, filters, exports, record PDFs, search, reports, imports, webhooks and the AI assistant all read the event, so none of them can show who reported it. Whether a reporter stays confidential is chosen when the report is made and cannot be changed afterward.
 
-Only the people named under **Administration > Confidential safety reports** can see who made a confidential report. On the event page they see a notice with **Show who reported it**; each look is recorded on the event's **History** as "Confidential reporter's identity viewed", with the name of the person who looked but never the reporter's. Everyone else sees the notice without the button. Name as few people as you can.
+Only the people named under **Confidential reports** (the **Settings** tab of the safety pages) can see who made a confidential report. On the event page they see a notice with **Show who reported it**; each look is recorded on the event's **History** as "Confidential reporter's identity viewed", with the name of the person who looked but never the reporter's. Everyone else sees the notice without the button. Name as few people as you can.
 
-To name them, open **Administration > Confidential safety reports** (needs `safety.administer`), choose the people under **Named people** and select **Save named people**. Each must be active and able to see safety events; adding someone asks you to confirm your password. Nobody is named at first, so until someone is, nobody can see who made a confidential report. A named person who loses access to safety events cannot look until they have it again. Every change is recorded in the audit log.
+To name them, open the **Settings** tab of the safety pages and then **Confidential reports**, or **Confidential safety reports** on the **Administration** page (needs `safety.administer`), choose the people under **Named people** and select **Save named people**. Each must be active and able to see safety events; adding someone asks you to confirm your password. Nobody is named at first, so until someone is, nobody can see who made a confidential report. A named person who loses access to safety events cannot look until they have it again. Every change is recorded in the audit log.
 
 What confidentiality does not cover: the words of the report itself (ask reporters not to name themselves in it), and people who run the server, who can read the database, backups and the request log.
 
@@ -121,7 +121,7 @@ On the **Hazards** tab, select **Link a hazard**, choose the **Hazard** and sele
 
 ### Safety reporting rules
 
-With `safety.administer`, open **Administration > Safety reporting rules**. Each rule has:
+With `safety.administer`, open the **Settings** tab of the safety pages and then **Reporting rules** (also **Safety reporting rules** on the **Administration** page). Each rule has:
 
 - a **Name**, **Who must be notified** and **Within (hours from the event)**;
 - one or more **conditions**, all of which must hold: **Fatalities**, **People taken for medical treatment** or **Estimated damage** *is at least*, *is more than* or *is exactly* a number; **Type** or **Severity** *is one of* chosen values; **Evacuated** *is* yes or no;
@@ -152,7 +152,7 @@ A hazard's **Owner** (or, when it has none, everyone who may edit safety records
 
 ### Change the hazard matrix
 
-With the `safety.administer` permission (the **Safety manager** role has it), open **Administration > Hazard matrix**, or select **Hazard matrix** at the top of the **Hazard log**.
+With the `safety.administer` permission (the **Safety manager** role has it), open the **Settings** tab of the safety pages (the **Hazard matrix** tab; also on the **Administration** page), or select **Hazard matrix** at the top of the **Hazard log**.
 
 1. Under **Matrix**, choose the rating each pair of levels gives: likelihood runs down the side, severity along the bottom. Each cell names its rating in words.
 2. Under **Likelihood** and **Severity**, change the **Name** and **What it means** of any level. The number of levels and their values stay as they are, so no score loses its meaning.
@@ -183,7 +183,7 @@ Open **Safety indicators**. Each indicator is worked out month by month: from th
 
 ### The indicator page
 
-The tiles show the **Latest** value and the **Target**. The **Trend** tab shows the indicator for the last 6, 12 or 24 months with the target as a dashed line, and a table of each month's figures (events, exposure, or revenue miles and failures), value, target and whether it was **On target** or **Off target**. A month without exposure has no rate: select **Enter** to record it. Select **Edit** to change the indicator; the **History** tab lists every change.
+The tiles show the **Latest** value and the **Target**. The **Trend** tab shows the indicator for the last 6, 12 or 24 months with the target as a dashed line, and a table of each month's figures (events, exposure, or revenue miles and failures), value, target and whether it was **On target** or **Off target** (the current month says **Month to date** instead; the **Latest** tile shows the latest complete month). A month without exposure has no rate: select **Enter** to record it. Select **Edit** to change the indicator; the **History** tab lists every change.
 
 An indicator **Entered by hand each month** has a **Values** tab: select **Enter** (or **Edit**) beside a month, give the **Value** and an optional **Note**, and select **Save**. Leave the value empty to remove it. Future months cannot be entered.
 

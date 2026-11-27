@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState } from 'react';
 import type { ComponentType } from 'react';
-import { Card, EditableSummary, ErrorState, errorMessage, LinksPanel, Loading, Switch, useAuth, useFetch, useToast } from '../../core';
+import { Button, Card, EditableSummary, formatDateTime, ErrorState, errorMessage, LinksPanel, Loading, Switch, useAuth, useFetch, useToast } from '../../core';
 import type { RecordContext } from '../../core';
 import type { RecordLink } from '../../core/RecordLinks';
 import type { Questions } from './types';
@@ -36,13 +36,30 @@ export function AffectedTab({ rec, onSaved }: { rec: RecordContext; onSaved: () 
     }
   }
 
+  // E18-77: confirming the answers as they stand (every "No" included) records that they were answered.
+  async function confirmAnswers() {
+    setSaving('confirm');
+    try {
+      await save({ data_kinds: held });
+      toast.success('Answers confirmed.');
+      onSaved();
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setSaving(null);
+    }
+  }
+
   // A kind retired from the list stays visible on incidents that already carry it.
   const known = new Set((asked.data?.questions ?? []).filter((q) => q.kind === 'data_kind').map((q) => q.value));
   const retired = held.filter((v) => !known.has(v));
 
   return (
     <div className="stack">
-      <Card title="Questions that decide who must be told">
+      <Card title="Questions that decide who must be told"
+        actions={canEdit && !row.answers_confirmed_at
+          ? <Button size="sm" loading={saving === 'confirm'} disabled={saving !== null} onClick={() => void confirmAnswers()}>The answers are complete</Button>
+          : undefined}>
         {asked.error ? <ErrorState title="The questions could not be loaded" error={asked.error} onRetry={asked.reload} />
           : !asked.data ? <Loading lines={3} label="Loading questions" />
           : (
@@ -56,6 +73,7 @@ export function AffectedTab({ rec, onSaved }: { rec: RecordContext; onSaved: () 
                   onChange={() => void save({ data_kinds: held.filter((x) => x !== v) }).then(onSaved).catch((err) => toast.error(errorMessage(err)))} />
               ))}
               <p className="muted">
+                {row.answers_confirmed_at ? `Answered ${formatDateTime(row.answers_confirmed_at)}. ` : 'Not answered yet: answer each question, or confirm that the answers shown are complete. '}
                 {row.declared_at
                   ? 'Changing an answer adds or stands down the matching clocks straight away. Completed notifications are never removed.'
                   : 'These answers decide which clocks start when the incident is declared.'}

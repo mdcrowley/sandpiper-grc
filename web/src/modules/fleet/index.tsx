@@ -14,11 +14,11 @@ const view = 'fleet.view';
 const mod: ModuleDef = {
   key: 'fleet',
   nav: [
-    { group: 'Inventory', label: 'Vehicles', path: '/vehicles', icon: 'bus', permission: view, order: 54 },
-    { group: 'Inventory', label: 'Services', path: '/services', icon: 'route', permission: view, order: 55 },
-    { group: 'Inventory', label: 'Equipment coverage', path: '/fleet/coverage', icon: 'check-square', permission: view, order: 56 },
-    { group: 'Inventory', label: 'What is affected', path: '/fleet/impact', icon: 'target', permission: view, order: 57 },
-    { group: 'Inventory', label: 'Vehicle models', path: '/vehicle-models', icon: 'clipboard', permission: view, order: 58 },
+    { group: 'Assets', label: 'Vehicles', path: '/vehicles', icon: 'bus', permission: view, order: 50 },
+    { group: 'Assets', label: 'Services', path: '/services', icon: 'route', permission: view, order: 51, menu: false, parent: '/vehicles' },
+    { group: 'Assets', label: 'Equipment coverage', path: '/fleet/coverage', icon: 'check-square', permission: view, order: 52, menu: false, parent: '/vehicles' },
+    { group: 'Assets', label: 'What is affected', path: '/fleet/impact', icon: 'target', permission: view, order: 53, menu: false, parent: '/vehicles' },
+    { group: 'Assets', label: 'Vehicle models', path: '/vehicle-models', icon: 'clipboard', permission: view, order: 54, menu: false, parent: '/vehicles' },
   ],
   routes: [
     { path: '/vehicles', element: <VehicleList />, permission: view },

@@ -1,7 +1,7 @@
 // Shared pieces of the safety pages: section tabs, the hazard matrix and the action panel loader.
 import { lazy, Suspense, type ComponentType, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, Loading, StatusChip, Tabs, useFetch, useScrollFocus } from '../../core';
+import { Card, Loading, StatusChip, Tabs, useAuth, useFetch, useScrollFocus } from '../../core';
 import type { ColorName } from '../../core';
 
 const SECTIONS = [
@@ -10,12 +10,16 @@ const SECTIONS = [
   { key: 'hazards', label: 'Hazard log', path: '/safety/hazards' },
   { key: 'indicators', label: 'Indicators', path: '/safety/indicators' },
   { key: 'exposure', label: 'Exposure', path: '/safety/exposure' },
+  // The safety administrators' settings (hazard matrix, reporting rules, confidential reports), always last (wave 24).
+  { key: 'settings', label: 'Settings', path: '/safety/matrix', admin: true },
 ] as const;
 
 export function SafetyTabs({ active }: { active: (typeof SECTIONS)[number]['key'] }) {
   const navigate = useNavigate();
+  const { can } = useAuth();
+  const shown = SECTIONS.filter((s) => !('admin' in s) || can('safety.administer'));
   return (
-    <Tabs label="Safety sections" active={active} tabs={SECTIONS.map((s) => ({ key: s.key, label: s.label }))}
+    <Tabs label="Safety sections" active={active} tabs={shown.map((s) => ({ key: s.key, label: s.label }))}
       onChange={(key) => navigate(SECTIONS.find((s) => s.key === key)?.path ?? '/safety')} />
   );
 }

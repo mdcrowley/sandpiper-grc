@@ -278,3 +278,29 @@ describe('the records area switched off', () => {
     }
   });
 });
+
+describe('the list shows the date due now (E18-83)', () => {
+  it('lists the extended date as Due, filters on it, and puts overdue open requests first', async () => {
+    const late = await req({ subject: 'Invented list probe, overdue', received_on: dayInZone(-30) });
+    const extended = await req({ subject: 'Invented list probe, extended', received_on: dayInZone(-25) });
+    expect((await t.api.post(`/api/records-requests/${extended.id}/extend`, { until: dayInZone(12), reason: 'Invented reason' })).status).toBe(200);
+    const done = await req({ subject: 'Invented list probe, answered', received_on: dayInZone(-29) });
+    expect((await t.api.patch(`/api/records-requests/${done.id}`, { status: 'responded', response_summary: 'Invented summary' })).status).toBe(200);
+
+    const one = (await t.api.get(`/api/records-requests/${extended.id}`)).body;
+    expect(one).toMatchObject({ due_on: extended.due_on, extended_due_on: dayInZone(12), current_due_on: dayInZone(12) });
+    expect((await t.api.get(`/api/records-requests/${late.id}`)).body.current_due_on).toBe(late.due_on);
+    expect(late.due_on < dayInZone(0)).toBe(true);
+    // A filter on the date due now finds the extended request by its new date, not its first one.
+    const soon = (await t.api.get(`/api/records-requests?f.current_due_on.gte=${dayInZone(11)}&f.current_due_on.lte=${dayInZone(13)}&pageSize=500`)).body.rows.map((r: any) => r.id);
+    expect(soon).toContain(extended.id);
+    expect(soon).not.toContain(late.id);
+    // Default order: open requests by the date due now (overdue first), answered and closed ones after.
+    const order = (await t.api.get('/api/records-requests?pageSize=500')).body.rows.map((r: any) => r.id);
+    expect(order.indexOf(late.id)).toBeLessThan(order.indexOf(extended.id));
+    expect(order.indexOf(extended.id)).toBeLessThan(order.indexOf(done.id));
+    const firstOpen = (await t.api.get('/api/records-requests?pageSize=500')).body.rows.filter((r: any) => !['responded', 'closed', 'withdrawn', 'refused'].includes(r.status));
+    const dues = firstOpen.map((r: any) => String(r.current_due_on));
+    expect(dues).toEqual([...dues].sort());
+  });
+});

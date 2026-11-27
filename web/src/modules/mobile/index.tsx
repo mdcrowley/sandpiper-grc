@@ -10,7 +10,7 @@ import { DevicesPage } from './Devices';
 const mod: ModuleDef = {
   key: 'mobile',
   nav: [
-    { group: 'Administration', label: 'Mobile app', path: '/admin/mobile-app', icon: 'settings', permission: 'admin.administer', order: 47 },
+    { group: 'Administration', label: 'Mobile app', path: '/admin/mobile-app', icon: 'settings', permission: 'admin.administer', order: 55, menu: false, hub: 'Connections', hint: 'Who may sign in to the mobile app, and its devices.' },
   ],
   routes: [
     { path: '/account/devices', element: <DevicesPage /> },

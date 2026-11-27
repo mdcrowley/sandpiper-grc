@@ -27,6 +27,16 @@ The number beside the **Attachments** tab's name is how many files the record ho
 
 The line under the box tells you the largest file allowed and which types are accepted. Your administrator sets both; a new installation allows 25 MB for each file.
 
+### Large files and files sent in parts
+
+A file can also be sent in **parts** of at most 1 MB each, for example by an AI assistant loading documents ([AI assistants and MCP](21-ai-assistants-and-mcp.md#loading-a-document-package)) or for a document package import. The parts may arrive in any order and a part can be sent again. When the last part is in, the parts are joined and the whole file is checked exactly like a file you drop on the box: its type, its size against the limit, its content against its name, the malware scanner, and its fingerprint (SHA-256) against the one the sender gave. A file that fails any check is not kept.
+
+A finished upload belongs to the person who sent it, no one else can see or use it, and it is attached to a record only once, under that record's usual rules (you must be able to change the record's files). Uploads that are not finished, or not attached, within 24 hours are removed with their parts.
+
+### Pictures in converted Word documents
+
+When a Word file (`.docx`) is converted into a document's text ([Documents and exceptions](11-policies-and-exceptions.md)), each picture in it is stored as a file on the document, described as "Image N from" and the file's name, and shown in the text where it was. Pictures follow the document: someone who may not read the document cannot see them. Pictures in formats a browser cannot show (Windows metafiles, for example) are left out and the conversion report says so.
+
 ### Link a document instead of attaching it
 
 When a document lives in your organization's document store, you can link it rather than upload a copy, so the record always points at the current version.
@@ -94,6 +104,7 @@ The search at the top of every page finds a record by the words inside its PDF, 
 - Files a vendor sends through a response link are not read while they wait for review; their text is read once someone takes them over (see [Files from the vendor](04-vendors-and-contracts.md#files-from-the-vendor)).
 - When a file is removed its text is forgotten at once; if an administrator puts the file back, it is read again.
 - Older Word files (`.doc`), spreadsheets and presentations are found by their names only.
+- A PDF that is the original of a controlled document's effective version also makes the document itself findable by its words, a few minutes after its text has been read; a scanned PDF is marked "Scanned: no text" on its version.
 
 ### Edit a file's details
 
@@ -151,20 +162,20 @@ An evidence file has an **Evidence** badge and its collection date in the list, 
 
 ### Expiring evidence files
 
-Open **Expiring evidence files** in the **Reports** group. The page lists every evidence file, on any record you can open, that has already expired or will expire within the period you choose.
+Open **Vendors > Evidence** and the **Expiring files** tab (shown to people who may view vendors; anyone can still open its address, `/attachments/expiring`). The page lists every evidence file, on any record you can open, that has already expired or will expire within the period you choose.
 
 1. Choose a period in **Show evidence expiring in**, from **Next 30 days** to **Next 365 days**. It starts at **Next 90 days**.
 2. The two tiles show how many files have **Already expired** and how many are expiring in the period.
 3. The table lists the files, soonest first, with the record each one is **Attached to**, the dates and a status chip.
 4. Select a file's name to download it, or the record's name to open the record and attach a current copy.
 
-This page is separate from **Expiring evidence** in the **Vendors** group, which lists vendor evidence records with the dates recorded on them; see [Vendors and contracts](04-vendors-and-contracts.md). When you can view vendors, **Expiring vendor evidence** at the top of this page opens it, and that page links back here.
+This page is separate from the **Expiring** tab of **Vendors > Evidence**, which lists vendor evidence records with the dates recorded on them; see [Vendors and contracts](04-vendors-and-contracts.md). When you can view vendors, **Expiring vendor evidence** at the top of this page opens it, and that page links back here.
 
 The owner of the record is reminded as an evidence file's expiry date approaches: a **Reminders** notification 30 days before, 7 days before and on the day it expires, each once (only the nearest one when a file is attached with less time left). The owner is the person in the record's **Owner** field; on a record without one, the person who attached the file is told. Only someone who can open the record is told. Files on vendor evidence items are left out, because the evidence item's own expiry reminders cover them (see [Vendors and contracts](04-vendors-and-contracts.md#reminders)). Changing the file's **Expires on** date starts its reminders again.
 
 ## File settings
 
-*Administrators.* Open **File settings** in the **Administration** group. Four tiles at the top show the **Files in use**, the files **Removed, waiting to be purged**, how many are **Not scanned for malware**, and where **New files go to**, each with its size. Below them are four tabs. Changes on the **Malware scanning**, **Storage** and **Removed files** tabs ask you to confirm your password if you have not done so in the last few minutes. Every change is kept in the audit log.
+*Administrators.* Open **Administration > File settings** (a card on the **Administration** page). Four tiles at the top show the **Files in use**, the files **Removed, waiting to be purged**, how many are **Not scanned for malware**, and where **New files go to**, each with its size. Below them are four tabs. Changes on the **Malware scanning**, **Storage** and **Removed files** tabs ask you to confirm your password if you have not done so in the last few minutes. Every change is kept in the audit log.
 
 ### Uploads
 
@@ -233,7 +244,7 @@ Removed files of restricted records are listed only for administrators who may s
 
 ## Backups
 
-*Administrators.* Open **Backups** in the **Administration** group. The application takes a copy of everything while it keeps running, writes it to a second location, reads it back from there and checks every file in it.
+*Administrators.* Open **Administration > Backups**. The application takes a copy of everything while it keeps running, writes it to a second location, reads it back from there and checks every file in it.
 
 The tiles show the **Last good backup** (red when there is none or it is more than two days old), the **Schedule**, where backups go (**Goes to**), and whether **Encryption** is on and with which key.
 
@@ -282,7 +293,7 @@ The number is checked about once a minute while you are using the application. I
 
 ### The notifications page
 
-Open **Notifications** in the menu on the left, under **Overview**.
+Select **See all notifications** in the bell menu of the top bar, or **Notifications** in your account menu (top right).
 
 | Tab | Shows |
 |---|---|

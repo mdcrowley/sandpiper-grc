@@ -24,7 +24,9 @@ function barOption(groups: { label: string; count: number; filters: Record<strin
   const value = { type: 'value', minInterval: 1 };
   return {
     tooltip: { trigger: 'item' },
-    grid: horizontal ? { top: 8, right: 24, bottom: 24, left: 150 } : undefined,
+    // A vertical chart gets its own margins too: the chart's defaults left the "Open tickets by age"
+    // bars a strip some 50 pixels high, with the axis labels on top of each other (E18-85).
+    grid: horizontal ? { top: 8, right: 24, bottom: 24, left: 150 } : { top: 16, right: 16, bottom: 32, left: 40 },
     xAxis: horizontal ? value : category,
     yAxis: horizontal ? category : value,
     series: [{ type: 'bar', data, ...(horizontal ? { itemStyle: { borderRadius: [0, 4, 4, 0] } } : {}) }],
@@ -204,7 +206,7 @@ export function ServiceDeskDashboard() {
                   )}
                 </Card>
                 <Card title="Open tickets by age">
-                  <Chart label="Open tickets by age" option={backlog} height={200} loading={chartLoading} onSegmentClick={onSegment} emptyMessage="Nothing is open" />
+                  <Chart label="Open tickets by age" option={backlog} height={240} loading={chartLoading} onSegmentClick={onSegment} emptyMessage="Nothing is open" />
                   <p className="muted">All tickets open now, whenever they were opened.</p>
                 </Card>
                 <Card title="By category">

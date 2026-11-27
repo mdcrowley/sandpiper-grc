@@ -121,7 +121,7 @@ const calendarTest = (theme, width) => ({
     });
     await t.step('the month view shows it', async () => {
       await page.goto('/calendar?view=month');
-      await page.waitFor({ text: 'Compliance calendar', tag: 'h1' });
+      await page.waitFor({ text: 'Calendar', tag: 'h1' });
       await page.waitFor('.cc-month');
       t.soft((await page.text('.cc-month')).includes('Action due'), 'the month grid does not show the action');
     });
@@ -131,7 +131,7 @@ const calendarTest = (theme, width) => ({
     });
     await t.step('another area leaves it out', async () => {
       await page.goto('/calendar?view=list&area=vendors');
-      await page.waitFor({ text: 'Compliance calendar', tag: 'h1' });
+      await page.waitFor({ text: 'Calendar', tag: 'h1' });
       await page.settled();
       t.soft(!(await page.text('main')).includes(title), 'an action shows under the vendors area');
     });

@@ -1,8 +1,12 @@
 // Acknowledgment requests: who is asked, publishing a version, tracking and the reminder run.
+import { createHash } from 'node:crypto';
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { readerIds, tablesFor } from './access.ts';
 import { addDays, daysBetween, localDate } from './dates.ts';
 import { requestRosterAcks } from './personAcks.ts';
+import { refreshSearchText } from './search.ts';
+import { cycleOf } from './types.ts';
 
 export const REMINDER_SETTING = 'policies.reminder_interval_days';
 export const DEFAULT_REMINDER_INTERVAL = 7;
@@ -44,7 +48,11 @@ export async function reviewMonths(ctx: ModuleContext, documentType: unknown): P
   return Number.isInteger(n) && n > 0 && n <= 120 ? n : null;
 }
 
-/** Active users in the policy's audience: everyone, or anyone holding one of the roles or in one of the departments. */
+/**
+ * Active users in the policy's audience: everyone, or anyone holding one of the roles or in one of
+ * the departments. Only people who may read the document are asked (E43: the audience lies inside
+ * the distribution).
+ */
 export async function audienceUserIds(ctx: ModuleContext, policy: Row): Promise<string[]> {
   const rows = await ctx.db.query<{ id: string }>(
     `select u.id from users u
@@ -56,10 +64,16 @@ export async function audienceUserIds(ctx: ModuleContext, policy: Row): Promise<
      order by u.display_name`,
     [policy.audience_everyone === true, list(policy.audience_departments), list(policy.audience_roles)],
   );
-  return rows.map((r) => r.id);
+  const ids = rows.map((r) => r.id);
+  if (policy.access !== 'restricted') return ids;
+  const readers = new Set(await readerIds(ctx, tablesFor(ctx), policy));
+  return ids.filter((id) => readers.has(id));
 }
 
-/** Recomputes the policy's status from its versions (a retired policy stays retired). */
+/**
+ * Recomputes the policy's status from its versions (a retired policy stays retired). The effective
+ * version is the published one; `current_version` is its number.
+ */
 export async function syncPolicyStatus(ctx: ModuleContext, policyId: string, userId: string | null): Promise<Row> {
   const policy = (await ctx.db.one<Row>('select * from policies where id = $1', [policyId]))!;
   if (policy.status === 'retired') return policy;
@@ -75,36 +89,46 @@ export async function syncPolicyStatus(ctx: ModuleContext, policyId: string, use
   ))!;
 }
 
-export interface PublishResult { policy: Row; version: Row; requested: number; roster_requested?: number; due_on: string }
+export interface PublishResult { policy: Row; version: Row; requested: number; roster_requested?: number; due_on: string; moved?: number }
+
+/** SHA-256 of a version's text: the fingerprint shown with acknowledgments. */
+export const bodyHash = (body: unknown): string => createHash('sha256').update(String(body ?? ''), 'utf8').digest('hex');
 
 /**
  * Publishes an approved version: it becomes what readers see, the version before it is kept
- * as superseded, and everyone in the audience is asked to acknowledge the new text (requests
- * for earlier versions that were never answered are closed).
+ * as superseded (with the date it stopped being in force), and everyone in the audience who may
+ * read the document is asked to acknowledge the new text (requests for earlier versions that were
+ * never answered are closed).
+ * - `minor`: a typo or formatting fix; nobody new is asked, and open requests move to this version.
+ * - a document that does not need acknowledging (`ack_required` false) asks nobody.
+ * - in data load mode (`load`), nobody is asked and nothing is sent: it is history.
  */
 export async function publishVersion(
   ctx: ModuleContext, req: FastifyRequest | null, policy: Row, version: Row,
-  opts: { effective_on?: string | null; now?: Date } = {},
+  opts: { effective_on?: string | null; now?: Date; minor?: boolean; load?: boolean; published_at?: string | null } = {},
 ): Promise<PublishResult> {
-  if (policy.status === 'retired') ctx.fail(409, 'retired', 'This policy is retired. It cannot be published.');
+  if (policy.status === 'retired') ctx.fail(409, 'retired', 'This document is obsolete. It cannot be published.');
   if (version.status === 'published') ctx.fail(409, 'already_published', 'This version is already published.');
   if (version.status !== 'approved') ctx.fail(409, 'not_approved', 'Only an approved version can be published.');
   const now = opts.now ?? new Date();
   const today = localDate(now);
   const userId = req?.user?.id ?? null;
+  const effective = opts.effective_on ?? (version.effective_on ? String(version.effective_on instanceof Date ? version.effective_on.toISOString() : version.effective_on).slice(0, 10) : today);
+  const minor = opts.minor ?? version.minor === true;
 
   await ctx.db.query(
-    `update policy_versions set status = 'superseded', updated_at = now(), updated_by = $2 where policy_id = $1 and status = 'published'`,
-    [policy.id, userId],
+    `update policy_versions set status = 'superseded', superseded_on = coalesce(superseded_on, $3::date), scheduled = false,
+       updated_at = now(), updated_by = $2 where policy_id = $1 and status = 'published'`,
+    [policy.id, userId, effective],
   );
   const published = (await ctx.db.one<Row>(
-    `update policy_versions set status = 'published', published_at = $2, effective_on = coalesce($3::date, effective_on, $4::date),
-       updated_at = now(), updated_by = $5 where id = $1 returning *`,
-    [version.id, now.toISOString(), opts.effective_on ?? null, today, userId],
+    `update policy_versions set status = 'published', published_at = $2, effective_on = $3::date, scheduled = false, minor = $5,
+       body_sha256 = coalesce(body_sha256, $6), updated_at = now(), updated_by = $4 where id = $1 returning *`,
+    [version.id, opts.published_at ?? now.toISOString(), effective, userId, minor, bodyHash(version.body)],
   ))!;
-  // The document type's review cycle (E29-08): the next review falls that many months after the
-  // version takes effect, unless a later review date is already set.
-  const months = await reviewMonths(ctx, policy.document_type);
+  // The review cycle (the document's own, else its type's, E29-08/E43): the next review falls that
+  // many months after the version takes effect, unless a later review date is already set.
+  const months = await cycleOf(ctx, policy);
   if (months) {
     await ctx.db.query(
       `update policies p set review_date = (v.effective_on + make_interval(months => $3::int))::date, updated_at = now(), updated_by = $4
@@ -113,37 +137,59 @@ export async function publishVersion(
       [policy.id, published.id, months, userId],
     );
   }
-  await ctx.db.query(
-    `update policy_acknowledgements set superseded_at = $3
-     where policy_id = $1 and version_id <> $2 and acknowledged_at is null and superseded_at is null`,
-    [policy.id, version.id, now.toISOString()],
-  );
   const days = Math.max(1, Math.trunc(Number(policy.ack_days) || 14));
   const dueOn = addDays(today, days);
   let requested = 0;
+  let roster = 0;
+  let moved = 0;
   const made: { id: string; user_id: string }[] = [];
-  for (const uid of await audienceUserIds(ctx, policy)) {
-    const row = await ctx.db.one<{ id: string; user_id: string }>(
-      `insert into policy_acknowledgements (policy_id, version_id, user_id, requested_at, due_on) values ($1,$2,$3,$4,$5)
-       on conflict (version_id, user_id) do nothing returning id, user_id`,
-      [policy.id, version.id, uid, now.toISOString(), dueOn],
+  if (minor && !opts.load) {
+    // A minor version: what people were asked to read is still what they read, so their open
+    // requests now point at this version and keep their due dates.
+    moved = (await ctx.db.query(
+      `update policy_acknowledgements set version_id = $2
+       where policy_id = $1 and version_id <> $2 and acknowledged_at is null and superseded_at is null returning id`,
+      [policy.id, version.id])).length;
+    moved += (await ctx.db.query(
+      `update policy_person_acknowledgements set version_id = $2
+       where policy_id = $1 and version_id <> $2 and acknowledged_at is null and superseded_at is null returning id`,
+      [policy.id, version.id])).length;
+  } else {
+    await ctx.db.query(
+      `update policy_acknowledgements set superseded_at = $3
+       where policy_id = $1 and version_id <> $2 and acknowledged_at is null and superseded_at is null`,
+      [policy.id, version.id, now.toISOString()],
     );
-    if (row) { requested += 1; made.push(row); }
+    const asks = !opts.load && policy.ack_required !== false;
+    if (asks) {
+      for (const uid of await audienceUserIds(ctx, policy)) {
+        const row = await ctx.db.one<{ id: string; user_id: string }>(
+          `insert into policy_acknowledgements (policy_id, version_id, user_id, requested_at, due_on) values ($1,$2,$3,$4,$5)
+           on conflict (version_id, user_id) do nothing returning id, user_id`,
+          [policy.id, version.id, uid, now.toISOString(), dueOn],
+        );
+        if (row) { requested += 1; made.push(row); }
+      }
+    }
+    // Roster people (E29-09): asked by position, recorded on a sign-in sheet or the kiosk.
+    roster = await requestRosterAcks(ctx, asks ? policy : { ...policy, ack_roster: false }, published, dueOn, now);
   }
-  // Roster people (E29-09): asked by position, recorded on a sign-in sheet or the kiosk.
-  const roster = await requestRosterAcks(ctx, policy, published, dueOn, now);
   // Each person asked is told, except the person publishing (they know).
   for (const a of made) {
     if (a.user_id !== userId) await notifyAck(ctx, a, { ref: policy.ref, title: String(policy.title) }, Number(version.version), dueOn, false);
   }
   const after = await syncPolicyStatus(ctx, policy.id, userId);
+  await refreshSearchText(ctx, policy.id);
+  const name = [policy.doc_number ?? policy.ref, policy.title].filter(Boolean).join(' ');
   await ctx.audit(req, {
     action: 'policy.publish', recordType: 'policy', recordId: policy.id,
-    summary: `Version ${version.version} of ${[policy.ref, policy.title].filter(Boolean).join(' ')} published; ${requested} ${requested === 1 ? 'person' : 'people'} asked to acknowledge by ${dueOn}${roster ? `, and ${roster} on the roster` : ''}`,
+    summary: minor && !opts.load
+      ? `Version ${version.version} of ${name} published as a minor version; nobody new asked to acknowledge${moved ? ` (${moved} open request${moved === 1 ? '' : 's'} moved to it)` : ''}`
+      : `Version ${version.version} of ${name} published; ${requested} ${requested === 1 ? 'person' : 'people'} asked to acknowledge by ${dueOn}${roster ? `, and ${roster} on the roster` : ''}`,
     before: { status: policy.status, current_version: policy.current_version },
-    after: { status: after.status, current_version: Number(version.version), acknowledgements_requested: requested, roster_requested: roster, due_on: dueOn },
+    after: { status: after.status, current_version: Number(version.version), effective_on: effective, minor, acknowledgements_requested: requested, roster_requested: roster, moved, due_on: dueOn },
   });
-  return { policy: after, version: published, requested, roster_requested: roster, due_on: dueOn };
+  return { policy: after, version: published, requested, roster_requested: roster, due_on: dueOn, moved };
 }
 
 export type AckState = 'acknowledged' | 'overdue' | 'outstanding' | 'superseded';

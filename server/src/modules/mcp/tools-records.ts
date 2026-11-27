@@ -16,9 +16,42 @@ const LOAD_STANDARD: Record<string, FieldMeta> = {
   created_at: { label: 'Created', type: 'datetime' },
   created_by: { label: 'Created by', type: 'user' },
   updated_at: { label: 'Updated', type: 'datetime' },
+  updated_by: { label: 'Updated by', type: 'user' },
 };
 /** Whether this caller's saves are data loads (E18-70): read-only fields may be set then. */
 const loading = (t: ToolContext) => t.session.dataLoad?.allowed === true;
+
+/**
+ * The `as` argument of the write tools, offered only while this caller's saves are loads (E18-71):
+ * the person the load writes in the name of.
+ */
+export const asArg = z.union([
+  z.string().min(1).max(250),
+  z.object({ user: z.string().optional(), person: z.string().optional(), name: z.string().optional() }),
+]).describe('Data load mode only: the person who really wrote or did this, for the history. A user id, username or email (disabled accounts too); '
+  + '"person:<roster id, reference or email>" for someone on the people roster; "name:<their name>" for someone with neither. '
+  + 'Unknown people are refused. The audit log still names you and your token, "on behalf of" this person. Nothing is sent to them.');
+export const AS_INPUT = { as: asArg.optional() };
+
+/**
+ * Works out the person named by `as` (E18-71) through POST /api/data-load/person: what to send as
+ * `on_behalf_of` (unambiguous), and their name for the answer and the audit event. Null without `as`.
+ */
+export async function named(t: ToolContext, as: unknown): Promise<{ send: unknown; name: string } | null> {
+  if (as === undefined || as === null || as === '') return null;
+  if (!loading(t)) fail('"as" is only for data load mode.', 'validation', { as: 'Only while data load mode is on.' });
+  let p: { kind: string; user_id: string | null; person_id: string | null; name: string };
+  try {
+    p = await t.api.post('/api/data-load/person', { person: as });
+  } catch (err) {
+    const e = err as { fields?: Record<string, string> };
+    if (e.fields?.person) fail(e.fields.person, 'validation', { as: e.fields.person });
+    throw err;
+  }
+  const send = p.kind === 'name' ? { name: p.name } : p.person_id ? `person:${p.person_id}` : p.user_id;
+  return { send, name: p.name };
+}
+const behalf = (who: { name: string } | null) => (who ? ` on behalf of ${who.name}` : '');
 
 /** Checks field names against the type and turns "me" into the caller's id for person fields. */
 function cleanValues(t: ToolContext, type: TypeMeta, values: Record<string, unknown>, what: 'create' | 'update') {
@@ -68,7 +101,7 @@ const listRecordTypes: ToolSpec = {
     const extra = load ? [...fields.filter((f) => f.read_only).map((f) => f.name), ...Object.keys(LOAD_STANDARD)] : [];
     return {
       text: `${type.plural} (${type.type})${type.restricted ? ', restricted records' : ''}. Title field: ${type.titleField}.${type.refField ? ` Reference field: ${type.refField}.` : ''}\nFields:\n${lines.join('\n')}`
-        + (load ? `\nData load mode is on until ${t.session.dataLoad!.until}: you may also set ${extra.join(', ')} (dates and times as ISO 8601; created_by is a user id). Any status is allowed. A reference you give must be unique; values you give win over what the application would work out, and what you leave out is worked out from the dates you give. Nothing is sent to anyone.` : ''),
+        + (load ? `\nData load mode is on until ${t.session.dataLoad!.until}: you may also set ${extra.join(', ')} (dates and times as ISO 8601; created_by, updated_by and person fields take a user id, username or email). Give "as" on create_record and update_record to name the person who did it. Any status is allowed. A reference you give must be unique; values you give win over what the application would work out, and what you leave out is worked out from the dates you give. Nothing is sent to anyone.` : ''),
       data: {
         type: type.type, label: type.label, plural: type.plural, title_field: type.titleField, reference_field: type.refField ?? null, restricted: type.restricted, fields, url: t.link(type.route),
         ...(load ? { data_load: { on: true, until: t.session.dataLoad!.until, extra_fields: extra } } : {}),
@@ -228,15 +261,27 @@ const addComment: ToolSpec = {
     body: z.string().min(1).max(20000).describe('The comment text.'),
     internal: z.boolean().optional().describe('Internal note (default true).'),
   },
+  dataLoadInput: {
+    ...AS_INPUT,
+    created_at: z.string().optional().describe('Data load mode only: when the comment was written (ISO 8601).'),
+  },
+  dataLoadNote: 'Data load mode is on: give "as" for the person who wrote the comment and created_at for when; nobody is told about it.',
   async run(args, t) {
     const type = await t.typeOf(args.type);
     const row = await t.record(type, args.id);
-    const made = await t.api.post<any>('/api/comments', { record_type: type.type, record_id: row.id, body: args.body, internal: args.internal !== false });
+    const who = await named(t, args.as);
+    const made = await t.api.post<any>('/api/comments', {
+      record_type: type.type, record_id: row.id, body: args.body, internal: args.internal !== false,
+      ...(who ? { on_behalf_of: who.send } : {}), ...(loading(t) && args.created_at ? { created_at: args.created_at } : {}),
+    });
     const name = `${type.label.toLowerCase()} ${row[type.refField ?? ''] ?? row[type.titleField]}`;
     return {
-      text: `${args.internal === false ? 'Public comment' : 'Internal note'} added to ${name}.`,
-      data: { type: type.type, id: row.id, comment_id: made.id, internal: made.internal, url: t.link(type.route, row.id) },
-      audit: { recordType: type.type, recordId: row.id, summary: `${args.internal === false ? 'Public comment' : 'Internal note'} added to ${name}` },
+      text: `${args.internal === false ? 'Public comment' : 'Internal note'} added to ${name}${behalf(who)}.`,
+      data: {
+        type: type.type, id: row.id, comment_id: made.id, internal: made.internal, url: t.link(type.route, row.id),
+        ...(loading(t) ? { author: made.author_name, created_at: made.created_at } : {}),
+      },
+      audit: { recordType: type.type, recordId: row.id, summary: `${args.internal === false ? 'Public comment' : 'Internal note'} added to ${name}`, onBehalf: who?.name },
     };
   },
 };
@@ -250,17 +295,19 @@ const createRecord: ToolSpec = {
     type: typeArg,
     fields: z.record(z.string(), z.unknown()).describe('Field values by field name, e.g. {"title": "...", "priority": "high"}.'),
   },
-  dataLoadNote: 'Data load mode is on: you may also set read-only fields (such as opened_at, resolved_at, closed_at, due times and breach flags), any status, created_at, created_by, updated_at and the reference; the record is marked as loaded and can be deleted with delete_record. Nothing is sent to anyone.',
+  dataLoadNote: 'Data load mode is on: you may also set read-only fields (such as opened_at, resolved_at, closed_at, due times and breach flags), any status, created_at, created_by, updated_at, updated_by and the reference; give "as" for the person who created it (its author in the history). The record is marked as loaded and can be deleted with delete_record. Nothing is sent to anyone.',
+  dataLoadInput: AS_INPUT,
   async run(args, t) {
     const type = await t.typeOf(args.type);
     const data = cleanValues(t, type, args.fields, 'create');
-    const row = await t.api.post<any>(type.path, data);
+    const who = await named(t, args.as);
+    const row = await t.api.post<any>(type.path, who ? { ...data, on_behalf_of: who.send } : data);
     const ref = type.refField ? row[type.refField] : null;
     const load = loading(t);
     return {
-      text: `${load ? 'Loaded' : 'Created'} ${type.label.toLowerCase()} ${ref ?? ''} "${row[type.titleField] ?? ''}"${load ? ' (data load mode)' : ''}. Open: ${t.link(type.route, row.id)}`.replace(/\s+/g, ' '),
-      data: { type: type.type, id: row.id, ref, title: row[type.titleField] ?? null, url: t.link(type.route, row.id), ...(load ? { data_load: true, created_at: row.created_at } : {}) },
-      audit: { recordType: type.type, recordId: row.id, summary: `${type.label} ${ref ?? `"${row[type.titleField] ?? ''}"`} ${load ? 'loaded (data load mode)' : 'created'}` },
+      text: `${load ? 'Loaded' : 'Created'} ${type.label.toLowerCase()} ${ref ?? ''} "${row[type.titleField] ?? ''}"${load ? ' (data load mode)' : ''}${behalf(who)}. Open: ${t.link(type.route, row.id)}`.replace(/\s+/g, ' '),
+      data: { type: type.type, id: row.id, ref, title: row[type.titleField] ?? null, url: t.link(type.route, row.id), ...(load ? { data_load: true, created_at: row.created_at, ...(who ? { on_behalf_of: who.name } : {}) } : {}) },
+      audit: { recordType: type.type, recordId: row.id, summary: `${type.label} ${ref ?? `"${row[type.titleField] ?? ''}"`} ${load ? 'loaded (data load mode)' : 'created'}`, onBehalf: who?.name },
     };
   },
 };
@@ -273,24 +320,26 @@ const updateRecord: ToolSpec = {
     type: typeArg, id: idArg,
     changes: z.record(z.string(), z.unknown()).describe('New values by field name; null clears a field.'),
   },
-  dataLoadNote: 'Data load mode is on: read-only fields, any status, created_at, created_by, updated_at and the reference may be changed too. Nothing is sent to anyone.',
+  dataLoadNote: 'Data load mode is on: read-only fields, any status, created_at, created_by, updated_at, updated_by and the reference may be changed too; give "as" for the person who made the change (a status change, an assignment and so on). Nothing is sent to anyone.',
+  dataLoadInput: AS_INPUT,
   async run(args, t) {
     const type = await t.typeOf(args.type);
     const row = await t.record(type, args.id);
     const patch = cleanValues(t, type, args.changes, 'update');
-    const saved = await t.api.patch<any>(`${type.path}/${row.id}`, patch);
+    const who = await named(t, args.as);
+    const saved = await t.api.patch<any>(`${type.path}/${row.id}`, who ? { ...patch, on_behalf_of: who.send } : patch);
     const changed = Object.keys(patch).map((k) => type.fields[k]?.label ?? k);
     const name = `${type.label.toLowerCase()} ${row[type.refField ?? ''] ?? `"${row[type.titleField]}"`}`;
     // A status move that waits for an approval workflow (E14-37): the record keeps its status for now.
     const held = saved?._pending_move as { field: string; to: string } | undefined;
     const heldText = held ? ` The ${(type.fields[held.field]?.label ?? held.field).toLowerCase()} stays as it is until an approval workflow approves the move to "${held.to}".` : '';
     return {
-      text: `Updated ${name}: ${changed.join(', ')}.${heldText}`,
+      text: `Updated ${name}${behalf(who)}: ${changed.join(', ')}.${heldText}`,
       data: {
         type: type.type, id: row.id, changed: Object.keys(patch), now: Object.fromEntries(Object.keys(patch).map((k) => [k, display(saved, k, type.fields[k])])), url: t.link(type.route, row.id),
         ...(held ? { waiting_for_approval: { field: held.field, to: held.to } } : {}),
       },
-      audit: { recordType: type.type, recordId: row.id, summary: `Updated ${name} (${changed.join(', ')})` },
+      audit: { recordType: type.type, recordId: row.id, summary: `Updated ${name} (${changed.join(', ')})`, onBehalf: who?.name },
     };
   },
 };
@@ -302,18 +351,21 @@ const linkRecords: ToolSpec = {
     from_type: typeArg, from_id: idArg, to_type: typeArg, to_id: idArg,
     relation: z.string().max(60).optional().describe('How they relate, e.g. "related", "caused by", "affects" (default "related").'),
   },
+  dataLoadInput: AS_INPUT,
+  dataLoadNote: 'Data load mode is on: give "as" for the person who made the link.',
   async run(args, t) {
     const from = await t.typeOf(args.from_type);
     const to = await t.typeOf(args.to_type);
     const a = await t.record(from, args.from_id);
     const b = await t.record(to, args.to_id);
-    const link = await t.api.post<any>('/api/links', { from_type: from.type, from_id: a.id, to_type: to.type, to_id: b.id, relation: args.relation });
+    const who = await named(t, args.as);
+    const link = await t.api.post<any>('/api/links', { from_type: from.type, from_id: a.id, to_type: to.type, to_id: b.id, relation: args.relation, ...(who ? { on_behalf_of: who.send } : {}) });
     const an = a[from.refField ?? ''] ?? a[from.titleField];
     const bn = b[to.refField ?? ''] ?? b[to.titleField];
     return {
       text: `Linked ${from.label.toLowerCase()} ${an} to ${to.label.toLowerCase()} ${bn} (${link.relation}).`,
       data: { link_id: link.id, relation: link.relation, from: { type: from.type, id: a.id }, to: { type: to.type, id: b.id } },
-      audit: { recordType: from.type, recordId: a.id, summary: `Linked ${from.label.toLowerCase()} ${an} to ${to.label.toLowerCase()} ${bn} (${link.relation})` },
+      audit: { recordType: from.type, recordId: a.id, summary: `Linked ${from.label.toLowerCase()} ${an} to ${to.label.toLowerCase()} ${bn} (${link.relation})`, onBehalf: who?.name },
     };
   },
 };

@@ -365,3 +365,14 @@ describe('a shared restricted action follows the lifecycle rules (AZ-6)', () => 
     }
   });
 });
+
+describe('the report counts risks with no residual score (E18-88)', () => {
+  it('says how many open risks are scored on the inherent rating only', async () => {
+    const before = (await lead.get('/api/risks/report')).body.no_residual;
+    const only = (await lead.post('/api/risks', { title: 'Invented inherent-only risk', inherent_likelihood: 2, inherent_impact: 2 })).body;
+    const both = (await lead.post('/api/risks', { title: 'Invented fully scored risk', inherent_likelihood: 3, inherent_impact: 3, residual_likelihood: 2, residual_impact: 2 })).body;
+    const report = (await lead.get('/api/risks/report')).body;
+    expect(report.no_residual).toBe(before + 1);
+    for (const r of [only, both]) await lead.del(`/api/risks/${r.id}`);
+  });
+});

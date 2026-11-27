@@ -228,7 +228,7 @@ describe('the heat map', () => {
       likelihood: l, impact: i, rating: SCALE.matrix[l][i], color: 'gray',
       count: l === 3 && i === 3 ? 2 : l === 1 && i === 2 ? 1 : 0,
       risk_ids: l === 3 && i === 3 ? ['r1', 'r2'] : l === 1 && i === 2 ? ['r3'] : [],
-      above_appetite: l === 3 && i === 3,
+      above_appetite: l === 3 && i === 3, above_count: l === 3 && i === 3 ? 2 : 0,
     }))),
     totals: [{ rating: 'high', label: 'High', color: 'red', count: 2 }, { rating: 'low', label: 'Low', color: 'green', count: 1 }],
     appetite: { rating: 'medium', label: 'Medium', categories: ['Operations'] },
@@ -239,11 +239,11 @@ describe('the heat map', () => {
     ui = await render(h(HeatMap, { data, selected: null, onSelect, showMovement: false }), { meta: META });
     await waitFor(() => expect(ui!.container.querySelectorAll('button.rk-cell').length).toBe(9));
     const cell = (name: string) => [...ui!.container.querySelectorAll<HTMLButtonElement>('button.rk-cell')].find((b) => textOf(b).includes(name))!;
-    expect(textOf(cell('Likely by Severe'))).toBe('2 High risks: Likely by Severe, above appetite');
+    expect(textOf(cell('Likely by Severe'))).toBe('2 High risks: Likely by Severe, 2 above their appetite');
     expect(textOf(cell('Rare by Moderate'))).toBe('1 Low risk: Rare by Moderate');
     expect(cell('Possible by Minor').getAttribute('aria-disabled')).toBe('true');
     expect(textOf(ui.container.querySelector('.rk-legend'))).toContain('Not yet scored 1');
-    expect(textOf(ui.container.querySelector('.rk-legend'))).toContain('Above appetite (Medium or lower is accepted for Operations)');
+    expect(textOf(ui.container.querySelector('.rk-legend'))).toContain("Holds a risk above its category's appetite");
 
     await click(cell('Possible by Minor'));
     expect(onSelect).not.toHaveBeenCalled();

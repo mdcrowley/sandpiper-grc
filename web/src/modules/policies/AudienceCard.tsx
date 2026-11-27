@@ -91,7 +91,7 @@ export function AudienceCard({ rec }: { rec: RecordContext }) {
       </div>
 
       <Modal
-        open={open} title="Who must acknowledge this policy" onClose={() => setOpen(false)} size="sm" dirty={dirty}
+        open={open} title="Who must acknowledge this document" onClose={() => setOpen(false)} size="sm" dirty={dirty}
         footer={<><Button onClick={() => setOpen(false)}>Cancel</Button><Button variant="primary" loading={saving} onClick={save}>Save audience</Button></>}
       >
         <div className="stack">
@@ -120,7 +120,7 @@ export function AudienceCard({ rec }: { rec: RecordContext }) {
           <NumberField label="Days to acknowledge" min={1} max={365} step={1} value={form.days} onChange={(v) => setForm((f) => ({ ...f, days: v }))} />
           <NumberField
             label="Days between reminders" min={1} max={90} step={1} value={form.remind} onChange={(v) => setForm((f) => ({ ...f, remind: v }))}
-            hint="For people who are late. Leave empty for the usual interval set under Policies settings."
+            hint="For people who are late. Leave empty for the usual interval set under Documents > Settings."
           />
         </div>
       </Modal>

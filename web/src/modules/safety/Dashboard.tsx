@@ -145,7 +145,7 @@ export function SafetyDashboard() {
                 <section key={i.id} className="sf-indicator" aria-labelledby={`ind-${i.id}`}>
                   <div className="sf-ind-head">
                     <Link id={`ind-${i.id}`} className="row-title" to={`/safety/indicators/${i.id}`}>{i.name}</Link>
-                    <MetChip met={i.latest?.met} />
+                    <MetChip met={i.latest?.met} partial={i.latest?.partial} />
                   </div>
                   <div className="sf-ind-figure">
                     <strong className="sf-big">{i.latest ? formatNumber(i.latest.value) : '—'}</strong>

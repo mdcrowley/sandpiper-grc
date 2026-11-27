@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest';
 
 const sources = import.meta.glob('../modules/*/index.tsx', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
-const moduleSource = (import.meta.glob('./module.ts', { query: '?raw', import: 'default', eager: true }) as Record<string, string>)['./module.ts'];
+const moduleSource = (import.meta.glob('./navGroups.ts', { query: '?raw', import: 'default', eager: true }) as Record<string, string>)['./navGroups.ts'];
 
 interface Entry { module: string; group: string; label: string; order?: number }
 
@@ -24,7 +24,7 @@ const groups = JSON.parse(`[${moduleSource.match(/export const NAV_GROUPS = \[([
 describe('side menu order', () => {
   it('finds the entries', () => {
     expect(entries.length).toBeGreaterThan(80);
-    expect(groups).toContain('People');
+    expect(groups).toContain('People and training');
   });
 
   it('puts every entry in a known group, with an order of its own', () => {
@@ -47,8 +47,23 @@ describe('side menu order', () => {
     expect(ties).toEqual([]);
   });
 
+  // E44-01 (wave 24): pages that are tabs or Administration cards are not menu entries, so the menu stays short.
+  it('keeps the side menu short and points every page at an entry that exists', () => {
+    const literals = Object.values(sources).flatMap((text) => [...text.matchAll(/\{[^{}]*\bgroup:\s*'[^']+'[^{}]*\}/g)].map((m) => m[0]));
+    const paths = new Set(literals.map((l) => l.match(/\bpath:\s*'([^']*)'/)?.[1]));
+    const inMenu = literals.filter((l) => !/\bmenu:\s*false\b/.test(l));
+    expect(inMenu.length, inMenu.map((l) => l.match(/\blabel:\s*'([^']*)'/)?.[1]).join(', ')).toBeLessThanOrEqual(60);
+    for (const l of literals) {
+      const parent = l.match(/\bparent:\s*'([^']*)'/)?.[1];
+      if (parent) expect(paths, `${l} names a parent that is no entry`).toContain(parent);
+      if (/\btab:\s*'/.test(l)) expect(parent, `${l} is a tab without a parent`).toBeTruthy();
+      const hub = l.match(/\bhub:\s*'([^']*)'/)?.[1];
+      if (hub) expect(['People and access', 'Organization', 'Records setup', 'Area settings', 'Connections', 'Data and operations']).toContain(hub);
+    }
+  });
+
   it('keeps qualifications and certifications with the people they are about', () => {
-    const people = entries.filter((e) => e.group === 'People').map((e) => e.label);
+    const people = entries.filter((e) => e.group === 'People and training').map((e) => e.label);
     expect(people).toEqual(expect.arrayContaining(['People', 'Positions', 'Qualifications', 'Certifications']));
   });
 });

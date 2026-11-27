@@ -27,8 +27,22 @@ const PRESETS: Preset[] = [
   { label: 'All', filters: {}, hint: 'Every ticket, open or not' },
 ];
 
+/** The queue the list opens on when the address names none: the last one chosen here, else All open (E18-73). */
+const QUEUE_KEY = 'grc.tickets.queue';
+const DEFAULT_QUEUE = 'All open';
+function rememberedQueue(): Preset {
+  let label = DEFAULT_QUEUE;
+  try { label = localStorage.getItem(QUEUE_KEY) ?? DEFAULT_QUEUE; } catch { /* storage unavailable */ }
+  return PRESETS.find((p) => p.label === label) ?? PRESETS.find((p) => p.label === DEFAULT_QUEUE)!;
+}
+function rememberQueue(label: string) {
+  try { localStorage.setItem(QUEUE_KEY, label); } catch { /* storage unavailable: lasts for this page only */ }
+}
+
 const href = (filters: Record<string, string>) => {
   const sp = new URLSearchParams();
+  // "All" has no filters, so it says so in the address; a bare /tickets opens the remembered queue.
+  if (!Object.keys(filters).length) sp.set('queue', 'all');
   for (const key of Object.keys(filters).sort()) sp.set(`f.${key}`, filters[key]);
   const s = sp.toString();
   return s ? `/tickets?${s}` : '/tickets';
@@ -94,6 +108,11 @@ export function TicketList() {
     return () => window.removeEventListener('keydown', onKey);
   }, [can, open]);
 
+  // A bare /tickets (the menu, a bookmark of the list) opens the remembered queue, not every ticket.
+  useEffect(() => {
+    if (location.search === '') navigate(href(rememberedQueue().filters), { replace: true });
+  }, [location.search, navigate]);
+
   const filterKey = canon(location.search);
   const reloadCounts = counts.reload;
   // The counts follow the list: refresh them whenever the address (and so the list) changes.
@@ -119,7 +138,7 @@ export function TicketList() {
           const active = canon(to.split('?')[1] ?? '') === filterKey;
           const n = p.count ? counts.data?.[p.count] : undefined;
           return (
-            <Link key={p.label} to={to} title={p.hint} aria-current={active ? 'page' : undefined}
+            <Link key={p.label} to={to} title={p.hint} aria-current={active ? 'page' : undefined} onClick={() => rememberQueue(p.label)}
               className={`sd-preset${active ? ' is-active' : ''}${p.tone && n ? ` sd-preset-${p.tone}` : ''}`}>
               <span>{p.label}</span>
               {p.count && <span className="sd-preset-count" aria-label={n === undefined ? undefined : `${n} tickets`}>{n ?? '–'}</span>}
@@ -135,8 +154,8 @@ export function TicketList() {
           { field: 'title', sortable: true, render: (row) => <TitleCell row={row} /> },
           { field: 'priority', sortable: true, priority: 1, render: (row) => <LookupChip list="ticket_priority" value={row.priority} /> },
           'status',
-          { field: 'resolve_due_at', label: 'Resolution target', sortable: true, render: (row) => <TargetCell row={row} /> },
-          { field: 'assignee_id', sortable: true, render: (row) => row._display?.assignee_id ?? <span className="muted">Unassigned</span> },
+          { field: 'resolve_due_at', label: 'Resolution target', sortable: true, priority: 1, render: (row) => <TargetCell row={row} /> },
+          { field: 'assignee_id', sortable: true, priority: 1, render: (row) => row._display?.assignee_id ?? <span className="muted">Unassigned</span> },
           'requester_name',
           { field: 'requester_department', hidden: true },
           { field: 'type', hidden: true },

@@ -10,10 +10,9 @@ import './changes.css';
 const mod: ModuleDef = {
   key: 'changes',
   nav: [
-    { group: 'Change', label: 'Changes', path: '/changes', icon: 'refresh', permission: 'changes.view', order: 10 },
-    { group: 'Change', label: 'Change calendar', path: '/changes/calendar', icon: 'calendar', permission: 'changes.view', order: 20 },
-    { group: 'Change', label: 'New change', path: '/changes/new', icon: 'plus', permission: 'changes.create', order: 30 },
-    { group: 'Change', label: 'Change settings', path: '/changes/settings', icon: 'settings', permission: 'changes.administer', order: 90 },
+    { group: 'IT services', label: 'Changes', path: '/changes', icon: 'refresh', permission: 'changes.view', order: 30, tabs: 'Changes' },
+    { group: 'IT services', label: 'Change calendar', path: '/changes/calendar', icon: 'calendar', permission: 'changes.view', order: 31, menu: false, parent: '/changes', tab: 'Calendar' },
+    { group: 'IT services', label: 'Change settings', path: '/changes/settings', icon: 'settings', permission: 'changes.administer', order: 33, menu: false, parent: '/changes', tab: 'Settings', hub: 'Area settings', hint: 'Change types, approval rules and blackout periods.' },
   ],
   routes: [
     { path: '/changes', element: <ChangeList />, permission: 'changes.view' },

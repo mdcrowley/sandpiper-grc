@@ -1,6 +1,6 @@
 # Projects
 
-The Projects area takes a technology project from a one-page request through a fixed set of stages, with a gate between each stage where a checklist must be complete, the required documents must be in place and an approval recorded before the project can move on. This page covers submitting a request, how the tier is set, working a gate, moving a project back, status reports, the project register, milestones, scoring, safety and security certification, actions and the portfolio views. The screens are in the **Projects** group of the menu: **Project portfolio**, **New project request**, **Certifiable items** and **Project settings**.
+The Projects area takes a technology project from a one-page request through a fixed set of stages, with a gate between each stage where a checklist must be complete, the required documents must be in place and an approval recorded before the project can move on. This page covers submitting a request, how the tier is set, working a gate, moving a project back, status reports, the project register, milestones, scoring, safety and security certification, actions and the portfolio views. The screens are under **Projects and funding > Project portfolio**, with the tabs **Portfolio**, **Certifiable items** and, for people who administer projects, **Settings**; a new request starts from the **Create** menu or **New project request** on the portfolio.
 
 An administrator can switch projects off under **Administration > Features** (see [Administration](09-administration.md#features)). Records are kept and return when it is switched back on.
 
@@ -25,7 +25,7 @@ Roles are managed by an administrator; see [Administration](09-administration.md
 
 Every project starts as a one-page request.
 
-1. Open **Projects > New project request**, select **New project request** on the portfolio, or choose **Project request** from the **Create** menu. These are shown only to people who may send a request: people who may create projects, and, depending on **Who may submit a project request** in **Project settings**, people who may view projects or everyone.
+1. Select **New project request** on the portfolio, or choose **Project request** from the **Create** menu. These are shown only to people who may send a request: people who may create projects, and, depending on **Who may submit a project request** in **Project settings**, people who may view projects or everyone.
 2. Enter a **Name**.
 3. In **What is needed and why**, describe the problem. In **Expected benefits**, say what will be better afterward.
 4. Enter the **Sponsor** and choose the **Department** (one of the organization's departments).
@@ -308,7 +308,7 @@ Each requirement says what must be true, for example "Doors cannot open away fro
 - **Derived from: A threat (a risk)**: pick a risk from the risk register (needs **View** on Risks and on Security incidents and restricted records). A requirement derived from a threat is **restricted**: only people who may see restricted records see its details. Everyone else sees "A restricted requirement" in its place, with its status, and it still counts in every figure.
 - **Other basis**: a standard, design criterion or rule, as text.
 
-Only the kinds of record you may open, in areas that are switched on, are offered. Add the **Verification method** (inspection, test, analysis, demonstration or document review), the **Verifier** and a **Due** date. Requirements with a verifier and a due date appear in that person's **My work** and on the compliance calendar until they are verified.
+Only the kinds of record you may open, in areas that are switched on, are offered. Add the **Verification method** (inspection, test, analysis, demonstration or document review), the **Verifier** and a **Due** date. Requirements with a verifier and a due date appear in that person's **My work** and on the **Calendar** until they are verified.
 
 ### Verifying a requirement
 
@@ -332,7 +332,7 @@ An administrator can turn on **Require a certificate of readiness** on a gate te
 
 ### Across projects
 
-**Projects > Certifiable items** lists every certifiable item you may see, across projects, with filters by status, category, project and owner; **All requirements** lists the requirements. A role scoped to departments (see [Administration](09-administration.md)) sees the items and requirements of its departments' projects.
+The **Certifiable items** tab of **Projects and funding > Project portfolio** lists every certifiable item you may see, across projects, with filters by status, category, project and owner; **All requirements** lists the requirements. A role scoped to departments (see [Administration](09-administration.md)) sees the items and requirements of its departments' projects.
 
 ## Actions
 
@@ -340,7 +340,7 @@ Where the action tracker is in use, the **Actions** tab lists the to-dos raised 
 
 ## The portfolio
 
-Open **Projects > Project portfolio**. The strip at the top summarizes every project that is not canceled:
+Open **Projects and funding > Project portfolio**. The strip at the top summarizes every project that is not canceled:
 
 - **Projects**: how many there are and how many are active.
 - **Overall rating**: how many are red, amber and green, with a bar of the split.
@@ -395,7 +395,7 @@ Each person hears about one project at most once a day for each of these, and on
 
 ## Project settings
 
-Open **Projects > Project settings**, or select **Settings** on the portfolio. You need **Administer** on **Projects**. Each card is saved separately, and every change is recorded in the audit log.
+Open **Projects and funding > Project portfolio** and the **Settings** tab (also on the **Administration** page), or select **Settings** on the portfolio. You need **Administer** on **Projects**. Each card is saved separately, and every change is recorded in the audit log.
 
 | Card | What you can change |
 |---|---|

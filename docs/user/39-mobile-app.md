@@ -68,7 +68,7 @@ of your work that is overdue or due in the next 30 days: evidence requests, cont
 actions to verify, obligation periods to attest, vendor reassessments, certifications to renew or sign,
 and the like (the same items as **My due work** on the web). Each section shows how many are
 waiting and the first few. Tap an item to open it; "Show all on the web" opens the full list in your
-browser (for the other kinds, your due work in the compliance calendar). The screen refreshes when you open it and when you come back to the app; pull down or tap
+browser (for the other kinds, your due work in the **Calendar**). The screen refreshes when you open it and when you come back to the app; pull down or tap
 **Refresh** to refresh it yourself. The number on the My work tab is everything waiting at the last
 refresh. Areas your administrator has switched off do not appear.
 
@@ -108,7 +108,7 @@ Point the camera at an asset tag. The app reads barcodes, 2D codes and the print
 time, on the phone, and outlines each tag it reads with how it was read (for example "QR code:
 TA-118342"). One tag opens its tag card; several tags in view are listed to choose from. A number read
 only as printed text is shown for you to check first: tap it if it matches the tag. A Code 39, Codabar or
-ITF barcode, which has no check character, counts once it is read twice; hold the phone steady. Use the torch in
+ITF barcode, which has no check character, counts once it is read twice; hold the phone steady. Use the flashlight in
 poor light, **Take a picture** for small, shiny or curved tags, **Choose a picture** for one already
 taken, or **Type a number** (the camera folds away while you type, so the keyboard never hides the box;
 tap **Type a number** again to bring the camera back). Pictures stay on the phone and are deleted unless you attach one to the

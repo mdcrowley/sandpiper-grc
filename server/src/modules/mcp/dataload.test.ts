@@ -199,10 +199,10 @@ describe('loading historical tickets through MCP', () => {
     assignedId = r.structuredContent.id;
     expect((await t.db.query('select 1 from notifications where user_id = $1', [agent.userId])).length).toBe(told);
     expect((await t.db.query('select 1 from webhook_deliveries')).length).toBe(before);
-    // Open and long past its targets: recorded as missed and warned at once, so the service-level
-    // check that runs every minute sends no alert about history.
+    // Open and long past its targets (assigning is not a response, E18-74): recorded as missed and
+    // warned at once, so the service-level check that runs every minute sends no alert about history.
     const open = await ticket(assignedId);
-    expect([open.response_breached, open.resolve_breached, open.resolve_warned]).toEqual([false, true, true]);
+    expect([open.response_breached, open.resolve_breached, open.resolve_warned]).toEqual([true, true, true]);
     expect((await t.api.post('/api/tickets/sla/sweep')).status).toBe(200);
     expect((await t.db.query('select 1 from notifications where user_id = $1', [agent.userId])).length).toBe(told);
   });

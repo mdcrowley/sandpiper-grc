@@ -12,12 +12,12 @@ import './tickets.css';
 const mod: ModuleDef = {
   key: 'tickets',
   nav: [
-    { group: 'Service desk', label: 'Tickets', path: '/tickets', icon: 'ticket', permission: 'tickets.view', order: 10 },
-    { group: 'Service desk', label: 'Service desk dashboard', path: '/tickets/dashboard', icon: 'chart', permission: 'tickets.view', order: 15 },
-    { group: 'Service desk', label: 'Service catalog', path: '/catalog', icon: 'folder', permission: 'tickets.view', order: 20 },
-    { group: 'Service desk', label: 'Problems', path: '/problems', icon: 'bug', permission: 'tickets.view', order: 30 },
-    { group: 'Service desk', label: 'Knowledge base', path: '/knowledge', icon: 'book', permission: 'knowledge.view', order: 40 },
-    { group: 'Administration', label: 'Service desk settings', path: '/tickets/settings', icon: 'clock', permission: 'tickets.view', order: 60 },
+    { group: 'IT services', label: 'Tickets', path: '/tickets', icon: 'ticket', permission: 'tickets.view', order: 10, tabs: 'Tickets' },
+    { group: 'IT services', label: 'Service desk dashboard', path: '/tickets/dashboard', icon: 'chart', permission: 'tickets.view', order: 11, menu: false, parent: '/tickets', tab: 'Dashboard' },
+    { group: 'IT services', label: 'Service desk settings', path: '/tickets/settings', icon: 'clock', permission: 'tickets.administer', order: 12, menu: false, parent: '/tickets', tab: 'Settings', hub: 'Area settings', hint: 'Service levels, categories, routing and the business hours.' },
+    { group: 'IT services', label: 'Problems', path: '/problems', icon: 'bug', permission: 'tickets.view', order: 20 },
+    { group: 'IT services', label: 'Service catalog', path: '/catalog', icon: 'folder', permission: 'tickets.view', order: 40 },
+    { group: 'IT services', label: 'Knowledge base', path: '/knowledge', icon: 'book', permission: 'knowledge.view', order: 50 },
   ],
   routes: [
     { path: '/tickets', element: <TicketList />, permission: 'tickets.view' },

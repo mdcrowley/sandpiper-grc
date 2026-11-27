@@ -2,7 +2,7 @@
 // page that lists what each load created and undoes it, and the one delete route a token may use
 // (the MCP tool delete_record), for records a load created, while the mode is on.
 import type { FastifyRequest } from 'fastify';
-import { asDataLoad, DATA_LOAD_DEFAULT_DAYS, DATA_LOAD_KEY, DATA_LOAD_MAX_DAYS, dataLoadFor, mayLoad, readDataLoad, wasLoaded } from '../../core/dataload.ts';
+import { asDataLoad, DATA_LOAD_DEFAULT_DAYS, DATA_LOAD_KEY, DATA_LOAD_MAX_DAYS, dataLoadFor, mayLoad, readDataLoad, resolvePerson, wasLoaded } from '../../core/dataload.ts';
 import { ApiError, UUID_RE } from '../../core/errors.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { TIME_ZONE } from '../../core/timezone.ts';
@@ -26,18 +26,45 @@ export function registerDataLoad(ctx: ModuleContext): void {
               count(*)::int as records, count(*) filter (where l.deleted_at is null)::int as remaining,
               min(l.loaded_at) as first_at, max(l.loaded_at) as last_at,
               string_agg(distinct coalesce(u.display_name, 'System'), ', ') as people,
-              string_agg(distinct l.token_name, ', ') as tokens
+              string_agg(distinct l.token_name, ', ') as tokens,
+              string_agg(distinct l.on_behalf_name, ', ') as on_behalf
        from data_load_records l left join users u on u.id = l.loaded_by
        group by 1, 2 order by 1 desc, 2`, [TIME_ZONE]);
     const loads = rows.map((r): Row => {
       const def = ctx.resources.get(r.record_type);
       return { ...r, label: def?.plural ?? r.record_type, route: def?.route ?? null, installed: !!def };
     }).filter((r) => r.installed || r.remaining > 0);
+    // Work written on behalf of other people (E18-71), from the audit log: records, comments, files,
+    // links and decisions alike, by day (organization time zone), person named and the real actor.
+    const behalf = await db.query<Row>(
+      `select to_char(at at time zone $1, 'YYYY-MM-DD') as day, on_behalf_name as person, coalesce(actor_name, 'System') as loaded_by,
+              string_agg(distinct token_name, ', ') as tokens, count(*)::int as events
+       from audit_events where on_behalf_name is not null
+       group by 1, 2, 3 order by 1 desc, 2 limit 500`, [TIME_ZONE]);
     return {
       ...s, startedByName: by?.name ?? null, maxDays: DATA_LOAD_MAX_DAYS, defaultDays: DATA_LOAD_DEFAULT_DAYS,
       mcpWriteEnabled: (await ctx.settings.get<unknown>('mcp.write_enabled', false)) === true,
-      loads,
+      loads, onBehalf: behalf,
     };
+  });
+
+  /**
+   * Works out a person a load would name (E18-71), the same way `on_behalf_of` does: for the AI
+   * assistant tools and for checking a name before loading. Only while the caller's saves are loads.
+   */
+  ctx.app.post('/api/data-load/person', async (req) => {
+    if (!mayLoad(req)) ctx.fail(403, 'forbidden', 'Only an administrator can name other people in a data load.');
+    if (!(await dataLoadFor(db, req, ctx.audit))) {
+      ctx.fail(409, 'data_load_off', 'Data load mode is off (or AI assistant write access is off), so nobody else can be named.');
+    }
+    const p = await resolvePerson(db, body(req).person, 'person');
+    return { kind: p.kind, user_id: p.userId, person_id: p.personId, name: p.name };
+  });
+  ctx.describeRoute({
+    method: 'POST', path: '/api/data-load/person', permission: 'admin.administer', tag: 'Administration',
+    summary: 'Work out the person a data load names as an author (on_behalf_of), while the mode is on',
+    body: '{ person: string | { user } | { person } | { name } }', response: '{ kind: user | person | name, user_id, person_id, name }',
+    description: 'A string is a user id, username or email (disabled accounts too), else a roster person id, reference, email or employee number; "user:", "person:" and "name:" prefixes ask for one kind. 400 with a field error when nobody matches; 409 data_load_off when the mode is off.',
   });
 
   /** Switch on until a time at most 30 days ahead (recent password confirmation), or off. */

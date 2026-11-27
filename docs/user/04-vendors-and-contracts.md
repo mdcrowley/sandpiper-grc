@@ -6,7 +6,7 @@ An administrator can switch vendors and contracts off under **Administration > F
 
 ## Vendors
 
-Open **Vendors** in the **Vendors** group. Besides the usual columns, the list shows:
+Open **Vendors > Vendors**. Its tabs are **Vendors**, **Reassessments due**, **Issues**, **Offboarding**, **Security terms** and, for people who administer vendors, **Assessment questions** and **Intake questions**. Besides the usual columns, the list shows:
 
 - **Security terms**: a small bar for the vendor's contracts, green for clauses present, amber for partial, red for absent and gray for not assessed, with the number present out of the number of clauses. Point at it to read the counts. "No contract" means nothing is recorded yet.
 - **Next notice date**: the nearest notice date still to come (or the latest one that has passed), colored as on the contract list.
@@ -33,7 +33,7 @@ The top of a vendor's page is a profile of the facts that matter most, one panel
 | Panel | Shows |
 |---|---|
 | **In an incident, call** | The incident contact from the **Details** card and any contacts checked as incident contacts, with phone and email links. "Nobody recorded" if there is none. **All contacts** opens the **Contacts** tab |
-| **Contracts and next notice date** | The nearest notice date still to come, how long is left, which contract it belongs to and what happens if nobody acts. It also says how many notice dates have passed and how many open contracts have no notice date. Shown only if you may view contracts |
+| **Contracts and next notice date** | The most urgent notice date of an open contract: a notice date that has passed (the latest one) comes first, in red, with its contract and what happens if nobody acts, and the next date still to come under it; otherwise the nearest date still to come and how long is left. It also says how many notice dates have passed when there are several, and how many open contracts have no notice date. Ended (expired or terminated) contracts are left out. Shown only if you may view contracts |
 | **Security terms** | How many clauses are present across the vendor's contracts, with a bar and counts for present, partial, absent and not assessed. **Open the checklist** opens the **Security terms** tab |
 | **Evidence** | How many evidence items are current, how many have expired or expire within 90 days, and when the newest was received |
 | **Assessment** | The score of the latest completed assessment, how many gaps it found and when it was done, or "Not assessed". **Open the assessment** (or **Start an assessment**) opens the **Assessment** tab |
@@ -70,7 +70,7 @@ To change a contact, select the pencil button on its row, then **Save changes**.
 
 ## Contracts
 
-Open **Contracts** in the **Vendors** group. The list is sorted by notice date, soonest first, and the **Notice date** column is a colored chip: red when the date has passed or is within 30 days, amber within 120 days, green beyond that, and gray ("No notice date") when there is none.
+Open **Vendors > Contracts**; its tabs are **Contracts**, **Renewals** and **Performance**. The list is sorted by notice date, soonest first, and the **Notice date** column is a colored chip: red when the date has passed or is within 30 days, amber within 120 days, green beyond that, and gray ("No notice date") when there is none. An ended contract (expired or terminated) needs no notice: its notice date is shown as plain gray text and never in red.
 
 When open contracts are missing an end date or notice period, the list shows a **Complete the dates** button with how many there are; see [Complete the dates](#complete-the-dates).
 
@@ -177,7 +177,7 @@ The security terms and the funder-required clauses (see [Funder-required clauses
 
 ## The security-terms matrix
 
-The matrix shows every vendor against every clause on one page. Open **Security terms matrix** in the **Vendors** group, or select **Security terms matrix** on the vendor list.
+The matrix shows every vendor against every clause on one page. Open **Vendors > Vendors** and the **Security terms** tab, or select **Security terms matrix** on the vendor list.
 
 - Vendors run down the page, most critical first. Clauses run across. The vendor column and the clause headings stay in view as you scroll.
 - Each cell is colored and marked: a check mark on green for **Present**, a half-filled circle on amber for **Partial**, a cross on red for **Absent**, and a dot in a dashed box for **Not assessed**. The legend at the top repeats this.
@@ -201,7 +201,7 @@ Evidence is what a vendor sends to show its security is in order. Each item belo
 
 ### Record evidence
 
-1. Open the vendor's **Evidence** tab, or a contract's **Evidence** tab, and select **New evidence item**. You can also use **Evidence** in the **Vendors** group, or **Create** then **Evidence item**.
+1. Open the vendor's **Evidence** tab, or a contract's **Evidence** tab, and select **New evidence item**. You can also use **Vendors > Evidence**, or **Create** then **Evidence item**.
 2. Enter a **Title**.
 3. Choose the **Type**: **Assurance report**, **Insurance certificate**, **Card-data attestation**, **Questionnaire** or **Other**.
 4. Choose the **Vendor** if it is not already filled in, then the **Contract** if the evidence belongs to one. The **Contract** list shows only the chosen vendor's contracts.
@@ -222,14 +222,14 @@ The **Expiry** column shows a colored chip:
 | Green, "Valid to …" | More than 90 days left |
 | Gray, "No expiry" | No expiry date recorded |
 
-To see everything that needs chasing, open **Expiring evidence** in the **Vendors** group.
+To see everything that needs chasing, open **Vendors > Evidence** and the **Expiring** tab.
 
 1. Use **Look ahead** to choose **30 days**, **60 days**, **90 days**, **180 days** or **365 days**.
 2. The tiles count the items **Already expired**, **Expires within 30 days** and expiring later in the period.
 3. The items are listed in those groups, soonest first, each with its date, vendor, type and how long is left. Select the evidence to open it, or the vendor to open its **Evidence** tab.
 4. Ask the vendor for a current copy. When it arrives, record it as a new evidence item so the old one remains as history.
 
-Select **Expiring evidence files on any record** at the top of the page to see evidence *files* attached to any record you can see (not only vendor evidence items), with their own expiry dates; that page links back here (see [Attachments and notifications](14-attachments-and-notifications.md)).
+Select the **Expiring files** tab (or **Expiring evidence files on any record** at the top of the page) to see evidence *files* attached to any record you can see (not only vendor evidence items), with their own expiry dates; that page links back here (see [Attachments and notifications](14-attachments-and-notifications.md)).
 
 ### One expiry date for the item and its file
 
@@ -320,7 +320,7 @@ Select **Save file and reminder settings** after changing any of the last five.
 
 ## The renewal calendar and reminders
 
-Open **Renewal calendar** in the **Vendors** group, or select **Renewal calendar** on the contract list. Contracts with the status **Expired** or **Ended** are left out.
+Open **Vendors > Contracts** and the **Renewals** tab, or select **Renewal calendar** on the contract list. Contracts with the status **Expired** or **Ended** are left out.
 
 - Tiles at the top count the contracts in each window, and **Cannot be placed** counts the open contracts with no notice date (select it to open [Complete the dates](#complete-the-dates)).
 - **Notice dates in the next twelve months** marks each notice date in its month, colored by how close it is. Point at a mark to see the contract; select it to open the contract.
@@ -402,7 +402,7 @@ Every measure and score, and every change, is recorded in the contract's history
 
 ### Across contracts
 
-**Vendors > Contractor performance** lists every contract with measures, those with measures below target first: how many met their target at the latest score, which fell below, how many are worsening and how many scores are due. Vendor names show to people who may see vendors.
+The **Performance** tab of **Vendors > Contracts** lists every contract with measures, those with measures below target first: how many met their target at the latest score, which fell below, how many are worsening and how many scores are due. Vendor names show to people who may see vendors.
 
 ## Not available yet
 

@@ -214,9 +214,10 @@ function NewUserDialog({ open, roles, rolesError, onRetryRoles, onClose, onCreat
                 {roles.roles.map((r) => (
                   <Checkbox
                     key={r.key}
-                    label={`${r.name}${r.enabled ? '' : ' (switched off)'}`}
+                    label={`${r.name}${r.enabled ? '' : ' (switched off under Roles)'}`}
                     hint={r.description ?? undefined}
                     checked={picked.includes(r.key)}
+                    disabled={!r.enabled && !picked.includes(r.key)}
                     onChange={(on) => setPicked((p) => (on ? [...p, r.key] : p.filter((k) => k !== r.key)))}
                   />
                 ))}

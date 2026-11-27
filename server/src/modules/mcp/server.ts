@@ -47,6 +47,9 @@ const INSTRUCTIONS = 'Sandpiper GRC: governance, risk and compliance for a trans
 /** What the assistant is told while its saves are data loads (E18-70). */
 export const DATA_LOAD_INSTRUCTIONS = 'Data load mode is on for you: create_record and update_record may also set read-only fields (opened, resolved and closed times, due times, breach flags and so on), '
   + 'any status without the usual step rules, created_at, created_by, updated_at and the reference (unique; numbering moves past it). Nothing is sent (no notifications, email, webhooks or approvals). '
+  + 'To write in the name of the real people (history must show who wrote or did each thing), give "as" on create_record, update_record, add_comment, link_records and decide_approval: '
+  + 'a user id, username or email (disabled accounts too), a roster person ("person:<id, reference or email>"), or "name:<their name>" for someone with neither. '
+  + 'An unknown person is an error, never you. The audit log still records you and your token, adding "on behalf of" the person. '
   + 'delete_record deletes a record created in data load mode. Other records cannot be deleted.';
 
 function errorResult(err: unknown) {
@@ -90,7 +93,7 @@ export function buildServer(ctx: ModuleContext, settings: McpSettings, t: ToolCo
       if (tool.write && result.audit) {
         await ctx.audit(req, {
           action: 'mcp.write', recordType: result.audit.recordType, recordId: result.audit.recordId,
-          summary: `${result.audit.summary} via MCP (tool ${tool.name}) with API token "${t.session.token.name}"`,
+          summary: `${result.audit.summary}${result.audit.onBehalf ? ` on behalf of ${result.audit.onBehalf}` : ''} via MCP (tool ${tool.name}) with API token "${t.session.token.name}"`,
         });
       }
       return { content: [{ type: 'text' as const, text: result.text }], structuredContent: result.data };
@@ -104,7 +107,8 @@ export function buildServer(ctx: ModuleContext, settings: McpSettings, t: ToolCo
     server.registerTool(tool.name, {
       title: tool.title,
       description: loading && tool.dataLoadNote ? `${tool.description} ${tool.dataLoadNote}` : tool.description,
-      inputSchema: tool.input,
+      // Arguments for loads (E18-71) are offered only while this caller's saves are loads.
+      inputSchema: loading && tool.dataLoadInput ? { ...tool.input, ...tool.dataLoadInput } : tool.input,
       annotations: {
         title: tool.title,
         readOnlyHint: !tool.write,

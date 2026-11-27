@@ -185,6 +185,7 @@ describe('roles, risk scales and asset classes of a switched-off area', () => {
     expect(kai.body.user.roles).toEqual([]);
     // A person keeps it, unseen, when their other roles change.
     expect((await t.api.get(`/api/admin/users/${userId}`)).body.roles.map((r: any) => r.key)).toEqual(['agent']);
+    await t.db.query(`update roles set enabled = true where key = 'auditor'`); // a switched-off role cannot be given (E18-78)
     expect((await t.api.patch(`/api/admin/users/${userId}`, { roles: ['agent', 'auditor'] })).status).toBe(200);
     // AI assistant access: not offered, not shown, kept when saved.
     const mcp = (await t.api.get('/api/mcp/admin')).body;

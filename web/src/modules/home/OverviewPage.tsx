@@ -8,7 +8,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { SegmentedControl } from '@mantine/core';
-import { Button, Icon, Loading, cx, formatDateTime, moduleOn, modules, useAuth, useFetch, useMeta, useToast } from '../../core';
+import { Button, Icon, Loading, allowedNav, cx, formatDateTime, moduleOn, modules, useAuth, useFetch, useMeta, useToast } from '../../core';
 import { CustomizeDialog, type CustomizeResult } from './CustomizeDialog';
 import { areasFor, loadView, saveView, type DashboardView, type OverviewMode } from './layoutChoice';
 import { fetchLayout, loadLayout, resolveOrder, storeLayout } from './layoutStore';
@@ -95,7 +95,10 @@ export function OverviewPage() {
   const dashboard = showHome ? [] : shown.filter((w) => w.group === 'dashboard');
   const neededKey = [...new Set([...myWork, ...dashboard].flatMap((w) => w.sources ?? []))].sort().join(',');
   const needed = useMemo(() => new Set(neededKey ? (neededKey.split(',') as SourceKey[]) : []), [neededKey]);
-  const areas = useMemo(() => (mode === 'look' ? areasFor(modules.flatMap((m) => m.nav ?? []), can) : []), [mode, can]);
+  // Menu entries only (E44-01): pages that are tabs or Administration cards are reached from those.
+  const areas = useMemo(() => (mode === 'look'
+    ? areasFor(allowedNav(modules.filter((m) => moduleOn(m.key, areaOn)).flatMap((m) => m.nav ?? []), can).filter((n) => n.menu !== false), can)
+    : []), [mode, can, areaOn]);
 
   // How many items each personal list holds (null or missing while unknown).
   const [counts, setCounts] = useState<Record<string, number | null>>({});

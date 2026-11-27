@@ -10,7 +10,7 @@ A ticket is either an **Incident** (something is broken) or a **Service request*
 
 ### The ticket list
 
-Open **Tickets** in the **Service desk** group. Above the list is a row of queues, each with the number of tickets in it now:
+Open **IT services > Tickets**. Its tabs are **Tickets**, **Dashboard** and, for people who administer the service desk, **Settings**. Above the list is a row of queues, each with the number of tickets in it now:
 
 | Queue | Shows |
 |---|---|
@@ -24,9 +24,9 @@ Open **Tickets** in the **Service desk** group. Above the list is a row of queue
 | **All open** | Every unresolved ticket |
 | **All** | Every ticket, open or not |
 
-Each queue is an ordinary address, so you can bookmark it or send it to a colleague. The queues are also offered to every agent as **shared views** of the list (the **All tickets** menu beside the search box), so they are there on any computer you sign in from. An administrator can rename or remove a shared view, and anyone can share a view of their own with the desk. Your own saved views are kept with your account, not only in this browser.
+The list opens on the queue you chose last in this browser, or on **All open** the first time; **All** is never the starting point, so resolved tickets are not mixed into the working list unless you ask for them. Each queue is an ordinary address, so you can bookmark it or send it to a colleague. The queues are also offered to every agent as **shared views** of the list (the **All tickets** menu beside the search box), so they are there on any computer you sign in from. An administrator can rename or remove a shared view, and anyone can share a view of their own with the desk. Your own saved views are kept with your account, not only in this browser.
 
-The **Resolution target** column shows the time left on the resolution target, **Overdue by** once it has passed, **Paused** while the clock is stopped, and **Met** or **Missed by** once the ticket is resolved. Badges beside the title mark a **Major** incident, a ticket with a **Vendor**, one waiting for **Approval**, and one that has been **Escalated**. More columns (department, type, category, assignment group, last update) can be switched on with the column chooser.
+The list shows the **Assignee** (or **Unassigned**) beside the status. The **Resolution target** column shows the time left on the resolution target, **Overdue by** once it has passed, **Paused** while the clock is stopped, and **Met** or **Missed by** once the ticket is resolved. Badges beside the title mark a **Major** incident, a ticket with a **Vendor**, one waiting for **Approval**, and one that has been **Escalated**. More columns (department, type, category, assignment group, last update) can be switched on with the column chooser.
 
 Press **N** anywhere on the list to start a new ticket.
 
@@ -46,7 +46,7 @@ Each ticket is changed on its own, so the usual rules apply: for example a ticke
 3. Choose the **Type** and, if you can, a **Category**.
 4. Enter a **Title**: a short description of what is wrong or what is needed. As you type, the form lists open tickets that look the same under **Possibly already logged**, and published articles under **Knowledge articles that may help**. These links open in a new browser tab, so nothing you have typed is lost.
 5. Add detail in **Description**.
-6. Under **Who it is for**, enter the **Requester**: the colleague you are logging this for. Add **Requester department** and **Requester email** if you have them. Use **Affected person** only if it is someone other than the requester.
+6. Under **Who it is for**, find the **Requester**: the colleague you are logging this for. Type part of their name, email address or employee number and pick them from the list: people with an account, and (for people who may see the staff roster) people on the roster. Picking someone fills in **Requester department** and **Requester email**, and links an account so that the requester is told about progress. Someone who is not found, for example from outside the organization, can be typed by hand; then add the department and email if you have them. Use **Affected person** only if it is someone other than the requester.
 7. Under **How serious it is**, choose **Impact** and **Urgency**. The line **Priority from impact and urgency** shows the priority the ticket will get and when it must be responded to and resolved (**Respond by** and **resolve by**), and changes as you choose.
 8. Under **Who works on it**, optionally choose an **Assignment group** and an **Assignee** (**Assign to me** fills in your own name), the **Affected system** and the **Affected asset**. In **How it arrived**, choose how the request reached you, for example **Phone** or **In person**.
 9. If your administrator has added fields of their own to tickets (**Custom fields**), they come last, under their own headings (**More details** unless the field has a section). Fields marked with an asterisk must be filled in.
@@ -64,7 +64,7 @@ The header shows the reference, title and priority, then the buttons for the nex
 - **Respond** and **Resolve**: the two service-level clocks, with the time left, a bar showing how much of the time has been used, and when each is due.
 - **Assignee** and the assignment group.
 
-Below the strip are the **Description** (select **Edit** to change the title or description), **Request details** and **Fulfillment tasks** for a catalog request, the **Resolution** once there is one, and on the right the **Details**, **Requester**, **Vendor** and **Dates** cards. A **May help** card lists published knowledge articles and other open tickets that share words with the title. The tabs at the bottom hold **Activity** (comments and changes), **Attachments**, **Related** records and **History**.
+Below the strip are the **Description** (select **Edit** to change the title or description), **Request details** and **Fulfillment tasks** for a catalog request, the **Resolution** once there is one, and on the right the **Details**, **Requester**, **Vendor** and **Dates** cards. A **May help** card lists published knowledge articles and other open tickets that share words with the title. The tabs under the description hold **Activity** (comments and changes, with the box to add a note or a public comment at the top), **Attachments**, **Related** records and **History**; on a wide screen they follow the description directly, however long the cards on the right are.
 
 ### Quick actions
 
@@ -172,7 +172,7 @@ Business hours are Monday to Friday, 08:00 to 17:00, so a working day is 9 hours
 
 ### What stops each clock
 
-- **Respond** is met the first time the ticket is assigned to someone or moved out of **New**, whichever comes first.
+- **Respond** is met the first time someone other than the requester answers the requester: a **Public comment**, or moving the ticket to a status that means work has started or is waiting (**In progress**, a waiting status, **Resolved** or **Closed**), whichever comes first. Being logged, assigned (**Assign to me**) or moved to **Assigned** is not a response, and neither is an internal note. An administrator can change which statuses count with the **Meets the Respond target** setting of each value of the **Ticket status** list (Administration > Lists).
 - **Resolve** is met when the ticket moves to **Resolved**, **Closed** or **Canceled**.
 
 ### What pauses the clock
@@ -277,7 +277,7 @@ A major incident here is a service disruption. A suspected breach of security is
 
 ## Problems and known errors
 
-A problem is the underlying cause of one or more incidents. Open **Problems** in the **Service desk** group.
+A problem is the underlying cause of one or more incidents. Open **IT services > Problems**.
 
 To record a problem:
 
@@ -306,7 +306,7 @@ The problem is marked **Known error** and shows the link **Open the known-error 
 
 ## Knowledge base
 
-Open **Knowledge base** in the **Service desk** group. The list shows each article's category, audience, status, owner, review date and how many people found it helpful. A review date that has passed is shown in red with "(review due)".
+Open **IT services > Knowledge base**. The list shows each article's category, audience, status, owner, review date and how many people found it helpful. A review date that has passed is shown in red with "(review due)".
 
 ### Write an article
 
@@ -334,7 +334,7 @@ A published article ends with **Was this helpful?** Select **Yes** or **No**. Ea
 
 ## Catalog
 
-The catalog holds standard requests. Choosing one starts a new ticket with the details already filled in, asks the questions that request needs, and adds the tasks to fulfill it. Open **Service catalog** in the **Service desk** group.
+The catalog holds standard requests. Choosing one starts a new ticket with the details already filled in, asks the questions that request needs, and adds the tasks to fulfill it. Open **IT services > Service catalog**.
 
 As installed it contains **New starter**, **Leaver**, **Access request**, **Hardware**, **Software**, **Vendor access** and **Equipment fault**, grouped by category. Tiles show when an item **Needs approval** and how many questions and tasks it has. Type in **Find a request** to narrow the tiles.
 
@@ -366,7 +366,7 @@ Select **Save form, tasks and approval**. Changes apply to tickets logged afterw
 
 ## Service desk dashboard
 
-Open **Service desk dashboard** in the **Service desk** group, or **Dashboard** on the ticket list. Select any tile, bar or point to open the ticket list filtered to the tickets behind it. Select **Refresh** to update the figures.
+Open **IT services > Tickets** and the **Dashboard** tab (or **Dashboard** on the ticket list). Select any tile, bar or point to open the ticket list filtered to the tickets behind it. Select **Refresh** to update the figures.
 
 **Right now** shows the desk as it stands, whatever the period: **Open**, **Unassigned**, **At risk**, **Breaching**, **With a vendor** and **To approve**.
 
@@ -388,7 +388,7 @@ Below the tiles are charts: **Opened and resolved by day**, **Service-level targ
 
 ## Service desk settings
 
-Open **Service desk settings** in the **Administration** group. Anyone who can see tickets can read the settings; changing them needs permission to administer the service desk (`tickets.administer`). Every change is recorded in the audit log.
+Open **IT services > Tickets** and the **Settings** tab (also a card on the **Administration** page). The tab is shown to people who administer the service desk; anyone who can see tickets can still read the settings at its address (`/tickets/settings`); changing them needs permission to administer the service desk (`tickets.administer`). Every change is recorded in the audit log.
 
 ### Priorities
 

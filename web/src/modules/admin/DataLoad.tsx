@@ -1,6 +1,7 @@
 // Data load mode (E18-70): the switch (a card on Administration > Settings) and the Data loads page,
 // which lists what each load created by day and record type and undoes a load. Off by default; on
 // for at most 30 days, with a recent password confirmation; undoing asks for the password again.
+// A load may name the people it writes for (E18-71); the page lists that work beside the loads.
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -11,11 +12,13 @@ import { confirmIdentity, withReauth } from '../../core/reauth';
 
 interface Load {
   day: string; record_type: string; label: string; route: string | null; records: number; remaining: number;
-  first_at: string; last_at: string; people: string | null; tokens: string | null;
+  first_at: string; last_at: string; people: string | null; tokens: string | null; on_behalf: string | null;
 }
+/** Work written on behalf of other people (E18-71), from the audit log. */
+interface Behalf { day: string; person: string; loaded_by: string; tokens: string | null; events: number }
 interface DataLoadView {
   on: boolean; until: string | null; startedAt: string | null; startedByName: string | null;
-  maxDays: number; defaultDays: number; mcpWriteEnabled: boolean; loads: Load[];
+  maxDays: number; defaultDays: number; mcpWriteEnabled: boolean; loads: Load[]; onBehalf?: Behalf[];
 }
 
 const URL = '/api/admin/data-load';
@@ -60,9 +63,11 @@ export function DataLoadCard() {
             : <span>Records get today&apos;s dates and the usual rules.</span>}
         </p>
         <p className="muted">
-          For loading historical records, for example past service desk tickets with their original opened, resolved and closed times.
+          For loading historical records with their original dates, for example when they were opened, resolved and closed.
           While it is on, administrators (and their API and AI assistant tokens) may set every field, read-only ones included, any status,
-          the created and updated times and the reference. Nothing is sent: no notifications, email, webhooks or approvals. Every record
+          the created and updated times and the reference, and name the real person who wrote or did each thing (an account, a roster
+          person or just a name); the audit log still records the administrator, adding &ldquo;on behalf of&rdquo; that person.
+          Nothing is sent: no notifications, email, webhooks or approvals. Every record
           created is listed under <Link to="/admin/data-loads">Data loads</Link>, where a load can be undone. It switches itself off at the end time.
           {!data.mcpWriteEnabled && ' An AI assistant also needs write access, under AI assistant access.'}
         </p>
@@ -139,13 +144,42 @@ export function DataLoadsPage() {
                             <td>{l.route ? <Link to={l.route}>{l.label}</Link> : l.label}</td>
                             <td className="num">{l.records.toLocaleString('en-US')}</td>
                             <td className="num">{l.remaining.toLocaleString('en-US')}</td>
-                            <td>{l.people ?? 'System'}{l.tokens ? <span className="muted"> (token {l.tokens})</span> : null}</td>
+                            <td>
+                              {l.people ?? 'System'}{l.tokens ? <span className="muted"> (token {l.tokens})</span> : null}
+                              {l.on_behalf ? <span className="muted"> on behalf of {l.on_behalf}</span> : null}
+                            </td>
                             <td className="adm-dataloads-action">
                               <Button size="sm" variant="danger" disabled={l.remaining === 0} onClick={() => setUndo(l)}
                                 aria-label={`Delete this load: the ${l.remaining} ${l.label.toLowerCase()} loaded on ${formatDate(l.day)}`}>
                                 Delete this load
                               </Button>
                             </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </TableWrap>
+                )}
+            </Card>
+            <Card flush title="Written on behalf of others">
+              {!data.onBehalf?.length
+                ? <EmptyState icon="users" title="Nobody else has been named" message="When a load names the person who wrote or did something, it is listed here by day, with who really loaded it." />
+                : (
+                  <TableWrap label="Written on behalf of others">
+                    <table className="table adm-dataloads">
+                      <thead>
+                        <tr>
+                          <th scope="col">Day</th><th scope="col">On behalf of</th><th scope="col">Loaded by</th>
+                          <th scope="col" className="num">Audit log entries</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {data.onBehalf.map((b) => (
+                          <tr key={`${b.day}-${b.person}-${b.loaded_by}`}>
+                            <td>{formatDate(b.day)}</td>
+                            <td>{b.person}</td>
+                            <td>{b.loaded_by}{b.tokens ? <span className="muted"> (token {b.tokens})</span> : null}</td>
+                            <td className="num">{b.events.toLocaleString('en-US')}</td>
                           </tr>
                         ))}
                       </tbody>

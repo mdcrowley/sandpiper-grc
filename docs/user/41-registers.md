@@ -6,7 +6,7 @@ A register works like the built-in parts. It has a list with search, filters, sa
 
 ## Opening a register
 
-Each register has its own entry in the navigation, in the group its administrator chose (for example **Lost property** under **Service desk**), and its own entry in the **Create** menu. The **Registers** page (`/registers`) lists every register you may open, with what each is for.
+Each register has its own entry in the navigation, in the group its administrator chose (for example **Lost property** under **IT services**), and its own entry in the **Create** menu. The **Registers** page (`/registers`) lists every register you may open, with what each is for.
 
 You see a register only when one of your roles lets you view it, and only while it is switched on.
 
@@ -36,7 +36,7 @@ Open **Administration > Registers** and choose **New register**:
 | **Name in addresses and permissions** | A short name in lower-case letters, numbers and underscores, made from the register name when left empty (for example `lost_property`). It is the register's address (`/registers/lost_property`) and the start of its permissions (`lost_property.view`). It cannot be changed later, and it cannot be a name the application already uses. |
 | **Reference prefix** | One to eight capital letters or digits. Records are numbered with it, for example `LP-00001`. No two kinds of record share a prefix. Changing it later numbers new records only. |
 | **Name of the main field** | What the title field is called, for example "Item". |
-| **Menu group** | The navigation group the register sits in. |
+| **Menu group** | The navigation group the register sits in. A register set up before the menu was regrouped keeps its place: an old group name is read as the group that took its place (for example **Service desk** as **IT services**, **Governance** as **Governance and records**). |
 | **Icon** | The icon beside it in the navigation. |
 | **Description** | What the register is for, shown on the Registers page and under Administration > Features. |
 | **Files on these records are evidence** | The record page's Attachments tab records new files as evidence, with a collection date and an optional expiry date (see [Attachments and notifications](14-attachments-and-notifications.md)). |

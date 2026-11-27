@@ -16,9 +16,9 @@ const view = 'audits.view';
 const mod: ModuleDef = {
   key: 'audits',
   nav: [
-    { group: 'Governance', label: 'Audits', path: '/audits', icon: 'clipboard', permission: view, order: 10 },
-    { group: 'Governance', label: 'Audit findings', path: '/audit-findings', icon: 'alert-circle', permission: view, order: 12 },
-    { group: 'Safety', label: 'Inspections', path: '/inspections', icon: 'check-square', permission: view, order: 99 },
+    { group: 'Risk and compliance', label: 'Audits', path: '/audits', icon: 'clipboard', permission: view, order: 40 },
+    { group: 'Risk and compliance', label: 'Audit findings', path: '/audit-findings', icon: 'alert-circle', permission: view, order: 41, menu: false, parent: '/audits' },
+    { group: 'Safety and emergency management', label: 'Inspections', path: '/inspections', icon: 'check-square', permission: view, order: 40 },
   ],
   routes: [
     { path: '/audits', element: <AuditsDashboard />, permission: view },

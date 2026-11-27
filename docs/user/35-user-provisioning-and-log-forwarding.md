@@ -5,7 +5,7 @@ This page is for administrators. It covers two connections to the systems around
 - **User provisioning**: your identity provider (the directory where people's accounts live) creates accounts here, keeps their names and email addresses up to date, gives roles through groups, and switches accounts off the moment someone leaves. It uses SCIM 2.0, the standard most identity providers speak.
 - **Log forwarding**: every event in the audit log is sent, as it happens, to your security monitoring system, as syslog or as JSON over HTTPS.
 
-Both are off until you set them up, and both appear in the **Administration** group: **User provisioning** and **Log forwarding**. They are not parts you switch on and off under **Features**; each has its own switch. Only administrators (`admin.administer`) see them, and the steps that hand out access or change where events go ask you to confirm your password.
+Both are off until you set them up, and both are cards on the **Administration** page: **User provisioning** and **Log forwarding**. They are not parts you switch on and off under **Features**; each has its own switch. Only administrators (`admin.administer`) see them, and the steps that hand out access or change where events go ask you to confirm your password.
 
 ## User provisioning
 

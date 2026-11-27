@@ -37,8 +37,8 @@ describe('audit events by request id', () => {
 
     const csv = (await t.api.get('/api/audit?request_id=req-e13-20-alpha&format=csv')).text;
     const [header, first] = csv.replace(/^﻿/, '').split('\r\n');
-    expect(header).toBe('id,at,actor_name,token_name,request_id,ip,action,record_type,record_id,summary,before,after');
-    expect(first.split(',')[4]).toBe('req-e13-20-alpha');
+    expect(header).toBe('id,at,actor_name,token_name,on_behalf_name,request_id,ip,action,record_type,record_id,summary,before,after');
+    expect(first.split(',')[5]).toBe('req-e13-20-alpha');
   });
 
   it('needs audit.view', async () => {

@@ -12,8 +12,8 @@ const view = 'controls.view';
 const mod: ModuleDef = {
   key: 'controls',
   nav: [
-    { group: 'Governance', label: 'Controls', path: '/controls', icon: 'shield', permission: view, order: 20 },
-    { group: 'Governance', label: 'Control tests', path: '/controls/tests', icon: 'check-square', permission: view, order: 21 },
+    { group: 'Risk and compliance', label: 'Controls', path: '/controls', icon: 'shield', permission: view, order: 30 },
+    { group: 'Risk and compliance', label: 'Control tests', path: '/controls/tests', icon: 'check-square', permission: view, order: 31, menu: false, parent: '/controls' },
   ],
   routes: [
     { path: '/controls', element: <ControlList />, permission: view },

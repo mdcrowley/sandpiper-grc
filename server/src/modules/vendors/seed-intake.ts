@@ -13,7 +13,7 @@ const SAMPLE = '[Sample]';
 /** [vendor, answers, notes] */
 const INTAKES: [string, Record<string, string>, string][] = [
   ['Linden Payment Services', { data: 'payment', access: 'remote', service: 'major', spend: 'large' }, 'Runs fare collection and card acceptance.'],
-  ['Castle Peak Telecom', { data: 'internal', access: 'none', service: 'some', spend: 'large' }, 'Calls fail over to mobile phones if the service is down.'],
+  ['Castle Peak Telecom', { data: 'internal', access: 'none', service: 'some', spend: 'large' }, 'Calls fail over to cell phones if the service is down.'],
   ['Quillfeather Mapping', { data: 'none', access: 'none', service: 'none', spend: 'small' }, 'Planning tool; no rider data.'],
 ];
 

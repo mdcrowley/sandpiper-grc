@@ -10,8 +10,8 @@ const ADMIN = 'admin.administer';
 const mod: ModuleDef = {
   key: 'workflows',
   nav: [
-    { group: 'Home', label: 'Approvals', path: '/approvals', icon: 'check-square', order: 45 },
-    { group: 'Administration', label: 'Approval workflows', path: '/admin/workflows', icon: 'check-square', permission: ADMIN, order: 44 },
+    { group: 'Home', label: 'Approvals', path: '/approvals', icon: 'check-square', order: 32, menu: false, parent: '/my-work', tab: 'Approvals' },
+    { group: 'Administration', label: 'Approval workflows', path: '/admin/workflows', icon: 'check-square', permission: ADMIN, order: 46, menu: false, hub: 'Records setup', hint: 'Who approves what, in which steps, and how fast.' },
   ],
   routes: [
     { path: '/approvals', element: <ApprovalsPage /> },

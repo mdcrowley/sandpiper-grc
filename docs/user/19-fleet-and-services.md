@@ -1,6 +1,6 @@
 # Fleet and services
 
-The fleet pages record the vehicles you run, the equipment fitted to each one, the services (routes and lines) you operate and the systems each service needs. Together they answer two everyday questions: which vehicles are missing working equipment, and which vehicles and services are affected when a system fails. Open them from the **Inventory** group: **Vehicles**, **Vehicle models**, **Services**, **Equipment coverage** and **What is affected**. The five pages share tabs along the top, so you can move between them directly. Lists and record pages work as described in [Getting started](01-getting-started.md).
+The fleet pages record the vehicles you run, the equipment fitted to each one, the services (routes and lines) you operate and the systems each service needs. Together they answer two everyday questions: which vehicles are missing working equipment, and which vehicles and services are affected when a system fails. Open them from **Assets > Vehicles**: **Vehicles**, **Vehicle models**, **Services**, **Equipment coverage** and **What is affected** are tabs along the top of each of the five pages, so you can move between them directly. Lists and record pages work as described in [Getting started](01-getting-started.md).
 
 If your organization does not manage vehicles here, an administrator can switch **Fleet and services** off under **Administration > Features** (see [Administration](09-administration.md#features)). Vehicles, vehicle models and services then disappear everywhere, including the impact panels on system pages, the relationship map and the **Affected** tab of security incidents. Records are kept and return when it is switched back on.
 
@@ -163,5 +163,5 @@ When the application is set up, the person installing it can load your own vehic
 
 - Vehicle blocks and daily assignments of vehicles to services.
 - Individual vehicles on the relationship map: they are drawn as groups by depot and mode. Open a group's vehicle list to see each one.
-- Mileage logs, inspections and maintenance work orders; these belong in a fleet maintenance system. Only the latest odometer reading is kept, for the useful life.
+- Mileage logs and maintenance work orders; these belong in a fleet maintenance system. Only the latest odometer reading is kept, for the useful life. Recurring inspections of vehicles (checklists, schedules and findings) are kept under **Safety and emergency management > Inspections** (see [Audits and inspections](25-audits-and-inspections.md#inspections)); the vehicle page does not list them yet.
 - Maintenance schedules and parts on a vehicle model (planned separately, E32-06). A model never creates vehicles by itself.

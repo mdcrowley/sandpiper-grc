@@ -9,6 +9,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { requireRecentAuth } from '../../core/auth.ts';
 import { UUID_RE } from '../../core/errors.ts';
 import { assertNotHeld } from '../../core/holds.ts';
+import { attachmentGuards } from '../../core/attachment-guards.ts';
 import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleDef, ResourceDef, Row } from '../../core/module.ts';
 import { todayInZone } from '../../core/timezone.ts';
@@ -23,6 +24,7 @@ import { linkCheckDays, runLinkCheckReminders } from './linkReminders.ts';
 import { auditAddress, isLink, linkChange, registerLinkRoutes } from './links.ts';
 import { insertAttachment, prepareFile, receiveFile, sandboxDownload, sendStoredFile, type Refusal } from './intake.ts';
 import { queueFileTexts, registerFileText } from './text.ts';
+import { registerUploads } from './uploads.ts';
 import { makeScannerRegistry } from './scanner.ts';
 import {
   formatBytes, present, readSettings, SETTING_EXTENSIONS, SETTING_MAX_BYTES, validateDescriptive, validateSettings,
@@ -276,6 +278,8 @@ const mod: ModuleDef = {
       const { att, parent } = await needAttachment(req, 'view');
       // A link has nothing stored here: its address is in the list (E36-05).
       if (isLink(att)) ctx.fail(409, 'is_link', 'This is a link to a document kept elsewhere. Open its address instead.');
+      // The owning module's rules (for example: a document's Word original only for its editors).
+      if (!inline) for (const g of attachmentGuards(app, parent.def.type)) await g.beforeDownload?.(req, att, parent.row);
       const problem = async (code: string, message: string, reason: string): Promise<never> => {
         await ctx.audit(req, {
           action: 'attachment.integrity_failure', recordType: parent.def.type, recordId: parent.row.id,
@@ -334,11 +338,14 @@ const mod: ModuleDef = {
     // Soft delete: the row is marked and the stored bytes are kept for the purge period
     // (File settings), during which an administrator can put the file back.
     registerLinkRoutes(ctx, { needParent, needAttachment });
+    // Chunked uploads (E43-07, uploads.ts): parts of at most 1 MB, attached on first use under the record's rules.
+    await registerUploads(ctx, { needParent });
 
     app.delete('/api/attachments/:id', async (req) => {
       const { att, parent } = await needAttachment(req, 'edit');
       // The files of a record under a legal hold stay (wave 11 C1).
       await assertNotHeld(db, parent.def.type, parent.row.id, 'remove_file');
+      for (const g of attachmentGuards(app, parent.def.type)) await g.beforeRemove?.(req, att, parent.row);
       await db.query(`update attachments set deleted_at = now(), removed_reason = 'removed', updated_at = now(), updated_by = $2 where id = $1`, [att.id, req.user!.id]);
       await ctx.audit(req, {
         action: 'attachment.delete', recordType: parent.def.type, recordId: parent.row.id,

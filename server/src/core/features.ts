@@ -103,7 +103,7 @@ export const AREAS: Area[] = [
     lookupValues: { notification_kind: ['clock'], action_source: ['incident'] },
   },
   {
-    key: 'policies', label: 'Policies and exceptions', defaultOn: true,
+    key: 'policies', label: 'Documents and exceptions', defaultOn: true,
     description: 'Policies, acknowledgments and policy exceptions.',
     permissions: ['policies', 'exceptions'], modules: ['policies'], jobs: ['policies.'],
     lookupValues: { notification_kind: ['acknowledgement'], action_source: ['policy'] },

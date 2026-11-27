@@ -8,9 +8,9 @@ import './people.css';
 const mod: ModuleDef = {
   key: 'people',
   nav: [
-    { group: 'People', label: 'People', path: '/people', icon: 'users', permission: 'people.view', order: 10 },
-    { group: 'People', label: 'Positions', path: '/people/positions', icon: 'clipboard', permission: 'people.view', order: 20 },
-    { group: 'People', label: 'Departments', path: '/people/departments', icon: 'building', permission: 'people.view', order: 25 },
+    { group: 'People and training', label: 'People', path: '/people', icon: 'users', permission: 'people.view', order: 10, tabs: 'People' },
+    { group: 'People and training', label: 'Positions', path: '/people/positions', icon: 'clipboard', permission: 'people.view', order: 11, menu: false, parent: '/people', tab: 'Positions' },
+    { group: 'People and training', label: 'Departments', path: '/people/departments', icon: 'building', permission: 'people.view', order: 12, menu: false, parent: '/people', tab: 'Departments' },
   ],
   routes: [
     { path: '/people', element: <PeopleList />, permission: 'people.view' },

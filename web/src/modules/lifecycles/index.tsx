@@ -9,7 +9,7 @@ const ADMIN = 'admin.administer';
 const mod: ModuleDef = {
   key: 'lifecycles',
   nav: [
-    { group: 'Administration', label: 'Lifecycles', path: '/admin/lifecycles', icon: 'route', permission: ADMIN, order: 43 },
+    { group: 'Administration', label: 'Lifecycles', path: '/admin/lifecycles', icon: 'route', permission: ADMIN, order: 42, menu: false, hub: 'Records setup', hint: 'The statuses a record moves through, and the rules for each step.' },
   ],
   routes: [
     { path: '/admin/lifecycles', element: <LifecyclesPage />, permission: ADMIN },

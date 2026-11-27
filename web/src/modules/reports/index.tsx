@@ -13,11 +13,11 @@ const mod: ModuleDef = {
   key: 'reports',
   nav: [
     { group: 'Reports', label: 'Dashboards', path: '/dashboards', icon: 'chart', permission: 'dashboards.view', order: 10 },
-    { group: 'Reports', label: 'Reports', path: '/reports', icon: 'file-text', permission: 'reports.view', order: 20 },
-    { group: 'Reports', label: 'Figures over time', path: '/reports/figures', icon: 'chart', permission: 'reports.view', order: 25 },
-    { group: 'Reports', label: 'Report packs', path: '/reports/packs', icon: 'book', permission: 'reports.view', order: 30 },
-    { group: 'Reports', label: 'Schedules', path: '/reports/schedules', icon: 'calendar', permission: 'reports.view', order: 40 },
-    { group: 'Reports', label: 'Delivered to me', path: '/reports/snapshots', icon: 'bell', order: 50 },
+    { group: 'Reports', label: 'Reports', path: '/reports', icon: 'file-text', permission: 'reports.view', order: 20, tabs: 'Catalog' },
+    { group: 'Reports', label: 'Figures over time', path: '/reports/figures', icon: 'chart', permission: 'reports.view', order: 21, menu: false, parent: '/reports', tab: 'Figures over time' },
+    { group: 'Reports', label: 'Report packs', path: '/reports/packs', icon: 'book', permission: 'reports.view', order: 22, menu: false, parent: '/reports', tab: 'Report packs' },
+    { group: 'Reports', label: 'Schedules', path: '/reports/schedules', icon: 'calendar', permission: 'reports.view', order: 23, menu: false, parent: '/reports', tab: 'Schedules' },
+    { group: 'Home', label: 'Delivered to me', path: '/reports/snapshots', icon: 'bell', order: 36, menu: false, parent: '/my-work', tab: 'Delivered reports' },
   ],
   routes: [
     { path: '/dashboards', element: <DashboardsPage />, permission: 'dashboards.view' },

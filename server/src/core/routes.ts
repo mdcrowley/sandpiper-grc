@@ -3,6 +3,7 @@ import { guardFormula } from './export/csv.ts';
 import { pageOf, registerApiStore } from './api/conventions.ts';
 import { capExportRows, EXPORT_ROW_LIMIT, TRUNCATED_HEADER } from './export/list.ts';
 import type { Db } from './db.ts';
+import { actorOf, dataLoadFor, registerOnBehalf } from './dataload.ts';
 import { fail, UUID_RE } from './errors.ts';
 import type { ResourceDef, Row, SessionUser } from './module.ts';
 import type { CustomFields } from './customfields.ts';
@@ -45,6 +46,8 @@ export function registerCoreRoutes({ app, db, audit, lookups, res, custom, gate,
   }
   // Idempotency keys for the API conventions (core/api/conventions.ts): their table and database.
   registerApiStore(app, db);
+  // A data load may name the person it writes for: `on_behalf_of` / X-On-Behalf-Of (E18-71, core/dataload.ts).
+  registerOnBehalf(app, db, audit);
   // List views shared with everyone who can see the list (core/views.ts).
   registerSharedViews({ app, db, audit, res });
   // The Overview's figures, kept for a few seconds while nothing is written (E16-38).
@@ -182,17 +185,31 @@ export function registerCoreRoutes({ app, db, audit, lookups, res, custom, gate,
     const body = String(b.body ?? '').trim();
     if (!body) fail(400, 'validation', 'Check the highlighted fields.', { body: 'Write a comment first.' });
     const { def, row: found } = await visibleRecord(req, b.record_type, b.record_id);
+    // In data load mode (E18-70) a comment keeps its original time and, when the load names one
+    // (E18-71), its real author (an account, a roster person or a plain name); nobody is told.
+    const loading = await dataLoadFor(db, req, audit);
+    let at: string | null = null;
+    if (loading && b.created_at !== undefined && b.created_at !== null && b.created_at !== '') {
+      const d = new Date(String(b.created_at));
+      if (Number.isNaN(d.getTime())) fail(400, 'validation', 'Check the highlighted fields.', { created_at: 'Created must be a date and time.' });
+      at = d.toISOString();
+    }
+    const author = actorOf(req);
     const row = await db.one<Row>(
-      `insert into comments (record_type, record_id, body, internal, author_id, author_name)
-       values ($1,$2,$3,$4,$5,$6) returning id, body, internal, author_id, author_name, created_at`,
-      [b.record_type, b.record_id, body, b.internal !== false, req.user!.id, req.user!.displayName],
+      `insert into comments (record_type, record_id, body, internal, author_id, author_name, created_at)
+       values ($1,$2,$3,$4,$5,$6,coalesce($7::timestamptz, now())) returning id, body, internal, author_id, author_name, created_at`,
+      [b.record_type, b.record_id, body, b.internal !== false, author.id, author.name, at],
     );
+    if (loading) req.dataLoad = true; // the audit event carries the marker
     await audit(req, {
       action: 'comment.add', recordType: b.record_type, recordId: b.record_id,
       summary: `${b.internal !== false ? 'Internal' : 'Public'} comment added to ${def.label.toLowerCase()}`,
+      ...(loading ? { after: { comment_id: row!.id, author_id: author.id, author_name: author.name, created_at: row!.created_at } } : {}),
     });
-    await notifyWatchers?.(b.record_type, b.record_id, `New comment on ${def.label.toLowerCase()} ${res.labelOf(def, found)}`, req.user!.id)
-      .catch((err) => console.error('[watchers] could not notify:', err));
+    if (!loading) {
+      await notifyWatchers?.(b.record_type, b.record_id, `New comment on ${def.label.toLowerCase()} ${res.labelOf(def, found)}`, req.user!.id)
+        .catch((err) => console.error('[watchers] could not notify:', err));
+    }
     reply.code(201);
     return row;
   });
@@ -234,7 +251,8 @@ export function registerCoreRoutes({ app, db, audit, lookups, res, custom, gate,
     const row = await db.one<Row>(
       `insert into record_links (from_type, from_id, to_type, to_id, relation, created_by) values ($1,$2,$3,$4,$5,$6)
        on conflict (from_type, from_id, to_type, to_id, relation) do update set relation = excluded.relation returning *`,
-      [b.from_type, b.from_id, b.to_type, b.to_id, relation, req.user!.id],
+      // The person a data load names (E18-71) made the link; otherwise the caller.
+      [b.from_type, b.from_id, b.to_type, b.to_id, relation, actorOf(req).id],
     );
     await audit(req, {
       action: 'link.add', recordType: b.from_type, recordId: b.from_id,
@@ -265,7 +283,7 @@ export function registerCoreRoutes({ app, db, audit, lookups, res, custom, gate,
     const { record_type, record_id } = req.query as Record<string, string>;
     await visibleRecord(req, record_type, record_id);
     return db.query(
-      `select id, at, actor_id, actor_name, action, summary, before, after, token_name from audit_events
+      `select id, at, actor_id, actor_name, action, summary, before, after, token_name, on_behalf_id, on_behalf_name from audit_events
        where record_type = $1 and record_id = $2 order by at desc, id desc limit 500`,
       [record_type, record_id],
     );
@@ -324,7 +342,7 @@ export function registerCoreRoutes({ app, db, audit, lookups, res, custom, gate,
       if (truncated) reply.header(TRUNCATED_HEADER, String(EXPORT_ROW_LIMIT));
       reply.header('content-type', 'text/csv; charset=utf-8');
       reply.header('content-disposition', 'attachment; filename="audit-export.csv"');
-      const cols = ['id', 'at', 'actor_name', 'token_name', 'request_id', 'ip', 'action', 'record_type', 'record_id', 'summary', 'before', 'after'];
+      const cols = ['id', 'at', 'actor_name', 'token_name', 'on_behalf_name', 'request_id', 'ip', 'action', 'record_type', 'record_id', 'summary', 'before', 'after'];
       const cut = truncated ? [esc(`Only the newest ${EXPORT_ROW_LIMIT.toLocaleString('en-US')} events were exported (the export limit). Choose a shorter period to export older events.`)] : [];
       return '﻿' + [cols.join(','), ...rows.map((r) => cols.map((c) => esc(r[c])).join(',')), ...cut].join('\r\n');
     }

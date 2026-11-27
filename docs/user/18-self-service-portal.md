@@ -8,7 +8,7 @@ The portal is switched off when the application is installed. An administrator s
 
 ## Opening the portal
 
-Sign in as usual. If the portal is all your account includes, you go straight to it, and the other pages of the application send you back to it (your account security page and the user guide still open). If you also use other parts of the application, open **Self-service portal** in the entries at the top of the menu on the left, after **Overview**, **My actions**, **Approvals** and **Notifications**.
+Sign in as usual. If the portal is all your account includes, you go straight to it, and the other pages of the application send you back to it (your account security page and the user guide still open). If you also use other parts of the application, open **Self-service portal** in the entries at the top of the menu on the left, after **Overview**, **My work** and **Calendar**.
 
 At the top of every portal page:
 
@@ -151,7 +151,7 @@ Requests are listed when their approval workflow is waiting for your decision (a
 
 ## Settings for the service desk
 
-Open **Service desk settings** in the **Administration** group and choose the **Self-service portal** tab. Reading needs permission to see tickets; changing the settings needs permission to administer the service desk.
+Open **IT services > Tickets**, the **Settings** tab (or **Service desk settings** on the **Administration** page), and choose the **Self-service portal** tab. Reading needs permission to see tickets; changing the settings needs permission to administer the service desk.
 
 - **Portal**: **Self-service portal switched on**. Only an administrator can switch it off here (it is the same switch as under Administration, Features), and, as there, you are asked to confirm your password if you have not done so in the last few minutes. Once it is off this tab is gone too: switch the portal back on under **Administration > Features**. People use the portal with the **Requester** role, which an administrator switches on under Administration, Roles. **Open the portal** goes there.
 - **Service status banner**: write the **Message**, choose **How serious** (**Information**, **Warning: some things may not work**, **Service problem: something is down**, **Restored: back to normal**) and select **Save banner**. **Clear banner** removes it.

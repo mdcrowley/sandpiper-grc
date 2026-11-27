@@ -301,6 +301,8 @@ export function makeLifecycle(ctx: ModuleContext, deps: LifecycleDeps) {
         generated_on: await today(), window_days: window,
         total: shaped.length,
         unscored: shaped.filter((r) => r.score === null).length,
+        // E18-88: scored on the inherent rating only, so "all scored" is not claimed for them.
+        no_residual: risks.filter((r) => r.score !== null && r.residual_score === null).length,
         accepted: shaped.filter((r) => r.status === 'accepted').length,
         reviews_overdue: shaped.filter((r) => r.review_overdue).length,
         levels: levels.map((lv) => ({ value: lv.value, label: lv.label, color: lv.color ?? 'gray', count: shaped.filter((r) => r.summary_level === lv.value).length })),

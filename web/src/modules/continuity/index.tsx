@@ -16,9 +16,9 @@ const view = 'continuity.view';
 const mod: ModuleDef = {
   key: 'continuity',
   nav: [
-    { group: 'Safety', label: 'Business continuity', path: '/continuity', icon: 'shield', permission: view, order: 100 },
-    { group: 'Safety', label: 'Continuity plans', path: '/continuity/plans', icon: 'clipboard', permission: view, order: 101 },
-    { group: 'Safety', label: 'Emergency activations', path: '/continuity/activations', icon: 'alert', permission: view, order: 102 },
+    { group: 'Safety and emergency management', label: 'Business continuity', path: '/continuity', icon: 'shield', permission: view, order: 50 },
+    { group: 'Safety and emergency management', label: 'Continuity plans', path: '/continuity/plans', icon: 'clipboard', permission: view, order: 51, menu: false, parent: '/continuity' },
+    { group: 'Safety and emergency management', label: 'Emergency activations', path: '/continuity/activations', icon: 'alert', permission: view, order: 52, menu: false, parent: '/continuity' },
   ],
   routes: [
     { path: '/continuity', element: <ContinuityDashboard />, permission: view },

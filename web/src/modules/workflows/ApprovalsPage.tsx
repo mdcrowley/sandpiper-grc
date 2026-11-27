@@ -9,6 +9,7 @@ import {
 import { DecisionDialog, type DecisionTarget } from './DecisionDialog';
 import { Standins } from './Standins';
 import { STATUS_LOOK, type Approval, type Request } from './data';
+import { useApprovalInbox, type InboxItem } from './inbox';
 import './workflows.css';
 
 const recordText = (a: { record_type_label: string; record_ref: string | null; record_title: string }) =>
@@ -119,10 +120,37 @@ function Requested({ rows }: { rows: Request[] }) {
   );
 }
 
+/**
+ * Decisions that are not approval workflows (E44-05): exception requests and policies in review, for
+ * people who may decide them. Listed here so this page and the Overview's "My approvals" agree.
+ */
+function OtherDecisions({ items }: { items: InboxItem[] }) {
+  if (!items.length) return null;
+  return (
+    <section className="stack" aria-labelledby="wf-other">
+      <h2 className="wf-section-title" id="wf-other">Also waiting for your decision</h2>
+      <ul className="wf-items" aria-labelledby="wf-other">
+        {items.map((i) => (
+          <li key={i.key} className="wf-item">
+            <div className="wf-item-main">
+              <Link to={i.to} className="wf-item-record">
+                <span className="wf-item-type">{`${i.kind} ${i.reference ?? ''}`.trim()}</span>
+                <span className="wf-item-title">{i.title || 'Untitled'}</span>
+              </Link>
+            </div>
+            <div className="wf-item-side"><StatusChip color={i.kind === 'Policy in review' ? 'amber' : 'purple'} label={i.kind} /></div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export function ApprovalsPage() {
   const [search, setSearch] = useSearchParams();
   const view = (['waiting', 'decided', 'requested', 'standins'] as const).find((v) => v === search.get('view')) ?? 'waiting';
-  const waiting = useFetch<{ rows: Approval[] }>('/api/workflows/approvals');
+  const inbox = useApprovalInbox();
+  const waiting = inbox.steps;
   const other = useFetch<{ rows: (Approval | Request)[] }>(view === 'waiting' || view === 'standins' ? null : `/api/workflows/approvals?view=${view}`);
   const [deciding, setDeciding] = useState<DecisionTarget | null>(null);
   const state = view === 'waiting' ? waiting : other;
@@ -131,7 +159,13 @@ export function ApprovalsPage() {
     ? <ErrorState title="Approvals could not be loaded" error={state.error} onRetry={state.reload} />
     : !state.data
       ? <Loading label="Loading approvals" lines={5} />
-      : view === 'waiting' ? <Waiting rows={state.data.rows as Approval[]} onDecide={setDeciding} />
+      : view === 'waiting'
+        ? (
+          <div className="stack">
+            {(state.data.rows.length > 0 || inbox.otherItems.length === 0) && <Waiting rows={state.data.rows as Approval[]} onDecide={setDeciding} />}
+            <OtherDecisions items={inbox.otherItems} />
+          </div>
+        )
         : view === 'decided' ? <Decided rows={state.data.rows as Approval[]} /> : <Requested rows={state.data.rows as Request[]} />;
 
   return (
@@ -142,13 +176,13 @@ export function ApprovalsPage() {
         active={view}
         onChange={(key) => setSearch((p) => { p.set('view', key); return p; }, { replace: true })}
         tabs={[
-          { key: 'waiting', label: 'Waiting for me', count: waiting.data?.rows.length || undefined, content: view === 'waiting' ? body : null },
+          { key: 'waiting', label: 'Waiting for me', count: inbox.count || undefined, content: view === 'waiting' ? body : null },
           { key: 'decided', label: 'Decided by me', content: view === 'decided' ? body : null },
           { key: 'requested', label: 'My requests', content: view === 'requested' ? body : null },
           { key: 'standins', label: 'Stand-ins', content: view === 'standins' ? body : null },
         ]}
       />
-      <DecisionDialog target={deciding} onClose={() => setDeciding(null)} onDone={() => { waiting.reload(); other.reload(); }} />
+      <DecisionDialog target={deciding} onClose={() => setDeciding(null)} onDone={() => { inbox.reload(); other.reload(); }} />
     </div>
   );
 }

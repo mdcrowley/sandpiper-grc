@@ -11,7 +11,7 @@ The parts of asset tags:
 - **Finding a tag** on the web or in the app opens its **tag card**.
 - **Inventory counts** check that what the register says is at a site is really there.
 
-The administration pages are under **Administration > Asset tags**; inventory counts are under **Inventory > Inventory counts**. Lists and record pages work as described in [Getting started](01-getting-started.md). The application never puts a web address on a tag and never opens anything a tag holds.
+The tag pages are the **Tags** tab of **Assets > Assets** (the tag settings are also **Asset tag formats** on the **Administration** page); inventory counts are its **Counts** tab. Lists and record pages work as described in [Getting started](01-getting-started.md). The application never puts a web address on a tag and never opens anything a tag holds.
 
 ## Who can do what
 
@@ -39,7 +39,7 @@ Other identifiers stay as they are (serial number, fleet number, registration, a
 
 ## Tag formats
 
-Open **Administration > Asset tags**; its tabs are **Formats**, **Stock**, **Series**, **Print tags** and **Settings**. On **Formats**, select **New format** to describe one. Tag formats are optional, and none is supplied: they matter most for printed text read by the app's camera, which can misread a character. A format says:
+Open **Assets > Assets** and the **Tags** tab; the tag pages have their own tabs: **Formats**, **Stock**, **Series**, **Print tags** and **Settings**. On **Formats**, select **New format** to describe one. Tag formats are optional, and none is supplied: they matter most for printed text read by the app's camera, which can misread a character. A format says:
 
 | Setting | Example |
 |---|---|
@@ -57,7 +57,7 @@ Once any format exists, a value typed on a record or entered with a handheld sca
 
 ## Tag stock
 
-Open **Administration > Asset tags > Stock** and select **Register tags**. Stock records tags your organization owns but has not stuck on anything yet, so that a tag that is simply not attached yet is told apart from a misread:
+Open the **Tags** tab of **Assets > Assets**, then **Stock**, and select **Register tags**. Stock records tags your organization owns but has not stuck on anything yet, so that a tag that is simply not attached yet is told apart from a misread:
 
 - **A range of bought tags**: "We received tags 010000 to 010999". Enter the prefix, the number of digits and the first and last number, an optional format, a supplier note and the date received. The range is stored as a range; values are not created one by one.
 - **A list of values** for bought tags that are not sequential, imported from a text or CSV file (one value per line, at most 100,000).
@@ -69,9 +69,9 @@ A range or list that overlaps existing stock, or a value already on a record, is
 
 ## Printing your own tags
 
-Open **Administration > Asset tags > Series** and select **Add series** to set up a **series** for tags you print yourself: a name, an optional format, a prefix, the number of digits and the next number. Taking numbers from a series is safe when two people print at once: they never get the same numbers.
+Open the **Tags** tab of **Assets > Assets**, then **Series**, and select **Add series** to set up a **series** for tags you print yourself: a name, an optional format, a prefix, the number of digits and the next number. Taking numbers from a series is safe when two people print at once: they never get the same numbers.
 
-Open **Administration > Asset tags > Print tags** (needs `tags.manage`):
+Open the **Tags** tab of **Assets > Assets**, then **Print tags** (needs `tags.manage`):
 
 1. Choose what to print: **new tags** from a series and how many, **existing values** (a list), or the tags of records chosen on a list (select rows on the assets, systems or vehicles list and use **Print tags** in the bar that appears).
 2. Choose the **layout**: a **sheet** for office printers (presets for common Letter and A4 label sheets, described by their dimensions, or your own rows, columns, margins and gaps) with **Start at label** for a partly used sheet, or a **roll** for label printers (one label per page at the label's exact size). Print an **alignment test page** first on a new sheet type.
@@ -145,7 +145,7 @@ A value already on another record is refused ("Tag … is already in use"), the 
 
 ## Inventory counts
 
-A count checks that what the register says is at a site is really there. Open **Inventory > Inventory counts**.
+A count checks that what the register says is at a site is really there. Open **Assets > Assets** and the **Counts** tab.
 
 ### Starting a count
 
@@ -201,7 +201,7 @@ The log is kept for 90 days by default, then removed by a daily job; anonymizing
 
 ## Settings
 
-Under **Administration > Asset tags > Settings** (changing them needs `tags.manage`):
+Under **Settings** on the tag pages (the **Tags** tab of **Assets > Assets**, or **Asset tag formats** on the **Administration** page; changing them needs `tags.manage`):
 
 - **Allow several tags on one record**: more than one active tag on a record (off by default).
 - **Keep a log of tag lookups**: the lookup log behind "Last seen" (on by default).

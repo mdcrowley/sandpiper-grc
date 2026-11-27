@@ -11,7 +11,7 @@ const ADMIN = 'admin.administer';
 const mod: ModuleDef = {
   key: 'mcp',
   nav: [
-    { group: 'Administration', label: 'AI assistant access', path: '/admin/ai-assistants', icon: 'link', permission: ADMIN, order: 50 },
+    { group: 'Administration', label: 'AI assistant access', path: '/admin/ai-assistants', icon: 'link', permission: ADMIN, order: 54, menu: false, hub: 'Connections', hint: 'Let AI assistants read and act through MCP.' },
   ],
   routes: [
     { path: '/admin/ai-assistants', element: <AdminAssistantsPage />, permission: ADMIN },

@@ -8,6 +8,7 @@ import {
   useAuth, useCustomFieldInputs, useDebounced, useFetch, useLookup, useResource, useUnsavedChanges, UserPicker, useToast,
 } from '../../core';
 import type { ListResult, Row } from '../../core';
+import { RequesterField } from './RequesterField';
 import { fieldErrors, priorityFor, type PriorityMatrix, type Question, type Suggestions } from './util';
 
 export interface NewTicketDialogProps {
@@ -233,8 +234,13 @@ export function NewTicketDialog({ open, onClose, onCreated, initial, title = 'Ne
         <fieldset className="sd-section">
           <legend>Who it is for</legend>
           <div className="form-grid">
-            <TextField label="Requester" value={v.requester_name ?? ''} onChange={set('requester_name')} error={errors.requester_name}
-              hint="The colleague you are logging this for." />
+            <RequesterField value={v.requester_name ?? ''} error={errors.requester_name}
+              hint={v.requester_id ? 'Linked to their account: they are told about progress.' : 'Type a name or email and pick the colleague, or type the name of someone outside.'}
+              onType={(name) => setV((old) => ({ ...old, requester_name: name, requester_id: null }))}
+              onPick={(o) => setV((old) => ({
+                ...old, requester_name: o.name, requester_id: o.user_id,
+                requester_department: o.department ?? old.requester_department ?? '', requester_email: o.email ?? old.requester_email ?? '',
+              }))} />
             <TextField label="Requester department" value={v.requester_department ?? ''} onChange={set('requester_department')} error={errors.requester_department} />
             <TextField label="Requester email" type="email" value={v.requester_email ?? ''} onChange={set('requester_email')} error={errors.requester_email} />
             <TextField label="Affected person" value={v.affected_user ?? ''} onChange={set('affected_user')} error={errors.affected_user}

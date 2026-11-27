@@ -2,6 +2,7 @@
 import type { FastifyRequest } from 'fastify';
 import { isDataLoad } from '../../core/dataload.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { readableSql, tablesFor, type AccessTables } from './access.ts';
 import { addDays, daysBetween, localDate } from './dates.ts';
 
 const NO_PERMISSION = 'You do not have permission to approve or reject exceptions.';
@@ -18,7 +19,7 @@ export async function runExceptionExpiry(ctx: ModuleContext, now: Date = new Dat
   return out;
 }
 
-export function registerExceptions(ctx: ModuleContext) {
+export function registerExceptions(ctx: ModuleContext, tables: AccessTables = tablesFor(ctx)) {
   const { db } = ctx;
   const invalid = (fields: Record<string, string>): never => ctx.fail(400, 'validation', 'Check the highlighted fields.', fields);
 
@@ -109,7 +110,7 @@ export function registerExceptions(ctx: ModuleContext) {
     const today = localDate();
     const statuses = new Map((await ctx.lookups.values('exception_status')).map((s) => [s.value, s]));
     const rows = await db.query<Row>(
-      `select e.id, e.ref, e.title, e.status, e.policy_id, p.ref as policy_ref, p.title as policy_title,
+      `select e.id, e.ref, e.title, e.status, e.policy_id, p.ref as policy_ref, p.title as policy_title, coalesce(${readableSql(req.user, 'p', tables)}, false) as policy_readable,
               e.approver_name, e.approved_on, e.expires_on, u.display_name as requested_by_name
        from policy_exceptions e
        left join policies p on p.id = e.policy_id and p.deleted_at is null
@@ -124,7 +125,8 @@ export function registerExceptions(ctx: ModuleContext) {
       today, days,
       rows: rows.map((r) => ({
         ...r,
-        ...(seesPolicies ? {} : { policy_ref: null, policy_title: null }),
+        ...(seesPolicies && r.policy_readable ? {} : { policy_ref: null, policy_title: null }),
+        policy_readable: undefined,
         status_label: statuses.get(r.status)?.label ?? r.status,
         status_color: statuses.get(r.status)?.color ?? 'gray',
         days_left: daysBetween(today, r.expires_on),

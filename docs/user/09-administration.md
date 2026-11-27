@@ -1,56 +1,72 @@
 # Administration
 
-This page is for administrators. It explains how to add people and give them access, how roles and permissions work, how to manage the second sign-in factor, how to change the choices offered in drop-down lists, the application settings, and how to read the audit log. The last section, on the **Account security** page, applies to every user. It also covers single sign-on with your organization's identity provider and the break-glass account (**Sign-in providers**), your own fields on records (**Custom fields**), how long records are kept (**Retention**), **API tokens**, **Webhooks** and the **API reference**. It also covers the organization's name, logo and colors (**Organization**) and switching parts of the application on and off (**Features**). The administration screens are in the **Administration** group of the menu; the table under [The Administration menu](#the-administration-menu) says where each one is described.
+This page is for administrators. It explains how to add people and give them access, how roles and permissions work, how to manage the second sign-in factor, how to change the choices offered in drop-down lists, the application settings, and how to read the audit log. The last section, on the **Account security** page, applies to every user. It also covers single sign-on with your organization's identity provider and the break-glass account (**Sign-in providers**), your own fields on records (**Custom fields**), how long records are kept (**Retention**), **API tokens**, **Webhooks** and the **API reference**. It also covers the organization's name, logo and colors (**Organization**) and switching parts of the application on and off (**Features**). Every administration screen is a card on the **Administration** page, the last entry of the menu; the table under [The Administration page](#the-administration-page) says where each one is described.
 
 ## What you need
 
-- Most screens in the **Administration** group need **Administer** on **Administration**. The built-in **Administrator** role has it.
-- **Audit log** needs **View** on **Audit log**. The built-in **Administrator** and **Security lead** roles have it, and so does the **Auditor** role (switched off to begin with).
-- **Risk scales** needs **Administer** on **Risks** to change the scales. **Hazard matrix** needs **Administer** on **Safety**. **Service desk settings** is listed for anyone with **View** on **Tickets**; changing them needs **Administer** on **Tickets**.
+- Most cards on the **Administration** page need **Administer** on **Administration**. The built-in **Administrator** role has it.
+- **Audit log** needs **View** on **Audit log**. The built-in **Administrator** and **Security lead** roles have it, and so does the **Auditor** role (switched off to begin with). Someone who holds only that sees the **Administration** entry with the **Audit log** card alone.
+- An area's settings card (under **Area settings**) needs **Administer** on that area: for example **Risk scales** needs **Administer** on **Risks**, **Hazard matrix** needs **Administer** on **Safety**, and **Service desk settings** needs **Administer** on **Tickets**.
+- **API reference** is a card for administrators (anyone signed in can still open its address).
 - **Account security** is open to every signed-in user, for their own account.
 
-### The Administration menu
+<a id="the-administration-menu"></a>
 
-| Screen | What it is for | Described in |
-|---|---|---|
-| **Users** | Add people, give them roles, issue sign-in links | [Users](#users) |
-| **Roles** | Roles and their permissions | [Roles and permissions](#roles-and-permissions) |
-| **Sign-in providers** | Single sign-on and the break-glass account | [Sign-in providers](#sign-in-providers-single-sign-on) |
-| **User provisioning** | Let your identity provider create and switch off accounts | [User provisioning](35-user-provisioning-and-log-forwarding.md#user-provisioning) |
-| **Outside reviewers** | Every outside auditor or funder's reviewer invited to one audit or review, and revoking their access | [Outside reviewers](25-audits-and-inspections.md#outside-reviewers) |
-| **Lists** | The choices in drop-down lists, and tags | [Lists](#lists) |
-| **Asset tags** | Tag formats, tag stock, printing tags and their settings | [Asset tags](38-asset-tags.md#tag-formats) |
-| **Organization** | The organization's names, address, contacts, logo and colors | [Organization](#organization) |
-| **Settings** | Passwords, second factor, sessions, tokens, outbound connections | [Settings](#settings) |
-| **Features** | Switch parts of the application on and off | [Features](#features) |
-| **Custom fields** | Your own fields on records | [Custom fields](#custom-fields) |
-| **Lifecycles** | Allowed status changes and the fields each status needs | [Lifecycles](23-lifecycles.md) |
-| **Approval workflows** | Who approves what, step by step | [Approval workflows](22-approval-workflows.md) |
-| **Email** | Outgoing email, templates, delivery log, text messages | [Email settings](14-attachments-and-notifications.md#email-settings) |
-| **Reminders** | How far ahead reminders go out | [Reminders](14-attachments-and-notifications.md#reminders) |
-| **Mobile app** | How long the app stays signed in, whether it must be unlocked, and how long a phone keeps its offline work (only while the mobile app is switched on) | [The mobile app](39-mobile-app.md#for-administrators) |
-| **Push notifications** | Your organization's credentials for push notifications to the app on iPhone and Android, and a test push (only while the mobile app is switched on) | [The mobile app](39-mobile-app.md#for-administrators) |
-| **API tokens** | Everyone's API tokens | [API tokens](#api-tokens) |
-| **AI assistant access** | Whether AI assistants may connect | [AI assistants and MCP](21-ai-assistants-and-mcp.md) |
-| **Webhooks** | Tell other systems about changes | [Webhooks](#webhooks) |
-| **Log forwarding** | Send the audit log to a security monitoring system | [Log forwarding](35-user-provisioning-and-log-forwarding.md#log-forwarding) |
-| **Calendar and work trackers** | Calendar feeds and connections to an outside work-tracking tool | [Calendar feeds, work trackers and evidence links](36-calendar-feeds-work-trackers-and-evidence-links.md#set-up-a-connection) |
-| **Background jobs** | Work the application does by itself | [Background jobs](14-attachments-and-notifications.md#background-jobs) |
-| **Retention** | How long records are kept | [Retention](#retention) |
-| **Data loads** | What data load mode created, by day and record type, and undoing a load | [Data load mode](#data-load-mode) |
-| **Legal holds** | Keep records for a matter so they cannot be deleted or anonymized | [Legal holds](33-legal-holds.md) |
-| **Audit log** | Who did what, and when | [The audit log](#the-audit-log) |
-| **About** | The version installed, and whether a newer release exists | [About and updates](#about-and-updates) |
-| **Service desk settings** | Priorities, targets, calendars, escalation, the portal and email to ticket | [Service desk settings](02-service-desk.md#service-desk-settings) |
-| **Risk scales** | The likelihood and impact scales for risks | [Editing the risk scales](06-risks-actions-obligations.md#editing-the-risk-scales) |
-| **Risk appetite** | How much risk the organization accepts, by category | [Risk appetite](06-risks-actions-obligations.md#risk-appetite) |
-| **Hazard matrix** | The levels and cell ratings of the safety hazard matrix | [Change the hazard matrix](20-safety-management.md#change-the-hazard-matrix) |
-| **Safety reporting rules** | Which safety events must be reported to whom, and by when | [Safety reporting rules](20-safety-management.md#safety-reporting-rules) |
-| **Confidential safety reports** | Who may see the identity of a safety reporter who asked to stay confidential | [Confidential reporting](20-safety-management.md#confidential-reporting) |
-| **File settings** | Upload limits, malware scanning, storage, removed files | [File settings](14-attachments-and-notifications.md#file-settings) |
-| **Backups** | Daily backups to a second location | [Backups](14-attachments-and-notifications.md#backups) |
+### The Administration page
 
-A screen that belongs to a part switched off under **Features** is not shown. The staff roster (**People** and **Positions**) is in the **People** group of the menu, with **Qualifications** and **Certifications**; see [People and qualifications](29-people-and-qualifications.md).
+**Administration** (the last entry of the menu, address `/admin`) opens one page with a card for every administration screen you may open, in six sections. The menu shows **Administration** to anyone who may open at least one card. A card whose part of the application is switched off under **Features** is not shown, and neither is a card your role does not allow.
+
+- **Find a setting** at the top filters the cards as you type (for example "mail", "backup" or "users"): it looks at each card's name, its one-line description and its section, and says how many match.
+- Each card shows its name and what it is for; **Features** also says how many parts are switched off.
+- An administration screen opened from a card shows **Administration ›** above its title; select it to go back to the page.
+- An area's own settings (**Area settings**) are also the last tab, **Settings**, of that area's page (for example **IT services > Tickets**, **Settings** tab), shown only to the people who administer it. It is the same page whichever way you arrive.
+
+| Section | Card | What it is for | Described in |
+|---|---|---|---|
+| People and access | **Users** | Add people, give them roles, issue sign-in links | [Users](#users) |
+| People and access | **Roles** | Roles and their permissions | [Roles and permissions](#roles-and-permissions) |
+| People and access | **Sign-in providers** | Single sign-on and the break-glass account | [Sign-in providers](#sign-in-providers-single-sign-on) |
+| People and access | **User provisioning** | Let your identity provider create and switch off accounts | [User provisioning](35-user-provisioning-and-log-forwarding.md#user-provisioning) |
+| People and access | **Outside reviewers** | Every outside auditor or funder's reviewer invited to one audit or review, and revoking their access | [Outside reviewers](25-audits-and-inspections.md#outside-reviewers) |
+| Organization | **Organization** | The organization's names, address, contacts, logo and colors | [Organization](#organization) |
+| Organization | **Features** | Switch parts of the application on and off | [Features](#features) |
+| Organization | **Settings** | Passwords, second factor, sessions, tokens, outbound connections | [Settings](#settings) |
+| Records setup | **Lists** | The choices in drop-down lists, and tags | [Lists](#lists) |
+| Records setup | **Custom fields** | Your own fields on records | [Custom fields](#custom-fields) |
+| Records setup | **Lifecycles** | Allowed status changes and the fields each status needs | [Lifecycles](23-lifecycles.md) |
+| Records setup | **Reminders** | How far ahead reminders go out | [Reminders](14-attachments-and-notifications.md#reminders) |
+| Records setup | **Registers** | Simple record types of your own, each with a menu entry | [Registers](41-registers.md) |
+| Records setup | **Asset tag formats** | How tag numbers are made and printed (tag stock, printing and finding a tag are the **Tags** tab of **Assets > Assets**) | [Asset tags](38-asset-tags.md#tag-formats) |
+| Records setup | **Approval workflows** | Who approves what, step by step | [Approval workflows](22-approval-workflows.md) |
+| Area settings | **Service desk settings** | Priorities, targets, calendars, escalation, the portal and email to ticket | [Service desk settings](02-service-desk.md#service-desk-settings) |
+| Area settings | **Change settings** | Change types, approval rules and blackout periods | [Change enablement](10-change-enablement.md) |
+| Area settings | **Project settings** | Scoring, gates and who may send a project request | [Projects](08-projects.md) |
+| Area settings | **Framework settings** | How outcomes are scored and when review reminders go out | [Cybersecurity frameworks](05-cybersecurity-frameworks.md) |
+| Area settings | **Risk scales** | The likelihood and impact scales for risks | [Editing the risk scales](06-risks-actions-obligations.md#editing-the-risk-scales) |
+| Area settings | **Risk appetite** | How much risk the organization accepts, by category | [Risk appetite](06-risks-actions-obligations.md#risk-appetite) |
+| Area settings | **Hazard matrix** | The levels and cell ratings of the safety hazard matrix | [Change the hazard matrix](20-safety-management.md#change-the-hazard-matrix) |
+| Area settings | **Safety reporting rules** | Which safety events must be reported to whom, and by when | [Safety reporting rules](20-safety-management.md#safety-reporting-rules) |
+| Area settings | **Confidential safety reports** | Who may see the identity of a safety reporter who asked to stay confidential | [Confidential reporting](20-safety-management.md#confidential-reporting) |
+| Area settings | **Vulnerability severity policy** | How fast findings of each severity must be fixed | [Vulnerabilities](13-vulnerabilities.md) |
+| Area settings | **Vendor assessment questions**, **Vendor intake questions** | The questions vendors answer, and those asked before a vendor is taken on | [Vendor risk lifecycle](34-vendor-risk-lifecycle.md) |
+| Connections | **Email** | Outgoing email, templates, delivery log, text messages | [Email settings](14-attachments-and-notifications.md#email-settings) |
+| Connections | **Push notifications** | Your organization's credentials for push notifications to the app on iPhone and Android, and a test push (only while the mobile app is switched on) | [The mobile app](39-mobile-app.md#for-administrators) |
+| Connections | **Mobile app** | How long the app stays signed in, whether it must be unlocked, and how long a phone keeps its offline work (only while the mobile app is switched on) | [The mobile app](39-mobile-app.md#for-administrators) |
+| Connections | **Webhooks** | Tell other systems about changes | [Webhooks](#webhooks) |
+| Connections | **Log forwarding** | Send the audit log to a security monitoring system | [Log forwarding](35-user-provisioning-and-log-forwarding.md#log-forwarding) |
+| Connections | **Calendar and work trackers** | Calendar feeds and connections to an outside work-tracking tool | [Calendar feeds, work trackers and evidence links](36-calendar-feeds-work-trackers-and-evidence-links.md#set-up-a-connection) |
+| Connections | **API tokens** | Everyone's API tokens | [API tokens](#api-tokens) |
+| Connections | **AI assistant access** | Whether AI assistants may connect | [AI assistants and MCP](21-ai-assistants-and-mcp.md) |
+| Connections | **API reference** | Every route of the API, with what it needs and answers | [The API reference](#api-reference) |
+| Data and operations | **Retention** | How long records are kept | [Retention](#retention) |
+| Data and operations | **Data loads** | What data load mode created, by day and record type, and undoing a load | [Data load mode](#data-load-mode) |
+| Data and operations | **Audit log** | Who did what, and when | [The audit log](#the-audit-log) |
+| Data and operations | **File settings** | Upload limits, malware scanning, storage, removed files | [File settings](14-attachments-and-notifications.md#file-settings) |
+| Data and operations | **Backups** | Daily backups to a second location | [Backups](14-attachments-and-notifications.md#backups) |
+| Data and operations | **Background jobs** | Work the application does by itself | [Background jobs](14-attachments-and-notifications.md#background-jobs) |
+| Data and operations | **About** | The version installed, and whether a newer release exists | [About and updates](#about-and-updates) |
+
+Some screens that used to be in the Administration group are daily work, so they are now menu entries or tabs of their area: **Legal holds** is in **Governance and records** (see [Legal holds](33-legal-holds.md)), and tag stock, printing and finding a tag are the **Tags** tab of **Assets > Assets**. The staff roster (**People**, with its **Positions** and **Departments** tabs) is in **People and training**, with **Qualifications** (and its **Certifications** tab); see [People and qualifications](29-people-and-qualifications.md).
 
 The first administrator is created by the setup wizard the first time the application is opened. There is no default account.
 
@@ -129,7 +145,7 @@ A reset link does not change the current password until it is used. A link canno
 Open the person from the **Users** list.
 
 - On the **Details** card, change the **Name**, **Username**, **Email** or **Department** and select **Save details**.
-- On the **Roles** card, select or clear roles and select **Save roles**. A role marked "(switched off)" can be given but grants nothing until it is switched on. A role marked "needs a second factor" expects its members to set one up.
+- On the **Roles** card, select or clear roles and select **Save roles**. A role marked "(switched off under Roles)" grants nothing, so it cannot be given to anyone until it is switched on under **Roles**: its box cannot be checked, and a save that gives it (also through the API) is refused with a message naming the role. Someone who already held it before it was switched off keeps it. A role marked "needs a second factor" expects its members to set one up.
 
 Role changes take effect immediately. An outside reviewer's account cannot be given roles: the application refuses, and so do role mapping from a sign-in provider and user provisioning.
 
@@ -527,7 +543,7 @@ A few lists keep a setting on each value as well as its name and color. The sett
 | **Certification type** | **Valid for (months)**, **Usually issued by** | The expiry date of a new certification is its issue date plus the months; the issuer is filled in when none is given. Leave the months empty for a type that does not expire. See [People and qualifications](29-people-and-qualifications.md). |
 | **Business impact analysis question** | **Answered as**: Yes or no, A number, or Text | How the question is answered in an impact analysis. See [Business continuity](30-business-continuity.md). |
 | **Privacy impact assessment question** | **Answered as**: Yes or no, or Text | How the question is answered in a privacy impact assessment. |
-| **Policy document type** | **Review every (months)** | The review cycle of documents of this type. |
+| **Document type** | **Review every (months)** | The review cycle of documents of this type. |
 | **Funding clause** | **What the clause requires** | Shown beside the clause on a contract's funder clause checklist. |
 | **Contract security term** | **What the term requires** | Shown beside the term on a contract's security terms checklist. |
 
@@ -705,7 +721,7 @@ The same settings are on **Administration > File settings**. If file attachments
 
 ### Departments
 
-The **Departments** group holds the list used to group people. Departments are also records of their own, with the department each is part of and a manager, under **People > Departments** (see [People and qualifications](29-people-and-qualifications.md#departments)); changes made in either place show in both.
+The **Departments** group holds the list used to group people. Departments are also records of their own, with the department each is part of and a manager, on the **Departments** tab of **People and training > People** (see [People and qualifications](29-people-and-qualifications.md#departments)); changes made in either place show in both.
 
 - Select **Add department**, enter a name and select **Save**.
 - Select **Rename** to change a name.
@@ -750,6 +766,20 @@ Each save is recorded in the audit log as usual, marked "(data load)", and a loa
 
 Records you save on screen while the mode is on are loads too (they send no notifications), so switch it off as soon as the load is done.
 
+### Writing in the name of the real people
+
+History is only useful when it shows who really wrote or did each thing. While data load mode is on, a load can name that person for each record, change, comment, link, file and approval decision:
+
+- **someone with an account**: by user name, email or user id. Disabled accounts count too, so people who have left keep their history;
+- **someone on the people roster without an account**: by their roster reference, email or employee number (written `person:` followed by it when it could also be an account);
+- **anyone else**: by name only, written `name:` followed by their name (for example a contractor).
+
+The person is shown as the author: the record's *Created by* and *Updated by* (empty for someone without an account, whose name is in the history), the comment's author, the file's uploader, the approval's approver, and the author of a document version. A name that matches nobody is refused with a message; the load never quietly uses your own name instead.
+
+This never hides who did the load. The audit log and each record's history keep you (and the token you used) as the one who made the change, and add "on behalf of" the person named. The **Data loads** page lists, by day, whose work was written on whose behalf and by whom. Naming someone gives them nothing: nobody is told (no notifications, email or approval requests), and what can be loaded depends only on your own permissions. When data load mode is off, naming another person is refused.
+
+For approval decisions the person must have an account and be one of the approvers of the step; the usual rules of the step apply.
+
 ### Undoing a load
 
 Every record created in data load mode is listed on **Administration > Data loads**, grouped by the day it was loaded and its record type, with how many were created, how many are still there and who loaded them.
@@ -773,7 +803,7 @@ Each part has a switch, a line saying what it covers, whether it is **On** or **
 | **Framework outcomes** | Cybersecurity framework outcomes, assessments and target profiles | On |
 | **Risks and obligations** | The risk register, risk reviews and acceptances, and obligations. The action tracker stays | On |
 | **Security incidents** | Security incidents, notification clocks and notification tasks | On |
-| **Policies and exceptions** | Policies, acknowledgments and policy exceptions | On |
+| **Documents and exceptions** | Policies, procedures, SOPs and other controlled documents, acknowledgments and exceptions | On |
 | **Training and exercises** | Courses, assignments and exercises | On |
 | **Vulnerabilities** | Vulnerability records, scanner imports and remediation deadlines | On |
 | **Projects** | Projects, the portfolio and project reminders | On |
@@ -929,7 +959,7 @@ When making a token, its owner can fill in **Allowed source addresses** (up to 2
 
 ### API reference
 
-**Help > API reference** lists every route the signed-in person may call, grouped by subject, with the method, parameters, request body and what comes back. Type in **Filter routes** to narrow the list, for example "tickets", "POST" or "/api/admin"; select a route to open it. The page also links to the machine-readable description, `openapi.json`.
+The **API reference** card on the **Administration** page (address `/help/api`) lists every route the signed-in person may call, grouped by subject, with the method, parameters, request body and what comes back. Type in **Filter routes** to narrow the list, for example "tickets", "POST" or "/api/admin"; select a route to open it. The page also links to the machine-readable description, `openapi.json`.
 
 ## Webhooks
 

@@ -285,11 +285,24 @@ export async function syncDefaultGrants(
 
 // ---------- audit ----------
 
+/**
+ * An audit summary with the data load marker (E18-70) and, when the load names the person it writes
+ * for, "on behalf of <name>" (E18-71).
+ */
+export function auditSummary(summary: string | undefined, req: FastifyRequest | null): string | null {
+  if (!summary) return null;
+  let s = summary;
+  if (req?.dataLoad && !/data load/i.test(s)) s = `${s} (data load)`;
+  const who = req?.onBehalf?.name;
+  if (who && !s.includes(`on behalf of ${who}`)) s = /\(data load\)$/.test(s) ? `${s.slice(0, -1)}, on behalf of ${who})` : `${s} (on behalf of ${who})`;
+  return s;
+}
+
 export function makeAudit(db: Db) {
   return async (req: FastifyRequest | null, ev: AuditInput, q: Queryable = db): Promise<void> => {
     await q.query(
-      `insert into audit_events (actor_id, actor_name, ip, action, record_type, record_id, summary, before, after, token_id, token_name, request_id)
-       values ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10,$11,$12)`,
+      `insert into audit_events (actor_id, actor_name, ip, action, record_type, record_id, summary, before, after, token_id, token_name, request_id, on_behalf_id, on_behalf_name)
+       values ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10,$11,$12,$13,$14)`,
       [
         req?.user?.id ?? null,
         // No request = the system itself (seeding, timers, start-up). A request with nobody signed in
@@ -300,7 +313,8 @@ export function makeAudit(db: Db) {
         ev.recordType ?? null,
         ev.recordId ?? null,
         // A save made in data load mode carries the marker (E18-70, core/dataload.ts).
-        ev.summary && req?.dataLoad && !/data load/i.test(ev.summary) ? `${ev.summary} (data load)` : ev.summary ?? null,
+        // A person named by the load (E18-71) is added; the actor stays the real one.
+        auditSummary(ev.summary, req),
         ev.before === undefined ? null : JSON.stringify(ev.before),
         ev.after === undefined ? null : JSON.stringify(ev.after),
         // Changes made with a personal access token name the token (core/tokens.ts).
@@ -308,6 +322,8 @@ export function makeAudit(db: Db) {
         req?.apiToken?.name ?? null,
         // The X-Request-Id sent back to the caller, so an integration can find its own changes.
         (req as { requestId?: string } | null)?.requestId || null,
+        req?.onBehalf?.userId ?? null,
+        req?.onBehalf?.name ?? null,
       ],
     );
   };

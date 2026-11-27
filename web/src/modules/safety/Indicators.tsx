@@ -21,7 +21,7 @@ export const MEASURE_OPTIONS = [
 ];
 interface Metric { key: string; label: string; unit: string; description: string }
 
-export interface Point { period: string; events: number | null; exposure: number | null; value: number | null; target: number | null; direction?: string; met: boolean | null }
+export interface Point { period: string; events: number | null; exposure: number | null; value: number | null; target: number | null; direction?: string; met: boolean | null; /** The current month: month to date, not judged (E18-79). */ partial?: boolean }
 
 const nextMonth = (p: string) => { const [y, m] = p.split('-').map(Number); return m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`; };
 const monthLabel = (p: string) => new Date(`${p}-15T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', year: '2-digit', timeZone: 'UTC' });
@@ -41,7 +41,8 @@ export function targetText(ind: { target: number | null; target_direction: strin
   return `${ind.target_direction === 'at_least' ? 'At least' : 'At most'} ${formatNumber(ind.target)}`;
 }
 
-export function MetChip({ met }: { met: boolean | null | undefined }) {
+export function MetChip({ met, partial }: { met: boolean | null | undefined; partial?: boolean }) {
+  if (partial) return <StatusChip color="gray" label="Month to date" />;
   if (met === null || met === undefined) return <StatusChip color="gray" label="No figure" />;
   return met ? <StatusChip color="green" label="On target" /> : <StatusChip color="red" label="Off target" />;
 }
@@ -104,7 +105,8 @@ export function IndicatorDetail() {
   if (!row) return <Loading lines={8} label="Loading the indicator" />;
   const unit = unitText(row as never, exposures);
   const points = data?.points ?? [];
-  const latest = [...points].reverse().find((p) => p.value !== null);
+  // The latest complete month with a figure; the month to date only when there is none (E18-79).
+  const latest = [...points].reverse().find((p) => p.value !== null && !p.partial) ?? [...points].reverse().find((p) => p.value !== null);
   const counts = EVENT_MEASURES.includes(row.measure ?? 'count');
   const metric = metrics?.metrics.find((m) => m.key === row.metric_key);
   return (
@@ -113,10 +115,10 @@ export function IndicatorDetail() {
         subtitle={row.description || (row.measure === 'computed' ? `Computed from: ${metric?.label ?? row.metric_key}.` : `Worked out as ${unit}. Target: ${targetText(row as never).toLowerCase()}.`)}
         actions={can('safety.edit') && <Button icon="edit" onClick={() => setEditing(true)}>Edit</Button>} />
       <div className="grid-stats">
-        <Stat label="Latest" value={latest ? formatNumber(latest.value) : '—'} icon="chart" hint={latest ? `${monthLabel(latest.period)} · ${unit}` : unit} />
+        <Stat label="Latest" value={latest ? formatNumber(latest.value) : '—'} icon="chart" hint={latest ? `${monthLabel(latest.period)}${latest.partial ? ' (month to date)' : ''} · ${unit}` : unit} />
         <Stat label="Target" value={latest && latest.target !== null ? targetText({ target: latest.target, target_direction: latest.direction ?? row.target_direction }) : targetText(row as never)} icon="target"
           color={latest?.met === false ? 'red' : latest?.met ? 'green' : undefined}
-          hint={latest?.met === null || latest?.met === undefined ? 'No figure yet' : latest.met ? 'On target in the latest month' : 'Off target in the latest month'} />
+          hint={latest?.partial ? 'Month to date: judged when the month is over' : latest?.met === null || latest?.met === undefined ? 'No figure yet' : latest.met ? 'On target in the latest month' : 'Off target in the latest month'} />
       </div>
       <Tabs label="Indicator" active={tab} onChange={setTab} tabs={[
         {
@@ -142,7 +144,7 @@ export function IndicatorDetail() {
                             {row.measure === 'rate' && <td className="num">{p.exposure === null ? <Link to="/safety/exposure">Enter</Link> : formatNumber(p.exposure)}</td>}
                             <td className="num">{p.value === null ? '—' : formatNumber(p.value)}</td>
                             <td className="num">{p.target === null ? '—' : formatNumber(p.target)}</td>
-                            <td><MetChip met={p.met} /></td>
+                            <td><MetChip met={p.met} partial={p.partial} /></td>
                           </tr>
                         ))}
                       </tbody>

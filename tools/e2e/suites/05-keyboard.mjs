@@ -118,7 +118,12 @@ export const tests = [
         if (back.name !== first.name) throw new Error('ArrowUp did not return to the first entry');
       });
       await t.step('Enter on a navigation entry opens its page', async () => {
-        const target = await page.fn(() => { const a = document.querySelector('nav[aria-label="Main"] a[href="/systems"]'); a?.focus(); return !!a; });
+        // Groups other than the current page's start closed (E44-01): open Assets first, as a person would.
+        const target = await page.fn(() => {
+          const head = document.querySelector('nav[aria-label="Main"] button[data-group="Assets"]');
+          if (head?.getAttribute('aria-expanded') === 'false') head.click();
+          return true;
+        }) && await page.fn(() => { const a = document.querySelector('nav[aria-label="Main"] a[href="/systems"]'); a?.focus(); return document.activeElement === a && !!a; });
         if (!target) throw new Error('no Systems entry in the navigation');
         await page.key('Enter');
         await page.settled();

@@ -5,6 +5,7 @@
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { makeDbLimiter } from '../../core/ratelimit.ts';
+import { readableSql, readerIds, tablesFor, type AccessTables } from './access.ts';
 import { addDays, daysBetween, isDate, localDate } from './dates.ts';
 import { renderPolicyMarkdown } from './markdown.ts';
 import { readingOf, textRead } from './translations.ts';
@@ -38,15 +39,27 @@ export async function requestRosterAcks(ctx: ModuleContext, policy: Row, version
   if (policy.ack_roster !== true || !rosterThere(ctx)) return 0;
   const positions = list(policy.audience_positions);
   if (!positions.length && policy.audience_everyone !== true) return 0;
+  // E43: on a restricted document only roster people inside its distribution are asked: people
+  // whose account may read it, or whose roster department is (or is below) a reader department.
+  const restricted = policy.access === 'restricted';
+  const readers = restricted ? await readerIds(ctx, tablesFor(ctx), policy) : [];
   const made = await ctx.db.query<{ id: string }>(
     `insert into policy_person_acknowledgements (policy_id, version_id, person_id, requested_at, due_on)
      select $1, $2, p.id, $3, $4::date from people p
      where p.deleted_at is null and p.status = 'active'
        and ($5::boolean or p.position_id::text = any($6::text[]))
        and not exists (select 1 from policy_acknowledgements a where a.version_id = $2 and p.user_id is not null and a.user_id = p.user_id)
+       and (not $7::boolean or p.user_id = any($8::uuid[]) or p.department_id in (
+         with recursive dn(id) as (
+           select d.id from departments d where d.deleted_at is null and (d.id::text in (select jsonb_array_elements_text($9::jsonb))
+             or exists (select 1 from document_groups g where g.deleted_at is null and $10::jsonb @> jsonb_build_array(g.id::text)
+                        and g.departments @> jsonb_build_array(d.id::text)))
+           union select d.id from departments d join dn on d.parent_id = dn.id where d.deleted_at is null)
+         select id from dn))
      on conflict (version_id, person_id) do nothing
      returning id`,
-    [policy.id, version.id, now.toISOString(), dueOn, policy.audience_everyone === true, positions],
+    [policy.id, version.id, now.toISOString(), dueOn, policy.audience_everyone === true, positions,
+      restricted, readers, JSON.stringify(list(policy.access_departments)), JSON.stringify(list(policy.access_groups))],
   );
   return made.length;
 }
@@ -55,7 +68,7 @@ type State = 'acknowledged' | 'overdue' | 'outstanding' | 'superseded';
 const stateOf = (a: Row, today: string): State =>
   a.acknowledged_at ? 'acknowledged' : a.superseded_at ? 'superseded' : a.due_on && String(a.due_on).slice(0, 10) < today ? 'overdue' : 'outstanding';
 
-export function registerPersonAcks(ctx: ModuleContext): void {
+export function registerPersonAcks(ctx: ModuleContext, tables: AccessTables = tablesFor(ctx)): void {
   const { app, db } = ctx;
   const invalid = (fields: Record<string, string>): never => ctx.fail(400, 'validation', 'Check the highlighted fields.', fields);
   const needRoster = () => { if (!rosterThere(ctx)) ctx.fail(404, 'not_found', 'The roster is not available.'); };
@@ -68,8 +81,8 @@ export function registerPersonAcks(ctx: ModuleContext): void {
   async function versionOf(policy: Row, wanted: unknown): Promise<Row | undefined> {
     const n = Number(wanted);
     return Number.isInteger(n) && n > 0
-      ? db.one<Row>(`select * from policy_versions where policy_id = $1 and version = $2 and status in ('published', 'superseded')`, [policy.id, n])
-      : db.one<Row>(`select * from policy_versions where policy_id = $1 and status = 'published'`, [policy.id]);
+      ? db.one<Row>(`select * from policy_versions where policy_id = $1 and version = $2 and status in ('published', 'superseded', 'withdrawn')`, [policy.id, n])
+      : db.one<Row>(`select * from policy_versions where policy_id = $1 and status in ('published', 'withdrawn') order by version desc limit 1`, [policy.id]);
   }
 
   // ---------- tracking and recording (sign-in sheets) ----------
@@ -226,13 +239,14 @@ export function registerPersonAcks(ctx: ModuleContext): void {
 
   const kiosk = { preHandler: ctx.requirePerm('policies.edit') };
   const failures = makeDbLimiter(db, 'kiosk', KIOSK_TRIES, KIOSK_LOCK_MS);
-  const PENDING = `
+  // E43: only documents the signed-in supervisor may read.
+  const pending = (req: FastifyRequest) => `
     select a.id, a.policy_id, a.version_id, a.due_on, p.ref as policy_ref, p.title as policy_title, p.summary as policy_summary,
            p.document_type, v.version, v.effective_on
     from policy_person_acknowledgements a
     join policies p on p.id = a.policy_id and p.deleted_at is null and p.status = 'published'
     join policy_versions v on v.id = a.version_id and v.status = 'published'
-    where a.person_id = $1 and a.acknowledged_at is null and a.superseded_at is null`;
+    where a.person_id = $1 and a.acknowledged_at is null and a.superseded_at is null and ${readableSql(req.user, 'p', tables)}`;
 
   /** The person, when the employee number they typed is theirs. Wrong numbers are counted, and too many stop the kiosk for that person a while. */
   async function checkNumber(req: FastifyRequest, personId: unknown, number: unknown): Promise<Row> {
@@ -268,7 +282,7 @@ export function registerPersonAcks(ctx: ModuleContext): void {
        from people pp left join positions pos on pos.id = pp.position_id and pos.deleted_at is null
        where pp.deleted_at is null and pp.status = 'active'
          and ($1 = '' or pp.full_name ilike $2 or pp.preferred_name ilike $2)
-         and exists (${PENDING.replace('$1', 'pp.id')})
+         and exists (${pending(req).replace('$1', 'pp.id')})
        order by lower(coalesce(nullif(pp.preferred_name, ''), pp.full_name)) limit 100`,
       [q, `%${q.replace(/[%_\\]/g, '\\$&')}%`],
     );
@@ -283,7 +297,7 @@ export function registerPersonAcks(ctx: ModuleContext): void {
   app.get('/api/policies/kiosk/pending', kiosk, async (req) => {
     const query = req.query as Row;
     const person = await checkNumber(req, query.person_id, query.employee_number);
-    const items = await db.query<Row>(`${PENDING} order by a.due_on nulls last, p.title`, [person.id]);
+    const items = await db.query<Row>(`${pending(req)} order by a.due_on nulls last, p.title`, [person.id]);
     const versions = new Map((await db.query<Row>('select id, body, change_summary from policy_versions where id = any($1::uuid[])', [items.map((i) => i.version_id)])).map((v) => [v.id, v]));
     const lang = query.lang;
     const out = [];
@@ -315,6 +329,7 @@ export function registerPersonAcks(ctx: ModuleContext): void {
        from policies p, policy_versions v
        where a.id = any($2::uuid[]) and a.person_id = $1 and a.acknowledged_at is null and a.superseded_at is null
          and p.id = a.policy_id and p.deleted_at is null and p.status = 'published' and v.id = a.version_id and v.status = 'published'
+         and ${readableSql(req.user, 'p', tables)}
        returning a.id, a.policy_id, a.version_id, p.ref, p.title, v.version`,
       [person.id, wanted, req.user!.id],
     );

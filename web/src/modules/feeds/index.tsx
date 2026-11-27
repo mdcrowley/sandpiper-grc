@@ -9,7 +9,7 @@ import { FeedsAdminPage } from './FeedsAdmin';
 const mod: ModuleDef = {
   key: 'feeds',
   nav: [
-    { group: 'Administration', label: 'Calendar and work trackers', path: '/admin/calendar-and-work-trackers', icon: 'calendar', permission: 'admin.administer', order: 53 },
+    { group: 'Administration', label: 'Calendar and work trackers', path: '/admin/calendar-and-work-trackers', icon: 'calendar', permission: 'admin.administer', order: 52, menu: false, hub: 'Connections', hint: 'Calendar feeds and links to outside work trackers.' },
   ],
   routes: [
     // "My account": open to every signed-in user.

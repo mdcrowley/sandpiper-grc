@@ -4,7 +4,7 @@ import { fail } from '../../core/errors.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { adminRoute, body, invalid, sensitive } from '../admin/shared.ts';
 import {
-  areaOf, ICONS, KEY_RE, keyTaken, NAV_GROUPS, PREFIX_RE, statusList, typeOf, type RegisterRow, type Registers,
+  areaOf, currentNavGroup, DEFAULT_NAV_GROUP, ICONS, KEY_RE, keyTaken, NAV_GROUPS, PREFIX_RE, statusList, typeOf, type RegisterRow, type Registers,
 } from './definitions.ts';
 
 const ADMIN = 'admin.administer';
@@ -41,7 +41,7 @@ export async function checkRegister(ctx: ModuleContext, regs: Registers, b: Row,
     if (out.title_label.length > 40 || /[<>]/.test(out.title_label)) fields.title_label = 'Enter a name of up to 40 characters for the main field.';
   }
   if (has('nav_group')) {
-    out.nav_group = String(b.nav_group ?? 'Governance');
+    out.nav_group = currentNavGroup(String(b.nav_group ?? DEFAULT_NAV_GROUP));
     if (!NAV_GROUPS.includes(out.nav_group)) fields.nav_group = `Choose one of: ${NAV_GROUPS.join(', ')}.`;
   }
   if (has('icon')) {
@@ -84,7 +84,7 @@ export async function createRegister(ctx: ModuleContext, regs: Registers, values
   const r = (await ctx.db.one<RegisterRow>(
     `insert into register_definitions (key, label, plural, description, prefix, nav_group, icon, title_label, evidence, created_by, updated_by)
      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10) returning *`,
-    [values.key, values.label, values.plural, values.description ?? '', values.prefix, values.nav_group ?? 'Governance', values.icon ?? 'folder',
+    [values.key, values.label, values.plural, values.description ?? '', values.prefix, values.nav_group ?? DEFAULT_NAV_GROUP, values.icon ?? 'folder',
       values.title_label ?? 'Title', values.evidence === true, req?.user?.id ?? null],
   ))!;
   const state = await regs.activate(r, true);

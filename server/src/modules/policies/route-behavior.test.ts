@@ -22,7 +22,7 @@ describe('GET /api/policies/:id/audience', () => {
 
     const res = await (await t.as('agent')).get(`/api/policies/${policy.id}/audience`); // policies.view
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ count: 2, ack_days: 21 });
+    expect(res.body).toEqual({ count: 2, ack_days: 21, ack_required: true });
 
     // Everyone: every active account.
     await t.api.patch(`/api/policies/${policy.id}`, { audience_everyone: true });

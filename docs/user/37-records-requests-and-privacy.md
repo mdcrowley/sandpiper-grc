@@ -1,6 +1,6 @@
 # Records requests and privacy
 
-The records and privacy pages track **requests for records** and **requests about people's own personal data** against a deadline you set, the records that answer each request with any exemption, and **privacy impact assessments** of the systems that hold personal data. Open them from the **Governance** group in the navigation: **Records requests** and **Privacy**. The pages share tabs along the top: **Requests**, **Privacy coverage** and **Privacy assessments**. Lists and record pages work as described in [Getting started](01-getting-started.md).
+The records and privacy pages track **requests for records** and **requests about people's own personal data** against a deadline you set, the records that answer each request with any exemption, and **privacy impact assessments** of the systems that hold personal data. Open them from the **Governance and records** group in the navigation: **Records requests** and **Privacy**. The pages share tabs along the top: **Requests**, **Privacy coverage** and **Privacy assessments**. Lists and record pages work as described in [Getting started](01-getting-started.md).
 
 If your organization does not use them, an administrator can switch **Records requests and privacy** off under **Administration > Features** (see [Administration](09-administration.md#features)). The pages, their reminders, the "Records request" and "Privacy assessment" sources in the action tracker, the personal-data fields on data categories and the records notifications then disappear. Records are kept and return when it is switched back on. [Legal holds](33-legal-holds.md) are not part of it and keep working.
 
@@ -15,7 +15,7 @@ No law is built in. The deadlines, the kinds of request, the exemptions and the 
 
 ## Requests
 
-Open **Records requests**. The line above the list counts the open requests, those due soon and those overdue. Filter by kind, status, owner and dates.
+Open **Records requests**. The line above the list counts the open requests, those due soon and those overdue. The **Due** column shows the date a request is due now: the extended date, marked **(extended)**, when it was extended; the first due date can be switched on with the column chooser as **First due**. Open requests come first, the one due soonest (or most overdue) at the top, then answered and closed ones. Filter by kind, status, owner and dates (the **Due** filter uses the date due now).
 
 ### Log a request
 
@@ -32,7 +32,7 @@ Holders of `records.administer` select **Deadlines** on the list to set:
 
 - **Default days to answer**: 20 unless you change it. Set your own: no jurisdiction's deadline is built in.
 - Days for each kind of request, when one kind has its own deadline (empty uses the default).
-- **Count working days only**: only working days count toward the deadline, and the first day counted is the day after the request was received. Working days come from the organization's one working-day calendar: the weekdays the **Business hours** calendar is open, less the holidays entered on it. That calendar is kept with the service desk settings (**Service desk > Settings > Calendars and holidays**, see [Service desk](02-service-desk.md#calendars-and-holidays)), by holders of `tickets.administer`; the dialog names it and says how many holidays it holds. When it has been retired, or the service desk is not installed, Monday to Friday is used with no holidays. A holiday added later changes the due dates of requests received or extended from then on; existing due dates stay as they were. Extending a request by a number of days counts working days the same way.
+- **Count working days only**: only working days count toward the deadline, and the first day counted is the day after the request was received. Working days come from the organization's one working-day calendar: the weekdays the **Business hours** calendar is open, less the holidays entered on it. That calendar is kept with the service desk settings (**IT services > Tickets**, **Settings** tab, **Calendars and holidays**, see [Service desk](02-service-desk.md#calendars-and-holidays)), by holders of `tickets.administer`; the dialog names it and says how many holidays it holds. When it has been retired, or the service desk is not installed, Monday to Friday is used with no holidays. A holiday added later changes the due dates of requests received or extended from then on; existing due dates stay as they were. Extending a request by a number of days counts working days the same way.
 - **Due soon when this share of the time is left**: 0.25 unless you change it.
 - **Remind of privacy reviews (days before)**: 30 unless you change it.
 
@@ -64,7 +64,7 @@ The **Actions** tab, where the action tracker is installed, raises follow-up act
 
 Open **Privacy**. It lists every system that holds a data category marked as personal data, with those categories, its newest assessment and whether it has an **approved assessment in date** (**Current**) or not (**No current assessment**). The line above counts every such system, including any you cannot see.
 
-To mark a data category as personal data, open it under **Inventory > Data categories** and edit **Personal data**: check **Holds personal data** and choose the **Kinds of personal data** (contact details, identity documents, account and payment, travel history and location, video images, health or eligibility, employment, other). Link the category to the systems that hold it on the system's page. A system's page has a **Privacy** tab listing its assessments.
+To mark a data category as personal data, open it under **Assets > Systems**, **Data categories** tab, and edit **Personal data**: check **Holds personal data** and choose the **Kinds of personal data** (contact details, identity documents, account and payment, travel history and location, video images, health or eligibility, employment, other). Link the category to the systems that hold it on the system's page. A system's page has a **Privacy** tab listing its assessments.
 
 ## Privacy impact assessments
 

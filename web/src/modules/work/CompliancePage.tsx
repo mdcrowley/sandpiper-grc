@@ -170,7 +170,7 @@ export function CompliancePage() {
   return (
     <div className="stack">
       <PageHeader
-        title="Compliance calendar"
+        title="Calendar"
         subtitle="Everything due across every area that is on: every kind of dated work, in one calendar."
         actions={<Link className="btn btn-secondary" to="/account/calendar-feeds"><Icon name="calendar" /> Calendar feeds</Link>}
       />

@@ -122,7 +122,7 @@ export function registerTranslations(ctx: ModuleContext): void {
     const policy = (await ctx.resources.find('policy', String(params.id ?? ''), req.user)) ?? ctx.fail(404, 'not_found', 'Policy not found.');
     const vid = String(params.vid ?? '');
     const version = UUID.test(vid) ? await db.one<Row>('select * from policy_versions where id = $1 and policy_id = $2', [vid, policy.id]) : undefined;
-    if (!version || (!seesDrafts(req) && !['published', 'superseded'].includes(String(version.status)))) ctx.fail(404, 'not_found', 'Version not found.');
+    if (!version || (!seesDrafts(req) && !['published', 'superseded', 'withdrawn'].includes(String(version.status)))) ctx.fail(404, 'not_found', 'Version not found.');
     return { policy, version: version! };
   }
   function needLanguage(req: FastifyRequest): string {

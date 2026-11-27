@@ -28,8 +28,24 @@ export interface RegisterRow {
   updated_at: string;
 }
 
-/** Menu groups a register may sit in (web/src/core/module.ts NAV_GROUPS, without Home, Administration and Help). */
-export const NAV_GROUPS = ['Service desk', 'Inventory', 'Change', 'Vendors', 'Cybersecurity', 'Safety', 'Governance', 'People', 'Projects', 'Reports'];
+/** Menu groups a register may sit in (web/src/core/module.ts NAV_GROUPS, without Home and Administration). */
+export const NAV_GROUPS = [
+  'IT services', 'Assets', 'Vendors', 'Projects and funding', 'Security', 'Risk and compliance',
+  'Safety and emergency management', 'Governance and records', 'Documents', 'People and training', 'Reports',
+];
+/** The group a new register goes in when none is given. */
+export const DEFAULT_NAV_GROUP = 'Governance and records';
+/**
+ * Menu groups before wave 24 (E44-01) and the group that took their place. Stored registers may still
+ * name an old group; it is read as the new one, and sending an old name is accepted and stored as the new one.
+ */
+export const LEGACY_NAV_GROUPS: Record<string, string> = {
+  'Service desk': 'IT services', Change: 'IT services', Inventory: 'Assets', Cybersecurity: 'Security',
+  Safety: 'Safety and emergency management', Governance: 'Governance and records', People: 'People and training',
+  Projects: 'Projects and funding', Help: 'Governance and records',
+};
+/** A stored or sent menu group as today's name (an unknown one is returned unchanged, for the caller to refuse). */
+export const currentNavGroup = (group: string): string => LEGACY_NAV_GROUPS[group] ?? group;
 /** Icons a register may use in the menu (web/src/core/Icon.tsx). */
 export const ICONS = ['folder', 'clipboard', 'book', 'box', 'tag', 'alert', 'shield', 'bus', 'building', 'key', 'calendar', 'users', 'star', 'flask'];
 
@@ -138,7 +154,7 @@ export function makeRegisters(ctx: ModuleContext) {
 
   /** Puts one register into the running application (its view made first when needed). */
   async function activate(r: RegisterRow, afterStart: boolean): Promise<RegisterState> {
-    rows.set(r.key, r);
+    rows.set(r.key, { ...r, nav_group: currentNavGroup(r.nav_group) });
     const type = typeOf(r.key);
     const existing = active.get(r.key);
     if (existing) {

@@ -1,6 +1,6 @@
 # Audits and inspections
 
-These pages plan and run **internal audits** (internal audits, safety reviews, compliance pre-reviews and cybersecurity control audits) and **recurring inspections** of stations, depots, vehicles and equipment. Open them from the navigation: **Governance > Audits** (the plan and coverage, with tabs **Plan and coverage**, **Audits**, **Audit universe**, **Findings**, **Evidence requests** and **Checklists**), **Governance > Audit findings** and **Safety > Inspections** (with tabs **Inspections**, **Schedules** and **Checklists**). Lists and record pages work as described in [Getting started](01-getting-started.md).
+These pages plan and run **internal audits** (internal audits, safety reviews, compliance pre-reviews and cybersecurity control audits) and **recurring inspections** of stations, depots, vehicles and equipment. Open them from the navigation: **Risk and compliance > Audits** (the plan and coverage, with tabs **Plan and coverage**, **Audits**, **Audit universe**, **Findings**, **Evidence requests** and **Checklists**; the findings of every audit and inspection are on its **Findings** tab) and **Safety and emergency management > Inspections** (with tabs **Inspections**, **Schedules** and **Checklists**). Lists and record pages work as described in [Getting started](01-getting-started.md).
 
 Findings from audits and inspections raise [corrective action plans](24-corrective-action-plans.md) and, for safety concerns, hazards in the [hazard log](20-safety-management.md#hazard-log).
 
@@ -20,7 +20,7 @@ Audits flagged **Restricted** (for example a cybersecurity control audit) need `
 
 ## Plan and coverage
 
-Open **Governance > Audits**. The tiles show:
+Open **Risk and compliance > Audits**. The tiles show:
 
 - **Audits planned** for this year (and how many are closed), **Audits under way** (in fieldwork or reporting).
 - **Areas overdue for audit**, with how many are due within 90 days and how many were never audited.
@@ -94,7 +94,7 @@ Move checks up and down with the arrows, remove them with the trash button, then
 
 ### Schedules
 
-Open **Safety > Inspections**, then the **Schedules** tab, and **New schedule**. Choose the **Checklist**, what it **Inspects** and the record (for example the site), the **Inspector (assigned to each inspection)**, the **First inspection due** and the **Frequency** (**Weekly**, **Monthly**, **Quarterly** or **Yearly**), then select **Create schedule**.
+Open **Safety and emergency management > Inspections**, then the **Schedules** tab, and **New schedule**. Choose the **Checklist**, what it **Inspects** and the record (for example the site), the **Inspector (assigned to each inspection)**, the **First inspection due** and the **Frequency** (**Weekly**, **Monthly**, **Quarterly** or **Yearly**), then select **Create schedule**.
 
 The application works through the schedules every few hours (job `audits.inspections`, under **Administration > Background jobs**):
 
@@ -130,7 +130,7 @@ A completed inspection cannot be changed. Answering needs `audits.edit`; adding 
 
 ## Findings
 
-Open **Governance > Audit findings** for the findings of every audit and inspection, or the **Findings** tab of one. A finding (`FND-00012`) records, in the usual structure:
+Open **Risk and compliance > Audits** and the **Findings** tab for the findings of every audit and inspection, or the **Findings** tab of one. A finding (`FND-00012`) records, in the usual structure:
 
 - the **Rating**: **Major nonconformity**, **Minor nonconformity**, **Observation** or **Opportunity for improvement**;
 - the **Criteria** (what should be), the **Condition** (what was found), the **Cause**, the **Effect** (the risk or consequence) and a **Recommendation**;

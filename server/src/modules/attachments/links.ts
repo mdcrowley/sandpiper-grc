@@ -9,6 +9,7 @@
 // because sharing links often carry their own secret.
 import { randomUUID } from 'node:crypto';
 import type { FastifyRequest } from 'fastify';
+import { actorOf } from '../../core/dataload.ts';
 import type { ModuleContext, ResourceDef, Row } from '../../core/module.ts';
 import { todayInZone } from '../../core/timezone.ts';
 import { redactWebhookUrl } from '../../core/webhooks.ts';
@@ -78,7 +79,7 @@ export function registerLinkRoutes(ctx: ModuleContext, h: Helpers) {
        values ($1, $2, $3, '', 'text/uri-list', 0, '', $4, $5, $6, $7, $8, $9, 'not_applicable', $10, $11, $11, $12, $3, $13, $11)
        returning *`,
       [parent.def.type, parent.row.id, name, LINK_DRIVER, `link/${randomUUID()}`, meta.kind, meta.description, meta.collected_on,
-        meta.expires_on, req.user!.displayName, req.user!.id, url, todayInZone()],
+        meta.expires_on, actorOf(req).name, actorOf(req).id, url, todayInZone()],
     ))!;
     await ctx.audit(req, {
       action: 'attachment.link', recordType: parent.def.type, recordId: parent.row.id,

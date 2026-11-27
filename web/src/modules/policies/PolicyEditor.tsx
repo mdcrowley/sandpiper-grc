@@ -40,15 +40,15 @@ export function PolicyEditor() {
   }, [text]);
 
   const back = `/policies/${id}`;
-  const crumbs = [{ label: 'Policies', to: '/policies' }, { label: policy.row?.ref ?? 'Policy', to: back }, { label: 'Write' }];
+  const crumbs = [{ label: 'Document register', to: '/documents/register' }, { label: policy.row?.doc_number || policy.row?.ref || 'Document', to: back }, { label: 'Write' }];
 
   if (policy.error || versions.error) {
-    return <><PageHeader title="Write policy text" breadcrumbs={crumbs} /><ErrorState error={policy.error ?? versions.error} onRetry={() => { policy.reload(); versions.reload(); }} /></>;
+    return <><PageHeader title="Write the text" breadcrumbs={crumbs} /><ErrorState error={policy.error ?? versions.error} onRetry={() => { policy.reload(); versions.reload(); }} /></>;
   }
-  if (!policy.row || !versions.data || body === null) return <><PageHeader title="Write policy text" breadcrumbs={crumbs} /><Loading lines={10} /></>;
+  if (!policy.row || !versions.data || body === null) return <><PageHeader title="Write the text" breadcrumbs={crumbs} /><Loading lines={10} /></>;
 
   const blocked = policy.row.status === 'retired'
-    ? 'This policy is retired, so it cannot have a new version.'
+    ? 'This document is obsolete, so it cannot have a new version.'
     : latest && ['in_review', 'approved'].includes(latest.status)
       ? `Version ${latest.version} is ${VERSION_STATUS[latest.status].label.toLowerCase()} and its text is fixed. Publish it before starting another version.`
       : '';
@@ -58,15 +58,15 @@ export function PolicyEditor() {
   if (blocked) {
     return (
       <>
-        <PageHeader title="Write policy text" subtitle={policy.row.title} breadcrumbs={crumbs} />
-        <Card><EmptyState icon="lock" title="Nothing to edit right now" message={blocked} action={<Link className="btn btn-primary" to={back}>Back to the policy</Link>} /></Card>
+        <PageHeader title="Write the text" subtitle={policy.row.title} breadcrumbs={crumbs} />
+        <Card><EmptyState icon="lock" title="Nothing to edit right now" message={blocked} action={<Link className="btn btn-primary" to={back}>Back to the document</Link>} /></Card>
       </>
     );
   }
 
   const save = async () => {
     setErrors({});
-    if (!body.trim()) { setErrors({ body: 'Write the policy text.' }); return; }
+    if (!body.trim()) { setErrors({ body: 'Write the text.' }); return; }
     setSaving(true);
     try {
       const payload = { body, change_summary: summary };
@@ -96,7 +96,7 @@ export function PolicyEditor() {
               placeholder={latest && !draft ? 'For example: adds a section on personal devices' : 'For example: first issue'}
               onChange={setSummary}
             />
-            <TextArea label="Policy text" required rows={22} value={body} error={errors.body} onChange={setBody} />
+            <TextArea label="Text" required rows={22} value={body} error={errors.body} onChange={setBody} />
             <p className="pol-help">
               Plain text with simple marks: <code>## Heading</code>, <code>**bold**</code>, <code>- list item</code>, <code>1. numbered item</code>,{' '}
               <code>[link text](https://address)</code>, and tables with <code>|</code>. Web page code is shown as text, never run, and pictures are not loaded.

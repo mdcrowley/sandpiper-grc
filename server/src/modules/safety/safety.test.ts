@@ -165,14 +165,14 @@ describe('indicators and exposure', () => {
     // Collisions this month: the mirror strike and the bus that left the road.
     expect(now.events).toBe(2);
     expect(now.value).toBe(4); // 2 / 50,000 * 100,000
-    expect(now.met).toBe(false);
+    expect(now).toMatchObject({ met: null, partial: true }); // the month to date is not judged (E18-79)
     expect(trend.points[0].value).toBeNull(); // no exposure entered
     const count = (await t.api.post('/api/safety-indicators', { name: 'Test passenger injuries', event_types: ['passenger_injury'], target: 5 })).body;
     const all = (await t.api.get(`/api/safety-indicators/${count.id}/trend?months=2`)).body.points[1];
     const seen = (await viewer.get(`/api/safety-indicators/${count.id}/trend?months=2`)).body.points[1];
     expect(all.value).toBe(2);
     expect(seen.value).toBe(2); // every reader sees the same figure, restricted events included
-    expect(all.met).toBe(true);
+    expect(all).toMatchObject({ met: null, partial: true });
   });
 
   it('builds the dashboard summary', async () => {

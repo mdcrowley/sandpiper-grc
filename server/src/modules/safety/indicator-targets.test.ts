@@ -49,7 +49,8 @@ describe('manual indicators', () => {
     expect((await editor.put(`/api/safety-indicators/${id}/values/2999-01`, { value: 1 })).body.error.fields.period).toMatch(/future/);
     expect((await editor.put(`/api/safety-indicators/${id}/values/${p}`, { value: 12, note: 'Invented' })).status).toBe(200);
     const trend = (await editor.get(`/api/safety-indicators/${id}/trend`)).body.points;
-    expect(trend.at(-1)).toMatchObject({ period: p, value: 12, target: 10, met: true });
+    // The month is not over: month to date, not judged against the target (E18-79).
+    expect(trend.at(-1)).toMatchObject({ period: p, value: 12, target: 10, met: null, partial: true });
     expect((await editor.get(`/api/safety-indicators/${id}/values`)).body[0]).toMatchObject({ period: p, value: 12 });
     // Emptying removes it.
     await editor.put(`/api/safety-indicators/${id}/values/${p}`, { value: null });
@@ -62,6 +63,20 @@ describe('manual indicators', () => {
   });
 });
 
+describe('the month to date (E18-79)', () => {
+  it('is never judged against the target, and the dashboard shows the last complete month', async () => {
+    const [last, now] = monthsBack(2);
+    const id = (await editor.post('/api/safety-indicators', { name: 'Test month to date', measure: 'manual', target: 10, target_direction: 'at_least', active: true })).body.id;
+    expect((await editor.put(`/api/safety-indicators/${id}/values/${last}`, { value: 12 })).status).toBe(200);
+    expect((await editor.put(`/api/safety-indicators/${id}/values/${now}`, { value: 1 })).status).toBe(200);
+    const pts = (await editor.get(`/api/safety-indicators/${id}/trend?months=2`)).body.points;
+    expect(pts[0]).toMatchObject({ period: last, value: 12, met: true, partial: false });
+    expect(pts[1]).toMatchObject({ period: now, value: 1, met: null, partial: true });
+    const shown = (await editor.get('/api/safety/summary')).body.indicators.find((i: any) => i.id === id);
+    expect(shown.latest).toMatchObject({ period: last, value: 12, met: true });
+  });
+});
+
 describe('computed indicators', () => {
   it('lists the metric and works the indicator out from it', async () => {
     const metrics = (await editor.get('/api/metrics')).body.metrics;
@@ -71,8 +86,9 @@ describe('computed indicators', () => {
     const id = (await editor.post('/api/safety-indicators', { name: 'Test computed', measure: 'computed', metric_key: 'standin.widgets', target: 6 })).body.id;
     const pts = (await editor.get(`/api/safety-indicators/${id}/trend?months=12`)).body.points;
     expect(pts.map((p: any) => p.value)).toEqual(monthsBack(12).map((p) => Number(p.slice(5))));
-    expect(pts.find((p: any) => p.period.endsWith('-06')).met).toBe(true);
-    expect(pts.find((p: any) => p.period.endsWith('-07')).met).toBe(false);
+    // At most 6 (the default direction): judged on every complete month; the month to date is not judged (E18-79).
+    for (const p of pts) expect(p.met).toBe(p.partial ? null : p.value <= 6);
+    expect(pts.filter((p: any) => p.partial).map((p: any) => p.period)).toEqual([thisMonth()]);
   });
 });
 
@@ -83,7 +99,7 @@ describe('distance between failures', () => {
     expect((await editor.put('/api/safety/exposure', { period: p, revenue_miles: 50000, major_failures: 4 })).status).toBe(200);
     const id = (await editor.post('/api/safety-indicators', { name: 'Test miles between failures', measure: 'distance_between', target: 10000, target_direction: 'at_least' })).body.id;
     const last = (await editor.get(`/api/safety-indicators/${id}/trend`)).body.points.at(-1);
-    expect(last).toMatchObject({ value: 12500, events: 4, exposure: 50000, met: true });
+    expect(last).toMatchObject({ value: 12500, events: 4, exposure: 50000, met: null, partial: true });
     expect((await editor.get('/api/safety/exposure')).body.rows.find((r: any) => r.period === p)).toMatchObject({ revenue_miles: 50000, major_failures: 4 });
   });
 });
@@ -102,7 +118,7 @@ describe('yearly targets', () => {
     expect(res.status, JSON.stringify(res.body)).toBe(201);
     expect(res.body).toMatchObject({ year: year(), target: 20, status: 'proposed' });
     expect((await editor.post(`/api/safety-indicators/${id}/targets`, { year: year(), target: 5 })).status).toBe(409);
-    expect((await editor.get(`/api/safety-indicators/${id}/trend`)).body.points.at(-1)).toMatchObject({ target: 20, met: false });
+    expect((await editor.get(`/api/safety-indicators/${id}/trend`)).body.points.at(-1)).toMatchObject({ target: 20, met: null, partial: true });
   });
 
   it('records a decision taken outside, only for people who may approve', async () => {

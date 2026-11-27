@@ -15,7 +15,7 @@ const view = 'funding.view';
 const mod: ModuleDef = {
   key: 'funding',
   nav: [
-    { group: 'Governance', label: 'Funding and grants', path: '/funding', icon: 'chart', permission: view, order: 40 },
+    { group: 'Projects and funding', label: 'Funding and grants', path: '/funding', icon: 'chart', permission: view, order: 20 },
   ],
   routes: [
     { path: '/funding', element: <FundingDashboard />, permission: view },

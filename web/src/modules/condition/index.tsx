@@ -14,7 +14,7 @@ const view = 'assets.view';
 const mod: ModuleDef = {
   key: 'condition',
   nav: [
-    { group: 'Inventory', label: 'Asset condition', path: '/condition', icon: 'chart', permission: view, order: 45 },
+    { group: 'Assets', label: 'Asset condition', path: '/condition', icon: 'chart', permission: view, order: 30 },
   ],
   routes: [
     { path: '/condition', element: <ConditionDashboard />, permission: view },

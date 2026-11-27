@@ -164,6 +164,20 @@ export async function checkIntegrity(ctx: ModuleContext): Promise<IntegrityRepor
       if (report.missing.length < 50) report.missing.push({ id: r.id, file_name: r.file_name, driver: r.storage_driver });
     }
   }
+  // Uploads in parts (uploads.ts) keep their parts, and a finished but not yet used upload its file,
+  // in the store with no attachments row until they are attached or expire (24 hours): not stray.
+  const pending = await ctx.db.query<Row>(
+    `select parts_driver, file->>'driver' file_driver, storage_key, parts from uploads_pending where status <> 'used'`).catch(() => [] as Row[]);
+  const keep = (rawDriver: string, key: unknown) => {
+    if (typeof key !== 'string' || !key) return;
+    const driver = rawDriver === 'disk' || rawDriver === 'memory' ? stores(ctx).local.driver : rawDriver;
+    if (!referenced.has(driver)) referenced.set(driver, new Set());
+    referenced.get(driver)!.add(key);
+  };
+  for (const u of pending) {
+    for (const part of Object.values((u.parts ?? {}) as Record<string, { key?: string }>)) keep(u.parts_driver, part?.key);
+    keep(u.file_driver ?? u.parts_driver, u.storage_key);
+  }
   for (const [driver, have] of listed) {
     report.stored += have.size;
     const refs = referenced.get(driver) ?? new Set();

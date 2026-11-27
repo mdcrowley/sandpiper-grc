@@ -1,6 +1,6 @@
 # Risks, actions and obligations
 
-This page covers the risk register, the action tracker, the obligations register and regulatory changes. The **Risk register**, **Key risk indicators**, **Risk reviews**, **Action tracker**, **Obligations** and **Regulatory changes** are in the **Cybersecurity** group of the menu; **My actions** is under **Home**, the **Risk report** under **Reports**, and **Risk scales** and **Risk appetite** under **Administration**.
+This page covers the risk register, the action tracker, the obligations register and regulatory changes. The **Risk register** (with the tabs **Register**, **Reviews**, **Indicators**, **Report** and, for people who administer risks, **Scales** and **Appetite**), **Obligations** (with the **Regulatory changes** tab) and **Action tracker** (with the **Corrective action plans** tab) are in the **Risk and compliance** group of the menu; **My actions** is a tab of **My work**, and the scales and appetite are also on the **Administration** page.
 
 An administrator can switch the risk register and obligations off under **Administration > Features** (see [Administration](09-administration.md#features)); the action tracker always stays on. Records are kept and return when they are switched back on.
 
@@ -26,13 +26,13 @@ Obligations and regulatory changes are not restricted. An action is restricted w
 
 ## The risk register
 
-Open **Cybersecurity > Risk register**. From top to bottom the page has:
+Open **Risk and compliance > Risk register**. From top to bottom the page has:
 
 - a **summary strip**: **Open risks** (with how many are above the risk appetite), the number at the two highest common levels (**Critical** and **High**), **Reviews due** and **Acceptances to renew**. Select a tile to go to the matching list;
 - the **Heat map** card, with the ranked risks beside it;
 - the list of risks.
 
-Tabs under the title open **Register**, **Reviews**, **Report** and, for administrators of risks, **Scales** and **Appetite**. **Print** and **New risk** are at the top. The **Critical** and **High** tiles count risks at that common level across every scale.
+Tabs under the title open **Register**, **Reviews**, **Report** and, for administrators of risks, **Scales** and **Appetite**. **Print** and **New risk** are at the top. The **Critical** and **High** tiles count risks at that common level across every scale. A scale may call the level something else: the tile then says so, for example "Includes Extreme on the heat map".
 
 ### The two scales
 
@@ -88,7 +88,7 @@ The controls at the top of the card:
 
 **All scales** puts the risks of every scale on one five-by-five grid at the common levels (**Low**, **Medium**, **High**, **Critical**). Each scale's levels are spread from its lowest to its highest: the lowest level of every scale is **Lowest**, the highest is **Highest**, and the four severities of the safety hazard matrix fall at **Lowest**, **Low**, **High** and **Highest**. A cell with risks in it is colored by the most severe common level among them; an empty cell by the most severe common level any scale gives that part of its grid. The legend counts each risk at its own common level, so its totals match the **Critical** and **High** tiles above. The ranked list shows common levels too. It is a picture of where risks sit across the organization; to read a risk's exact rating, use its own scale. There is no appetite ring on this view, since each category's appetite is set on its own scale. **All scales** is offered when more than one scale is in use.
 
-When a risk appetite is set for a category scored on the scale, the cells rated above it have a **dashed ring**. Where several categories share a scale, the ring follows the strictest of their appetites, and the legend names it, for example "Above appetite (Medium or lower is accepted for Cybersecurity)". Each risk is still judged against its own category's appetite in the register.
+When a risk appetite is set for a category scored on the scale, a cell holding a risk that is above its own category's appetite has a **dashed ring** (the legend reads "Holds a risk above its category's appetite"). Where several categories with different appetites share a scale, the same cell can hold a risk above its appetite and another within its own, so the ring always agrees with the **Appetite** column of the risks in the cell; an empty cell never has one.
 
 Beside the grid, **Highest residual risks** (or **Highest inherent risks**) ranks the scored risks on that scale, highest first, with the inherent and residual ratings and the owner. The first eight are listed; the rest are in the list below.
 
@@ -274,7 +274,7 @@ Today is recorded as the review date, the ratings are kept as they stand now (th
 
 ### The Risk reviews page
 
-Open **Cybersecurity > Risk reviews**. It has two worklists, looking ahead **30 days**, **60 days** or **90 days**:
+Open **Risk and compliance > Risk register** and the **Reviews** tab. It has two worklists, looking ahead **30 days**, **60 days** or **90 days**:
 
 - **Acceptances to renew**: acceptances that have expired, or will expire within the window, with the approver, the days left and a **Renew** button that opens the risk (**Open** for people without **Approve** on **Risks**).
 - **Reviews due**: open risks whose review date has passed or falls within the window, with **Complete review** on each row.
@@ -283,9 +283,9 @@ The tiles at the top count **Acceptances expired**, **Acceptances expiring**, **
 
 ## The risk report
 
-Open **Reports > Risk report**, or select **Risk report** on the register. It is laid out for a board pack:
+Open **Risk and compliance > Risk register** and the **Report** tab, or select **Risk report** on the register. It is laid out for a board pack:
 
-- tiles for **Open risks**, the number at the highest common level in use, **Increased** since the last review, **Accepted** and **Reviews overdue**;
+- tiles for **Open risks** (with how many are not yet scored, or how many have only an inherent score and no residual score), the number at the highest common level in use, **Increased** since the last review, **Accepted** and **Reviews overdue**;
 - **Open risks by level**: a bar of open risks at each common level;
 - **Top 10 risks** (fewer when there are fewer): reference and title, category, status, owner, inherent and residual ratings, the movement **Since last review** ("Up from Medium", "Down from Extreme", "No change" or "Not yet reviewed"), the treatment and the open and overdue actions;
 - **Movement since the last review**: the risks rated higher (**Increased**) and lower (**Reduced**) than at their last completed review;
@@ -297,7 +297,7 @@ Select **Print or save as PDF** to print it, or to save it as a PDF from the pri
 
 ## Editing the risk scales
 
-Open **Administration > Risk scales** (needs **Administer** on **Risks**). Choose the scale at the top. The page has these cards:
+Open **Risk and compliance > Risk register** and the **Scales** tab, or **Risk scales** on the **Administration** page (needs **Administer** on **Risks**). Choose the scale at the top. The page has these cards:
 
 - **Name and axes**: the **Name**, **Description**, **Name of the likelihood axis** and **Name of the impact axis** (for example Impact or Severity).
 - **Levels**: a table for each axis with each level's **Value**, **Label** and **What it means**. A higher value is more likely, or worse. Use **Add level** and the trash icon to add and remove levels; each axis needs at least two.
@@ -307,13 +307,13 @@ Open **Administration > Risk scales** (needs **Administer** on **Risks**). Choos
 
 As you edit, the bar at the bottom says what saving would do, for example how many risks would be re-rated, and warns when a level you removed is still used by a risk (save is then refused: re-score those risks first). Select **Save scale** to save, or **Discard changes**. Saving re-rates every risk on the scale and is written to the audit log.
 
-The safety hazard matrix can also be changed by a safety administrator under **Administration > Hazard matrix** (its level names and the rating of each cell; see [Safety management](20-safety-management.md#change-the-hazard-matrix)), which works even while **Risks and obligations** is switched off. Saving there re-rates the risks on that scale too, and saving the hazard matrix here re-rates the hazards too.
+The safety hazard matrix can also be changed by a safety administrator under **Safety and emergency management > Safety dashboard**, **Settings** tab (its level names and the rating of each cell; see [Safety management](20-safety-management.md#change-the-hazard-matrix)), which works even while **Risks and obligations** is switched off. Saving there re-rates the risks on that scale too, and saving the hazard matrix here re-rates the hazards too.
 
 **Add scale** creates a new scale as a copy of the one shown: give its **Name** and **Key** (lower-case letters, numbers and underscores; it cannot be changed later). To use a new scale, an administrator points a risk category at it in **Administration > Lists** (the `risk_category` list).
 
 ## Risk appetite
 
-The risk appetite says, for each risk category, how much risk the organization is willing to accept. Open **Administration > Risk appetite**, or **Risk appetite** on the register (needs **Administer** on **Risks** and **View** on **Security incidents and restricted records**). Each category has a card, named with the scale its risks are scored on:
+The risk appetite says, for each risk category, how much risk the organization is willing to accept. Open **Risk and compliance > Risk register** and the **Appetite** tab, or **Risk appetite** on the **Administration** page (needs **Administer** on **Risks** and **View** on **Security incidents and restricted records**). Each category has a card, named with the scale its risks are scored on:
 
 | Field | What to put in it |
 |---|---|
@@ -334,7 +334,7 @@ The parent's page lists **Risks under this one**; each child's page says what it
 
 ## Key risk indicators
 
-A key risk indicator (KRI) is a monthly figure that warns early when a risk is growing: phishing test clicks, unplanned downtime, overdue actions. Open **Cybersecurity > Key risk indicators**. Indicators are restricted like risks.
+A key risk indicator (KRI) is a monthly figure that warns early when a risk is growing: phishing test clicks, unplanned downtime, overdue actions. Open **Risk and compliance > Risk register** and the **Indicators** tab. Indicators are restricted like risks.
 
 The tiles count the **Active indicators** and those **At red** and **At amber**. The list shows each indicator's risk, its **Latest value** and month, its **Level** (green, amber or red), whether its value is **Computed** or **Entered by hand**, the owner and the status.
 
@@ -355,7 +355,7 @@ When an indicator's latest value reaches **red**, its risk's **Next review** is 
 
 ## The action tracker
 
-Open **Cybersecurity > Action tracker**. It is built for the weekly review: every open action, from risks, assessments, incidents, audits, exercises, information requests, projects, changes, vulnerabilities, policies, training, vendors, problems, safety events and hazards, and anything else, in one place.
+Open **Risk and compliance > Action tracker**. It is built for the weekly review: every open action, from risks, assessments, incidents, audits, exercises, information requests, projects, changes, vulnerabilities, policies, training, vendors, problems, safety events and hazards, and anything else, in one place.
 
 ### Tiles and groups
 
@@ -406,7 +406,7 @@ Select **Clear selection** to clear them all. The **List** grouping has its own 
 | **Needs verification**, **Verifier**, **Verification due** | Whether someone must check that the action worked before it counts as done, who, and by when. On by default for actions in a corrective action plan. |
 | **Closure evidence** | What shows the action was done. Required, as text or an attachment, for the sources an administrator lists. |
 | **Source** | Where the action came from: Risk, Assessment, Incident, Audit, Exercise, Information request, Project, Change, Vulnerability, Policy, Training, Vendor, Problem, Safety or Other. A source whose part is switched off under **Administration > Features** is not offered. An action raised on a record is filed under that record's kind unless you choose otherwise. |
-| **Department**, **Site**, **External reference**, **Notes** | Optional. The department is one of the organization's departments (**People > Departments**). An action raised on a hazard, a safety event or an inspection of a site takes that site unless you choose another; people whose role is limited to their departments or sites see the actions of theirs (see [Administration](09-administration.md#which-records-a-role-reaches)). |
+| **Department**, **Site**, **External reference**, **Notes** | Optional. The department is one of the organization's departments (**People and training > People**, **Departments** tab). An action raised on a hazard, a safety event or an inspection of a site takes that site unless you choose another; people whose role is limited to their departments or sites see the actions of theirs (see [Administration](09-administration.md#which-records-a-role-reaches)). |
 
 Each action has a reference beginning `ACT-`. Its page shows the due date with the days left, the owner, the priority, where it arose from and the plan it belongs to, and the **Verification**, **Extensions** (asking for a later due date), **Activity**, **Attachments**, **Related** and **History** tabs. Grouping actions into a plan with a root cause, approval and verification is described in [Corrective action plans](24-corrective-action-plans.md).
 
@@ -431,7 +431,7 @@ The action is tied to the record: its own page says "Arose from risk record" wit
 
 ### My actions
 
-Open **Home > My actions**, or select **My actions** on the action tracker. It lists the open actions you own, most urgent first, in **Overdue**, **Due this week**, **Later** and **No due date**, with tiles counting them; **Finished, awaiting verification** holds yours that wait for a check, and **To verify** the actions that name you as their verifier. Type in **Add an action for yourself and press Enter** to add one that is yours. **Recently finished** shows the last five you completed, and **Shared with you** lists restricted actions shared with you by name.
+Open **My work > Actions**, or select **My actions** on the action tracker. It lists the open actions you own, most urgent first, in **Overdue**, **Due this week**, **Later** and **No due date**, with tiles counting them; **Finished, awaiting verification** holds yours that wait for a check, and **To verify** the actions that name you as their verifier. Type in **Add an action for yourself and press Enter** to add one that is yours. **Recently finished** shows the last five you completed, and **Shared with you** lists restricted actions shared with you by name.
 
 ### Notifications about actions
 
@@ -455,7 +455,7 @@ If your organization profile includes an `information_requests.psv` file, the se
 
 ## The obligations register
 
-Open **Cybersecurity > Obligations**. An obligation is something the organization must do because of a law, a regulation, a contract, a funding condition or an insurance policy. None are supplied with the application: they are loaded from your organization's profile when the application is set up, or entered by hand.
+Open **Risk and compliance > Obligations**. An obligation is something the organization must do because of a law, a regulation, a contract, a funding condition or an insurance policy. None are supplied with the application: they are loaded from your organization's profile when the application is set up, or entered by hand.
 
 The tiles at the top count all **Obligations**, those **Not met** and **Partly met**, those **Overdue** (next due date passed) and those **Due in 30 days**. Select a tile to filter the list. The list is sorted by **Next due**, soonest first, and each date carries a countdown: "18 days left" (amber within 30 days, green beyond), or "Overdue by 5 days" in red.
 
@@ -504,7 +504,7 @@ The list shows **Type** and **Frequency** beside the status; **Applies to**, **S
 
 ## Regulatory changes
 
-Open **Cybersecurity > Regulatory changes** (needs **View** on **Obligations**; the button **Regulatory changes** on the obligations register opens it too). A regulatory change is a new or changed law, rule, standard or funding term that the organization has to respond to. None are supplied: each is your own entry.
+Open **Risk and compliance > Obligations** and the **Regulatory changes** tab (needs **View** on **Obligations**; the button **Regulatory changes** on the obligations register opens it too). A regulatory change is a new or changed law, rule, standard or funding term that the organization has to respond to. None are supplied: each is your own entry.
 
 The tiles count **Open changes**, those **To assess**, those of **High impact** still open, and those **Implemented**. The list is sorted by the date each change **Takes effect**, with a countdown until it is closed.
 

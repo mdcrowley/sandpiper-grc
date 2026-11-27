@@ -89,6 +89,19 @@ describe('safe rendering of policy text', () => {
     expect(renderPolicyMarkdown('![Network diagram](https://example.test/d.png)')).toContain('[Image: Network diagram]');
   });
 
+  it("shows the document's own pictures through the preview route, and nothing else as an image", () => {
+    const id = '0f8fad5b-d9cb-469f-a165-70867728950e';
+    expect(renderPolicyMarkdown(`![Panel layout](attachment:${id})`))
+      .toBe(`<p><img src="/api/attachments/${id}/preview" alt="Panel layout" loading="lazy"></p>\n`);
+    // A quote in the description cannot break out of the attribute.
+    expect(renderPolicyMarkdown(`![a" onerror="x](attachment:${id})`)).not.toMatch(/onerror="/);
+    // Raw image markup is text, and the sanitizer keeps only preview addresses.
+    expect(renderPolicyMarkdown('<img src="/api/attachments/x/preview">')).not.toContain('<img');
+    expect(sanitizeHtml('<img src="https://example.test/p.png" alt="p">')).not.toContain('<img');
+    expect(sanitizeHtml(`<img src="/api/attachments/${id}/preview" onerror="x">`)).toBe(`<img src="/api/attachments/${id}/preview" alt="" loading="lazy">`);
+    expect(renderPolicyMarkdown('![x](attachment:not-an-id)')).toContain('[Image: x]');
+  });
+
   it('judges addresses the way a browser would', () => {
     expect(isSafeHref('https://example.test')).toBe(true);
     expect(isSafeHref('/policies/1')).toBe(true);

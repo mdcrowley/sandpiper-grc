@@ -12,8 +12,10 @@ import './frameworks.css';
 const mod: ModuleDef = {
   key: 'frameworks',
   nav: [
-    { group: 'Cybersecurity', label: 'Framework outcomes', path: '/frameworks', icon: 'target', permission: 'frameworks.view', order: 10 },
-    { group: 'Cybersecurity', label: 'Assessments', path: '/assessments', icon: 'chart', permission: 'frameworks.view', order: 15 },
+    { group: 'Security', label: 'Framework outcomes', path: '/frameworks', icon: 'target', permission: 'frameworks.view', order: 10, tabs: 'Outcomes' },
+    { group: 'Security', label: 'Assessments', path: '/assessments', icon: 'chart', permission: 'frameworks.view', order: 11, menu: false, parent: '/frameworks', tab: 'Assessments' },
+    { group: 'Security', label: 'Coverage of other frameworks', path: '/frameworks/coverage', icon: 'link', permission: 'frameworks.view', order: 12, menu: false, parent: '/frameworks', tab: 'Coverage' },
+    { group: 'Security', label: 'Framework settings', path: '/frameworks/settings', icon: 'settings', permission: 'frameworks.administer', order: 14, menu: false, parent: '/frameworks', tab: 'Settings', hub: 'Area settings', hint: 'How outcomes are scored and when review reminders go out.' },
   ],
   routes: [
     { path: '/frameworks', element: <BoardPage />, permission: 'frameworks.view' },

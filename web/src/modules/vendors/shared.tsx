@@ -55,6 +55,9 @@ export interface VendorSummary {
   next_notice_date: string | null;
   next_notice_contract: { id: string; ref: string | null; title: string; renewal_mechanism: string | null; end_date: string | null } | null;
   notice_dates_passed: number;
+  /** The latest notice date already passed on a contract still open, and that contract (E18-75). */
+  last_passed_notice_date?: string | null;
+  last_passed_contract?: { id: string; ref: string | null; title: string; renewal_mechanism: string | null; end_date: string | null } | null;
   terms: TermCounts;
   incident_contacts: { name: string; role: string | null; email: string | null; phone: string | null }[];
   evidence: number;
@@ -182,8 +185,9 @@ export function noticeTone(date: string | null | undefined): ColorName {
   return left <= 30 ? 'red' : left <= 120 ? 'amber' : 'green';
 }
 
-/** Notice-date chip for contracts. */
-export function NoticeChip({ date }: { date: string | null | undefined }) {
+/** Notice-date chip for contracts. An ended contract (expired or terminated) needs no notice, so it never alarms (E18-75). */
+export function NoticeChip({ date, status }: { date: string | null | undefined; status?: string | null }) {
+  if (status === 'terminated' || status === 'expired') return <span className="muted">{date ? formatDate(date) : '—'}</span>;
   if (!date) return <StatusChip color="gray" label="No notice date" />;
   const left = daysUntil(date);
   if (left < 0) return <StatusChip color="red" label={`Notice date passed ${daysPhrase(left)}`} />;

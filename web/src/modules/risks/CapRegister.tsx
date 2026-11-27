@@ -58,7 +58,8 @@ export function CapRegister() {
             field: 'actions_done', label: 'Actions', sortable: true,
             render: (row) => (
               <span className="cap-count">
-                {row.actions_done ?? 0} of {row.actions_total ?? 0} done
+                {/* E18-89: an empty plan stands out instead of reading "0 of 0 done". */}
+                {(row.actions_total ?? 0) === 0 ? <span className="muted">No actions yet</span> : <>{row.actions_done ?? 0} of {row.actions_total} done</>}
                 {row.actions_awaiting > 0 && <span className="chip chip-purple">{row.actions_awaiting} to verify</span>}
               </span>
             ),

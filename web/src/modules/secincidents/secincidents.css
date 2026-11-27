@@ -462,3 +462,5 @@
 /* The organization on the kit's cover and contacts sheet (Administration > Organization). */
 .si-kit-org { display: flex; align-items: center; gap: var(--s-2); }
 .si-kit-own { margin-bottom: var(--s-4); }
+/* E18-77: no clock yet because the notification questions are unanswered: amber, not reassuring. */
+.si-unanswered { border-inline-start: 4px solid var(--c-amber-solid); background: var(--c-amber-bg); border-radius: var(--radius); }

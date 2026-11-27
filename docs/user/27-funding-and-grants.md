@@ -1,6 +1,6 @@
 # Funding and grants
 
-The funding pages help an organization that receives outside funding (grants, capital and operating assistance, and other awards) show that it meets its funders' conditions: the **awards** and what each one paid for, the **reports** each award requires, the **yearly certifications** an authorized official signs, and the **compliance reviews** funders make, with the deficiencies they find and how each is corrected. Open them from **Funding and grants** in the **Governance** group of the navigation. The pages share tabs along the top: **Dashboard**, **Awards**, **Certifications**, **Compliance reviews**, **Deficiencies**, **Sub-recipients** and **Review areas**. Lists and record pages work as described in [Getting started](01-getting-started.md).
+The funding pages help an organization that receives outside funding (grants, capital and operating assistance, and other awards) show that it meets its funders' conditions: the **awards** and what each one paid for, the **reports** each award requires, the **yearly certifications** an authorized official signs, and the **compliance reviews** funders make, with the deficiencies they find and how each is corrected. Open them from **Projects and funding > Funding and grants** in the navigation. The pages share tabs along the top: **Dashboard**, **Awards**, **Certifications**, **Compliance reviews**, **Deficiencies**, **Sub-recipients** and **Review areas**. Lists and record pages work as described in [Getting started](01-getting-started.md).
 
 No funder, funding program, law or review guide is built in. Funders and programs are names you type on each award, the statements you certify are your own, and a funder's review areas are loaded from a file you prepare (see [Review areas from a file](#review-areas-from-a-file)). Everything shipped as an example is invented and labeled as a sample.
 
@@ -70,7 +70,7 @@ A yearly certification is the list of statements your organization certifies to 
 
 ### The checklist
 
-The **Checklist** tab shows each statement with its **Category**, the person **Responsible** and its **Confirmation**, and a bar of how many applicable items are confirmed.
+The **Checklist** tab shows each statement with its **Category**, the person **Responsible** and its **Confirmation** (who confirmed it and when; an item confirmed in data loaded from elsewhere, with no person recorded, reads "Confirmed (imported, no user recorded)"), and a bar of how many applicable items are confirmed.
 
 - **Add an item**: enter the **Statement**, choose a **Category** and the person **Responsible**, and clear **Applies to the organization this year** if it does not apply. An item that does not apply needs no confirmation.
 - **Confirm**: the person responsible for an item, or anyone who may edit funding records, confirms it. **Withdraw** takes a confirmation back. Changing a confirmed statement, or whether it applies, clears its confirmation.

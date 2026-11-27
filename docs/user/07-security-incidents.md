@@ -4,7 +4,7 @@ A security incident is a suspected or confirmed attack on, loss of, or unauthori
 
 An administrator can switch security incidents off under **Administration > Features** (see [Administration](09-administration.md#features)). Restricted records elsewhere (risks, vulnerabilities) are still protected the same way. Records are kept and return when it is switched back on.
 
-The screens are in the **Cybersecurity** group of the menu: **Security incidents**, **Notification deadlines**, **Rules and checklists** and **Offline incident kit**.
+The screens are under **Security > Security incidents**, with the tabs **Incidents**, **Notification deadlines** and **Rules and checklists**; the **Offline incident kit** opens from a button on the incident list (or the search, by its name).
 
 ## Who can see security incidents
 
@@ -30,7 +30,7 @@ Take it literally. Use the application to rehearse, to run exercises and to prep
 
 ## The incident list
 
-**Cybersecurity > Security incidents** opens with four figures: **Open incidents**, **Notifications overdue**, **Notifications due soon** and **Reviews to complete** (closed incidents whose post-incident review is not finished). Select one of the notification figures to open the notification deadlines.
+**Security > Security incidents** opens with four figures: **Open incidents**, **Notifications overdue**, **Notifications due soon** and **Reviews to complete** (closed incidents whose post-incident review is not finished). Select one of the notification figures to open the notification deadlines.
 
 Below is the list of incidents, with search, filters, saved views, column choice and export like every other list. Columns such as **Declared**, **Closed**, **Post-incident review** and **Review due** are hidden to begin with; add them from the column menu.
 
@@ -186,11 +186,15 @@ The answers can be changed on the **Affected** tab. After the incident is declar
 - switching it on again reopens the clocks that were stood down that way;
 - completed notifications are never removed.
 
-If a declared incident shows "No notifications required", no active rule matches it. Check the answers on the **Affected** tab and check that the rules have been set up.
+The answers count as given once the incident was declared through **Declare incident** (which asks every question), or once someone has answered a question on the **Affected** tab. A question left as it was is not an answer: an incident recorded another way (a quick record, an import) shows **The answers are complete** on the **Affected** tab until someone answers or confirms them. A declared incident with no clock says why:
+
+- **Answer the Affected questions to check notification duties** (amber): nobody has answered the questions yet, so a clock that should run may be missing.
+- **No notification rule is switched on**: every rule is off or has no deadline (see [Notification rules, checklists and contacts](#notification-rules-checklists-and-contacts)).
+- **No notifications required**: the questions are answered and no active rule matches them.
 
 ## Notification deadlines across incidents
 
-**Cybersecurity > Notification deadlines** shows every notification on every incident in one place.
+The **Notification deadlines** tab of **Security > Security incidents** shows every notification on every incident in one place.
 
 The **Deadlines** tab shows four figures, **Overdue**, **Due soon**, **On track** and **Recorded**, then a table, most urgent first, with the deadline and time left, the party, and the incident. Choose what to show with **To make**, **Recorded**, **Not required** or **All**. **Record notification**, **Not required** and **Correct record** work exactly as they do on the incident.
 
@@ -329,7 +333,7 @@ It ends with spaces to sign. Select **Print or save as PDF** and use your browse
 
 ## Notification rules, checklists and contacts
 
-Open **Cybersecurity > Rules and checklists**. The page has five tabs: **Notification rules**, **Kinds of data**, **Scenario checklists**, **Roles and contacts** and **Incident statuses**. Everyone who can see security incidents can read it. Only people with **Administer** can change it.
+Open **Security > Security incidents** and the **Rules and checklists** tab. The page has five tabs: **Notification rules**, **Kinds of data**, **Scenario checklists**, **Roles and contacts** and **Incident statuses**. Everyone who can see security incidents can read it. Only people with **Administer** can change it.
 
 ### Why the built-in rules start inactive
 
@@ -400,7 +404,7 @@ Select **Add status** to add one, or the pencil icon to rename, recolor, reorder
 
 An incident may take down the network or this application. The kit is a printed document with what you need in the first hour.
 
-1. Open **Cybersecurity > Offline incident kit**. The page shows a print preview, page by page.
+1. Open **Security > Security incidents** and select **Offline incident kit** (or find it by name in the search). The page shows a print preview, page by page.
 2. Select **Print or save as PDF** and use your browser's print window. A4 or Letter, portrait.
 3. Keep copies where they can be reached if the network is down, for example in a locked cabinet and with each member of the incident team.
 

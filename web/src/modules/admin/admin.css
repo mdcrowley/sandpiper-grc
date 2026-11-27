@@ -386,3 +386,22 @@
 .adm-dataload-buttons { display: flex; flex-wrap: wrap; gap: var(--s-2); padding-bottom: var(--s-1); }
 .adm-dataloads .num { text-align: right; white-space: nowrap; }
 .adm-dataloads-action { text-align: right; }
+
+/* ---------- Administration page (/admin, E44-03) ---------- */
+.admin-hub-search { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3); }
+.admin-hub-search > :first-child { flex: 0 1 28rem; min-width: 0; }
+.admin-hub-count { margin: 0; }
+.admin-hub-section { display: grid; gap: var(--s-3); }
+.admin-hub-title { font-size: var(--fs-lg); font-weight: 650; }
+.admin-hub-grid { display: grid; gap: var(--s-3); grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr)); margin: 0; padding: 0; list-style: none; }
+.admin-hub-card {
+  display: flex; gap: var(--s-3); align-items: flex-start; height: 100%; padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); text-decoration: none;
+}
+.admin-hub-card:hover { border-color: var(--brand); }
+.admin-hub-card:focus-visible { outline: 2px solid var(--focus, var(--brand)); outline-offset: 2px; }
+.admin-hub-icon { display: inline-flex; padding: 6px; border-radius: var(--radius-sm); background: var(--surface-2, var(--bg)); color: var(--text-muted); }
+.admin-hub-text { display: grid; gap: 2px; min-width: 0; }
+.admin-hub-name { font-weight: 600; }
+.admin-hub-hint { color: var(--text-muted); font-size: var(--fs-sm); }
+.admin-hub-status { color: var(--text-muted); font-size: var(--fs-sm); font-weight: 600; }

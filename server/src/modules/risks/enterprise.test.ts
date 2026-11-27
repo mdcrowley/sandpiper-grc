@@ -186,14 +186,30 @@ describe('compliance samples', () => {
 });
 
 describe('heat map appetite line', () => {
-  it('outlines the cells above the strictest appetite on the scale', async () => {
+  it("outlines only the cells holding a risk above its own category's appetite (E18-80)", async () => {
     const clear = (await t.api.get('/api/risks/appetite')).body.categories.map((c: any) => ({ category: c.category }));
     await t.api.put('/api/risks/appetite', { categories: [...clear, { category: 'cyber', max_rating: 'medium' }, { category: 'enterprise', max_rating: 'high' }] });
+    // High (3 by 4 = 12): above the cyber appetite (medium), within the enterprise one (high).
+    const at = (l: number, i: number) => ({ inherent_likelihood: l, inherent_impact: i, residual_likelihood: l, residual_impact: i });
+    const ent = (await t.api.post('/api/risks', { title: 'Invented appetite probe, enterprise', category: 'enterprise', ...at(3, 4) })).body;
+    const cyb = (await t.api.post('/api/risks', { title: 'Invented appetite probe, cyber', category: 'cyber', ...at(4, 3) })).body;
+    expect([ent.appetite_breach, cyb.appetite_breach]).toEqual([false, true]);
     const heat = (await t.api.get('/api/risks/heatmap?scale=cyber_5x5')).body;
     expect(heat.appetite).toMatchObject({ rating: 'medium' });
     expect(heat.appetite.categories).toEqual(['Cybersecurity']);
-    expect(heat.cells.find((c: any) => c.rating === 'extreme').above_appetite).toBe(true);
-    expect(heat.cells.find((c: any) => c.rating === 'low').above_appetite).toBe(false);
+    const cellOf = (id: string) => heat.cells.find((c: any) => c.risk_ids.includes(id));
+    // The enterprise risk's cell is above the strictest appetite (medium) but is outlined only for the
+    // cyber risks in it that are above theirs.
+    const entCell = cellOf(ent.id);
+    expect(entCell.rating).toBe('high');
+    expect(cellOf(cyb.id)).toMatchObject({ rating: 'high', above_appetite: true });
+    const breach = new Map((await t.api.get('/api/risks?pageSize=500')).body.rows.map((r: any) => [r.id, r.appetite_breach === true]));
+    expect(entCell.above_count).toBe(entCell.risk_ids.filter((id: string) => breach.get(id)).length);
+    expect(entCell.above_count).toBeLessThan(entCell.count);
+    // Every outline agrees with the risks' own Appetite flags.
+    for (const c of heat.cells) expect(c.above_appetite).toBe(c.risk_ids.some((id: string) => breach.get(id)));
+    expect(heat.cells.filter((c: any) => c.count === 0).every((c: any) => !c.above_appetite)).toBe(true);
+    for (const r of [ent, cyb]) await t.api.del(`/api/risks/${r.id}`);
     await t.api.put('/api/risks/appetite', { categories: clear });
     expect((await t.api.get('/api/risks/heatmap?scale=cyber_5x5')).body.appetite).toBeNull();
   });

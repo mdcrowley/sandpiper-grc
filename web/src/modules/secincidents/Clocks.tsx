@@ -286,9 +286,15 @@ export function ClocksRail({ incidentId, declared, version, canEdit, onChanged }
   if (error) body = <ErrorState title="The clocks could not be loaded" error={error} onRetry={reload} />;
   else if (!data) body = <Loading lines={3} label="Loading clocks" />;
   else if (!data.clocks.length) {
-    body = declared
-      ? <EmptyState icon="clock" title="No notifications required" message="No active notification rule matches this incident. Check the answers on the Affected tab." />
-      : <EmptyState icon="clock" title="Clocks start when the incident is declared" message="Deadlines are counted from the discovery time, not from the declaration." />;
+    // E18-77: no clock is reassuring only once the questions are answered and some rule is switched on.
+    body = !declared
+      ? <EmptyState icon="clock" title="Clocks start when the incident is declared" message="Deadlines are counted from the discovery time, not from the declaration." />
+      : data.answers_confirmed === false
+        ? <div className="si-unanswered" role="status"><EmptyState icon="alert-circle" title="Answer the Affected questions to check notification duties"
+            message="Nobody has answered the questions on the Affected tab yet, so no clock has started. A Yes there can start one." /></div>
+        : data.rules_active === 0
+          ? <EmptyState icon="clock" title="No notification rule is switched on" message="Every notification rule is off or has no deadline, so no clock can start. Set them up under Notification deadlines." />
+          : <EmptyState icon="clock" title="No notifications required" message="No active notification rule matches this incident's answers on the Affected tab." />;
   } else {
     const clocks = sortClocks(data.clocks, now);
     body = (

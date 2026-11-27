@@ -77,6 +77,9 @@ export interface ClocksResult {
   now: string;
   amber_fraction: number;
   incident: { id: string; ref: string; title: string; discovered_at: string; declared_at: string | null };
+  /** Whether the notification questions (Affected tab) have been answered, and how many rules are switched on (E18-77). */
+  answers_confirmed?: boolean;
+  rules_active?: number;
   clocks: Clock[];
 }
 

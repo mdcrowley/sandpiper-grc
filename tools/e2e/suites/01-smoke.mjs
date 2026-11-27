@@ -43,10 +43,12 @@ const navTitles = {
   theme: 'light', width: 1440,
   async run(t) {
     await t.page.goto('/');
+    // Groups start closed except the current one (E44-01): open them all, so a label too long shows as cut off.
+    await t.page.fn(() => { document.querySelectorAll('nav[aria-label="Main"] button[data-group][aria-expanded="false"]').forEach((b) => b.click()); return true; });
     const links = await t.step('read the navigation', () => t.page.fn(() => [...document.querySelectorAll('nav[aria-label="Main"] a.nav-link[href]')]
       .map((a) => {
         const span = a.querySelector('.nav-label');
-        // Every group starts open, so a label too long for the sidebar shows as cut off (an ellipsis).
+        // Every group is open now, so a label too long for the sidebar shows as cut off (an ellipsis).
         return { path: new URL(a.href).pathname + new URL(a.href).search, label: span?.innerText?.trim() ?? a.innerText.trim(), cut: Boolean(span && span.scrollWidth > span.clientWidth + 1) };
       })));
     t.page.takeProblems();

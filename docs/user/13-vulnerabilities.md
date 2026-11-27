@@ -19,12 +19,12 @@ Beyond viewing, on **Vulnerabilities**:
 
 ## Find your way around
 
-Open **Vulnerabilities** in the **Cybersecurity** group. Four tabs sit under the page title:
+Open **Security > Vulnerabilities**. Four tabs sit under the page title:
 
 | Tab | What it holds |
 |---|---|
 | **Findings** | The list of findings |
-| **Dashboard** | Charts and totals; also reached from **Vulnerability dashboard** in the menu |
+| **Dashboard** | Charts and totals; also found by its name, **Vulnerability dashboard**, in the search |
 | **Imports** | Every imported file, and the import wizard |
 | **Severity policy** | The days allowed to fix a finding, by severity |
 
@@ -50,7 +50,7 @@ Most findings arrive by import. To record one from a penetration test, a supplie
 2. Enter the **Title** and choose the **Severity**.
 3. Enter the **Host name**, the **IP address**, or both. Optionally enter the **Port**, the **Protocol** (such as `tcp` or `udp`) and the **Service**.
 4. Enter what identifies the finding: the **Finding ID** from the tool that reported it, or the **CVE** identifiers separated by commas.
-5. Optionally enter the **CVSS score** (0 to 10), check **Known exploited**, set **First seen** (today when left empty), and choose the **Owner**, **System** and **Asset**. You can also enter a **Description**, the **Solution** and the **Source** (where the finding came from).
+5. Optionally enter the **CVSS score** (0 to 10), check **Known exploited**, set **First seen** (today when left empty), and choose the **Owner**, **System** and **Asset**. With no **Owner**, a finding on an asset or system takes one: the asset's owner, else the system's technical owner, else its business owner (active accounts only). The same happens when a finding with no owner is later linked to a system or asset, and to findings an import adds; an owner already set is never changed. You can also enter a **Description**, the **Solution** and the **Source** (where the finding came from).
 6. Select **Create vulnerability**.
 
 The finding gets a reference such as `VUL-00042`, the status **Open** and a fix-by date. When you enter only a host name or only an address that is already recorded for a host, the finding joins that host.
@@ -146,7 +146,7 @@ The import reads a CSV export from any scanner or assessment tool. You tell it w
 2. Choose the **CSV file**, or select **Paste text** and paste it into **CSV text**. The first row must hold the column names. The limits are 5 MB and 10,000 rows; split a larger file and import the parts one after another. A note under the box says how many columns and rows were found.
 3. Enter the **Source**: a name for where the findings come from, such as the name of the scan. Use exactly the same name each time, because a later import is compared with earlier imports of the same source.
 4. Optionally choose a **Saved mapping** from an earlier import.
-5. Optionally choose an **Owner for new findings**. Findings this import adds are assigned to that person, who is told once when the import finishes. Findings already recorded keep their owner.
+5. Optionally choose an **Owner for new findings**. Findings this import adds are assigned to that person, who is told once when the import finishes. Findings already recorded keep their owner. With no owner chosen, a new finding matched to an asset or system takes the owner of that asset or system, as when it is entered by hand.
 6. Select **Next: map columns**. With a saved mapping chosen you can instead select **Dry run with** and the mapping's name, which skips step 2.
 
 Commas, semicolons, tabs and vertical bars are recognized as separators without being asked.

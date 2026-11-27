@@ -1,6 +1,6 @@
 # Cybersecurity frameworks and assessments
 
-A framework is a published list of security outcomes that an organization works toward; NIST CSF 2.0 is included, and others can be added from a file. This page explains how to read the outcomes board, how to record where you stand on each outcome and the evidence for it, and how to take assessment snapshots so that progress can be shown between two dates. The screens are in the **Cybersecurity** group of the menu: **Framework outcomes** and **Assessments**.
+A framework is a published list of security outcomes that an organization works toward; NIST CSF 2.0 is included, and others can be added from a file. This page explains how to read the outcomes board, how to record where you stand on each outcome and the evidence for it, and how to take assessment snapshots so that progress can be shown between two dates. The screens are in the **Security** group of the menu: **Framework outcomes**, with the tabs **Outcomes**, **Assessments**, **Coverage** and, for people who administer frameworks, **Settings**.
 
 An administrator can switch framework outcomes off under **Administration > Features** (see [Administration](09-administration.md#features)). Records are kept and return when it is switched back on.
 
@@ -43,7 +43,7 @@ Administrators can rename statuses and change their colors under **Lists** (the 
 
 ## The outcomes board
 
-Open **Cybersecurity > Framework outcomes**. The line under the title names the framework and says how many outcomes it has and how many are priority outcomes.
+Open **Security > Framework outcomes**. The line under the title names the framework and says how many outcomes it has and how many are priority outcomes.
 
 ### Summary
 
@@ -273,7 +273,7 @@ The **Risks, policies and actions** tab gathers the work connected to this outco
 
 ## Coverage of other frameworks
 
-Open **Framework outcomes > More > Coverage of other frameworks**. The page turns the **Also satisfies** mappings around:
+Open **Security > Framework outcomes** and the **Coverage** tab (also under **More**). The page turns the **Also satisfies** mappings around:
 
 - On the left is one card for each other framework or document that outcomes are mapped to, with the number of its requirements, the number of outcomes mapped to it, and how many of those are at target.
 - Select a card to see its requirements. Each row shows the **Requirement** (or "The framework as a whole" when no reference was given), the outcomes that satisfy it with their **Status**, and how many are **At target**.
@@ -315,7 +315,7 @@ For NIST CSF 2.0, **Check official wording** (needs **Edit**) compares the outco
 
 ## Framework settings
 
-Open **Framework outcomes > More > Framework settings**. Everyone who can see the outcomes can read the settings; changing them needs the **Administer** permission on frameworks. Every change is recorded in the audit log.
+Open **Security > Framework outcomes** and the **Settings** tab (also under **More**, and on the **Administration** page). Everyone who can see the outcomes can read the settings; changing them needs the **Administer** permission on frameworks. Every change is recorded in the audit log.
 
 - **Scoring**: the weight of each status, as a percentage of an outcome (usually 0, 33, 67 and 100). The score out of 100 is the average weight of the outcomes.
 - **Target status**: the line drawn on the board, the progress chart and assessment reports. An outcome at that status, or at one that weighs more, counts as on target. The target status needs a weight above 0%.
@@ -366,7 +366,7 @@ Function, category and outcome codes must each be unique within the file. A file
 
 An assessment snapshot records the status of every outcome on one date. Snapshots are what make it possible to show progress: without one there is nothing to compare today against.
 
-Open **Cybersecurity > Assessments**. The tiles at the top show **Score now, all outcomes**, **Score now, priority outcomes**, **Priority outcomes at "Largely met" or better** (each with the change since the latest snapshot) and **Snapshots taken**.
+Open **Security > Framework outcomes** and the **Assessments** tab. The tiles at the top show **Score now, all outcomes**, **Score now, priority outcomes**, **Priority outcomes at "Largely met" or better** (each with the change since the latest snapshot) and **Snapshots taken**.
 
 ### Taking a snapshot
 

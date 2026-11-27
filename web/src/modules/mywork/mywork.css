@@ -1,0 +1,4 @@
+/* My work (/my-work): the count line above the lists; the lists use the Overview's cards (home.css). */
+.mywork-total { display: flex; align-items: center; gap: var(--s-2); min-height: 1.5rem; margin: 0; color: var(--text-muted); }
+.mywork-total strong { color: var(--text); }
+.mywork-total .icon { color: var(--c-green-fg); }

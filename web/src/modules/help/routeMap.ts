@@ -11,6 +11,7 @@ export interface RouteHelp { prefix: string; page: string; section?: string; exa
 export const ROUTE_HELP: RouteHelp[] = [
   // Home, account and sign-in
   { prefix: '/', exact: true, page: '01-getting-started', section: 'overview' },
+  { prefix: '/my-work', page: '01-getting-started', section: 'the-my-work-page' },
   { prefix: '/account/security', page: '09-administration', section: 'my-account-the-account-security-page' },
   { prefix: '/sign-in/recovery', page: '01-getting-started', section: 'recovery-codes' },
   { prefix: '/redeem', page: '09-administration', section: 'one-time-setup-and-reset-links' },
@@ -92,9 +93,19 @@ export const ROUTE_HELP: RouteHelp[] = [
   { prefix: '/vulnerabilities/imports', page: '13-vulnerabilities', section: 'import-history' },
   { prefix: '/vulnerabilities/duplicates', page: '13-vulnerabilities', section: 'duplicate-findings' },
   { prefix: '/vulnerabilities/settings', page: '13-vulnerabilities', section: 'the-severity-policy' },
-  { prefix: '/policies', exact: true, page: '11-policies-and-exceptions', section: 'the-policy-library' },
-  { prefix: '/policies', page: '11-policies-and-exceptions', section: 'the-policy-page' },
-  { prefix: '/policies/acknowledgments', page: '11-policies-and-exceptions', section: 'track-acknowledgment' },
+  { prefix: '/documents', exact: true, page: '11-policies-and-exceptions', section: 'the-document-library' },
+  { prefix: '/documents', page: '11-policies-and-exceptions', section: 'read-a-document' },
+  { prefix: '/documents/register', page: '11-policies-and-exceptions', section: 'the-register' },
+  { prefix: '/documents/approvals', page: '11-policies-and-exceptions', section: 'the-register' },
+  { prefix: '/documents/external', page: '11-policies-and-exceptions', section: 'the-register' },
+  { prefix: '/documents/reviews', page: '11-policies-and-exceptions', section: 'reviews' },
+  { prefix: '/documents/groups', page: '11-policies-and-exceptions', section: 'distribution-groups' },
+  { prefix: '/documents/import', page: '11-policies-and-exceptions', section: 'import-a-document-package' },
+  { prefix: '/documents/settings', page: '11-policies-and-exceptions', section: 'settings' },
+  { prefix: '/documents/kiosk', page: '11-policies-and-exceptions', section: 'the-acknowledgment-kiosk' },
+  { prefix: '/policies', exact: true, page: '11-policies-and-exceptions', section: 'the-register' },
+  { prefix: '/policies', page: '11-policies-and-exceptions', section: 'the-document-page' },
+  { prefix: '/policies/acknowledgments', page: '11-policies-and-exceptions', section: 'acknowledge-a-document' },
   { prefix: '/exceptions', page: '11-policies-and-exceptions', section: 'exceptions' },
   { prefix: '/training', page: '12-training-and-exercises', section: 'training-overview' },
   { prefix: '/training/courses', page: '12-training-and-exercises', section: 'courses' },
@@ -122,6 +133,7 @@ export const ROUTE_HELP: RouteHelp[] = [
 
   // Administration
   { prefix: '/admin', page: '09-administration' },
+  { prefix: '/admin', exact: true, page: '09-administration', section: 'the-administration-page' },
   { prefix: '/admin/users', exact: true, page: '09-administration', section: 'users' },
   { prefix: '/admin/users', page: '09-administration', section: 'changing-a-persons-details-and-roles' },
   { prefix: '/admin/roles', page: '09-administration', section: 'roles-and-permissions' },
@@ -216,7 +228,6 @@ export const ROUTE_HELP: RouteHelp[] = [
   { prefix: '/people/departments', page: '29-people-and-qualifications', section: 'departments' },
   { prefix: '/training/qualifications', page: '29-people-and-qualifications', section: 'the-qualification-matrix' },
   { prefix: '/training/certifications', page: '12-training-and-exercises', section: 'qualifications-and-certifications' },
-  { prefix: '/policies/kiosk', page: '11-policies-and-exceptions', section: 'the-acknowledgment-kiosk' },
 
   // Obligations, regulatory change and enterprise risk
   { prefix: '/regulatory-changes', page: '06-risks-actions-obligations', section: 'regulatory-changes' },
@@ -266,7 +277,7 @@ export const ROUTE_HELP: RouteHelp[] = [
   { prefix: '/admin/provisioning', page: '35-user-provisioning-and-log-forwarding', section: 'user-provisioning' },
   { prefix: '/admin/log-forwarding', page: '35-user-provisioning-and-log-forwarding', section: 'log-forwarding' },
   { prefix: '/account/calendar-feeds', page: '36-calendar-feeds-work-trackers-and-evidence-links', section: 'calendar-feeds' },
-  { prefix: '/calendar', page: '36-calendar-feeds-work-trackers-and-evidence-links', section: 'compliance-calendar' },
+  { prefix: '/calendar', page: '36-calendar-feeds-work-trackers-and-evidence-links', section: 'calendar' },
   { prefix: '/admin/calendar-and-work-trackers', page: '36-calendar-feeds-work-trackers-and-evidence-links' },
 
   // Asset tags

@@ -89,7 +89,8 @@ export async function registerRequests(ctx: ModuleContext) {
     path: '/api/records-requests', route: '/records-requests', titleField: 'subject',
     ref: { field: 'ref', prefix: 'RRQ-' },
     searchable: ['subject', 'description'],
-    defaultSort: { field: 'received_on', dir: 'desc' },
+    // Open requests by the date due now, so the overdue ones come first; answered ones after (E18-83).
+    defaultSort: { field: 'open_due_on', dir: 'asc' },
     rowRule: requestRule(ctx),
     fields: {
       ref: { label: 'Reference', type: 'text', readOnly: true },
@@ -101,8 +102,10 @@ export async function registerRequests(ctx: ModuleContext) {
       requester_address: { label: 'Requester address', type: 'longtext', personal: true },
       identity_verified: { label: 'Identity verified', type: 'boolean', default: false },
       received_on: { label: 'Received on', type: 'date' }, // today when left empty (hook)
-      due_on: { label: 'Due', type: 'date', readOnly: true },
+      due_on: { label: 'First due', type: 'date', readOnly: true },
       extended_due_on: { label: 'Extended to', type: 'date', readOnly: true },
+      // E18-83: the date due now (the extended one when there is one), worked out by the database.
+      current_due_on: { label: 'Due', type: 'date', readOnly: true },
       extension_reason: { label: 'Reason for extension', type: 'longtext', readOnly: true },
       description: { label: 'What was asked for', type: 'longtext' },
       owner_id: { label: 'Owner', type: 'user' },

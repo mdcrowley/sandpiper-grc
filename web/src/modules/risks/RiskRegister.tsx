@@ -88,6 +88,11 @@ export function RiskRegister() {
   const ranked = heat.data ? (chosen ? heat.data.risks.filter((r) => chosen.risk_ids.includes(r.id)) : heat.data.risks.filter((r) => r.score !== null)) : [];
   const s = summary.data;
   const level = (v: string) => s?.levels.find((l) => l.value === v);
+  // E18-81: a scale may name the level differently ("Extreme" on the heat map counts as "Critical" here): say so.
+  const levelHint = (v: string) => {
+    const names = (scale?.ratings ?? []).filter((r) => r.summary_level === v && r.label !== (level(v)?.label ?? '')).map((r) => r.label);
+    return names.length ? `Includes ${names.join(' and ')} on the heat map · every scale` : 'Across every scale';
+  };
 
   return (
     <div className="stack rk-register">
@@ -99,8 +104,8 @@ export function RiskRegister() {
             label="Open risks" value={s?.total ?? '–'} color="blue" icon="alert"
             hint={[s && s.unscored > 0 ? `${s.unscored} not yet scored` : 'All scales', s && (s.above_appetite ?? 0) > 0 ? `${s.above_appetite} above appetite` : null].filter(Boolean).join(' · ')}
           />
-          <Stat label={level('critical')?.label ?? 'Critical'} value={level('critical')?.count ?? '–'} color={(level('critical')?.color ?? 'red') as ColorName} to="/risks?f.summary_level=critical" hint="Across every scale" />
-          <Stat label={level('high')?.label ?? 'High'} value={level('high')?.count ?? '–'} color={(level('high')?.color ?? 'orange') as ColorName} to="/risks?f.summary_level=high" hint="Across every scale" />
+          <Stat label={level('critical')?.label ?? 'Critical'} value={level('critical')?.count ?? '–'} color={(level('critical')?.color ?? 'red') as ColorName} to="/risks?f.summary_level=critical" hint={levelHint('critical')} />
+          <Stat label={level('high')?.label ?? 'High'} value={level('high')?.count ?? '–'} color={(level('high')?.color ?? 'orange') as ColorName} to="/risks?f.summary_level=high" hint={levelHint('high')} />
           <Stat label="Reviews due" value={s?.reviews_due ?? '–'} color={s && s.reviews_due > 0 ? 'amber' : 'green'} icon="calendar" to="/risks/reviews" hint="Review date reached" />
           <Stat
             label="Acceptances to renew" value={s ? s.acceptances_expired + s.acceptances_expiring : '–'}

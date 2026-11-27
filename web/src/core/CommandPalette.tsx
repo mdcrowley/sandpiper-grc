@@ -8,6 +8,7 @@ import { useDebounced, useFetch } from './hooks';
 import { Icon, type IconName } from './Icon';
 import { useAuth } from './auth';
 import { recordHref } from './meta';
+import { readRecentRecords, type RecentRecord } from './navMemory';
 import { cx } from './ui';
 
 export interface PaletteLink {
@@ -76,11 +77,15 @@ export interface CommandPaletteProps {
   onClose: () => void;
   pages: PaletteLink[];
   create: PaletteLink[];
-  /** Keeps each user's recent searches apart. */
+  /** The person's pinned pages, offered before anything is typed and found by name. */
+  pinned?: PaletteLink[];
+  /** Whether an address is a page the person may open now; recent records failing it are not offered. */
+  pathOpen?: (path: string) => boolean;
+  /** Keeps each user's recent searches and recent records apart. */
   userId: string;
 }
 
-export function CommandPalette({ opened, onClose, pages, create, userId }: CommandPaletteProps) {
+export function CommandPalette({ opened, onClose, pages, create, pinned = [], pathOpen, userId }: CommandPaletteProps) {
   const navigate = useNavigate();
   const { areaOn, can } = useAuth();
   const listId = useId();
@@ -89,6 +94,7 @@ export function CommandPalette({ opened, onClose, pages, create, userId }: Comma
   const [text, setText] = useState('');
   const [active, setActive] = useState(0);
   const [recent, setRecent] = useState<string[]>([]);
+  const [records, setRecords] = useState<RecentRecord[]>([]);
   const typed = text.trim();
   const q = useDebounced(typed, 220);
   const searching = opened && q.length >= 2;
@@ -99,7 +105,10 @@ export function CommandPalette({ opened, onClose, pages, create, userId }: Comma
     setText('');
     setActive(0);
     setRecent(readRecent(recentKey));
-  }, [opened, recentKey]);
+    setRecords(readRecentRecords(userId).filter((r) => !pathOpen || pathOpen(r.path)));
+    // Read when the palette opens; a change of access while it is open waits for the next opening.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opened, recentKey, userId]);
 
   const entries = useMemo<Entry[]>(() => {
     const go = (path: string, remember = false) => () => {
@@ -118,10 +127,18 @@ export function CommandPalette({ opened, onClose, pages, create, userId }: Comma
     const out: Entry[] = [];
 
     if (!needle) {
-      recent.forEach((r) => out.push({ key: `recent-${r}`, section: 'Recent searches', icon: 'history', label: r, run: () => setText(r) }));
+      pinned.forEach((p) => out.push({ key: `pin-${p.path}`, section: 'Pinned', icon: p.icon ?? 'star', label: p.label, run: go(p.path) }));
+      // Records opened lately (a record page's address only, so one the person may no longer see answers "not found").
+      records.forEach((r) => out.push({ key: `record-${r.path}`, section: 'Recently opened', icon: 'history', label: r.label, reference: r.reference, run: go(r.path) }));
+      recent.forEach((r) => out.push({ key: `recent-${r}`, section: 'Recent searches', icon: 'search', label: r, run: () => setText(r) }));
       create.slice(0, 8).forEach((c) => out.push({ key: `create-${c.path}`, section: 'Create', icon: c.icon ?? 'plus', label: `New ${c.label.toLowerCase()}`, run: go(c.path) }));
       return out;
     }
+
+    pinned
+      .filter((p) => p.label.toLowerCase().includes(needle))
+      .slice(0, 3)
+      .forEach((p) => out.push({ key: `pin-${p.path}`, section: 'Pinned', icon: p.icon ?? 'star', label: p.label, run: go(p.path) }));
 
     PROVIDERS.filter((p) => (!p.area || areaOn(p.area)) && (!p.permission || can(p.permission)))
       .flatMap((p) => p.entries(typed).slice(0, 3).map((e) => ({ ...e, key: `${p.key}-${e.key}` })))
@@ -150,7 +167,7 @@ export function CommandPalette({ opened, onClose, pages, create, userId }: Comma
       run: go(recordHref(h.route, h.id), true),
     })));
     return out;
-  }, [typed, q, data, recent, pages, create, recentKey, navigate, onClose, areaOn, can]);
+  }, [typed, q, data, recent, records, pinned, pages, create, recentKey, navigate, onClose, areaOn, can]);
 
   useEffect(() => setActive(0), [typed, data]);
   useEffect(() => {

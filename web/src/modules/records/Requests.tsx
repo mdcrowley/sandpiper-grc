@@ -110,8 +110,15 @@ export function RequestList() {
       <ResourceList
         type="records_request"
         urlState
-        columns={['ref', 'subject', 'kind', 'status', 'received_on', 'due_on', 'extended_due_on', 'owner_id']}
-        filters={['kind', 'status', 'owner_id', 'received_on', 'due_on']}
+        columns={[
+          'ref', 'subject', 'kind', 'status', 'received_on',
+          // The date due now, marked when it was extended (E18-83); the first due date stays in the chooser.
+          { field: 'current_due_on', label: 'Due', sortable: true, priority: 1, render: (row) => (
+            <span>{formatDate(row.current_due_on)}{row.extended_due_on ? <span className="muted"> (extended)</span> : null}</span>
+          ) },
+          { field: 'due_on', hidden: true }, 'owner_id',
+        ]}
+        filters={['kind', 'status', 'owner_id', 'received_on', 'current_due_on']}
         createFields={CREATE}
       />
       {settings && <SettingsDialog onClose={() => setSettings(false)} />}

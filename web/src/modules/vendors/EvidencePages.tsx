@@ -79,11 +79,13 @@ function EvidenceSummary({ row, reload }: { row: Row; reload: () => void }) {
 
 const WINDOWS = [30, 60, 90, 180, 365].map((d) => ({ value: String(d), label: `${d} days` }));
 
+const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
 interface Band { key: string; title: string; hint: string; color: ColorName; rows: ExpiringEvidence[] }
 
 function EvidenceRow({ r }: { r: ExpiringEvidence }) {
   const [, month, day] = r.expires_on.split('-');
-  const monthName = formatDate(r.expires_on).split(' ')[1];
+  const monthName = SHORT_MONTHS[Number(month) - 1];
   return (
     <li className="vnd-agenda-item">
       <span className="vnd-datebox" aria-hidden="true">

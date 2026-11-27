@@ -144,6 +144,11 @@ export interface ResourceDef {
   partition?: { column: string; value: string };
   searchable?: string[];
   /**
+   * Columns of the table that the generated routes never return (list, record, create and update
+   * answers): derived text kept only for search, such as a document's full text (E43).
+   */
+  omit?: string[];
+  /**
    * Files attached to these records are evidence (E14-18): the record page's Attachments tab records
    * new files as evidence, with a collection date and an optional expiry date. Default: true for the
    * evidence-bearing types core knows (EVIDENCE_TYPES in core/resource.ts), false for the rest.

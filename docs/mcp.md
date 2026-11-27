@@ -137,7 +137,7 @@ and list labels rather than ids and codes) and a `url` to open them. Failures co
 tool error (`isError: true`) with `structuredContent.error = { code, status, message, fields? }`;
 validation failures name each field. Annotations: read tools `readOnlyHint: true`; all tools
 `destructiveHint: false`, `openWorldHint: false`; `idempotentHint` where repeating changes
-nothing (all reads, `update_record`, `link_records`).
+nothing (all reads, `update_record`, `link_records`, and the document tools marked so below).
 
 `type` accepts a record type key, label or plural (`ticket`, `Tickets`); `id` accepts an id or a
 reference (`TKT-00012`).
@@ -148,7 +148,11 @@ reference (`TKT-00012`).
 reports `data_load` (with a type: `extra_fields`, and `settable_in_data_load` on read-only fields),
 `create_record` and `update_record` accept read-only fields and `created_at`, `created_by`,
 `updated_at` (their descriptions say so), and `delete_record` is offered. Field errors come back as
-usual.
+usual. In data load mode the write tools (`create_record`, `update_record`, `add_comment`, `link_records`,
+`decide_approval`, `save_document`, `add_document_version`) also take `as`, the person who really wrote or
+did the thing (E18-71; see the user guide, chapter 21): the tools resolve it with `POST /api/data-load/person`
+and send `on_behalf_of`. The argument is part of the input schema only while the caller's saves are loads
+(`ToolSpec.dataLoadInput`).
 
 ### Records
 
@@ -206,6 +210,39 @@ requester details, even where a dashboard route also lists records. A tool whose
 is not offered to anyone; a route that does not answer for the caller (not built in this version, or
 a permission the token lacks) gives a "not available" answer instead of an error.
 
+### Documents
+
+Document control tools (E43-10, `server/src/modules/mcp/tools-documents.ts`). Each calls the
+documents' own routes with the caller's token, so a document's **distribution** (who may read it),
+permissions, scope, numbering and data load mode are exactly those of the web application: a
+restricted document the token's person may not read is never listed, read, counted under its name or
+checked, and asking for it answers `not_found`, as for a document that does not exist. The read tools
+are offered to a caller who can see `policy`; the write tools also need `policies.create` or
+`policies.edit`, AI assistant write access (`mcp.write_enabled`) and a token with write scopes.
+Nothing here deletes; in data load mode `delete_record` removes a document a load created, and nothing
+else.
+
+| Tool | Input | Output |
+|---|---|---|
+| `find_documents` | `q?`, `type?`, `department?` (name or id), `status?`, `review?` (`overdue`, `due_90`), `limit?` (≤ 200) | Number, title, type, status, current version, next review and link of each document you may read (`GET /api/policies`) |
+| `read_document` | `document` (number, reference or id), `version?`, `max_chars?` (≤ 100,000) | Details, every version you may see with label, status, approved, effective, superseded and withdrawn dates, approval body and reference and conversion warnings; the chosen version's text (its Markdown, or for a file version the text read from its PDF original, `GET /api/documents/:id/versions/:vid/text`; a scan says it has no text); parent, children (hidden ones counted), links. `access_lists` only when you may change them |
+| `document_register_summary` | none | Figures, the same for everyone: total, effective, in review, reviews overdue and due within 90 days, obsolete, without an owner, acknowledgment completion, by type and status (`GET /api/documents/summary`, `GET /api/policies/stats?group=status`). No titles |
+| `check_document` | `document?`, `number_prefix?` | Per document: more than one effective version, gaps or overlaps between versions' dates, versions out of order or without an effective date, a file version without its original, children of obsolete documents (and an obsolete document's live children), the type tier warning, an acknowledgment audience outside the readers, no owner. Without `document`, up to 100 documents you may read. Reports progress |
+| `convert_upload` | `upload_id`, `max_chars?` | Read-only effect: the Markdown a `.docx` upload converts to and the conversion report (tracked changes, comments, left-out content, images, hints from headers and footers), nothing saved (`POST /api/documents/convert`). Any other type: the report says it is kept as the original file |
+| `start_upload` | `file_name`, `size`, `sha256?` | Write. `POST /api/attachments/uploads`: `upload_id`, `part_size` (1 MiB), `part_count` |
+| `upload_part` | `upload_id`, `part` (from 1), `data` (base64), `sha256?` | Write, idempotent. `POST /api/attachments/uploads/:id/parts/:n`; reports progress |
+| `finish_upload` | `upload_id`, `sha256?` | Write, idempotent. Joins the parts, checks the SHA-256, type and content, runs the malware scanner (`POST .../finish`). The upload is kept 24 hours and used once |
+| `save_document` | `doc_number?`, `title?`, `summary?`, `type?`, `owner?` (user name, id or `me`), `owning_department?`, `parent_number?`, `approver_name?`, `approver_role?`, `review_months?`, `access?`, `access_departments?`, `access_roles?`, `access_groups?`, `access_users?`, `ack_required?`, `audience_*?`, `ack_days?`, `publisher?`, `edition?`, `published_on?`, `source_url?`, `license_note?`, `expires_on?` | Write, idempotent. Updates the document with that number (`PATCH /api/policies/:id`), or creates one (`POST /api/policies`). Setting a number by hand needs `policies.administer` except in data load mode, where the given number is kept |
+| `add_document_version` | `document`, `body_markdown` or `upload_id`, `convert?` (default true for `.docx`), `accept_as_is?`, `version?`, `version_label?`, `status?`, `approved_on?`, `effective_on?`, `superseded_on?`, `withdrawn_on?`, `approved_by_name?`, `approval_body?`, `approval_reference?`, `change_summary?`, `minor?` | Write. `POST /api/policies/:id/versions` with `source_upload_id`: a Word upload is converted (its images become files on the document); a tracked-changes file is refused before the upload is used, unless `accept_as_is`; a Word file that cannot be converted, a PDF or a legacy `.doc` becomes a file-only version with a note. The version number, status and dates are sent only in data load mode; otherwise the version is a draft and the answer says so |
+| `set_document_access` | `document`, `access`, `access_departments?`, `access_roles?`, `access_groups?`, `access_users?` | Write, idempotent. Replaces the distribution (owner or `policies.administer`); names are matched |
+| `link_document` | `document`, `to_type`, `to`, `relation?` | Write, idempotent. `POST /api/links` with a `document_link_relation` value (default `references`); a framework outcome goes through `POST /api/policies/:id/outcomes` |
+| `record_document_review` | `document`, `result` (`no_change`, `revise`, `retire`), `reviewed_on?`, `reviewed_by_name?`, `note?`, `reason?`, `replaced_by?` | Write. `POST /api/policies/:id/reviews`; past dates in data load mode |
+
+In data load mode (`dataLoad.allowed`) the descriptions of `save_document`, `add_document_version`
+and `record_document_review` say that the dates, statuses and numbers given are kept and that nothing
+is sent; versions may arrive out of order and superseding is worked out from their dates. Every
+document loaded is listed in `data_load_records`.
+
 ### Progress notifications
 
 A client that wants progress sends `_meta.progressToken` with `tools/call`. That request is then
@@ -224,6 +261,13 @@ arrive.
   `triage_open_tickets` (`queue?`), `incident_status_update` (`incident?`). Each tells the
   assistant which tools to use, to cite references and links, and not to change anything unless
   asked.
+- `load_document_package` (`folder?`, `department?`, E43-10): walks an assistant through loading a
+  folder of controlled documents with their history: inventory the files (skipping Office lock files
+  `~$...` and thumbnail caches), find what exists, propose numbers, types, owners, access and versions
+  for the person's approval, check that data load mode is on, then per document `save_document` and
+  per version, oldest first, the upload tools, `convert_upload` for Word files and
+  `add_document_version`; then `check_document` and a report (files kept as originals only, warnings,
+  links). It never invents a number, date, owner or reader.
 
 ## OAuth for remote connectors
 

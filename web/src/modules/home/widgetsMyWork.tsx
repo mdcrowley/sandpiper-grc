@@ -4,10 +4,10 @@
 import {
   ApiError, Countdown, StatusChip, api, listQuery, lookupColor, relativeTime, useAuth, useFetch, useLookup,
 } from '../../core';
-import type { ListResult, Row } from '../../core';
+import type { ListResult } from '../../core';
 import { useCallback, useContext } from 'react';
+import { useApprovalInbox } from '../workflows/inbox';
 import { DueChip, WorkCard, WorkTally, type WorkItem } from './parts';
-import { useWidgetCtx } from './sources';
 import type { WidgetDef } from './types';
 import type { MyDueWork } from '../../../../shared/work-api.ts';
 
@@ -56,58 +56,20 @@ function MyActions() {
   );
 }
 
-/** What this person may approve: changes awaiting approval, requested exceptions, policies in review. */
-function approvalRights(ctx: ReturnType<typeof useWidgetCtx>) {
-  return {
-    changes: ctx.sees('change') && ctx.can('changes.approve'),
-    exceptions: ctx.sees('policy_exception') && ctx.can('exceptions.approve'),
-    policies: ctx.sees('policy') && ctx.can('policies.approve'),
-  };
-}
-
+/**
+ * Everything waiting for this person's decision (E44-05): the same inbox, and so the same count, as
+ * My work > Approvals and the Approvals page. Workflow steps (changes, disposals and every other approval
+ * kind) where the person is a named approver, then exception requests and policies in review.
+ */
 function MyApprovals() {
-  const ctx = useWidgetCtx();
-  const rights = approvalRights(ctx);
-  const changes = useFetch<ListResult>(rights.changes
-    ? `/api/changes${listQuery({ sort: 'submitted_at', dir: 'asc', pageSize: 25, filters: { status: 'submitted' } })}` : null);
-  const exceptions = useFetch<ListResult>(rights.exceptions
-    ? `/api/exceptions${listQuery({ sort: 'created_at', dir: 'asc', pageSize: ROWS, filters: { status: 'requested' } })}` : null);
-  const policies = useFetch<ListResult>(rights.policies
-    ? `/api/policies${listQuery({ sort: 'updated_at', dir: 'asc', pageSize: ROWS, filters: { status: 'in_review' } })}` : null);
-
-  const used = [
-    ...(rights.changes ? [changes] : []), ...(rights.exceptions ? [exceptions] : []), ...(rights.policies ? [policies] : []),
-  ];
-  const failed = used.find((s) => s.error);
-  const ready = used.every((s) => s.data);
-
-  // A person cannot approve a change they raised themselves, so those are left out.
-  const own = (row: Row) => row.created_by === ctx.userId;
-  const changeRows = changes.data?.rows.filter((row) => !own(row)) ?? [];
-  const changeCount = changes.data ? changes.data.total - (changes.data.rows.length - changeRows.length) : 0;
-
-  const items: WorkItem[] = [
-    ...changeRows.map((row): WorkItem => ({
-      key: `change-${row.id}`, to: `/changes/${row.id}`, title: row.title, reference: row.ref,
-      meta: <StatusChip color="blue" label={`Change${row.submitted_at ? `, submitted ${relativeTime(row.submitted_at)}` : ''}`} />,
-    })),
-    ...(exceptions.data?.rows ?? []).map((row): WorkItem => ({
-      key: `exception-${row.id}`, to: `/exceptions/${row.id}`, title: row.title, reference: row.ref,
-      meta: <StatusChip color="purple" label="Exception request" />,
-    })),
-    ...(policies.data?.rows ?? []).map((row): WorkItem => ({
-      key: `policy-${row.id}`, to: `/policies/${row.id}`, title: row.title, reference: row.ref,
-      meta: <StatusChip color="amber" label="Policy in review" />,
-    })),
-  ];
-  const count = changeCount + (exceptions.data?.total ?? 0) + (policies.data?.total ?? 0);
-  const to = rights.changes ? '/changes?view=awaiting'
-    : rights.exceptions ? '/exceptions?f.status=requested' : '/policies?f.status=in_review';
-
+  const inbox = useApprovalInbox();
+  const items = inbox.count === undefined ? undefined : inbox.items.slice(0, ROWS).map((i): WorkItem => ({
+    key: i.key, to: i.to, title: i.title, reference: i.reference,
+    meta: i.dueAt ? <Countdown label="Due" deadline={i.dueAt} start={i.startedAt ?? undefined} /> : <StatusChip color={i.stepId ? 'blue' : 'purple'} label={i.kind} />,
+  }));
   return (
-    <WorkCard id="my-approvals" title="My approvals" icon="check-circle" to={to}
-      items={ready ? items.slice(0, ROWS) : undefined} count={ready ? count : undefined}
-      error={failed?.error} reload={() => used.forEach((s) => s.reload())}
+    <WorkCard id="my-approvals" title="My approvals" icon="check-circle" to="/approvals"
+      items={items} count={inbox.count} error={inbox.error} reload={inbox.reload}
       emptyText="Nothing is waiting for your approval." />
   );
 }
@@ -145,7 +107,7 @@ function MyAcknowledgments() {
   }));
   return (
     <WorkCard id="my-acknowledgments" title="My acknowledgments" icon="file-text" to="/policies/acknowledgments"
-      items={items} count={data?.awaiting.length} error={error} reload={reload} emptyText="You have no policies to acknowledge." />
+      items={items} count={data?.awaiting.length} error={error} reload={reload} emptyText="You have no documents to acknowledge." />
   );
 }
 
@@ -169,8 +131,11 @@ interface MineNotifications {
   total: number;
 }
 
+/** Unread notifications. Not counted as work waiting (E44-05): the bell already counts them, and the work they tell of is counted in its own list. */
 function MyNotifications() {
   const { data, error, reload } = useFetch<MineNotifications>('/api/notifications?unread=true&pageSize=5');
+  const parent = useContext(WorkTally);
+  const report = useCallback((id: string, n: number | null) => parent(id, n === null ? null : 0), [parent]);
   if (absent(error)) return null;
   const items = data?.rows.map((n): WorkItem => ({
     key: n.id,
@@ -181,8 +146,10 @@ function MyNotifications() {
     onOpen: () => { api.post(`/api/notifications/${n.id}/read`, {}).catch(() => {}); },
   }));
   return (
-    <WorkCard id="my-notifications" title="My notifications" icon="bell" to="/notifications"
-      items={items} count={data?.total} error={error} reload={reload} emptyText="You have no unread notifications." />
+    <WorkTally.Provider value={report}>
+      <WorkCard id="my-notifications" title="My notifications" icon="bell" to="/notifications"
+        items={items} count={data?.total} error={error} reload={reload} emptyText="You have no unread notifications." />
+    </WorkTally.Provider>
   );
 }
 
@@ -219,8 +186,8 @@ export const MY_WORK_WIDGETS: WidgetDef[] = [
   },
   {
     id: 'my-approvals', title: 'My approvals', group: 'mywork',
-    description: 'Changes, exception requests and policies waiting for an approval you can give.',
-    visible: (ctx) => Object.values(approvalRights(ctx)).some(Boolean), render: () => <MyApprovals />,
+    description: 'Approval steps where you are an approver (changes, disposals and the rest), exception requests and policies in review: the same list as Approvals.',
+    visible: () => true, render: () => <MyApprovals />,
   },
   {
     id: 'my-due-work', title: 'My due work', group: 'mywork',
@@ -236,7 +203,7 @@ export const MY_WORK_WIDGETS: WidgetDef[] = [
     visible: (ctx) => ctx.hasModule('training'), render: () => <MyTraining />,
   },
   {
-    id: 'my-notifications', title: 'My notifications', group: 'mywork', description: 'Your unread notifications.',
+    id: 'my-notifications', title: 'My notifications', group: 'mywork', description: 'Your unread notifications. Not counted as work waiting.',
     visible: (ctx) => ctx.hasModule('notifications'), render: () => <MyNotifications />,
   },
   {

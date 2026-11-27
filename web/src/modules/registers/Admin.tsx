@@ -32,7 +32,7 @@ const STATE: Record<AdminRegister['state'], { label: string; color: string }> = 
 };
 
 type Draft = { key: string; label: string; plural: string; description: string; prefix: string; nav_group: string; icon: string; title_label: string; evidence: boolean };
-const EMPTY: Draft = { key: '', label: '', plural: '', description: '', prefix: '', nav_group: 'Governance', icon: 'folder', title_label: 'Title', evidence: false };
+const EMPTY: Draft = { key: '', label: '', plural: '', description: '', prefix: '', nav_group: 'Governance and records', icon: 'folder', title_label: 'Title', evidence: false };
 const draftOf = (r: AdminRegister): Draft => ({
   key: r.key, label: r.label, plural: r.plural, description: r.description, prefix: r.prefix.replace(/-$/, ''), nav_group: r.nav_group,
   icon: r.icon, title_label: r.title_label, evidence: r.evidence,
@@ -57,7 +57,7 @@ function DefinitionFields({ draft, set, errors, groups, icons, isNew }: {
         hint={`Records are numbered ${(draft.prefix || 'LP').replace(/-$/, '')}-00001, ${(draft.prefix || 'LP').replace(/-$/, '')}-00002 and so on.`} />
       <TextField label="Name of the main field" value={draft.title_label} onChange={(v) => set({ title_label: v })} error={errors.title_label} maxLength={40}
         hint='The field every record must have, for example "Item" or "Key".' />
-      <Select label="Menu group" value={draft.nav_group} onChange={(v) => set({ nav_group: v ?? 'Governance' })} error={errors.nav_group}
+      <Select label="Menu group" value={draft.nav_group} onChange={(v) => set({ nav_group: v ?? 'Governance and records' })} error={errors.nav_group}
         options={groups.map((g) => ({ value: g, label: g }))} />
       <Select label="Icon" value={draft.icon} onChange={(v) => set({ icon: v ?? 'folder' })} error={errors.icon}
         options={icons.map((i) => ({ value: i, label: ICON_LABELS[i] ?? i }))} />

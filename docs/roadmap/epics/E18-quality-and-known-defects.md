@@ -1,6 +1,6 @@
 # E18 Quality and known defects
 
-**Status:** done (70 of 70 issues done)
+**Status:** in progress (93 of 94 issues done)
 
 ## Goal
 
@@ -91,6 +91,30 @@ has never been checked, so nobody relies on something untested.
 | E18-68 | Wave 23 security review: access, platform, files and the Windows installer | done | P1 |
 | E18-69 | The pilot seed profile added invented sample records | done | P1 |
 | E18-70 | Data load mode: load historical records with their original dates, and undo a load | done | P1 |
+| E18-71 | Act on behalf of someone in data load mode | done | P1 |
+| E18-72 | Ticket page: Activity under the description | done | P2 |
+| E18-73 | Ticket list opens on a working queue | done | P2 |
+| E18-74 | Respond target met by an answer, not by assigning | done | P2 |
+| E18-75 | Vendor notice headline and ended contracts | done | P2 |
+| E18-76 | Vulnerability owner from the linked asset or system | done | P2 |
+| E18-77 | Security incident clocks: unanswered questions are not "no notifications required" | done | P2 |
+| E18-78 | Switched-off roles cannot be given | done | P2 |
+| E18-79 | Indicator month to date | done | P2 |
+| E18-80 | Heat map appetite ring agrees with each risk | done | P2 |
+| E18-81 | Critical and Extreme naming | done | P2 |
+| E18-82 | Sample data that contradicted itself | done | P2 |
+| E18-83 | Records request list shows the date due now | done | P2 |
+| E18-84 | Requester picker on the new-ticket form | done | P2 |
+| E18-85 | "Open tickets by age" chart no longer squashed | done | P2 |
+| E18-86 | Training overview tables fit at 1440 | done | P2 |
+| E18-87 | Report pack tables wrap | done | P2 |
+| E18-88 | Risk report "All scored" | done | P2 |
+| E18-89 | Corrective action plan list | done | P2 |
+| E18-90 | Certification items "Confirmed by someone" | done | P2 |
+| E18-91 | Expiring evidence date tiles missing the month | done | P2 |
+| E18-92 | British wording in sample data | done | P2 |
+| E18-93 | User guide contradictions | done | P2 |
+| E18-94 | Module actor columns follow the named person in a load | open | P2 |
 
 ---
 
@@ -1489,3 +1513,199 @@ Data loads or, one record at a time, with the MCP tool `delete_record`.
 - [x] Tests (also on UTC): historical tickets through MCP with original dates and due and breach values given or worked out, service desk figures from those dates, non-administrators refused, refusal while off, the end time, delete and undo, legal holds, no notifications or webhooks; per-module load tests
 
 **Implemented in:** `server/src/core/dataload.ts`, `server/src/core/resource.ts` (`loadScope`, `suppliedByLoad`, `checkLoadedRef`, `remove`), `server/src/core/migrations/032_data_load.sql`, `server/src/core/tokens.ts` (`tokenOwnerPermissions`), `server/src/core/services.ts` (audit marker), `server/src/core/webhooks.ts`, `server/src/core/auth.ts` (`dataLoad` in the state), `server/src/app.ts` (`quietSenders`, `core.data_load_expiry`), `server/src/modules/admin/dataload.ts` (`GET/POST /api/admin/data-load`, `POST /api/admin/data-load/undo`, `DELETE /api/data-load/records/:type/:id`), `server/src/modules/mcp/` (`delete_record`, session `dataLoad`, tool notes), `server/src/modules/tickets/index.ts` and `catalog.ts`, the risks, changes, secincidents, vulnerabilities and policies hooks, `workflows/index.ts`, `feeds/tracker.ts`; `web/src/modules/admin/DataLoad.tsx` (Settings card and Data loads page), the banner in `web/src/core/Shell.tsx`; tests `server/src/modules/mcp/dataload.test.ts` and `dataload.test.ts` in risks, changes, secincidents, vulnerabilities and policies.
+
+### E18-71 Act on behalf of someone in data load mode
+
+**Status:** done · **Priority:** P1 · **Type:** feature
+
+While data load mode is on, an administrator and their API and AI assistant tokens may name the real person who wrote or did each thing they load (`on_behalf_of` / `X-On-Behalf-Of`; MCP `as` on create_record, update_record, add_comment, link_records, decide_approval, save_document and add_document_version): an account (user id, user name or email, disabled accounts too), a roster person or a plain name. Records, comments, links, files, document versions and approval decisions carry that person; the audit log keeps the real actor and token and adds "on behalf of"; the Data loads page lists it. Unknown people are refused; outside data load mode naming anyone is refused (400); nothing is sent; permissions stay the loader's.
+
+- [x] Resolver and field errors
+- [x] Records, comments, links, files, decisions
+- [x] Audit columns and summary; Data loads page
+- [x] MCP argument offered only in data load mode
+- [x] Tests
+
+**Implemented in:** `server/src/core/dataload.ts` (`resolvePerson`, `actorOf`, `registerOnBehalf`), `server/src/core/migrations/033_data_load_on_behalf.sql`, `core/services.ts`, `core/resource.ts`, `core/routes.ts`, `modules/attachments/intake.ts`, `modules/workflows/routes.ts`, `modules/admin/dataload.ts`, `modules/mcp/tools-records.ts`, `tools-approvals.ts`, `tools-documents.ts`; tests `core/onbehalf.test.ts`, `mcp/onbehalf.test.ts`.
+
+### E18-72 Ticket page: Activity under the description
+
+**Status:** done · **Priority:** P2 · **Type:** defect (wave 24 review)
+
+The facts column floats on the right, so the note box is no longer about 1,200 pixels down beside a tall column (one column on narrow screens: work, facts, tabs).
+
+**Implemented in:** web/src/modules/tickets/TicketDetail.tsx, tickets.css.
+
+### E18-73 Ticket list opens on a working queue
+
+**Status:** done · **Priority:** P2 · **Type:** defect (wave 24 review)
+
+A bare /tickets opens the queue chosen last in this browser, else All open (All carries queue=all); Assignee and Resolution target are always shown.
+
+**Implemented in:** web/src/modules/tickets/TicketList.tsx.
+
+### E18-74 Respond target met by an answer, not by assigning
+
+**Status:** done · **Priority:** P2 · **Type:** defect (wave 24 review)
+
+A public comment by anyone but the requester, or a status other than New or Assigned, meets it (audited ticket.first_response); each ticket status can be set to meet it under Lists ("Meets the Respond target"); the next-step sentence follows.
+
+**Implemented in:** server/src/modules/tickets/index.ts, first-response.test.ts; web/src/modules/tickets/util.ts.
+
+### E18-75 Vendor notice headline and ended contracts
+
+**Status:** done · **Priority:** P2 · **Type:** defect (wave 24 review)
+
+The vendor card headlines the latest passed notice date of an open contract (with its contract) and the next date under it; ended contracts show their notice date in gray, never red; long chips wrap.
+
+**Implemented in:** server/src/modules/vendors/index.ts, notice-headline.test.ts; web/src/modules/vendors/VendorPages.tsx, shared.tsx, ContractPages.tsx.
+
+### E18-76 Vulnerability owner from the linked asset or system
+
+**Status:** done · **Priority:** P2 · **Type:** defect (wave 24 review)
+
+A finding with no owner takes the asset owner, else the system's technical then business owner (active accounts), on create, link or import; an owner given is kept.
+
+**Implemented in:** server/src/modules/vulnerabilities/rules.ts, owner-from-link.test.ts.
+
+### E18-77 Security incident clocks: unanswered questions are not "no notifications required"
+
+**Status:** done · **Priority:** P2 · **Type:** defect (wave 24 review)
+
+answers_confirmed_at is recorded by the declare flow or the Affected tab ("The answers are complete"); the rail says "Answer the Affected questions" (amber), "No notification rule is switched on" or "No notifications required".
+
+**Implemented in:** server/src/modules/secincidents/index.ts, migrations/005_answers_confirmed.sql; web/src/modules/secincidents/Clocks.tsx, AffectedTab.tsx.
+
+### E18-78 Switched-off roles cannot be given
+
+**Status:** done · **Priority:** P2 · **Type:** defect (wave 24 review)
+
+Creating or updating a user refuses a role switched off under Roles, with a message naming it; a role already held is kept; its checkbox is disabled.
+
+**Implemented in:** server/src/modules/admin/users.ts, disabled-role.test.ts; web/src/modules/admin/Users.tsx, UserDetail.tsx.
+
+### E18-79 Indicator month to date
+
+**Status:** done · **Priority:** P2 · **Type:** defect (wave 24 review)
+
+The current month is marked partial and never judged on target; tiles and the dashboard show the latest complete month, with a "Month to date" chip.
+
+**Implemented in:** server/src/modules/safety/indicators.ts; web/src/modules/safety/Indicators.tsx, Dashboard.tsx.
+
+### E18-80 Heat map appetite ring agrees with each risk
+
+**Status:** done · **Priority:** P2 · **Type:** defect (wave 24 review)
+
+A cell is ringed only when it holds a risk above its own category's appetite (above_count); legend "Holds a risk above its category's appetite".
+
+**Implemented in:** server/src/modules/risks/index.ts; web/src/modules/risks/HeatMap.tsx.
+
+### E18-81 Critical and Extreme naming
+
+**Status:** done · **Priority:** P2 · **Type:** defect (wave 24 review)
+
+The Critical and High tiles say which heat map ratings they include ("Includes Extreme on the heat map").
+
+**Implemented in:** web/src/modules/risks/RiskRegister.tsx.
+
+### E18-82 Sample data that contradicted itself
+
+**Status:** done · **Priority:** P2 · **Type:** defect (wave 24 review)
+
+The ended sample backup contract is on the backup service its vendor runs, not the dispatch system; each sample change is on the system its title names; sample training departments are the roster's; ticket priorities spread wider.
+
+**Implemented in:** server/src/modules/changes/seed.ts, sample-systems.test.ts, vendors/seed-lifecycle.ts, inventory/seed-sample.ts, training/seed-sample.ts, tickets/seed.ts.
+
+### E18-83 Records request list shows the date due now
+
+**Status:** done · **Priority:** P2 · **Type:** defect (wave 24 review)
+
+current_due_on (the extended date, marked "(extended)") is the Due column and filter; open requests come first by that date; the first due date is "First due".
+
+**Implemented in:** server/src/modules/records/requests.ts, migrations/002_current_due.sql; web/src/modules/records/Requests.tsx.
+
+### E18-84 Requester picker on the new-ticket form
+
+**Status:** done · **Priority:** P2 · **Type:** defect (wave 24 review)
+
+Search over accounts and (with people.view) the roster by name, email or employee number; fills department and email and links the account; free text still allowed (GET /api/tickets/requesters).
+
+**Implemented in:** server/src/modules/tickets/requesters.ts; web/src/modules/tickets/RequesterField.tsx, NewTicketDialog.tsx.
+
+### E18-85 "Open tickets by age" chart no longer squashed
+
+**Status:** done · **Priority:** P2 · **Type:** defect (wave 24 review)
+
+Vertical charts on the service desk dashboard get their own margins and height.
+
+**Implemented in:** web/src/modules/tickets/Dashboard.tsx.
+
+### E18-86 Training overview tables fit at 1440
+
+**Status:** done · **Priority:** P2 · **Type:** defect (wave 24 review)
+
+Names wrap and figure columns are narrower, with no sideways scroll inside the page.
+
+**Implemented in:** web/src/modules/training/training.css.
+
+### E18-87 Report pack tables wrap
+
+**Status:** done · **Priority:** P2 · **Type:** defect (wave 24 review)
+
+Tables in a pack wrap their text to the page instead of scrolling sideways with a column cut off (print keeps every column).
+
+**Implemented in:** web/src/modules/reports/reports-dash.css.
+
+### E18-88 Risk report "All scored"
+
+**Status:** done · **Priority:** P2 · **Type:** defect (wave 24 review)
+
+The report says how many open risks have an inherent score only (no_residual).
+
+**Implemented in:** server/src/modules/risks/lifecycle.ts; web/src/modules/risks/RiskReport.tsx.
+
+### E18-89 Corrective action plan list
+
+**Status:** done · **Priority:** P2 · **Type:** defect (wave 24 review)
+
+"No actions yet" instead of "0 of 0 done".
+
+**Implemented in:** web/src/modules/risks/CapRegister.tsx.
+
+### E18-90 Certification items "Confirmed by someone"
+
+**Status:** done · **Priority:** P2 · **Type:** defect (wave 24 review)
+
+An item confirmed with no person recorded reads "Confirmed (imported, no user recorded)".
+
+**Implemented in:** web/src/modules/funding/Certifications.tsx.
+
+### E18-91 Expiring evidence date tiles missing the month
+
+**Status:** done · **Priority:** P2 · **Type:** defect (wave 24 review)
+
+The tiles show the month again (it was taken from a date format that changed).
+
+**Implemented in:** web/src/modules/vendors/EvidencePages.tsx.
+
+### E18-92 British wording in sample data
+
+**Status:** done · **Priority:** P2 · **Type:** defect (wave 24 review)
+
+spotter, curb, bike lanes, salting, light-rail vehicle, cell phones, detours and call forwarding replace the British words.
+
+**Implemented in:** server/src/modules/safety/seed.ts, continuity/seed.ts, inventory/seed-sample.ts, training/seed-sample.ts, vendors/seed-intake.ts.
+
+### E18-93 User guide contradictions
+
+**Status:** done · **Priority:** P2 · **Type:** defect (wave 24 review)
+
+The fleet guide no longer says inspections are unavailable; the committees and continuity guides explain that their samples load only once the first account exists.
+
+**Implemented in:** docs/user/19-fleet-and-services.md, 28-committees-and-meetings.md, 30-business-continuity.md.
+
+### E18-94 Module actor columns follow the named person in a load
+
+**Status:** open · **Priority:** P2 · **Type:** feature
+
+Policy acknowledgments (users and roster people), change approvals, access review decisions, incident log entries, status reports, figure entries and similar module columns use `actorOf(req)` during a load, and a load can record a user's acknowledgment of a document.

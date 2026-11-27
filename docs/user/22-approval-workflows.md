@@ -6,7 +6,7 @@ Workflows work with any kind of record. The approvals of other parts of the appl
 
 ## Approvals waiting for you
 
-Open **Approvals** in the **Home** group of the sidebar. It has four tabs:
+Open **My work > Approvals** (the **Approvals** tab of **My work**, in the top group of the sidebar). It has four tabs:
 
 - **Waiting for me**: every approval step waiting for your decision, the soonest due first. Each shows the record (select it to open the record), the workflow, which step of how many it is (the small bars), who asked, how many approvals the step has and needs, and the time left before it is due. An overdue one has a red edge; **Escalated** means it went past its due time and was passed to more people.
 - **Decided by me**: what you approved or rejected, with your comment.

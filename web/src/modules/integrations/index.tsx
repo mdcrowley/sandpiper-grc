@@ -11,8 +11,8 @@ const ADMIN = 'admin.administer';
 const mod: ModuleDef = {
   key: 'integrations',
   nav: [
-    { group: 'Administration', label: 'User provisioning', path: '/admin/provisioning', icon: 'users', permission: ADMIN, order: 26 },
-    { group: 'Administration', label: 'Log forwarding', path: '/admin/log-forwarding', icon: 'upload', permission: ADMIN, order: 52 },
+    { group: 'Administration', label: 'User provisioning', path: '/admin/provisioning', icon: 'users', permission: ADMIN, order: 23, menu: false, hub: 'People and access', hint: 'Accounts kept in step with your directory (SCIM).' },
+    { group: 'Administration', label: 'Log forwarding', path: '/admin/log-forwarding', icon: 'upload', permission: ADMIN, order: 53, menu: false, hub: 'Connections', hint: 'Send the audit log to your log collector.' },
   ],
   routes: [
     { path: '/admin/provisioning', element: <ProvisioningPage />, permission: ADMIN },

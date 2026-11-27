@@ -12,8 +12,8 @@ const view = 'systems.view';
 const mod: ModuleDef = {
   key: 'ot',
   nav: [
-    { group: 'Cybersecurity', label: 'OT security', path: '/ot', icon: 'server', permission: view, order: 43 },
-    { group: 'Cybersecurity', label: 'Security zones', path: '/ot/zones', icon: 'lock', permission: view, order: 44 },
+    { group: 'Security', label: 'OT security', path: '/ot', icon: 'server', permission: view, order: 40 },
+    { group: 'Security', label: 'Security zones', path: '/ot/zones', icon: 'lock', permission: view, order: 41, menu: false, parent: '/ot' },
   ],
   routes: [
     { path: '/ot', element: <OtOverview />, permission: view },

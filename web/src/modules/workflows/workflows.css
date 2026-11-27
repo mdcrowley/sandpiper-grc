@@ -269,3 +269,5 @@ button.wf-flow-button:hover { background: var(--surface-hover); }
 
 /* "A different person from the other steps" (AZ-7): apart from the approver fields above it. */
 .wf-distinct { margin-top: var(--mantine-spacing-md); }
+/* The decisions that are not workflows, under the workflow steps (E44-05). */
+.wf-section-title { font-size: var(--fs-md); font-weight: 650; }

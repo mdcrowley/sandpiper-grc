@@ -206,15 +206,8 @@ function Summary({ rec }: { rec: RecordContext }) {
   const has = (f: string) => f in rec.resource.fields;
   return (
     <>
-      <div className="sd-main">
-        <Description rec={rec} />
-        <RequestDetails row={row} />
-        <FulfillmentTasks rec={rec} />
-        {(row.resolved_at || row.resolution_code || row.resolution_notes) && (
-          <EditableSummary type="ticket" row={row} onSaved={reload} title="Resolution" fields={['resolution_code', 'resolution_notes']} />
-        )}
-        <SatisfactionCard rec={rec} />
-      </div>
+      {/* The facts come first: on a wide page they float on the right, so the work on the left (and
+          the Activity tabs under it) never waits for a tall facts column (tickets.css, E18-72). */}
       <aside className="sd-side" aria-label="Ticket facts">
         <EditableSummary
           type="ticket" row={row} onSaved={reload}
@@ -241,6 +234,15 @@ function Summary({ rec }: { rec: RecordContext }) {
           ]} />
         </Card>
       </aside>
+      <div className="sd-main">
+        <Description rec={rec} />
+        <RequestDetails row={row} />
+        <FulfillmentTasks rec={rec} />
+        {(row.resolved_at || row.resolution_code || row.resolution_notes) && (
+          <EditableSummary type="ticket" row={row} onSaved={reload} title="Resolution" fields={['resolution_code', 'resolution_notes']} />
+        )}
+        <SatisfactionCard rec={rec} />
+      </div>
     </>
   );
 }

@@ -54,8 +54,8 @@ export interface ToolResult {
   text: string;
   /** The same answer as structured data. */
   data: Record<string, unknown>;
-  /** Write tools: the change, for the audit event naming the token. */
-  audit?: { recordType: string; recordId: string; summary: string };
+  /** Write tools: the change, for the audit event naming the token (and the person a load wrote for, E18-71). */
+  audit?: { recordType: string; recordId: string; summary: string; onBehalf?: string | null };
 }
 
 /** What decides whether a tool is offered to this caller at all. */
@@ -75,6 +75,8 @@ export interface ToolSpec {
   dataLoadOnly?: boolean;
   /** Added to the description while this caller's saves are loads (E18-70). */
   dataLoadNote?: string;
+  /** Arguments offered only while this caller's saves are loads (E18-71: `as`, the person written for). */
+  dataLoadInput?: ZodRawShape;
   /** Repeating the call with the same input has no further effect. */
   idempotent?: boolean;
   /** Short group name for the administrators' screen. */

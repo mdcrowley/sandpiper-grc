@@ -76,13 +76,13 @@ function PoliciesByStatus() {
   const navigate = useNavigate();
   const { data, error, reload } = useFetch<StatsResult>('/api/policies/stats?group=status');
   return (
-    <Card title="Policies by status" className="home-panel" actions={<MoreLink to="/policies">Policy library</MoreLink>}>
+    <Card title="Documents by status" className="home-panel" actions={<MoreLink to="/documents/register">Document register</MoreLink>}>
       {error ? <ErrorState error={error} onRetry={reload} />
         : !data ? <Loading lines={3} />
-        : data.total === 0 ? <EmptyState icon="file-text" title="No policies yet" message="Policies appear here once they are written." />
+        : data.total === 0 ? <EmptyState icon="file-text" title="No documents yet" message="Documents appear here once they are written or loaded." />
         : (
-          <GroupBars label="Policies by status" description="Select a bar to open the policies with that status." groups={data.groups}
-            onPick={(key) => navigate(`/policies${listQuery({ filters: key ? { status: key } : { 'status.null': true } })}`)} />
+          <GroupBars label="Documents by status" description="Select a bar to open the documents with that status." groups={data.groups}
+            onPick={(key) => navigate(`/documents/register${listQuery({ filters: key ? { status: key } : { 'status.null': true } })}`)} />
         )}
     </Card>
   );
@@ -178,8 +178,8 @@ export const NEWER_WIDGETS: WidgetDef[] = [
     visible: (ctx) => ctx.sees('course'), render: () => <TrainingCompletion />,
   },
   {
-    id: 'policies-status', title: 'Policies by status', group: 'dashboard',
-    description: 'A chart of policies by status; select a bar to open that list.',
+    id: 'policies-status', title: 'Documents by status', group: 'dashboard',
+    description: 'A chart of documents by status; select a bar to open that list.',
     visible: (ctx) => ctx.sees('policy'), render: () => <PoliciesByStatus />,
   },
 ];

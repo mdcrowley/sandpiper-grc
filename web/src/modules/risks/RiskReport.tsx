@@ -34,6 +34,8 @@ interface Report {
   window_days: number;
   total: number;
   unscored: number;
+  /** Open risks scored on the inherent rating only (E18-88). */
+  no_residual?: number;
   accepted: number;
   reviews_overdue: number;
   levels: { value: string; label: string; color: string; count: number }[];
@@ -175,7 +177,7 @@ export function RiskReport() {
       {data.total === 0 ? <Card><EmptyState icon="shield" title="No open risks" message="There is nothing to report until a risk is added to the register." /></Card> : (
         <>
           <div className="grid-stats">
-            <Stat label="Open risks" value={data.total} color="blue" hint={data.unscored > 0 ? `${data.unscored} not yet scored` : 'All scored'} />
+            <Stat label="Open risks" value={data.total} color="blue" hint={data.unscored > 0 ? `${data.unscored} not yet scored` : (data.no_residual ?? 0) > 0 ? `All have an inherent score; ${data.no_residual} ${data.no_residual === 1 ? 'has' : 'have'} no residual score` : 'All scored'} />
             <Stat label={worst ? `Rated ${worst.label}` : 'Rated'} value={worst?.count ?? 0} color={(worst?.color ?? 'gray') as ColorName} hint="Highest common level in use" />
             <Stat label="Increased" value={data.increased.length} color={data.increased.length > 0 ? 'red' : 'green'} hint="Since the last review" />
             <Stat label="Accepted" value={data.accepted} color="purple" hint={`${data.acceptances.length} to renew within ${data.window_days} days`} />

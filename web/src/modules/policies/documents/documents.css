@@ -1,0 +1,81 @@
+/* Document control (E43): the library, the reading page and the register's tools. Colors come from the design tokens so both themes work. */
+
+.doc-number { font-family: var(--font-mono); font-size: var(--fs-sm); color: var(--text-muted); white-space: nowrap; }
+.doc-small { font-size: var(--fs-sm); }
+.doc-pad { margin: 0; padding: var(--s-3) var(--s-4) 0; }
+
+/* ---- library: browse on the side, search and results beside ---- */
+.doc-library { display: grid; grid-template-columns: minmax(200px, 260px) minmax(0, 1fr); gap: var(--s-4); align-items: start; }
+.doc-side { display: grid; gap: var(--s-4); padding: var(--s-4); border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.doc-facet ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.doc-facet-title { margin: 0 0 var(--s-2); font-size: var(--fs-sm); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+.doc-tier { margin-top: var(--s-3); }
+.doc-tier-title { margin: 0 0 var(--s-1); font-size: var(--fs-sm); font-weight: 600; color: var(--text); }
+.doc-facet-item {
+  display: flex; width: 100%; align-items: center; justify-content: space-between; gap: var(--s-2); padding: var(--s-1) var(--s-2);
+  font: inherit; font-size: var(--fs-sm); text-align: start; color: var(--text); background: none; border: 0; border-radius: var(--radius); cursor: pointer;
+}
+.doc-facet-item:hover { background: var(--surface-2); }
+.doc-facet-item.is-active { background: var(--c-blue-bg); color: var(--c-blue-fg); font-weight: 600; }
+.doc-facet-item:focus-visible { outline: 2px solid var(--focus, currentColor); outline-offset: 1px; }
+.doc-facet-count { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.doc-facet-item.is-active .doc-facet-count { color: inherit; }
+
+.doc-main { min-width: 0; }
+.doc-search { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--s-3) var(--s-5); margin-bottom: var(--s-3); }
+.doc-search > :first-child { flex: 1 1 280px; }
+.doc-count { margin: 0 0 var(--s-2); font-size: var(--fs-sm); }
+.doc-list { list-style: none; margin: 0; padding: 0; }
+.doc-item { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--s-2) var(--s-5); padding: var(--s-3) 0; border-top: 1px solid var(--border); }
+.doc-item:first-child { border-top: 0; }
+.doc-item-main { flex: 1 1 340px; min-width: 0; display: grid; gap: var(--s-1); }
+.doc-item-head { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s-1) var(--s-2); }
+.doc-item-title { font-weight: 600; font-size: var(--fs-lg); overflow-wrap: anywhere; }
+.doc-lock { display: inline-flex; align-self: center; color: var(--c-amber-fg); }
+.doc-excerpt { margin: 0; font-size: var(--fs-sm); overflow-wrap: anywhere; }
+.doc-excerpt mark { background: var(--c-amber-bg); color: var(--c-amber-fg); padding: 0 2px; border-radius: 2px; }
+.doc-item-meta { display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-4); margin: 0; font-size: var(--fs-sm); }
+.doc-item-meta div { display: grid; gap: 0; }
+.doc-item-meta dt { color: var(--text-muted); font-size: var(--fs-xs, 0.75rem); }
+.doc-item-meta dd { margin: 0; white-space: nowrap; }
+
+/* ---- reading page and record page ---- */
+.doc-head-chips { gap: var(--s-2); }
+.doc-head-facts { gap: var(--s-1) var(--s-4); flex-wrap: wrap; }
+.doc-file-links { gap: var(--s-2); margin: 0 0 var(--s-4); flex-wrap: wrap; }
+.doc-filever { display: grid; gap: var(--s-3); justify-items: start; }
+.doc-old-text { opacity: 0.92; }
+.doc-row-actions { gap: var(--s-1); flex-wrap: nowrap; }
+
+/* hierarchy: each level indented a little more */
+.doc-tree, .doc-tree-children { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-1); }
+.doc-tree > li { padding-inline-start: calc(var(--depth, 0) * var(--s-5)); }
+.doc-tree-children { margin-top: var(--s-2); padding-inline-start: var(--s-5); border-inline-start: 2px solid var(--border); }
+.doc-tree-children > li { padding-inline-start: var(--s-3); }
+.doc-node { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: var(--s-1) var(--s-2); }
+.doc-node-self { padding: 2px var(--s-2); border-radius: var(--radius); background: var(--surface-2); }
+
+.doc-rel { display: grid; gap: var(--s-4); grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.doc-rel-title { margin: 0 0 var(--s-2); font-size: var(--fs-md, 1rem); font-weight: 600; display: flex; align-items: center; gap: var(--s-2); }
+.doc-rel ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-1); }
+
+/* ---- access editor ---- */
+.doc-people-field { display: grid; gap: var(--s-2); }
+.doc-people { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--s-1); }
+.doc-people li { display: inline-flex; align-items: center; gap: 2px; padding: 0 0 0 var(--s-2); border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); font-size: var(--fs-sm); }
+.doc-live { min-height: 1.5rem; }
+.doc-live p { margin: 0; }
+.doc-fieldset { margin: 0; padding: var(--s-3) var(--s-4) var(--s-4); border: 1px solid var(--border); border-radius: var(--radius); min-width: 0; }
+.doc-fieldset legend { padding: 0 var(--s-1); font-weight: 600; }
+
+/* ---- reviews, import, settings ---- */
+.doc-filters { gap: var(--s-2); flex-wrap: wrap; }
+.doc-warnings { margin: var(--s-1) 0 0; padding-inline-start: var(--s-5); list-style: disc; font-size: var(--fs-sm); }
+.doc-code-cell { width: 10rem; }
+.doc-settings { align-items: start; }
+
+@media (max-width: 1000px) {
+  .doc-library { grid-template-columns: minmax(0, 1fr); }
+  .doc-side { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  .doc-main { order: -1; }
+}

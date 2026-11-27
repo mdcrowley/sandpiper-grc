@@ -48,7 +48,7 @@ The user guide is in [`user/`](user/) and is also shown inside the application u
 8. [Projects](user/08-projects.md)
 9. [Administration](user/09-administration.md)
 10. [Change enablement](user/10-change-enablement.md)
-11. [Policies and exceptions](user/11-policies-and-exceptions.md)
+11. [Documents and exceptions](user/11-policies-and-exceptions.md)
 12. [Training and exercises](user/12-training-and-exercises.md)
 13. [Vulnerabilities](user/13-vulnerabilities.md)
 14. [Attachments and notifications](user/14-attachments-and-notifications.md)

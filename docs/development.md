@@ -520,7 +520,11 @@ Services other modules may offer are Fastify decorators; check before use:
   embedded-font text. `pdfjs-dist` is a runtime dependency since wave 22 (it also reads the text of
   attached files, E41-16), not only the PDF/UA test check. Text extraction from attached files runs in
   a child process (`attachments/text-reader.mjs`); never call pdf.js on untrusted files inside the
-  server process.
+  server process. Converting a Word file or stamping a PDF (document control, E43) runs the same way in
+  `policies/convert/sandbox.ts` (a forked process with time, memory and size limits): never parse a
+  Word file or PDF in the server process. Large files arrive in parts through `attachments/uploads.ts`
+  (`app.claimUpload`); a module's own rules for its files (keep, who may download) go through`
+  `addAttachmentGuard` (`core/attachment-guards.ts`).
 - `app.sendMail({ userIds, template, purpose, data, record?, attachments? })` and
   `app.mailEnabled()` (`core/mail`): email through the job queue. Off until an
   administrator sets up a mail server (Administration > Email), so always guard with
@@ -583,6 +587,8 @@ ctx.defineResource({
   // rowRule: { where: (user, col) => `(${col('audience')} <> 'agents' or ...)`, figures: 'mask' | 'filter', hidden?: (col) => '...' },
   //   a per-row rule beyond the restricted flag (core/module.ts RowRule). Core makes it part of
   //   visibleWhere/find/labels, so every reader follows it; never enforce row access with a URL hook.
+  // omit: ['search_text'], columns the generated routes never return (for example derived search
+  //   text kept as a column so the search trigger indexes it).
   searchable: ['title', 'description'],
   defaultSort: { field: 'created_at', dir: 'desc' },
   fields: {
@@ -633,6 +639,11 @@ do nothing (`quietSenders`, after every module registers), and webhooks, work-tr
 approval workflows skip; a new sender with outside effects checks `inDataLoad()` too. Records created
 are listed in `data_load_records`. `ctx.resources.remove(type, id, req)` is the engine's soft delete
 (the generic `DELETE`, bulk delete and undoing a load).
+Modules that store an actor in their own columns use `actorOf(req)` from `core/dataload.ts` instead of
+`req.user!.id` / `req.user!.displayName`, so a load that names a person (E18-71, `on_behalf_of`) is
+honored; the audit layer needs nothing. `onBehalfOf()` works without `req` inside the request. New MCP
+write tools add `dataLoadInput: AS_INPUT` and send `on_behalf_of` from `named(t, args.as)`
+(`modules/mcp/tools-records.ts`).
 
 Field types: `text`, `longtext`, `number`, `currency`, `date`, `datetime`, `boolean`,
 `lookup` (needs `list`), `user`, `ref` (needs `to`), `json`. Field names are column names.
@@ -1248,7 +1259,7 @@ asks first, dialogs ask before closing, and a session that ends mid-edit keeps t
 import type { ModuleDef } from '../../core/module';
 const mod: ModuleDef = {
   key: 'tickets',
-  nav: [{ group: 'Service desk', label: 'Tickets', path: '/tickets', icon: 'ticket', permission: 'tickets.view', order: 10 }],
+  nav: [{ group: 'IT services', label: 'Tickets', path: '/tickets', icon: 'ticket', permission: 'tickets.view', order: 10 }],
   routes: [
     { path: '/tickets', element: <TicketList /> },
     { path: '/tickets/:id', element: <TicketDetail /> },
@@ -1261,11 +1272,14 @@ export default mod;
 The build reads each module's `key`, `nav`, `create` and route paths at build time, so
 keep them literal; the rest of the module is loaded when one of its routes is first opened.
 
-Nav groups, in order (`web/src/core/module.ts`): Home, Service desk, Inventory, Change,
-Vendors, Cybersecurity, Safety, Governance, People, Projects, Reports, Administration, Help. A group
-with no entry the person may open is not shown. `order` is unique within a group
-(`web/src/core/navOrder.test.ts`); `permissions: [...]` hides an entry unless the user also holds each
-one.
+Nav groups, in order (`web/src/core/navGroups.ts`): Home, IT services, Assets, Vendors, Projects and
+funding, Security, Risk and compliance, Safety and emergency management, Governance and records,
+Documents, People and training, Reports, Administration (E44-01; `navGroupOf` maps the names used before
+wave 24). One menu entry per thing people work on: other pages are `menu: false` with a `parent` (and
+`tab` to be a tab in the parent's shell-drawn strip, whose entry has `tabs`), or a card on the
+Administration page (`hub`, `hint`). A group with no entry the person may open is not shown. `order` is
+unique within a group (`web/src/core/navOrder.test.ts`, which also keeps the menu at 60 entries or
+fewer); `permissions: [...]` hides an entry unless the user also holds each one.
 
 Quality bar: every screen has empty, loading and error states; every list
 has filter, sort, saved view and export; every record shows its history.
@@ -1281,7 +1295,7 @@ has filter, sort, saved view and export; every record shows its history.
 | `frameworks` | `framework` → frameworks, `framework_outcome` → framework_outcomes, `assessment_snapshot` → assessment_snapshots |
 | `risks` | `risk` → risks (restricted), `action` → actions (flag, inherited), `cap` → caps (flag, inherited), `obligation` → obligations, `regulatory_change` → regulatory_changes, `kri` → key_risk_indicators (restricted) |
 | `secincidents` | `security_incident` → security_incidents (restricted), `notification_task` → notification_tasks |
-| `policies` | `policy` → policies, `policy_exception` → policy_exceptions; tables `policy_person_acknowledgements`, `policy_plan_elements`, `policy_plan_reviews` |
+| `policies` | `policy` (label **Document**) → policies, `policy_exception` → policy_exceptions; tables `policy_person_acknowledgements`, `policy_plan_elements`, `policy_plan_reviews`, `policy_version_translations`, `document_groups`, `document_imports` and the other document-control tables (E43) |
 | `training` | `course` → courses, `exercise` → exercises, `certification` → certifications |
 | `people` | `person` → people, `position` → positions, `department` → departments (always on, not a feature area) |
 | `audits` | `audit_area` → audit_areas, `audit_engagement` → audits (flag), `checklist_template` → checklist_templates, `inspection_schedule` → inspection_schedules, `inspection` → inspections, `audit_finding` → audit_findings (flag, inherited from its audit), `audit_request` → audit_requests (flag, inherited). The type is `audit_engagement` because `audit` would clash with the audit log (`GET /api/audit`, `audit.export`) |

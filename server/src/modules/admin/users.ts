@@ -129,8 +129,12 @@ export function registerUsers(ctx: ModuleContext) {
     return { out, fields };
   }
 
-  /** Turns role keys into ids, rejecting unknown keys. */
-  async function roleIds(keys: unknown, fields: Record<string, string>): Promise<{ id: string; key: string }[]> {
+  /**
+   * Turns role keys into ids, rejecting unknown keys, and refusing to hand out a role that is switched
+   * off (Administration > Roles): it grants nothing, so the person would silently have no access
+   * (E18-78). A switched-off role the person already `held` is kept.
+   */
+  async function roleIds(keys: unknown, fields: Record<string, string>, held: string[] = []): Promise<{ id: string; key: string }[]> {
     if (!Array.isArray(keys) || keys.some((k) => typeof k !== 'string')) {
       fields.roles = 'Choose roles from the list.';
       return [];
@@ -138,9 +142,16 @@ export function registerUsers(ctx: ModuleContext) {
     const wanted = [...new Set(keys as string[])];
     // A role of a switched-off area is not offered on the pages, but a key sent through the API is still
     // a role: it is kept, and applies once the area is switched on.
-    const rows = await db.query<{ id: string; key: string }>('select id, key from roles where key = any($1::text[])', [wanted]);
+    const rows = await db.query<{ id: string; key: string; name: string; enabled: boolean }>('select id, key, name, enabled from roles where key = any($1::text[])', [wanted]);
     if (rows.length !== wanted.length) fields.roles = 'Choose roles from the list.';
-    return rows;
+    // A role owned by a switched-off area is hidden from the Roles page (so it cannot be switched on
+    // there); it is accepted and applies once its area is on, as the comment above says.
+    const features = await featureState(db);
+    const off = rows.filter((r) => !r.enabled && !held.includes(r.key) && !ownedOff(features, 'role', r.key));
+    if (off.length && !fields.roles) {
+      fields.roles = `${off.map((r) => r.name).join(', ')} ${off.length === 1 ? 'is' : 'are'} switched off and would give no access. Switch ${off.length === 1 ? 'it' : 'them'} on under Roles first.`;
+    }
+    return rows.map(({ id, key }) => ({ id, key }));
   }
 
   /** Issues a one-time link. Earlier unused links for the user stop working. Only the hash is stored. */
@@ -219,7 +230,7 @@ export function registerUsers(ctx: ModuleContext) {
     const { out, fields } = await cleanProfile(b, id);
     let roles: { id: string; key: string }[] | null = null;
     if (b.roles !== undefined) {
-      roles = await roleIds(b.roles, fields);
+      roles = await roleIds(b.roles, fields, (before.roles as { key: string }[]).map((r) => r.key));
       // Roles of switched-off areas are not shown, so they are not in the list sent: the person keeps them.
       const s = await featureState(db);
       const keep = (before.roles as { key: string }[]).map((r) => r.key).filter((k) => ownedOff(s, 'role', k) && !roles!.some((r) => r.key === k));

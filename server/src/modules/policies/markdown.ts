@@ -1,7 +1,8 @@
 // Safe Markdown for policy text. Policy bodies are written by users, so the result must never
 // carry script, raw HTML, event handlers or links that run code. Two independent layers:
 //   1. while rendering, raw HTML in the source is escaped to text, images become their
-//      description (no outside requests), and links keep only safe addresses;
+//      description (no outside requests) unless it is one of the document's own files (`attachment:<id>`),
+//      shown through the preview route; links keep only safe addresses;
 //   2. afterwards, every tag is rebuilt from an allow-list with an allow-list of attributes,
 //      so anything layer 1 missed still cannot reach the page as markup.
 import { Marked, type Tokens } from 'marked';
@@ -36,7 +37,11 @@ md.use({
     html({ text }: Tokens.HTML | Tokens.Tag): string {
       return escapeHtml(text);
     },
-    image({ text }: Tokens.Image): string {
+    image({ href, text }: Tokens.Image): string {
+      // A picture stored on the document itself (Word conversion, E43-06): shown through the file
+      // preview route, which checks the reader may read the document. Any other image stays text.
+      const id = ATTACHMENT_IMAGE.exec(String(href ?? '').trim())?.[1];
+      if (id) return `<img src="/api/attachments/${id.toLowerCase()}/preview" alt="${escapeHtml(text ?? '')}" loading="lazy">`;
       return text ? escapeHtml(`[Image: ${text}]`) : '';
     },
     link(this: any, { href, title, tokens }: Tokens.Link): string {
@@ -48,11 +53,15 @@ md.use({
   },
 });
 
+const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+const ATTACHMENT_IMAGE = new RegExp(`^attachment:(${UUID})$`, 'i');
+const PREVIEW_SRC = new RegExp(`^/api/attachments/${UUID}/preview$`);
+
 const ALLOWED = new Set([
   'p', 'br', 'hr', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'strong', 'em', 'del', 'code', 'pre', 'blockquote',
-  'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'a', 'input',
+  'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'a', 'input', 'img',
 ]);
-const VOID = new Set(['br', 'hr', 'input']);
+const VOID = new Set(['br', 'hr', 'input', 'img']);
 
 const attr = (attrs: string, name: string): string | null =>
   new RegExp(`(?:^|\\s)${name}\\s*=\\s*"([^"]*)"`, 'i').exec(attrs)?.[1] ?? null;
@@ -76,6 +85,12 @@ function rebuildTag(close: string, rawName: string, attrs: string): string | nul
     case 'ol': {
       const start = attr(attrs, 'start');
       return start && /^\d{1,6}$/.test(start) ? `<ol start="${start}">` : '<ol>';
+    }
+    case 'img': {
+      // Only a picture of the document's own files, through the preview route.
+      const src = attr(attrs, 'src');
+      if (src === null || !PREVIEW_SRC.test(src)) return null;
+      return `<img src="${src}" alt="${attr(attrs, 'alt') ?? ''}" loading="lazy">`;
     }
     case 'input':
       // Only the tick box of a task list; always inert.

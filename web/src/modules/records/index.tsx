@@ -11,8 +11,8 @@ const privacy = 'privacy.view';
 const mod: ModuleDef = {
   key: 'records',
   nav: [
-    { group: 'Governance', label: 'Records requests', path: '/records-requests', icon: 'file-text', permission: records, order: 60 },
-    { group: 'Governance', label: 'Privacy', path: '/privacy', icon: 'lock', permission: privacy, order: 61 },
+    { group: 'Governance and records', label: 'Records requests', path: '/records-requests', icon: 'file-text', permission: records, order: 20 },
+    { group: 'Governance and records', label: 'Privacy', path: '/privacy', icon: 'lock', permission: privacy, order: 21 },
   ],
   routes: [
     { path: '/records-requests', element: <RequestList />, permission: records },

@@ -8,6 +8,7 @@ import { createHash } from 'node:crypto';
 import type { Readable } from 'node:stream';
 import type { FastifyReply } from 'fastify';
 import type { Queryable } from '../../core/db.ts';
+import { onBehalfOf } from '../../core/dataload.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { readScanner } from './config.ts';
 import {
@@ -179,6 +180,10 @@ export async function insertAttachment(
   },
 ): Promise<Row> {
   const scanned = file.scanStatus === 'clean';
+  // In a data load the person it names uploaded the file (E18-71); the audit event keeps the real actor.
+  const named = onBehalfOf();
+  const uploadedByName = named ? named.name : owner.uploadedByName;
+  const userId = named ? named.userId : owner.userId;
   return (await db.one<Row>(
     `insert into attachments (record_type, record_id, file_name, extension, content_type, size_bytes, sha256,
        storage_driver, storage_key, kind, description, collected_on, expires_on, scan_status, scan_engine, scanned_at,
@@ -187,7 +192,7 @@ export async function insertAttachment(
     [
       owner.recordType, owner.recordId, file.fileName, file.extension, file.contentType, file.size, file.sha256, file.driver, file.key,
       owner.kind ?? 'file', owner.description ?? null, owner.collectedOn ?? null, owner.expiresOn ?? null, file.scanStatus,
-      file.scanEngine, owner.uploadedByName, owner.userId,
+      file.scanEngine, uploadedByName, userId,
     ],
   ))!;
 }

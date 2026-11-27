@@ -15,8 +15,9 @@ const view = 'vulnerabilities.view';
 const mod: ModuleDef = {
   key: 'vulnerabilities',
   nav: [
-    { group: 'Cybersecurity', label: 'Vulnerabilities', path: '/vulnerabilities', icon: 'bug', permission: view, order: 40 },
-    { group: 'Cybersecurity', label: 'Vulnerability dashboard', path: '/vulnerabilities/dashboard', icon: 'chart', permission: view, order: 41 },
+    { group: 'Security', label: 'Vulnerabilities', path: '/vulnerabilities', icon: 'bug', permission: view, order: 30 },
+    { group: 'Security', label: 'Vulnerability dashboard', path: '/vulnerabilities/dashboard', icon: 'chart', permission: view, order: 31, menu: false, parent: '/vulnerabilities' },
+    { group: 'Security', label: 'Vulnerability severity policy', path: '/vulnerabilities/settings', icon: 'settings', permission: 'vulnerabilities.administer', order: 32, menu: false, parent: '/vulnerabilities', hub: 'Area settings', hint: 'How fast findings of each severity must be fixed.' },
   ],
   // Findings are security records: Guard also asks for security.view, as the server does.
   routes: [

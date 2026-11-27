@@ -73,9 +73,21 @@
 .sd-ticket > .rc-record > .rc-record-banner { grid-column: 1 / -1; margin-bottom: 0; }
 .sd-main, .sd-side { display: grid; gap: var(--s-4); align-content: start; min-width: 0; }
 .sd-ticket > .rc-record > .sd-side, .sd-record > .rc-record > .sd-side { grid-column: 2; grid-row: span 2; }
+/* Ticket page, wide: the facts float on the right (they come first in the page), so the work on the
+   left (description, then the Activity tabs with the note box) flows straight down whatever the
+   facts' height, with no empty gap beside a tall facts column (E18-72). */
+@container (min-width: 981px) {
+  .sd-ticket > .rc-record { display: flow-root; }
+  .sd-ticket > .rc-record > * + * { margin-top: var(--mantine-spacing-md); }
+  .sd-ticket > .rc-record > .sd-side { float: right; width: 340px; margin-left: var(--s-5); }
+  .sd-ticket > .rc-record > .rc-record-tabs { display: flow-root; }
+}
 @container (max-width: 980px) {
   .sd-ticket > .rc-record, .sd-record > .rc-record { grid-template-columns: minmax(0, 1fr); }
   .sd-ticket > .rc-record > .sd-side, .sd-record > .rc-record > .sd-side { grid-column: 1; grid-row: auto; }
+  /* One column: the work first, then the facts, then the tabs. */
+  .sd-ticket > .rc-record > .sd-side { order: 1; }
+  .sd-ticket > .rc-record > .rc-record-tabs { order: 2; }
 }
 .sd-ticket, .sd-record, .sd-queue, .sd-dash, .sd-settings { container-type: inline-size; }
 .sd-description { max-width: 78ch; line-height: 1.6; }

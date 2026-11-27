@@ -17,8 +17,9 @@ import { TagCardPage } from './TagCard';
 const mod: ModuleDef = {
   key: 'tags',
   nav: [
-    { group: 'Inventory', label: 'Inventory counts', path: '/inventory-counts', icon: 'check-square', permission: 'tags.view', order: 47 },
-    { group: 'Administration', label: 'Asset tags', path: '/admin/asset-tags', icon: 'tag', permission: 'tags.view', order: 38 },
+    { group: 'Assets', label: 'Asset tags', path: '/admin/asset-tags', icon: 'tag', permission: 'tags.view', order: 22, menu: false, parent: '/assets', tab: 'Tags' },
+    { group: 'Assets', label: 'Inventory counts', path: '/inventory-counts', icon: 'check-square', permission: 'tags.view', order: 23, menu: false, parent: '/assets', tab: 'Counts' },
+    { group: 'Administration', label: 'Asset tag formats', path: '/admin/asset-tags/settings', icon: 'tag', permission: 'tags.manage', order: 45, menu: false, hub: 'Records setup', hint: 'How tag numbers are made and printed.' },
   ],
   routes: [
     { path: '/admin/asset-tags', element: <FormatsPage />, permission: 'tags.view' },

@@ -13,14 +13,14 @@ import './inventory.css';
 const mod: ModuleDef = {
   key: 'inventory',
   nav: [
-    { group: 'Inventory', label: 'Systems', path: '/systems', icon: 'server', permission: 'systems.view', order: 10 },
-    { group: 'Inventory', label: 'Relationship map', path: '/systems/map', icon: 'link', permission: 'systems.view', order: 20 },
-    { group: 'Inventory', label: 'Assets', path: '/assets', icon: 'box', permission: 'assets.view', order: 30 },
-    { group: 'Inventory', label: 'Asset models', path: '/asset-models', icon: 'clipboard', permission: 'assets.view', order: 32 },
-    { group: 'Inventory', label: 'Disposal approvals', path: '/assets/disposals', icon: 'check-square', permission: 'assets.approve', order: 35 },
-    { group: 'Inventory', label: 'Sites', path: '/sites', icon: 'map-pin', permission: 'sites.view', order: 40 },
-    { group: 'Inventory', label: 'Data categories', path: '/data-categories', icon: 'database', permission: 'data.view', order: 50 },
-    { group: 'Inventory', label: 'Inventory reports', path: '/inventory/reports', icon: 'chart', permission: 'systems.view', order: 60 },
+    { group: 'Assets', label: 'Systems', path: '/systems', icon: 'server', permission: 'systems.view', order: 10, tabs: 'Systems' },
+    { group: 'Assets', label: 'Relationship map', path: '/systems/map', icon: 'link', permission: 'systems.view', order: 11, menu: false, parent: '/systems', tab: 'Map' },
+    { group: 'Assets', label: 'Data categories', path: '/data-categories', icon: 'database', permission: 'data.view', order: 12, menu: false, parent: '/systems', tab: 'Data categories' },
+    { group: 'Assets', label: 'Inventory reports', path: '/inventory/reports', icon: 'chart', permission: 'systems.view', order: 13, menu: false, parent: '/systems', tab: 'Checks' },
+    { group: 'Assets', label: 'Assets', path: '/assets', icon: 'box', permission: 'assets.view', order: 20, tabs: 'Assets' },
+    { group: 'Assets', label: 'Asset models', path: '/asset-models', icon: 'clipboard', permission: 'assets.view', order: 21, menu: false, parent: '/assets', tab: 'Models' },
+    { group: 'Assets', label: 'Disposal approvals', path: '/assets/disposals', icon: 'check-square', permission: 'assets.approve', order: 25, menu: false, parent: '/assets', tab: 'Disposals' },
+    { group: 'Assets', label: 'Sites', path: '/sites', icon: 'map-pin', permission: 'sites.view', order: 40 },
   ],
   routes: [
     { path: '/systems', element: <SystemList />, permission: 'systems.view' },
