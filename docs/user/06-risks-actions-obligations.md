@@ -1,6 +1,6 @@
 # Risks, actions and obligations
 
-This page covers the risk register, the action tracker, the obligations register and regulatory changes. The **Risk register** (with the tabs **Register**, **Reviews**, **Indicators**, **Report** and, for people who administer risks, **Scales** and **Appetite**), **Obligations** (with the **Regulatory changes** tab) and **Action tracker** (with the **Corrective action plans** tab) are in the **Risk and compliance** group of the menu; **My actions** is a tab of **My work**, and the scales and appetite are also on the **Administration** page.
+This page covers the risk register, the action tracker, the obligations register and regulatory changes. The **Risk register** (with the tabs **Register**, **Reviews**, **Indicators**, **Report**, **Appetite** and, for people who administer risks, **Scales**), **Obligations** (with the **Regulatory changes** tab) and **Action tracker** (with the **Corrective action plans** tab) are in the **Risk and compliance** group of the menu; **My actions** is a tab of **My work**, and the scales and appetite are also on the **Administration** page.
 
 An administrator can switch the risk register and obligations off under **Administration > Features** (see [Administration](09-administration.md#features)); the action tracker always stays on. Records are kept and return when they are switched back on.
 
@@ -11,39 +11,49 @@ An administrator can switch the risk register and obligations off under **Admini
 
 ## Who can see risks
 
-Risks are **restricted records**. A person sees the risk register only if their roles give them both of these permissions:
+Enterprise risk management stands on its own: a person with **View** on **Risks** sees the risk register, its heat map, reviews, key risk indicators, report and risk appetite. Access to security incidents is not needed, so a finance officer, a board member or a risk committee can be given the register without seeing a single security incident.
 
-- **View** on **Risks**
-- **View** on **Security incidents and restricted records**
+Some risks are **restricted**: by default every **Cybersecurity** risk is. A restricted risk is seen in full only by people who also hold **View** on **Security incidents and restricted records**. For everyone else:
 
-Without both, risks do not appear anywhere for that person: not in the register, the heat map, counts, search results, related-record links, reports or exports. The register carries the line "Restricted: visible only to people with access to security records" as a reminder.
+- it is left out of the list of risks, search results, related-record links, exports and the review and acceptance worklists, and its page cannot be opened;
+- it still counts in every figure (the summary strip, the heat map, the risk appetite and the risk report), which are the same for everyone; where a figure lists risks (the ranked list beside the heat map, the top risks and movements in the report, the roll-up), it appears as **Restricted risk** with its ratings but without its reference, title or owner, and is not a link;
+- a key risk indicator on it, and an action raised from it, are restricted too.
 
-Key risk indicators and the risk appetite follow the same rule: they need both permissions too.
+A new risk takes its restriction from its category (an administrator sets which categories are restricted in the risk category list). Someone with access to restricted records can lift or set it on any risk with **Edit details** (**Restricted**). Without that access you cannot add a risk in a restricted category or change the flag, so you never create a risk you could not then see.
 
-Asking for a risk to be accepted needs **Edit** on **Risks**; deciding a request, recording an acceptance by hand or revoking one needs **Approve** on **Risks**. Editing the risk scales and the risk appetite needs **Administer** on **Risks**. Roles are managed by an administrator; see [Administration](09-administration.md).
+Asking for a risk to be accepted needs **Edit** on **Risks**; deciding a request, recording an acceptance by hand or revoking one needs **Approve** on **Risks**. Editing the risk scales and recording a new version of the risk appetite needs **Administer** on **Risks**. Roles are managed by an administrator; see [Administration](09-administration.md).
 
-Obligations and regulatory changes are not restricted. An action is restricted when the record it was raised from is: an action raised from a risk, a security incident or any other restricted record is hidden from people without **View** on **Security incidents and restricted records**, including its owner. It still counts in the action tracker's tiles, which are the same for everyone, so a tile can be higher than the list you see. Such an action can be shared with one named person; see "Sharing a restricted action" below. Other actions are visible to anyone with **View** on **Actions**. You cannot raise an action on, or move one to, a record you cannot see.
+Two default roles help: **Risk manager** (switched off until an administrator enables it) holds every risks permission and the actions it raises, with read access to obligations, controls, committees, audits and documents, and no access to security incidents; **Executive viewer** can read the register summary, the heat map, the appetite and the risk report.
+
+Obligations and regulatory changes are not restricted. An action is restricted when the record it was raised from is: an action raised from a restricted risk, a security incident or any other restricted record is hidden from people without **View** on **Security incidents and restricted records**, including its owner. It still counts in the action tracker's tiles, which are the same for everyone, so a tile can be higher than the list you see. Such an action can be shared with one named person; see "Sharing a restricted action" below. Other actions are visible to anyone with **View** on **Actions**. You cannot raise an action on, or move one to, a record you cannot see.
 
 ## The risk register
 
 Open **Risk and compliance > Risk register**. From top to bottom the page has:
 
-- a **summary strip**: **Open risks** (with how many are above the risk appetite), the number at the two highest common levels (**Critical** and **High**), **Reviews due** and **Acceptances to renew**. Select a tile to go to the matching list;
+- a **summary strip**: **Open risks** (with how many are above the risk appetite and how many are still above their target), the number at the two highest common levels (**Critical** and **High**), **Reviews due** and **Acceptances to renew**. Select a tile to go to the matching list;
 - the **Heat map** card, with the ranked risks beside it;
 - the list of risks.
 
-Tabs under the title open **Register**, **Reviews**, **Report** and, for administrators of risks, **Scales** and **Appetite**. **Print** and **New risk** are at the top. The **Critical** and **High** tiles count risks at that common level across every scale. A scale may call the level something else: the tile then says so, for example "Includes Extreme on the heat map".
+Tabs under the title open **Register**, **Reviews**, **Indicators**, **Report**, **Appetite** and, for administrators of risks, **Scales**. **Print** and **New risk** are at the top. The **Critical** and **High** tiles count risks at that common level across every scale, at the residual rating or, for a risk with no residual score yet, the inherent rating. A scale may call the level something else: the tile then says so, for example "Includes Extreme on the heat map".
 
-### The two scales
+### The scales
 
-A risk is scored on a scale: a grid of likelihood against impact, where each cell gives a rating. Two scales are supplied, and the risk's **Category** decides which one is used.
+A risk is scored on a scale: a grid of likelihood against impact, where each cell gives a rating. Three scales are supplied, and the risk's **Category** decides which one is used.
 
 | Scale | Used for categories | Down the side | Along the bottom | Ratings, lowest to highest |
 |---|---|---|---|---|
-| **Cyber and enterprise risk (5 by 5)** | Cybersecurity, Enterprise, Third party, Compliance | Likelihood: Rare, Unlikely, Possible, Likely, Almost certain | Impact: Insignificant, Minor, Moderate, Major, Severe | Low, Medium, High, Extreme |
+| **Enterprise risk (5 by 5)** | Enterprise, Third party, Compliance | Likelihood: Rare, Unlikely, Possible, Likely, Almost certain | Impact: Insignificant, Minor, Moderate, Major, Severe (described as cost, service, obligations and trust) | Low, Medium, High, Extreme |
+| **Cybersecurity risk (5 by 5)** | Cybersecurity | The same likelihood levels | Impact: Insignificant, Minor, Moderate, Major, Severe (described as service and data) | Low, Medium, High, Extreme |
 | **Safety hazard matrix (4 by 5)** | Safety | Likelihood: Improbable, Remote, Occasional, Probable, Frequent | Severity: Negligible, Marginal, Critical, Catastrophic | Low, Medium, Serious, High |
 
-On the 5 by 5 scale each level counts from 1 to 5 and the rating comes from likelihood multiplied by impact: 1 to 4 is Low, 5 to 9 is Medium, 10 to 19 is High, and 20 or 25 is Extreme.
+On the two 5 by 5 scales each level counts from 1 to 5 and the rating comes from likelihood multiplied by impact: 1 to 4 is Low, 5 to 9 is Medium, 10 to 19 is High, and 20 or 25 is Extreme. An administrator can change each scale on its own, and choose which scale a category uses in the risk category list.
+
+On an installation that used the earlier shared "Cyber and enterprise risk (5 by 5)" scale, the enterprise scale starts as a copy of it (with any changes made to it), so no risk changes rating; enterprise, third-party and compliance risks move to it, and the shared scale is renamed **Cybersecurity risk (5 by 5)** unless an administrator had renamed it.
+
+### Fields by category
+
+Some fields belong to one category. **Affected systems and data** is a cybersecurity field: it shows on cybersecurity risks only (and on any other risk that already has a value in it). The risk category list says which fields each category shows.
 
 The **safety hazard matrix** is the four-severity by five-likelihood matrix used in transit safety management. Use it for hazards to passengers, staff and the public that technology can cause or worsen, for example a door controller that fails locked or a signal priority link that drops at a busy junction. It does not use multiplication; each cell is set individually:
 
@@ -55,7 +65,7 @@ The **safety hazard matrix** is the four-severity by five-likelihood matrix used
 | Remote | Low | Medium | Medium | Serious |
 | Improbable | Low | Medium | Medium | Medium |
 
-Hover over a level name on the heat map to read what it means, for example "Likely: Expected about once a year". An administrator can change both scales, or add more; see "Editing the risk scales" below.
+Hover over a level name on the heat map to read what it means, for example "Likely: Expected about once a year". An administrator can change the scales, or add more; see "Editing the risk scales" below.
 
 So that risks on different scales can be counted together, every rating also maps to one of four **common levels**:
 
@@ -66,31 +76,32 @@ So that risks on different scales can be counted together, every rating also map
 | High | High | Serious |
 | Critical | Extreme | High |
 
-### Inherent and residual risk
+### Inherent, residual and target risk
 
-Each risk can be scored twice:
+Each risk can be scored three times:
 
 - **Inherent risk** is the risk before existing controls: how bad it would be if nothing were in place.
 - **Residual risk** is the risk with existing controls in place: where you stand today.
+- **Target risk** is where the treatment plan should bring the risk, with a **Target date**: the level the organization wants to reach.
 
-The difference between the two shows how much your controls are doing. The register is sorted by residual risk, highest first.
+The difference between inherent and residual shows how much your controls are doing; the difference between residual and target, how much work is left. The register is sorted by residual risk, highest first. A risk is **above target** while its residual rating (or inherent rating, before a residual score) is higher than its target.
 
 ### Reading the heat map
 
-The **Heat map** card shows one scale at a time as a grid, with the worst likelihood at the top and the worst impact (or severity) on the right. The level names run down the side and along the bottom. Each cell is colored by the rating it gives, shows that rating's name in its top corner, and shows in large figures the number of risks in it. Cells with risks in them have a solid edge; empty cells are paler. The legend under the grid gives each rating's color and total, and **Not yet scored** counts risks on that scale with no score for the view you chose.
+The **Heat map** card shows one scale at a time as a grid, with the worst likelihood at the top and the worst impact (or severity) on the right. The level names run down the side and along the bottom. Each cell is colored by the rating it gives, shows that rating's name in its top corner, and shows in large figures the number of risks in it. Cells with risks in them have a solid edge; empty cells are paler. The legend under the grid gives each rating's color and total, and counts the risks on that scale with no score for the view you chose (**Not yet scored**, **No residual score** or **No target**). On the residual view it also says how many of those have an inherent score only: the tiles and the risk report count those at their inherent level, so the legend and the tiles add up.
 
 The controls at the top of the card:
 
-1. **Scale**: choose **Cyber and enterprise risk**, **Safety hazard matrix** or **All scales** (with more than two scales, a drop-down list). The line above the grid names the scale and gives its description. A scale that belongs to a part switched off under **Administration > Features** (the safety hazard matrix while safety management is off) is not offered; a new risk in a category scored on it uses the cyber and enterprise scale.
-2. **Residual** or **Inherent**: which score to plot.
-3. **Show movement**: draws an arrow from each risk's inherent cell to its residual cell, so you can see where controls move risks. One arrow is drawn for each pair of cells, however many risks make that move. Risks whose two scores fall in the same cell have no arrow.
+1. **Scale**: choose **Enterprise risk**, **Cybersecurity risk**, **Safety hazard matrix** or **All scales** (with more than three choices, a drop-down list). The line above the grid names the scale and gives its description. A scale that belongs to a part switched off under **Administration > Features** (the safety hazard matrix while safety management is off) is not offered; a new risk in a category scored on it uses the cybersecurity scale.
+2. **Inherent**, **Residual** or **Target**: which score to plot.
+3. **Show movement**: draws an arrow from each risk's inherent cell to its residual cell, so you can see where controls move risks; on the **Target** view, from its residual cell (or inherent, before a residual score) to its target cell, so you can see where the treatment plans still have to take them. One arrow is drawn for each pair of cells, however many risks make that move. Risks whose two scores fall in the same cell have no arrow.
 4. **Include closed risks**: closed risks are left out unless you switch this on. In the ranked list they then carry their **Closed** status.
 
 **All scales** puts the risks of every scale on one five-by-five grid at the common levels (**Low**, **Medium**, **High**, **Critical**). Each scale's levels are spread from its lowest to its highest: the lowest level of every scale is **Lowest**, the highest is **Highest**, and the four severities of the safety hazard matrix fall at **Lowest**, **Low**, **High** and **Highest**. A cell with risks in it is colored by the most severe common level among them; an empty cell by the most severe common level any scale gives that part of its grid. The legend counts each risk at its own common level, so its totals match the **Critical** and **High** tiles above. The ranked list shows common levels too. It is a picture of where risks sit across the organization; to read a risk's exact rating, use its own scale. There is no appetite ring on this view, since each category's appetite is set on its own scale. **All scales** is offered when more than one scale is in use.
 
 When a risk appetite is set for a category scored on the scale, a cell holding a risk that is above its own category's appetite has a **dashed ring** (the legend reads "Holds a risk above its category's appetite"). Where several categories with different appetites share a scale, the same cell can hold a risk above its appetite and another within its own, so the ring always agrees with the **Appetite** column of the risks in the cell; an empty cell never has one.
 
-Beside the grid, **Highest residual risks** (or **Highest inherent risks**) ranks the scored risks on that scale, highest first, with the inherent and residual ratings and the owner. The first eight are listed; the rest are in the list below.
+Beside the grid, **Highest residual risks** (or **Highest inherent risks**, or **Highest targets**) ranks the scored risks on that scale, highest first, with the inherent, residual and target ratings ("High → Medium → Low") and the owner. The first eight are listed; the rest are in the list below. A restricted risk you may not see is ranked as **Restricted risk**, with its ratings only.
 
 Everything you choose on the heat map is kept in the page address, so you can bookmark a view or send the link to a colleague who can see risks.
 
@@ -99,18 +110,18 @@ You can move around the grid with the arrow keys and choose a cell with Enter or
 ### Drilling down from a cell
 
 1. Select a cell that has a number in it. Empty cells cannot be selected. The other cells fade.
-2. The ranked list is replaced by the risks in that cell, and the list of risks below shows only those risks, under a line such as "Showing 2 risks at Unlikely by Moderate (residual, Cyber and enterprise risk (5 by 5))".
+2. The ranked list is replaced by the risks in that cell, and the list of risks below shows only those risks, under a line such as "Showing 2 risks at Unlikely by Moderate (residual, Enterprise risk (5 by 5))". A restricted risk you may not see is counted in the cell but not listed below.
 3. Select the same cell again, or **Show all risks**, to return to the full list.
 
-Changing the scale, the residual or inherent choice or **Include closed risks** clears the drill-down.
+Changing the scale, the inherent, residual or target choice or **Include closed risks** clears the drill-down.
 
 ### Printing the register for a board pack
 
-Select **Print**. The printout keeps the colors of the heat map, leaves out the menus and buttons, and shows the summary strip and the heat map as set on screen (scale, residual or inherent, movement, chosen cell) with its ranked list. The full list of risks is left out. For a fuller board report, use the **Risk report** (below).
+Select **Print**. The printout keeps the colors of the heat map, leaves out the menus and buttons, and shows the summary strip and the heat map as set on screen (scale, inherent, residual or target, movement, chosen cell) with its ranked list. The full list of risks is left out. For a fuller board report, use the **Risk report** (below).
 
 ### The list of risks
 
-The list shows **Reference**, **Title**, **Category**, **Inherent**, **Residual**, **Appetite** ("Above appetite" in red, "Within", or a dash when no appetite is set for the category), **Treatment**, **Status**, **Owner**, **Due** and **Next review**; **Last reviewed** and **Parent risk** can be added from the column options. You can:
+The list shows **Reference**, **Title**, **Category**, **Inherent**, **Residual**, **Target**, **Appetite** ("Above appetite" in red, "Within", or a dash when no appetite is set for the category), **Treatment**, **Status**, **Owner**, **Due** and **Next review**; **Last reviewed**, **Parent risk** and **Target date** can be added from the column options. You can:
 
 - search by title, description, cause, consequence or affected systems;
 - filter by **Category**, **Summary level** (the common level), **Above appetite**, **Status**, **Treatment**, **Owner**, **Parent risk**, **Due** and **Next review**;
@@ -124,18 +135,18 @@ The list shows **Reference**, **Title**, **Category**, **Inherent**, **Residual*
 1. On the risk register, select **New risk**. You can also use **Create > Risk** at the top of any page.
 2. Enter a **Title** that names the event plainly, for example "CAD/AVL outage during peak service".
 3. Choose the **Category**. This decides the scale. If the risk belongs under a wider enterprise risk, choose it as the **Parent risk** (see "Parent risks and the roll-up" below).
-4. Fill in what you know of **Description**, **Cause**, **Consequence**, **Affected systems and data** and **Existing controls**.
+4. Fill in what you know of **Description**, **Cause**, **Consequence** and **Existing controls**. For a cybersecurity risk, add **Affected systems and data** afterward with **Edit details** on its page.
 5. Choose a **Treatment** and, if known, the **Owner**, **Due** date and **Next review** date.
-6. Save. The risk is given a reference beginning `RSK-` and a status of **Open**, and its page opens.
+6. Save. The risk is given a reference beginning `RSK-` and a status of **Open**, and its page opens. A risk in a restricted category (cybersecurity by default) is restricted; you need access to restricted records to add one.
 
 The new risk is not scored yet. Score it next.
 
 ## The risk page
 
-A risk's page tells its story from top to bottom. The header shows the inherent and residual ratings ("Inherent: Extreme → Residual: High") and the treatment.
+A risk's page tells its story from top to bottom. The header shows the inherent, residual and target ratings ("Inherent: Extreme → Residual: High → Target: Medium") and the treatment.
 
-1. **The risk**: the **Cause**, the **Event** (the risk's title and description) and the **Consequence**, then the category, owner and the systems and data affected. Select **Edit details** to change any of these, the existing controls, treatment, status, owner, due date or next review.
-2. **Assessment**: the inherent risk, the existing controls and the residual risk, each with its rating, and a small copy of the scale's matrix marking where the risk sits: **I** for inherent, **R** for residual.
+1. **The risk**: the **Cause**, the **Event** (the risk's title and description) and the **Consequence**, then the category, owner, the category's own fields (the systems and data affected, for a cybersecurity risk) and, for a restricted risk, **Access**. Select **Edit details** to change any of these, the existing controls, treatment, status, owner, due date or next review; people with access to restricted records also see **Restricted** there.
+2. **Assessment**: the inherent risk, the existing controls, the residual risk and the target risk (with its target date and the days left), each with its rating, and a small copy of the scale's matrix marking where the risk sits: **I** for inherent, **R** for residual, **T** for target.
 3. **Treatment plan**: the treatment, status and due date (with the days left), and the risk's **Actions**.
 4. **Acceptance**: whether the risk is accepted, until when, the executive-approval rule, and a request waiting for approval. While acceptance has been asked for, the approval panel under the header shows its steps and decisions.
 5. **Review**: the next review date, the last review and the reviews so far.
@@ -151,12 +162,13 @@ Below these are the **Activity**, **Attachments**, **Related** and **History** t
 1. On the **Assessment** card, select **Change scores**.
 2. Under **Inherent risk**, choose a **Likelihood** and an **Impact** (called **Severity** on the safety hazard matrix). Each choice shows its meaning.
 3. Under **Residual risk**, do the same, this time allowing for the existing controls.
-4. The rating and the small matrix change as you choose, so you can see the result before saving.
-5. Select **Save scores**, or **Cancel** to leave the scores as they were.
+4. Under **Target risk**, choose where the treatment plan should bring the risk, and the **Target date**.
+5. The ratings and the small matrix change as you choose, so you can see the result before saving.
+6. Select **Save scores**, or **Cancel** to leave the scores as they were.
 
 Rules to know:
 
-- Give both likelihood and impact for a pair, or leave both as **Not scored**. One without the other is refused.
+- Give both likelihood and impact for a pair, or leave both as **Not scored**. One without the other is refused. A target date needs a target rating.
 - Ratings are worked out from the scale and cannot be typed in.
 - You may score only the inherent risk and leave the residual risk for later. Until the residual risk is scored, the inherent rating is used for the common level and for the acceptance rule.
 - If you change a risk's category to one that uses the other scale, check the scores again: the levels have different names and meanings.
@@ -194,7 +206,7 @@ The ready-made **Risk acceptance** workflow has two steps:
 1. **Risk approver**: anyone who holds **Approve** on **Risks**.
 2. **Executive approver**: only when the executive-approval rule applies to the risk (the risk's read-only field **Acceptance needs an executive** is set); out of the box also anyone who holds **Approve** on **Risks**, except the person who decided the first step: the two steps always need two different people. An administrator should name your executives in this step under **Administration > Approval workflows**.
 
-Because risks are restricted records, only approvers (and stand-ins) who may see restricted records are ever asked; an approver must also hold **Approve** on **Risks**. An administrator can change the steps, the approvers, due times and escalation without any change to the application.
+Only approvers (and stand-ins) who may see the risk are ever asked: for a restricted risk, people with access to restricted records. An approver must also hold **Approve** on **Risks**. An administrator can change the steps, the approvers, due times and escalation without any change to the application.
 
 - **Approved**: the acceptance is recorded with the last approver as **Approved by** (with "on behalf of" when a stand-in decided), today as **Approved on**, the expiry and rationale you gave, and the workflow's name as the **Reference**. When the executive step applied the acceptance is labeled **Executive approval**. The risk's status becomes **Accepted** and its treatment becomes **Accept**, made by the application: a lifecycle rule about who may set **Accepted** by hand does not stop it.
 - **Rejected**: nothing changes on the risk. The reason is shown in the approval panel and written to the risk's history, and the card says the last request was rejected. You can ask again.
@@ -223,7 +235,8 @@ Each scale has a threshold rating. A risk rated at or above the threshold can be
 
 | Scale | Executive approval is needed when the rating is |
 |---|---|
-| Cyber and enterprise risk (5 by 5) | High or Extreme |
+| Enterprise risk (5 by 5) | High or Extreme |
+| Cybersecurity risk (5 by 5) | High or Extreme |
 | Safety hazard matrix (4 by 5) | Serious or High |
 
 When the rule applies to an acceptance recorded by hand, **Approver name**, **Approver title** and **Reference** are all required, and the acceptance is refused without them; through the workflow, the **Executive approver** step applies instead. The acceptance is then labeled **Executive approval**. The rating tested is the residual rating, or the inherent rating if the residual risk has not been scored. An administrator can change the threshold on the **Risk scales** page.
@@ -285,13 +298,15 @@ The tiles at the top count **Acceptances expired**, **Acceptances expiring**, **
 
 Open **Risk and compliance > Risk register** and the **Report** tab, or select **Risk report** on the register. It is laid out for a board pack:
 
-- tiles for **Open risks** (with how many are not yet scored, or how many have only an inherent score and no residual score), the number at the highest common level in use, **Increased** since the last review, **Accepted** and **Reviews overdue**;
+- tiles for **Open risks** (with how many are not yet scored, or how many have only an inherent score and no residual score), the number at the highest common level in use, **Increased** since the last review, **Above target** (with how many open risks have a target), **Accepted** and **Reviews overdue**;
 - **Open risks by level**: a bar of open risks at each common level;
-- **Top 10 risks** (fewer when there are fewer): reference and title, category, status, owner, inherent and residual ratings, the movement **Since last review** ("Up from Medium", "Down from Extreme", "No change" or "Not yet reviewed"), the treatment and the open and overdue actions;
+- **Top 10 risks** (fewer when there are fewer): reference and title, category, status, owner, inherent, residual and target ratings (with **Not yet reached, by** the target date, or **Reached**), the movement **Since last review** ("Up from Medium", "Down from Extreme", "No change" or "Not yet reviewed"), the treatment and the open and overdue actions;
 - **Movement since the last review**: the risks rated higher (**Increased**) and lower (**Reduced**) than at their last completed review;
-- **Risk appetite**: for each category with an appetite, the statement, the highest acceptable rating, the open risks and how many are above it;
+- **Risk appetite**: for each category with an appetite, the statement, who approved it (and in which body, when, and the version), the highest acceptable rating, the open risks and how many are above it;
 - **Enterprise risks and the risks under them** (when parent risks are used): each parent risk, its rating, the open risks under it, the worst of them and how many are above the appetite;
 - **Acceptances expiring**: acceptances that have expired or expire within 90 days.
+
+The figures and lists are the same for everyone who may see risks; a restricted risk you may not see appears as **Restricted risk**, with its ratings but without its reference, title or owner.
 
 Select **Print or save as PDF** to print it, or to save it as a PDF from the print dialog. Movement is measured against the rating recorded when a review was completed, so complete reviews regularly for the report to be useful.
 
@@ -313,16 +328,27 @@ The safety hazard matrix can also be changed by a safety administrator under **S
 
 ## Risk appetite
 
-The risk appetite says, for each risk category, how much risk the organization is willing to accept. Open **Risk and compliance > Risk register** and the **Appetite** tab, or **Risk appetite** on the **Administration** page (needs **Administer** on **Risks** and **View** on **Security incidents and restricted records**). Each category has a card, named with the scale its risks are scored on:
+The risk appetite says, for each risk category, how much risk the organization is willing to accept. It is usually approved by the board or a risk committee, so the application keeps every version. Open **Risk and compliance > Risk register** and the **Appetite** tab (anyone with **View** on **Risks**), or **Risk appetite** on the **Administration** page. Each category has a card, named with the scale its risks are scored on, showing the appetite in force: the statement, the highest acceptable rating and score, who approved it, in which body and when, its version number, and who recorded it in the application and why.
 
-| Field | What to put in it |
-|---|---|
-| **Appetite statement** | In plain words, how much of this kind of risk is acceptable. |
-| **Highest acceptable rating** | A rating of the category's scale, or **No limit**. A risk whose residual rating (or inherent rating, while it has no residual score) is above it is **above appetite**. |
-| **Highest acceptable score** | Optional: a risk whose score is above it is above appetite too. |
-| **Approved on**, **Approved by**, **Reference** | Who set the appetite and when, for example the board and the number of its resolution. |
+To change a category's appetite (needs **Administer** on **Risks**):
 
-The card's header shows how many open risks the category has and how many are above appetite; select either to open the list. Select **Save appetite** to save every card; every risk is checked against the new appetite at once, and the change is written to the audit log. Clearing every field of a card removes that category's appetite. Closed risks are never above appetite.
+1. Select **Record a new version** (or **Set the appetite** for a category with none) on its card.
+2. Change what the new version says:
+
+   | Field | What to put in it |
+   |---|---|
+   | **Appetite statement** | In plain words, how much of this kind of risk is acceptable. |
+   | **Highest acceptable rating** | A rating of the category's scale, or **No limit**. A risk whose residual rating (or inherent rating, while it has no residual score) is above it is **above appetite**. |
+   | **Highest acceptable score** | Optional: a risk whose score is above it is above appetite too. |
+   | **Approved on**, **Approved by**, **Approving body** | Required: the date the change was approved (not in the future), the person who signed it off and the body that approved it, for example the board of directors or a risk committee. |
+   | **Reference** | Optional: the resolution or minute. |
+   | **Why it is changing** | Required: kept with the version beside your name. |
+
+3. Select **Record new version**. Every risk is checked against the new appetite at once, and the change is written to the audit log with your reason. Saving the same appetite again records nothing new.
+
+**Remove the appetite** (on the same form, with a reason) ends a category's appetite; the removal is kept as a version too. Select **Versions** on a card to list every version, newest first: what each said, who approved it, the reason for the change, and who recorded it and when. The version in force is marked **In force**. Earlier versions are never changed or deleted. An appetite set before versions were kept is version 1, with the reason "Recorded before appetite versions were kept".
+
+The card's header shows how many open risks the category has and how many are above appetite; select either to open the list. These counts include restricted risks, for everyone. Closed risks are never above appetite.
 
 A risk is checked every time it is saved, and once a day. Above appetite shows as a red **Above appetite** badge in the register's **Appetite** column, in the risk's header and on its page, as a dashed ring on the heat map, and in the risk report.
 
@@ -334,7 +360,7 @@ The parent's page lists **Risks under this one**; each child's page says what it
 
 ## Key risk indicators
 
-A key risk indicator (KRI) is a monthly figure that warns early when a risk is growing: phishing test clicks, unplanned downtime, overdue actions. Open **Risk and compliance > Risk register** and the **Indicators** tab. Indicators are restricted like risks.
+A key risk indicator (KRI) is a monthly figure that warns early when a risk is growing: phishing test clicks, unplanned downtime, overdue actions. Open **Risk and compliance > Risk register** and the **Indicators** tab. An indicator on a restricted risk is restricted with it, and follows it when the risk's restriction changes.
 
 The tiles count the **Active indicators** and those **At red** and **At amber**. The list shows each indicator's risk, its **Latest value** and month, its **Level** (green, amber or red), whether its value is **Computed** or **Entered by hand**, the owner and the status.
 
@@ -498,7 +524,9 @@ The owner is reminded once when the next due date is 30 days away, and once more
 
 ### Evidence files
 
-The **Evidence** tab on an obligation holds the files that prove it is met: a signed form, a report, a certificate. Drag files onto it or select **Choose files**.
+The **Evidence files** tab on an obligation holds the files that prove it is met: a signed form, a report, a certificate. Drag files onto it or select **Choose files**.
+
+While the [evidence library](43-evidence-library.md) is on (and you may view it), risks, actions, corrective action plans and obligations also show the evidence records of the library linked to them, on the **Evidence** tab: link evidence already filed instead of uploading the same file again, or upload a new file into the library from there.
 
 The list shows **Type** and **Frequency** beside the status; **Applies to**, **Source** and **Last attested** can be added from the column options. It can be searched, filtered by **Status**, **Type**, **Frequency**, **Owner** and **Next due**, sorted, saved as a view, changed in bulk (**Status**, **Type**, **Frequency**, **Owner**, **Next due**) and exported. Use the **Related** tab on an obligation to link it to the framework outcomes, contracts or risks it concerns; see [Cybersecurity frameworks and assessments](05-cybersecurity-frameworks.md).
 

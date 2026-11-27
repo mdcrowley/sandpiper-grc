@@ -2,6 +2,7 @@
 // (policy -> framework_outcome, relation "supports"), so it also shows on the outcome's own
 // Related tab. The frameworks module may not be loaded, so every use is guarded.
 import type { FastifyRequest } from 'fastify';
+import { actorOf } from '../../core/dataload.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 
 export const OUTCOME_TYPE = 'framework_outcome';
@@ -49,7 +50,7 @@ export function registerOutcomeRoutes(ctx: ModuleContext) {
     const made = await db.one<Row>(
       `insert into record_links (from_type, from_id, to_type, to_id, relation, created_by) values ('policy', $1, $2, $3, $4, $5)
        on conflict (from_type, from_id, to_type, to_id, relation) do nothing returning id`,
-      [policy.id, OUTCOME_TYPE, outcome.id, OUTCOME_RELATION, req.user!.id],
+      [policy.id, OUTCOME_TYPE, outcome.id, OUTCOME_RELATION, actorOf(req).id],
     );
     if (made) {
       const name = [def.ref && outcome[def.ref.field], outcome[def.titleField]].filter(Boolean).join(' ');

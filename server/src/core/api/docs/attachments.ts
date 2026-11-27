@@ -38,6 +38,7 @@ export const DOCS: RouteDoc[] = [
       record_type: 'Record type, for example ticket.', record_id: q('uuid', 'The record.'), name: 'File name, with its extension.',
       kind: "'file' (default) or 'evidence'.", description: 'Optional description, up to 2,000 characters.',
       collected_on: q('date', 'Evidence only: when collected (default today; not in the future).'), expires_on: q('date', 'Evidence only: when it expires.'),
+      created_at: 'Data load mode only (E45-52): the date or ISO time the file was first added; the file is listed so that undoing the load removes it. 400 outside a load.',
     },
     body: 'binary',
     response: `{ id: uuid, file_name: string, size_bytes: integer, sha256: string, kind: 'file' | 'evidence', scan_status: string, scan_warning?: string, ... }`,

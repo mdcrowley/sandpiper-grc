@@ -12,6 +12,7 @@ import {
 } from './boardState';
 import type { BoardFilters, Density } from './boardState';
 import { ViewsMenu } from './BoardViews';
+import { SendToOwnersDialog } from './SendToOwners';
 import { BoardView } from './BoardView';
 import { StatusBar, TargetRing } from './StatusBar';
 import type { Board, BoardOutcome, FrameworkRef } from './types';
@@ -62,6 +63,8 @@ export function BoardPage({ view = 'board' }: { view?: 'board' | 'table' }) {
   const [search, setSearch] = useState(filters.q);
   const debounced = useDebounced(search, 250);
   const canEdit = can('frameworks.edit');
+  const canSend = canEdit && can('actions.create');
+  const [sending, setSending] = useState(false);
 
   // The search box writes to the address after a pause; Back and saved views write to the box.
   useEffect(() => { if (view === 'board' && debounced !== filters.q) setFilters({ ...filters, q: debounced }, true); }, [debounced]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -156,6 +159,7 @@ export function BoardPage({ view = 'board' }: { view?: 'board' | 'table' }) {
               data={[{ value: 'board', label: 'Board' }, { value: 'table', label: 'Table' }]}
               onChange={(v) => navigate(v === 'table' ? '/frameworks/outcomes' : `/frameworks/board/${choice.id}`)}
             />
+            {canSend && total > 0 && <Button icon="check-square" onClick={() => setSending(true)}>Send to owners</Button>}
             <Menu label="More" icon="more" items={more} align="end" />
           </div>
         }
@@ -263,6 +267,7 @@ export function BoardPage({ view = 'board' }: { view?: 'board' | 'table' }) {
           </p>
         </>
       )}
+      {canSend && sending && <SendToOwnersDialog open onClose={() => { setSending(false); reload(); }} frameworkId={choice.id} priorityDefault={filters.priority} />}
     </div>
   );
 }

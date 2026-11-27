@@ -65,7 +65,7 @@ describe('risk appetite', () => {
     expect((await t.api.put('/api/risks/appetite', { categories: [{ category: 'cyber', max_rating: 'nonsense' }] })).status).toBe(400);
     expect((await t.api.put('/api/risks/appetite', { categories: [{ category: 'nope' }] })).status).toBe(400);
     expect((await t.api.put('/api/risks/appetite', { categories: [{ category: 'cyber', max_score: -1 }] })).status).toBe(400);
-    const saved = await t.api.put('/api/risks/appetite', { categories: [{ category: 'cyber', statement: 'Low appetite for service outages.', max_rating: 'low', approved_by_name: 'Invented board', approved_on: dayInZone(-1) }] });
+    const saved = await t.api.put('/api/risks/appetite', { reason: 'Annual review', categories: [{ category: 'cyber', statement: 'Low appetite for service outages.', max_rating: 'low', approved_by_name: 'Invented chair', approval_body: 'Invented board', approved_on: dayInZone(-1) }] });
     expect(saved.status).toBe(200);
     const row = saved.body.categories.find((c: any) => c.category === 'cyber');
     expect(row).toMatchObject({ max_rating: 'low', statement: 'Low appetite for service outages.' });
@@ -77,20 +77,19 @@ describe('risk appetite', () => {
     expect(lowered.body.appetite_breach).toBe(false);
 
     // Removing the appetite clears the flag.
-    await t.api.put('/api/risks/appetite', { categories: [{ category: 'cyber' }] });
+    await t.api.put('/api/risks/appetite', { reason: 'Withdrawn', categories: [{ category: 'cyber' }] });
     expect((await t.api.get(`/api/risks/${risk.id}`)).body.appetite_breach).toBeNull();
   });
 
-  it('follows the risk restriction', async () => {
-    // Risks permissions without security.view: nothing about risks, their appetite or their indicators.
+  it('needs the risks permission only (E45-01), not access to security records', async () => {
     const role = await t.db.one<{ id: string }>(`insert into roles (key, name, description, enabled) values ('risks_nosec', 'risks_nosec', 'test', true) returning id`);
     for (const g of ['risks.*']) await t.db.query('insert into role_permissions (role_id, permission) values ($1,$2)', [role!.id, g]);
     const nosec = await t.as('risks_nosec');
-    expect((await nosec.get('/api/risks/appetite')).status).toBe(403);
-    expect((await nosec.put('/api/risks/appetite', { categories: [] })).status).toBe(403);
-    expect((await nosec.get('/api/risks/rollup')).status).toBe(403);
-    const list = await nosec.get('/api/kris');
-    expect(list.status === 403 || list.body.total === 0).toBe(true);
+    expect((await nosec.get('/api/risks/appetite')).status).toBe(200);
+    expect((await nosec.put('/api/risks/appetite', { categories: [] })).status).toBe(200);
+    expect((await nosec.get('/api/risks/rollup')).status).toBe(200);
+    expect((await nosec.get('/api/kris')).status).toBe(200);
+    expect((await (await t.as('agent')).get('/api/risks/appetite')).status).toBe(403);
   });
 });
 
@@ -188,15 +187,16 @@ describe('compliance samples', () => {
 describe('heat map appetite line', () => {
   it("outlines only the cells holding a risk above its own category's appetite (E18-80)", async () => {
     const clear = (await t.api.get('/api/risks/appetite')).body.categories.map((c: any) => ({ category: c.category }));
-    await t.api.put('/api/risks/appetite', { categories: [...clear, { category: 'cyber', max_rating: 'medium' }, { category: 'enterprise', max_rating: 'high' }] });
-    // High (3 by 4 = 12): above the cyber appetite (medium), within the enterprise one (high).
+    const ok = { approved_on: dayInZone(-1), approved_by_name: 'Invented chair', approval_body: 'Invented risk committee' };
+    await t.api.put('/api/risks/appetite', { reason: 'Probe', categories: [...clear, { category: 'enterprise', max_rating: 'medium', ...ok }, { category: 'compliance', max_rating: 'high', ...ok }] });
+    // High (3 by 4 = 12): above the enterprise appetite (medium), within the compliance one (high); both on the enterprise scale.
     const at = (l: number, i: number) => ({ inherent_likelihood: l, inherent_impact: i, residual_likelihood: l, residual_impact: i });
-    const ent = (await t.api.post('/api/risks', { title: 'Invented appetite probe, enterprise', category: 'enterprise', ...at(3, 4) })).body;
-    const cyb = (await t.api.post('/api/risks', { title: 'Invented appetite probe, cyber', category: 'cyber', ...at(4, 3) })).body;
+    const ent = (await t.api.post('/api/risks', { title: 'Invented appetite probe, compliance', category: 'compliance', ...at(3, 4) })).body;
+    const cyb = (await t.api.post('/api/risks', { title: 'Invented appetite probe, enterprise', category: 'enterprise', ...at(4, 3) })).body;
     expect([ent.appetite_breach, cyb.appetite_breach]).toEqual([false, true]);
-    const heat = (await t.api.get('/api/risks/heatmap?scale=cyber_5x5')).body;
+    const heat = (await t.api.get('/api/risks/heatmap?scale=enterprise_5x5')).body;
     expect(heat.appetite).toMatchObject({ rating: 'medium' });
-    expect(heat.appetite.categories).toEqual(['Cybersecurity']);
+    expect(heat.appetite.categories).toEqual(['Enterprise']);
     const cellOf = (id: string) => heat.cells.find((c: any) => c.risk_ids.includes(id));
     // The enterprise risk's cell is above the strictest appetite (medium) but is outlined only for the
     // cyber risks in it that are above theirs.
@@ -210,7 +210,7 @@ describe('heat map appetite line', () => {
     for (const c of heat.cells) expect(c.above_appetite).toBe(c.risk_ids.some((id: string) => breach.get(id)));
     expect(heat.cells.filter((c: any) => c.count === 0).every((c: any) => !c.above_appetite)).toBe(true);
     for (const r of [ent, cyb]) await t.api.del(`/api/risks/${r.id}`);
-    await t.api.put('/api/risks/appetite', { categories: clear });
-    expect((await t.api.get('/api/risks/heatmap?scale=cyber_5x5')).body.appetite).toBeNull();
+    await t.api.put('/api/risks/appetite', { reason: 'Probe over', categories: clear });
+    expect((await t.api.get('/api/risks/heatmap?scale=enterprise_5x5')).body.appetite).toBeNull();
   });
 });

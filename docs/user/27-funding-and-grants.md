@@ -1,8 +1,8 @@
 # Funding and grants
 
-The funding pages help an organization that receives outside funding (grants, capital and operating assistance, and other awards) show that it meets its funders' conditions: the **awards** and what each one paid for, the **reports** each award requires, the **yearly certifications** an authorized official signs, and the **compliance reviews** funders make, with the deficiencies they find and how each is corrected. Open them from **Projects and funding > Funding and grants** in the navigation. The pages share tabs along the top: **Dashboard**, **Awards**, **Certifications**, **Compliance reviews**, **Deficiencies**, **Sub-recipients** and **Review areas**. Lists and record pages work as described in [Getting started](01-getting-started.md).
+The funding pages help an organization that receives outside funding (grants, capital and operating assistance, and other awards) show that it meets its funders' conditions: the **awards** and what each one paid for, the **reports** each award requires, the **yearly certifications** an authorized official signs, and the **compliance reviews** funders make, with the deficiencies they find and how each is corrected. Open them from **Projects and funding > Funding and grants** in the navigation. The pages share tabs along the top: **Dashboard**, **Awards**, **Certifications**, **Compliance reviews**, **Deficiencies**, **Sub-recipients**, **Funders** and **Review areas**. Lists and record pages work as described in [Getting started](01-getting-started.md).
 
-No funder, funding program, law or review guide is built in. Funders and programs are names you type on each award, the statements you certify are your own, and a funder's review areas are loaded from a file you prepare (see [Review areas from a file](#review-areas-from-a-file)). Everything shipped as an example is invented and labeled as a sample.
+No funder, funding program, law or review guide is built in. Funders are records you file (see [Funders](#funders)), programs are names you type on each award, the statements you certify are your own, and a funder's review areas are loaded from a file you prepare (see [Review areas from a file](#review-areas-from-a-file)). Everything shipped as an example is invented and labeled as a sample.
 
 If your organization does not track funding here, an administrator can switch **Funding and grant compliance** off under **Administration > Features** (see [Administration](09-administration.md#features)). The funding pages, the **Funder clauses** tab on contracts and the daily certification job then disappear. Records are kept and return when it is switched back on.
 
@@ -27,7 +27,7 @@ Open **Awards**. Filter by status, reporting frequency, award manager, project, 
 ### Add an award
 
 1. Select **New funding award** (or **New award** on the dashboard), or **Create** then **Funding award**.
-2. Enter the **Award** (its title), the **Funder** and the **Funding program** as the funder names them, and the funder's **Award number**.
+2. Enter the **Award** (its title), choose the **Funder** (see [Funders](#funders)), and enter the **Funding program** as the funder names it and the funder's **Award number**.
 3. Choose the **Status**: **Applied for**, **Awarded**, **Active** or **Closed out**.
 4. Enter the **Period starts** and **Period ends** dates, the **Amount awarded** and the **Local share** (the part your organization pays). Amounts cannot be negative, and the period cannot end before it starts.
 5. Choose the **Project** the award pays for, if there is one, and the **Award manager**.
@@ -56,6 +56,12 @@ When an award is **Awarded** or **Active**, its reporting becomes part of the ob
 - a **Close-out** obligation, due once on the **Close-out due** date.
 
 The **Reporting obligations** tab lists them. Each is made once: after that it lives in the obligations register, where it is attested period by period and its next due date moves on, so later changes to the award do not change it. If an award was saved before its dates or frequency were known, or before the obligations register was installed, select **Make missing obligations** (this needs permission to create obligations too). The tab says so when the obligations register is not part of your installation.
+
+## Funders
+
+A funder is filed once (`FDR-` numbers) and chosen on its awards, yearly certifications and compliance reviews, so you can see everything filed under one funder. Open **Funders**, then **New funder**, and enter its **Funder** name, a **Contact**, **Contact email** and **Website**, and, when the same organization is also in the vendor register, **Also in the vendor register as**. A funder's page lists its **Awards**, **Certifications** and **Compliance reviews**, with how many there are of each.
+
+Renaming a funder changes the name everywhere it is used. When a funder name is given without choosing a funder (an import, or an older integration that sends `funder_name`), the funder of that name is used, or filed when there is none. Funder names typed before funders were records became funders when the application was upgraded.
 
 ## Yearly certifications
 
@@ -97,9 +103,11 @@ This also happens by itself. Every day from the month chosen in **Next year's dr
 
 A funder may review how your organization manages its awards, usually area by area (financial management, procurement, asset management and so on), with a request for documents, a site visit and a report of deficiencies. Open **Compliance reviews**.
 
+A review is connected to the rest of your compliance data: it names the **awards** it covers, each area records the **controls, obligations and documents** it relies on, and the evidence for each area and each document request comes from the [evidence library](43-evidence-library.md), where it is filed once and reused. The next review of the same funder starts from the last one (see [The next review](#the-next-review)).
+
 ### Review areas from a file
 
-The areas a funder reviews, with their questions, are loaded from a file under **Review areas** (this needs `funding.administer`). The file is JSON:
+The areas a funder reviews, with their questions, are a template your organization defines and loads from a file under **Review areas** (this needs `funding.administer`). No funder's review guide is built in. The file is JSON:
 
 ```json
 {
@@ -122,31 +130,35 @@ To load one:
 2. The file is checked first and nothing is saved: you see how many areas it holds and, if a set of the same name and version is already loaded, how many areas are new or changed. Problems are listed in plain words.
 3. Select **Load** to save it.
 
-Loading the same name and version again updates the areas and adds new ones; it never removes one (areas no longer in the file are listed and kept). **Load the invented sample** loads an invented set of twelve areas for trying the pages out; it does not reproduce any funder's review guide. **Show areas** lists a set's areas and questions.
+Loading the same name and version again updates the areas and adds new ones; it never removes one (areas no longer in the file are listed and kept). **Download an invented sample to start from** saves an invented file of twelve generic areas, in the right format, to edit into your own template; it does not reproduce any funder's review guide, and only the `dev` sample data loads it. **Show areas** lists a set's areas and questions.
 
 ### Start a review
 
 1. On **Compliance reviews**, select **New compliance review**, or **Create** then **Compliance review**.
-2. Enter a **Review** title, the **Funder**, the **Period reviewed**, the **Site visit** date and the **Review lead**.
+2. Enter a **Review** title, choose the **Funder**, and enter the **Period reviewed**, the **Site visit** date and the **Review lead**.
 3. Select **Create compliance review**.
-4. On the review's **Areas** tab, choose a set of review areas and select **Load areas**.
+4. On the review's **Areas** tab, choose a set of review areas and select **Load areas**, or choose an earlier review under **Or start from an earlier review** and select **Carry forward** (see [The next review](#the-next-review)).
+5. On the **Awards** tab, choose the **Awards this review covers** and select **Save**. Each award's page then lists the review on its **Compliance reviews** tab.
 
 The review gets a reference such as `CRV-00002`. Its progress runs **Preparing**, **Self-assessment**, **Site visit**, **Draft report**, **Final report** and **Closed**; change the **Status** on the **Details** card as the review moves on.
 
 ### Areas and the self-assessment
 
-The **Areas** tab lists each area with its **Self-assessment** (**Not assessed**, **Compliant**, **Deficient** or **Not applicable**), its owner and how many deficiencies it has. Open an area to:
+The **Areas** tab lists each area with its **Self-assessment** (**Not assessed**, **Compliant**, **Deficient** or **Not applicable**), its owner, how much evidence it has and how many deficiencies it has; the line above counts the areas assessed and the areas with evidence. Open an area to:
 
 - answer each of its questions;
-- choose the **Self-assessment** and the **Owner**;
-- record **Notes and evidence** (where the evidence is kept; attach the files themselves on the review's **Attachments** tab);
-- select **Save area**, or **Record a deficiency** for a deficiency the funder found in that area.
+- choose the **Self-assessment** and the **Owner**, and write **Notes**;
+- select **Save area**, or **Record a deficiency** for a deficiency the funder found in that area;
+- under **Relies on**, add the **Controls**, **Obligations** and **Documents** the area relies on (choose the **Kind**, the record, then **Add**). A control shows its latest operating rating and when it was last tested, an obligation its next due date. Records you may not see are counted, not shown;
+- under **Evidence**, select **Use existing evidence** to link evidence already in the library, or **Upload a file** to file a new piece of evidence and link it at once (see [Evidence library](43-evidence-library.md#using-evidence-for-records)). **Suggested from related records** lists the evidence the area's controls, obligations and documents already use: select **Use** to reuse it for the area.
 
 A review keeps its own copy of the areas, so loading a newer version of the file later does not change a review under way.
 
 ### Document requests
 
-The **Requests** tab tracks what the funder asked to see. Select **Add a request** and enter what was asked for, the **Review area**, who it is **Assigned to**, the **Due** date and the **Status** (**Open**, **Provided** or **Accepted by the funder**), then select **Add**. The person a request is assigned to can **Answer** it (its status and response) even without permission to edit funding records.
+The **Requests** tab tracks what the funder asked to see. Select **Add a request** and enter what was asked for, the **Review area**, who it is **Assigned to**, the **Due** date and the **Status** (**Open**, **Provided** or **Accepted by the funder**), then select **Add**. The **Evidence** column counts the evidence that answers each request.
+
+The person a request is assigned to can **Answer** it (its status and response) even without permission to edit funding records, and answer it with files: select **Files**, then **Upload a file** (the file is filed in the evidence library, owned by them, and linked to the request; an **Open** request becomes **Provided**) or **Use existing evidence**. They need permission to view the evidence library (`evidence.view`) to see what they filed. Removing a request leaves its evidence in the library.
 
 ### Deficiencies and corrective action plans
 
@@ -158,7 +170,16 @@ Each deficiency is corrected through a corrective action plan (see [Corrective a
 - The deficiency is then **Being corrected**, and shows its plan.
 - A deficiency with a plan closes by itself when its plan closes, that is when the plan's actions are done and verified. It cannot be closed by hand while a plan for it is still open.
 
-A deficiency with no plan can be closed by hand. **Closed on** is filled in when it closes, and cleared if it is reopened.
+A deficiency with no plan can be closed by hand. **Closed on** is filled in when it closes, and cleared if it is reopened. The deficiency's **Closure evidence** tab links the evidence that shows it was corrected, from the [evidence library](43-evidence-library.md).
+
+### The next review
+
+Funder reviews come back every few years with much the same areas and requests. To start the next one from the last:
+
+- On the last review, select **Start the next review** (needs `funding.create`). A new review of the same funder is made and carried forward, and opens.
+- Or, on a new review with no areas yet, choose the earlier review under **Or start from an earlier review** and select **Carry forward** (needs `funding.edit`).
+
+Carrying forward copies the earlier review's set of areas, each area with its questions, owner, answers and notes as drafts (the **Self-assessment** goes back to **Not assessed**, so each area is assessed again), what each area relies on, the evidence each area used (the same evidence records, nothing uploaded again; renew what has lapsed in the library), the document requests (open again, assigned to the same people, without due dates or responses) and the awards under review. Areas the review already has keep their answers unless they are still blank, and a request with the same wording is not copied twice. The new review shows **Carried forward from**, and its **Deficiencies** tab lists the previous review's deficiencies with their status and when they were closed.
 
 ### The funder's reviewer
 
@@ -189,8 +210,10 @@ The tab needs `funding.view` (and `funding.edit` to change it) besides the contr
 
 ## Sample data
 
-The `dev` sample data adds four invented awards ("[Sample] Bus replacement", "[Sample] Station accessibility upgrade", "[Sample] Operating assistance" and "[Sample] Cybersecurity improvement") from invented funders, this year's certification with twenty statements, and one compliance review built from the invented sample file of review areas, with three requests and two deficiencies (one with a corrective action plan), and two invented sub-recipients of "[Sample] Operating assistance" ("[Sample] County paratransit partner" and "[Sample] University research partner"), each with monitoring history, one with findings and a corrective action plan. The sample awards are linked to the sample vehicles, assets, projects and contracts that exist when the sample data is loaded.
+The `dev` sample data adds invented funders, four invented awards ("[Sample] Bus replacement", "[Sample] Station accessibility upgrade", "[Sample] Operating assistance" and "[Sample] Cybersecurity improvement") from invented funders, this year's certification with twenty statements, and one compliance review built from the invented sample file of review areas, with three requests and two deficiencies (one with a corrective action plan), covering two of the awards, whose areas rely on the sample controls and obligations and use the sample evidence records of the [evidence library](43-evidence-library.md#sample-data), and two invented sub-recipients of "[Sample] Operating assistance" ("[Sample] County paratransit partner" and "[Sample] University research partner"), each with monitoring history, one with findings and a corrective action plan. The sample awards are linked to the sample vehicles, assets, projects and contracts that exist when the sample data is loaded.
 
 ## Not available yet
 
 - Drawdowns, budgets and expenditure by award: keep those in your finance system.
+- The funder's outside reviewer does not see the evidence library: they see the evidence files attached to the review itself. Attach there what the reviewer should see.
+- A readiness view of a review (areas assessed and evidenced, open deficiencies of the previous review, overdue obligations of the awards under review) and an export of the whole review package as one file.

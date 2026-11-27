@@ -1,9 +1,10 @@
-// Audits and inspections (E24): the audit plan and coverage, engagements, checklist templates,
+// Audits and inspections (E24): coverage, the risk-ranked audit plan (E45-13), engagements with workpapers, checklist templates,
 // recurring inspections run on a phone or tablet, findings and evidence requests.
 import type { ModuleDef } from '../../core';
 import { AreaDetail, AreaList } from './Areas';
 import { AuditsDashboard } from './Dashboard';
 import { AuditDetail, AuditList } from './Engagements';
+import { AuditPlan } from './Plan';
 import { FindingDetail, FindingList } from './Findings';
 import { InspectionDetail, InspectionList, ScheduleDetail, ScheduleList } from './Inspections';
 import { InspectionRun } from './InspectionRun';
@@ -22,6 +23,7 @@ const mod: ModuleDef = {
   ],
   routes: [
     { path: '/audits', element: <AuditsDashboard />, permission: view },
+    { path: '/audits/plan', element: <AuditPlan />, permission: view },
     { path: '/audits/areas', element: <AreaList />, permission: view },
     { path: '/audits/areas/:id', element: <AreaDetail />, permission: view },
     { path: '/audits/engagements', element: <AuditList />, permission: view },

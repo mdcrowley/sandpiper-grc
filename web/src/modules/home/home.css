@@ -195,3 +195,9 @@
   .home-cell, .home-section-head { break-inside: avoid; }
   .home-section-title { break-after: avoid; }
 }
+
+/* E45-45: IT leadership panels (widgetsItLeadership.tsx). */
+.home-lead-figure { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s-2); }
+.home-lead-value { font-size: var(--fs-xl); font-weight: 650; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.home-outcomes { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-3); }
+.home-outcomes li { display: inline-flex; align-items: center; gap: var(--s-1); }

@@ -87,7 +87,7 @@ export function registerLinkRoutes(ctx: ModuleContext, h: Helpers) {
       after: { attachment_id: row.id, link: auditAddress(url), kind: meta.kind, collected_on: meta.collected_on, expires_on: meta.expires_on },
     });
     reply.code(201);
-    return present({ ...row, checked_by_name: req.user!.displayName });
+    return present({ ...row, checked_by_name: actorOf(req).name });
   });
   ctx.describeRoute({
     method: 'POST', path: '/api/attachments/link', summary: 'Link a document kept elsewhere to a record, instead of uploading a copy',
@@ -102,13 +102,13 @@ export function registerLinkRoutes(ctx: ModuleContext, h: Helpers) {
     const today = todayInZone();
     const row = (await db.one<Row>(
       `update attachments set last_checked_on = $2, checked_by = $3, link_reminded_for = null, updated_at = now(), updated_by = $3
-       where id = $1 returning *`, [att.id, today, req.user!.id]))!;
+       where id = $1 returning *`, [att.id, today, actorOf(req).id]))!;
     await ctx.audit(req, {
       action: 'attachment.checked', recordType: parent.def.type, recordId: parent.row.id,
       summary: `Link checked and still current: ${att.file_name}`,
       before: { attachment_id: att.id, last_checked_on: att.last_checked_on ?? null }, after: { last_checked_on: today },
     });
-    return present({ ...row, checked_by_name: req.user!.displayName });
+    return present({ ...row, checked_by_name: actorOf(req).name });
   });
   ctx.describeRoute({
     method: 'POST', path: '/api/attachments/:id/checked', summary: 'Record that a linked document was checked today and is still current',

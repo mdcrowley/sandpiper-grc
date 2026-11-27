@@ -60,7 +60,7 @@ export function registerReviews(ctx: ModuleContext, tables: AccessTables): void 
     const review = (await db.one<Row>(
       `insert into policy_plan_reviews (policy_id, version_id, review_year, outcome, started_on, approved_on, reviewed_on, kind, result, reviewed_by_name, note, created_by, updated_by)
        values ($1, $2, $3, 'completed', $4, $4, $4, 'periodic', $5, $6, $7, $8, $8) returning *`,
-      [policy.id, current?.id ?? null, Number(reviewedOn.slice(0, 4)), reviewedOn, result, by, note, req.user!.id]))!;
+      [policy.id, current?.id ?? null, Number(reviewedOn.slice(0, 4)), reviewedOn, result, by, note, actorOf(req).id]))!;
     const out: Row = { review: reviewView({ ...review, version: current?.version ?? null }) };
 
     // The next review: from this review by the cycle (never earlier than a later review already recorded).

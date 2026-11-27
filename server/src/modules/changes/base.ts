@@ -1,4 +1,5 @@
 import type { FastifyRequest } from 'fastify';
+import { actorOf } from '../../core/dataload.ts';
 import { UUID_RE } from '../../core/errors.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import {
@@ -125,7 +126,7 @@ export function makeBase(ctx: ModuleContext) {
     const sets = cols.map((c, i) => `${c} = ${marks[i]}`);
     return (await db.one<Row>(
       `update ${table} set ${[...sets, 'updated_at = now()', 'updated_by = $2'].join(', ')} where id = $1 returning *`,
-      [id, req?.user?.id ?? null, ...params],
+      [id, actorOf(req).id, ...params],
     ))!;
   }
 
@@ -145,7 +146,8 @@ export function makeBase(ctx: ModuleContext) {
     return { before, after, changed: Object.keys(after).length > 0 };
   }
 
-  const actorName = (req: Req) => req?.user?.displayName ?? 'System';
+  // The person a load names (E18-71/E18-94), else the signed-in person.
+  const actorName = (req: Req) => actorOf(req).name ?? 'System';
   const changeLabel = (c: Row) => [c.ref, c.title].filter(Boolean).join(' ');
 
   async function needChange(id: string, req: Req): Promise<Row> {
@@ -237,7 +239,7 @@ export function makeBase(ctx: ModuleContext) {
       const added = await db.query(
         `insert into record_links (from_type, from_id, to_type, to_id, relation, created_by) values ('change', $1, $2, $3, $4, $5)
          on conflict (from_type, from_id, to_type, to_id, relation) do nothing returning id`,
-        [changeId, toType, after, AFFECTS, req?.user?.id ?? null]);
+        [changeId, toType, after, AFFECTS, actorOf(req).id]);
       if (added.length) {
         await ctx.audit(req, {
           action: 'link.add', recordType: 'change', recordId: changeId,

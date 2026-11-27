@@ -1,6 +1,7 @@
 import type { FastifyRequest } from 'fastify';
 import { scheduleWork } from '../../core/jobs/index.ts';
 import type { LookupValue, ModuleContext, Row, SeedOptions } from '../../core/module.ts';
+import { actorOf } from '../../core/dataload.ts';
 import { ANONYMIZED_TEXT, onAnonymize } from '../../core/retention.ts';
 import { dayInZone, todayInZone } from '../../core/timezone.ts';
 import type { SampleRename } from '../inventory/seed-rename.ts';
@@ -175,11 +176,11 @@ export async function registerSubrecipients(ctx: ModuleContext): Promise<void> {
     const findings = cleanText(b.findings, 8000);
     if (b.result && b.result !== 'satisfactory' && !findings) fields.findings = 'Describe what was found.';
     if (Object.keys(fields).length) ctx.fail(400, 'validation', 'Check the highlighted fields.', fields);
-    const by = b.by ? await activeUser(ctx, b.by, 'by') : req.user!.id;
+    const by = b.by ? await activeUser(ctx, b.by, 'by') : actorOf(req).id;
     const row = (await db.one<Row>(
       `insert into subrecipient_monitoring (subrecipient_id, monitored_on, method, result, findings, by, created_by, updated_by)
        values ($1,$2,$3,$4,$5,$6,$7,$7) returning *, monitored_on::text as monitored_on`,
-      [sub.id, on, b.method, b.result, findings, by, req.user!.id]))!;
+      [sub.id, on, b.method, b.result, findings, by, actorOf(req).id]))!;
     const last = (await db.one<Row>('select max(monitored_on)::text as d from subrecipient_monitoring where subrecipient_id = $1 and deleted_at is null', [sub.id]))!.d;
     // System work: the dates are read-only to people.
     await ctx.resources.update('subrecipient', sub.id, { last_monitored_on: last, next_monitoring_due: nextMonitoring(sub.monitoring_frequency, last, today) });
@@ -189,7 +190,7 @@ export async function registerSubrecipients(ctx: ModuleContext): Promise<void> {
       after: { monitoring_id: row.id, monitored_on: on, method: b.method, result: b.result },
     });
     reply.code(201);
-    return view({ ...row, by_name: by === req.user!.id ? req.user!.displayName : null });
+    return view({ ...row, by_name: by && by === actorOf(req).id ? actorOf(req).name : null });
   });
   ctx.describeRoute({
     method: 'POST', path: '/api/subrecipients/:id/monitoring', tag: 'Funding', permission: 'funding.edit',

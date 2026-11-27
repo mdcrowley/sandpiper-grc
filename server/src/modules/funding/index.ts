@@ -3,6 +3,8 @@ import { registerAwards } from './awards.ts';
 import { registerCertifications } from './certifications.ts';
 import { registerDue } from './due.ts';
 import { DEFAULT_FUNDING_CLAUSES, FUNDING_CLAUSE_STATUSES, registerClauses } from './clauses.ts';
+import { registerFunders } from './funders.ts';
+import { registerReviewLinks } from './review-links.ts';
 import { registerReviews } from './reviews.ts';
 import { seedFunding } from './seed.ts';
 import { registerSubrecipients } from './subrecipients.ts';
@@ -88,9 +90,11 @@ async function register(ctx: ModuleContext) {
   if (await ctx.db.one(`select 1 from lookups where list_key = 'action_source' limit 1`)) {
     await ctx.lookups.ensure('action_source', [{ value: 'funding', label: 'Funding', sort: 148 }]);
   }
+  registerFunders(ctx);
   registerAwards(ctx);
   await registerCertifications(ctx);
   registerReviews(ctx);
+  registerReviewLinks(ctx); // awards under review, what areas rely on, evidence, carrying forward (E45-10)
   registerClauses(ctx);
   registerSummary(ctx);
   await registerSubrecipients(ctx);

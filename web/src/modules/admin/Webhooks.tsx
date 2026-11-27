@@ -453,7 +453,7 @@ function WebhookDialog({ hook, data, onClose, onSaved }: {
           label="Include restricted records" checked={restricted} disabled={!mayRestrict && !restricted}
           onChange={setRestricted} error={errors.includeRestricted}
           hint={mayRestrict
-            ? 'Security incidents, risks and records flagged restricted are sent too. They stop being sent if you lose security.view.'
+            ? 'Security incidents and records flagged restricted (cybersecurity risks by default) are sent too. They stop being sent if you lose security.view.'
             : 'Only someone holding security.view can switch this on.'}
         />
         {!hook && (

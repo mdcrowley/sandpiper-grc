@@ -3,7 +3,7 @@
 // and may be an account, a roster person (type `person`, people module, when loaded) or just a name.
 import type { FastifyRequest } from 'fastify';
 import { UUID_RE } from '../../core/errors.ts';
-import type { ModuleContext, Row } from '../../core/module.ts';
+import type { ModuleContext, Row, SessionUser } from '../../core/module.ts';
 import { todayInZone } from '../../core/timezone.ts';
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -67,12 +67,48 @@ export async function quorumOf(ctx: ModuleContext, meeting: Row): Promise<Quorum
   return { voting: members.length, present, needed, met: anyRecorded && members.length > 0 ? present >= needed : null, rule: committee?.quorum_rule ?? 'count' };
 }
 
+/**
+ * SQL that is true when `userId` sits on the committee `committeeExpr` today: its chair or secretary,
+ * or a member in office whose account it is (directly, or through their roster person when the
+ * people module is loaded). The id is checked, so it is safe to put into the SQL.
+ */
+export function memberSql(ctx: ModuleContext, userId: string | null | undefined, committeeExpr: string): string {
+  if (!userId || !UUID_RE.test(userId)) return 'false';
+  const today = todayInZone();
+  const person = ctx.resources.get('person');
+  const viaPerson = person && person.fields.user_id
+    ? ` or m.person_id in (select p.id from ${person.table} p where p.user_id = '${userId}' and p.deleted_at is null)` : '';
+  return `exists (select 1 from committees cc where cc.id = ${committeeExpr} and cc.deleted_at is null and (cc.chair_id = '${userId}' or cc.secretary_id = '${userId}'
+    or exists (select 1 from committee_members m where m.committee_id = cc.id and m.deleted_at is null
+      and (m.from_on is null or m.from_on <= '${today}'::date) and (m.to_on is null or m.to_on >= '${today}'::date)
+      and (m.user_id = '${userId}'${viaPerson}))))`;
+}
+
+/** Whether a person sits on a committee today (chair, secretary or member in office). */
+export async function isMember(ctx: ModuleContext, committeeId: string, userId: string | null | undefined): Promise<boolean> {
+  if (!UUID_RE.test(String(committeeId ?? ''))) return false;
+  return Boolean(await ctx.db.one(`select 1 as ok where ${memberSql(ctx, userId, '$1::uuid')}`, [committeeId]));
+}
+
+/**
+ * Whether a person may read a committee's closed-session (executive session) items: its members,
+ * chair and secretary, and the people who prepare meetings (governance.edit).
+ */
+export async function seesClosed(ctx: ModuleContext, user: SessionUser | null | undefined, committeeId: string): Promise<boolean> {
+  if (!user) return false;
+  return ctx.can(user, 'governance.edit') || isMember(ctx, committeeId, user.id);
+}
+
 export function registerCommittees(ctx: ModuleContext) {
   const { app, db } = ctx;
   const invalid = (fields: Record<string, string>): never => ctx.fail(400, 'validation', 'Check the highlighted fields.', fields);
 
   function checkCommittee(merged: Row, patch: Row) {
     if ('quorum_rule' in patch && !['count', 'percent'].includes(String(patch.quorum_rule))) invalid({ quorum_rule: 'Choose a number of members or a percentage.' });
+    if (typeof patch.resolution_prefix === 'string') {
+      patch.resolution_prefix = patch.resolution_prefix.trim().slice(0, 20) || null;
+      if (patch.resolution_prefix && !/^[\p{L}\p{N} ./_-]+$/u.test(patch.resolution_prefix)) invalid({ resolution_prefix: 'Use letters, digits, spaces and . / _ - only.' });
+    }
     if (patch.quorum_value !== undefined && patch.quorum_value !== null) {
       const n = Number(patch.quorum_value);
       if (!Number.isFinite(n) || n <= 0) invalid({ quorum_value: 'The quorum must be more than zero.' });
@@ -100,6 +136,8 @@ export function registerCommittees(ctx: ModuleContext) {
       quorum_value: { label: 'Quorum', type: 'number' },
       meeting_frequency: { label: 'Meets', type: 'lookup', list: 'committee_frequency' },
       joint_labor_management: { label: 'Joint labor-management committee', type: 'boolean', default: false },
+      // Resolution numbers are this text, the year of the meeting and a running number: "R-" gives R-2026-01.
+      resolution_prefix: { label: 'Resolution number prefix', type: 'text', personal: false },
     },
     hooks: {
       beforeCreate: async (_req, data) => checkCommittee(data, data),

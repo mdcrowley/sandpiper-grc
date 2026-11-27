@@ -10,6 +10,7 @@ const SECTIONS = [
   { key: 'reviews', label: 'Compliance reviews', path: '/funding/reviews' },
   { key: 'deficiencies', label: 'Deficiencies', path: '/funding/deficiencies' },
   { key: 'subrecipients', label: 'Sub-recipients', path: '/funding/subrecipients' },
+  { key: 'funders', label: 'Funders', path: '/funding/funders' },
   { key: 'areas', label: 'Review areas', path: '/funding/review-areas' },
 ] as const;
 
@@ -39,3 +40,21 @@ export function DeficiencyCaps({ deficiencyId }: { deficiencyId: string }) {
 
 /** "3 of 5" style progress text. */
 export const ofText = (n: number, total: number) => `${n} of ${total}`;
+
+// The evidence library (E45-06) supplies the evidence panel: per review area and per document request.
+// Loaded only when that module is in the build; shown only while its area is on.
+export interface EvidencePanelProps {
+  recordType: string; recordId: string; part?: string; title?: string; bare?: boolean; mayUpload?: boolean; onChange?: () => void;
+  uploadTo?: (uploadId: string, form: { title: string; valid_until: string | null }) => Promise<unknown>;
+}
+const evidenceLoaders = import.meta.glob<{ EvidencePanel: ComponentType<EvidencePanelProps> }>('../evidence/EvidencePanel.tsx');
+const loadEvidence = Object.values(evidenceLoaders)[0];
+const LazyEvidence = loadEvidence ? lazy(() => loadEvidence().then((m) => ({ default: m.EvidencePanel }))) : null;
+
+/** Whether the evidence library's panel is part of this build. */
+export const evidenceInBuild = Boolean(LazyEvidence);
+
+export function Evidence(props: EvidencePanelProps) {
+  if (!LazyEvidence) return null;
+  return <Suspense fallback={<Loading lines={2} label="Loading evidence" />}><LazyEvidence {...props} /></Suspense>;
+}

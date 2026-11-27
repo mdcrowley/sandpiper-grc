@@ -4,10 +4,10 @@ import { lazy, Suspense, useState, type ComponentType } from 'react';
 import { Link } from 'react-router-dom';
 import {
   api, Button, Card, EditableSummary, errorMessage, ErrorState, IconButton, Loading, PageHeader, RecordPage, ResourceList,
-  Stepper, TextArea, useAuth, useFetch, UserPicker, useToast,
+  Stepper, TextArea, useAuth, useFetch, UserPicker, useResource, useToast,
 } from '../../core';
 import type { RecordContext } from '../../core';
-import { AuditChecklist } from './Checklist';
+import { AuditWorkpapers } from './Workpapers';
 import { AuditTabs } from './shared';
 
 // Outside reviewers (E41-09) live in their own module; its tab shows only when the module is in the build.
@@ -118,7 +118,7 @@ function Approval({ row, reload, save, canEdit }: RecordContext) {
           <p>{row.status === 'closed' ? `Closed${row.report_approved_on ? ' after the report was approved' : ''}.` : 'This audit was canceled.'}</p>
         ) : (
           <div className="stack">
-            <p className="muted">An audit closes with a report summary and a management response or corrective action plan on every finding{data.required ? ', once its report is approved' : ''}.</p>
+            <p className="muted">An audit closes with a report summary, a management response or corrective action plan on every finding, every worked program step prepared and reviewed, and its control tests reviewed{data.required ? ', once its report is approved' : ''}.</p>
             {data.problems.length > 0 ? (
               <ul className="au-problems">{data.problems.map((p) => <li key={p}>{p}</li>)}</ul>
             ) : <p className="notice notice-success">Nothing is missing.</p>}
@@ -145,6 +145,47 @@ function Approval({ row, reload, save, canEdit }: RecordContext) {
   );
 }
 
+interface WorkpaperStatus {
+  steps: { total: number; worked: number; prepared: number; reviewed: number }; open_notes: number;
+  control_tests: { total: number; unreviewed: number } | null;
+  findings: { total: number; awaiting_verification: number; verification_overdue: number; closed: number };
+}
+
+/** Where the workpapers, control tests and finding verifications stand (beside the scope). */
+function WorkStatus({ row }: RecordContext) {
+  const { data, error, reload } = useFetch<WorkpaperStatus>(`/api/audits/${row.id}/workpaper-status?v=${row.updated_at}`);
+  if (error) return <ErrorState error={error} onRetry={reload} />;
+  if (!data) return <Loading lines={3} />;
+  const s = data.steps;
+  return (
+    <Card title="Workpapers and follow-up">
+      <ul className="au-status-list">
+        <li>{s.worked} of {s.total} program steps worked, {s.prepared} prepared, {s.reviewed} reviewed</li>
+        {data.open_notes > 0 && <li>{data.open_notes === 1 ? '1 review note open' : `${data.open_notes} review notes open`}</li>}
+        {data.control_tests && data.control_tests.total > 0 && <li>{data.control_tests.total} control tests, {data.control_tests.unreviewed} not reviewed</li>}
+        <li>{data.findings.total} findings, {data.findings.awaiting_verification} awaiting verification, {data.findings.closed} closed</li>
+      </ul>
+      {data.findings.verification_overdue > 0 && (
+        <p className="notice notice-warn">{data.findings.verification_overdue === 1 ? '1 finding is' : `${data.findings.verification_overdue} findings are`} past the date for the auditor's verification.</p>
+      )}
+    </Card>
+  );
+}
+
+/** Control tests recorded as part of this audit (controls module), when it is installed and on. */
+function ControlTests({ row }: RecordContext) {
+  return (
+    <div className="stack">
+      <p className="muted">Tests of the area's controls carried out for this audit. Each is reviewed by someone other than its tester who also works on audits; the audit closes once they are all reviewed.</p>
+      <ResourceList type="control_test" baseFilter={{ audit_id: row.id }} urlState={false}
+        columns={['ref', 'title', 'control_id', 'test_type', 'tester_id', 'result', 'status', 'reviewer_name']}
+        filters={['status', 'result', 'tester_id']}
+        createFields={['control_id', 'test_type', 'period_start', 'period_end', 'planned_on', 'tester_id', 'method']}
+        createInitial={{ audit_id: row.id }} />
+    </div>
+  );
+}
+
 function Report(rec: RecordContext) {
   const { can } = useAuth();
   const { row } = rec;
@@ -163,6 +204,7 @@ function Report(rec: RecordContext) {
 }
 
 export function AuditDetail() {
+  const controlTests = useResource('control_test');
   return (
     <RecordPage
       type="audit_engagement"
@@ -172,11 +214,14 @@ export function AuditDetail() {
       summary={(rec) => (
         <div className="au-scope">
           <EditableSummary type="audit_engagement" row={rec.row} onSaved={rec.reload} title="Scope" fields={SCOPE_FIELDS} />
-          <Team {...rec} />
+          <div className="stack">
+            <Team {...rec} />
+            <WorkStatus {...rec} />
+          </div>
         </div>
       )}
       tabs={[
-        { key: 'checklist', label: 'Checklist', content: ({ row }) => <AuditChecklist auditId={row.id} closed={row.status === 'closed' || row.status === 'canceled'} /> },
+        { key: 'checklist', label: 'Workpapers', content: ({ row }) => <AuditWorkpapers auditId={row.id} closed={row.status === 'closed' || row.status === 'canceled'} /> },
         {
           key: 'requests', label: 'Evidence requests',
           content: ({ row }) => (
@@ -190,12 +235,13 @@ export function AuditDetail() {
           key: 'findings', label: 'Findings',
           content: ({ row }) => (
             <ResourceList type="audit_finding" baseFilter={{ source_id: row.id }} urlState={false}
-              columns={['ref', 'title', 'rating', 'status', 'response_owner_id', 'response_due', 'cap_id']}
+              columns={['ref', 'title', 'rating', 'status', 'response_owner_id', 'response_due', 'cap_id', 'verification_due', 'verified_on']}
               filters={['rating', 'status', 'response_owner_id']}
               createFields={['title', 'rating', 'criteria', 'condition', 'cause', 'effect', 'recommendation', 'response_owner_id', 'response_due']}
               createInitial={{ source_type: 'audit_engagement', source_id: row.id }} />
           ),
         },
+        ...(controlTests ? [{ key: 'controls', label: 'Control tests', content: (rec: RecordContext) => <ControlTests {...rec} /> }] : []),
         { key: 'report', label: 'Report', content: (rec) => <Report {...rec} /> },
         { key: 'approval', label: 'Approval', content: (rec) => <Approval {...rec} /> },
         ...(OutsideReviewers ? [{

@@ -336,6 +336,7 @@ Besides the notifications each part of the application sends as things happen, t
 | An evidence note on a framework outcome about to expire, or expired (**Reminders**) | The outcome's owner, or everyone who may edit framework outcomes | Once when the expiry is 30 days away, and once when it has passed |
 | A hazard's review date (**Reminders**) | The hazard's owner, or everyone who may edit safety records | Once when the date is 14 days away, and once when it is reached; not for closed hazards |
 | An evidence file about to expire, or expired (**Reminders**) | The owner of its record, or the person who attached it | 30 days before, 7 days before and on the day, each once; see [Expiring evidence files](#expiring-evidence-files) |
+| An evidence record about to lapse (**Reminders**) | The evidence record's owner | 30 days before, 7 days before and on its "valid until" date, each once; see [Evidence library](43-evidence-library.md) |
 | Warranty and support end dates of assets, contract notice dates, review dates of framework outcomes, risk acceptances, policy acknowledgments and training due | As described in the guide for each part | |
 
 A date that passed more than 30 days before a reminder could be sent (for example on the day these reminders were first switched on) is not announced. Changing a due or review date starts its reminders again.
@@ -512,6 +513,8 @@ Each person adds their own under **Account security** > **Alerts by text message
 | **Remind outcome owners before an evidence note expires** | 30 days |
 | **Remind risk owners before an acceptance expires** | 30 days |
 | **Remind hazard owners before the review date** | 14 days |
+| **Remind evidence owners before evidence lapses** | 30, 7 and 0 days before (shown while the [evidence library](43-evidence-library.md) is on) |
+| **Days the auditor has to verify a finding once it is ready** | 30 days (see [Audits and inspections](25-audits-and-inspections.md)) |
 
 Change the values you need and select **Save changes**; **Undo changes** puts back what is saved. Each value that changed is kept in the audit log. Reminders for policies and training have their own settings in those parts of the application, and a policy or course can set its own interval; see [Policies and exceptions](11-policies-and-exceptions.md) and [Training and exercises](12-training-and-exercises.md).
 

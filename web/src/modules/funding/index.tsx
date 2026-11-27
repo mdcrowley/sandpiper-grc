@@ -5,6 +5,7 @@ import { AwardDetail, AwardList } from './Awards';
 import { CertificationDetail, CertificationList } from './Certifications';
 import { FundingDashboard } from './Dashboard';
 import { DeficiencyDetail, DeficiencyList } from './Deficiencies';
+import { FunderDetail, FunderList } from './Funders';
 import { ReviewAreas } from './ReviewAreas';
 import { ReviewDetail, ReviewList } from './Reviews';
 import './funding.css';
@@ -29,6 +30,8 @@ const mod: ModuleDef = {
     { path: '/funding/deficiencies/:id', element: <DeficiencyDetail />, permission: view },
     { path: '/funding/review-areas', element: <ReviewAreas />, permission: view },
     { path: '/funding/subrecipients', element: <SubrecipientList />, permission: view },
+    { path: '/funding/funders', element: <FunderList />, permission: view },
+    { path: '/funding/funders/:id', element: <FunderDetail />, permission: view },
     { path: '/funding/subrecipients/:id', element: <SubrecipientDetail />, permission: view },
   ],
   create: [

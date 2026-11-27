@@ -464,3 +464,14 @@
 .si-kit-own { margin-bottom: var(--s-4); }
 /* E18-77: no clock yet because the notification questions are unanswered: amber, not reassuring. */
 .si-unanswered { border-inline-start: 4px solid var(--c-amber-solid); background: var(--c-amber-bg); border-radius: var(--radius); }
+
+/* E45-34: checks in the next-stage dialog. */
+.si-step-checks { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-2); }
+.si-step-checks li { display: grid; grid-template-columns: auto 1fr auto; gap: var(--s-2); align-items: start; padding: var(--s-2) var(--s-3); border: 1px solid var(--border); border-radius: var(--radius); }
+.si-step-checks li > div { display: grid; gap: 2px; }
+.si-step-checks li.is-ok > svg { color: var(--c-green-solid); }
+.si-step-checks li.is-warning > svg { color: var(--c-amber-fg); }
+.si-step-checks li.is-blocking { border-color: var(--danger); }
+.si-step-checks li.is-blocking > svg { color: var(--danger-text); }
+.si-step-state, .si-step-detail { font-size: var(--fs-xs); color: var(--text-muted); }
+.si-step-checks li.is-blocking .si-step-state { color: var(--danger-text); }

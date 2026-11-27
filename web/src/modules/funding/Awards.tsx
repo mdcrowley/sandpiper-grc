@@ -7,7 +7,7 @@ import {
 } from '../../core';
 import { FundingTabs } from './shared';
 
-const CREATE = ['title', 'funder_name', 'program_name', 'award_number', 'status', 'period_start', 'period_end', 'amount', 'local_share',
+const CREATE = ['title', 'funder_id', 'program_name', 'award_number', 'status', 'period_start', 'period_end', 'amount', 'local_share',
   'project_id', 'manager_id', 'reporting_frequency', 'next_report_due', 'closeout_due', 'notes'];
 
 export function AwardList() {
@@ -18,9 +18,9 @@ export function AwardList() {
       <ResourceList
         type="funding_award"
         urlState
-        columns={['ref', 'title', 'funder_name', 'status', 'amount', 'local_share', 'period_end', 'next_report_due', { field: 'program_name', hidden: true },
+        columns={['ref', 'title', 'funder_id', 'status', 'amount', 'local_share', 'period_end', 'next_report_due', { field: 'program_name', hidden: true },
           { field: 'award_number', hidden: true }, { field: 'manager_id', hidden: true }, { field: 'closeout_due', hidden: true }]}
-        filters={['status', 'reporting_frequency', 'manager_id', 'project_id', 'period_end', 'next_report_due']}
+        filters={['status', 'funder_id', 'reporting_frequency', 'manager_id', 'project_id', 'period_end', 'next_report_due']}
         createFields={CREATE}
       />
     </div>
@@ -151,10 +151,10 @@ export function AwardDetail() {
       breadcrumbs={[{ label: 'Funding', to: '/funding' }, { label: 'Awards', to: '/funding/awards' }]}
       summary={({ row, reload }) => (
         <EditableSummary type="funding_award" row={row} onSaved={reload}
-          fields={['title', 'funder_name', 'program_name', 'award_number', 'status', 'manager_id', 'project_id', 'period_start', 'period_end',
+          fields={['title', 'funder_id', 'program_name', 'award_number', 'status', 'manager_id', 'project_id', 'period_start', 'period_end',
             'amount', 'local_share', 'reporting_frequency', 'next_report_due', 'closeout_due', 'notes']}
           sections={[
-            { title: 'Award', fields: ['title', 'funder_name', 'program_name', 'award_number', 'status', 'manager_id', 'project_id'] },
+            { title: 'Award', fields: ['title', 'funder_id', 'program_name', 'award_number', 'status', 'manager_id', 'project_id'] },
             { title: 'Period and money', fields: ['period_start', 'period_end', 'amount', 'local_share'] },
             { title: 'Reporting', description: 'Once the award is awarded or active, its reports and close-out become obligations.', fields: ['reporting_frequency', 'next_report_due', 'closeout_due', 'notes'] },
           ]} />
@@ -162,7 +162,41 @@ export function AwardDetail() {
       tabs={[
         { key: 'funded', label: 'Funded items', content: ({ row, canEdit }) => <FundedItems awardId={row.id} canEdit={canEdit} /> },
         { key: 'obligations', label: 'Reporting obligations', content: ({ row, canEdit }) => <ReportingObligations awardId={row.id} canEdit={canEdit} /> },
+        { key: 'reviews', label: 'Compliance reviews', content: ({ row }) => <AwardReviews awardId={row.id} /> },
       ]}
     />
+  );
+}
+
+interface AwardReview { id: string; ref: string; title: string; status: string; site_visit_on: string | null; period: string | null; deficiencies: number }
+
+/** The funder compliance reviews that cover this award (E45-10). */
+function AwardReviews({ awardId }: { awardId: string }) {
+  const { data, error, reload } = useFetch<AwardReview[]>(`/api/funding-awards/${awardId}/reviews`);
+  return (
+    <Card title="Compliance reviews of this award" flush>
+      {error ? <ErrorState error={error} onRetry={reload} />
+        : !data ? <div className="fd-pad"><Loading lines={3} /></div>
+        : data.length === 0 ? <EmptyState icon="clipboard" title="No compliance review covers this award" message="Name the award on a compliance review's Awards tab." />
+        : (
+          <TableWrap label="Compliance reviews of this award">
+            <table className="table">
+              <caption className="sr-only">Compliance reviews of this award</caption>
+              <thead><tr><th scope="col">Review</th><th scope="col">Period</th><th scope="col">Site visit</th><th scope="col">Status</th><th scope="col">Deficiencies</th></tr></thead>
+              <tbody>
+                {data.map((r) => (
+                  <tr key={r.id}>
+                    <td><Link className="row-title" to={`/funding/reviews/${r.id}`}><span className="ref">{r.ref}</span> {r.title}</Link></td>
+                    <td>{r.period ?? '—'}</td>
+                    <td>{formatDate(r.site_visit_on)}</td>
+                    <td><LookupChip list="compliance_review_status" value={r.status} /></td>
+                    <td>{r.deficiencies}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableWrap>
+        )}
+    </Card>
   );
 }

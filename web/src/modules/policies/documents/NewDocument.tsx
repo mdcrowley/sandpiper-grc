@@ -1,6 +1,6 @@
 // A new document (E43-01, E43-03): what it is, where it sits in the hierarchy, who owns it, and who
 // can read it, all decided before it is saved, so a restricted document is never briefly open to all.
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   api, ApiError, Button, errorMessage, LookupSelect, Modal, Notice, RecordPicker, Select, TextArea, TextField, UserPicker, useAuth, useFetch, useToast,
@@ -11,7 +11,12 @@ import { recordPath, type AccessList } from './types';
 
 interface Options { departments: { id: string; name: string }[] }
 
-export function NewDocumentDialog({ onClose, initialType }: { onClose: () => void; initialType?: string }) {
+/**
+ * Kept mounted by the lists and opened with `open`, so closing it returns the focus to the button that
+ * opened it (Mantine notes the focused element when `opened` turns true and returns to it when it turns
+ * false; mounting already open or unmounting skips that). The form starts empty each time it opens.
+ */
+export function NewDocumentDialog({ open = true, onClose, initialType }: { open?: boolean; onClose: () => void; initialType?: string }) {
   const navigate = useNavigate();
   const toast = useToast();
   const { user } = useAuth();
@@ -26,6 +31,19 @@ export function NewDocumentDialog({ onClose, initialType }: { onClose: () => voi
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  // Each opening starts from an empty form (the dialog stays mounted between openings).
+  const wasOpen = useRef(open);
+  useEffect(() => {
+    if (open && !wasOpen.current) {
+      setForm({ title: '', document_type: initialType ?? 'policy', owning_department_id: '', parent_id: null, owner_id: user?.id ?? null, summary: '' });
+      setOwnerName(user?.displayName ?? '');
+      setAccess(EMPTY_ACCESS);
+      setNames({});
+      setErrors({});
+      setMessage('');
+    }
+    wasOpen.current = open;
+  }, [open, initialType, user]);
   const live = useReaderCount(access.access === 'restricted' ? access : null, form.owner_id);
   const dirty = Boolean(form.title || form.summary || form.parent_id || access.access !== 'organization');
 
@@ -50,7 +68,7 @@ export function NewDocumentDialog({ onClose, initialType }: { onClose: () => voi
 
   return (
     <Modal
-      open title="New document" onClose={onClose} size="lg" dirty={dirty}
+      open={open} title="New document" onClose={onClose} size="lg" dirty={dirty}
       footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" loading={busy} onClick={() => void save()}>Create document</Button></>}
     >
       <div className="stack">

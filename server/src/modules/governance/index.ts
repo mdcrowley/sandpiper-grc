@@ -1,9 +1,14 @@
 import type { ModuleContext, ModuleDef } from '../../core/module.ts';
 import { ANONYMIZED_TEXT, onAnonymize } from '../../core/retention.ts';
+import { registerAgenda } from './agenda.ts';
+import { registerBook } from './book.ts';
 import { registerCommittees } from './committees.ts';
 import { registerDecisions } from './decisions.ts';
 import { registerInvitations } from './invitations.ts';
 import { registerMeetings } from './meetings.ts';
+import { registerMemberView } from './members.ts';
+import { registerMinutes } from './minutes.ts';
+import { registerMotions } from './motions.ts';
 import { registerGovernanceReminders } from './reminders.ts';
 import { seedGovernance } from './seed.ts';
 import { registerGovernanceSummary } from './summary.ts';
@@ -13,6 +18,11 @@ import { registerGovernanceSummary } from './summary.ts';
  * with an agenda, a frozen report pack, attendance and minutes the chair approves; a register of
  * decisions, linked to the records decided, which can complete an approval step waiting for the
  * chair; and the actions agreed at a meeting. Permission module and feature area `governance`.
+ * Wave 25: agenda items with papers, presenter, time, open or closed session and a consent agenda
+ * (agenda.ts, papers.ts); motions with mover, seconder, votes and resolution numbers (motions.ts);
+ * minutes per item, approved at a later meeting and published (minutes.ts); the board book and
+ * minutes as PDFs (book.ts, with PDF papers appended in a sandbox, book-sandbox.ts); and the member
+ * reading view (members.ts).
  * The safety plan's element map and yearly review live with policies (`policies/plans.ts`).
  */
 
@@ -87,7 +97,12 @@ async function register(ctx: ModuleContext) {
   await sharedValues(ctx);
   registerCommittees(ctx);
   registerMeetings(ctx);
+  registerAgenda(ctx);
   registerDecisions(ctx);
+  registerMotions(ctx);
+  registerMinutes(ctx);
+  registerBook(ctx);
+  registerMemberView(ctx);
   registerInvitations(ctx);
   await registerGovernanceReminders(ctx);
   registerGovernanceSummary(ctx);

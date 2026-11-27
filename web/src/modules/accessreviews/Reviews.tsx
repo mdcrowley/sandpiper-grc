@@ -1,21 +1,38 @@
 // Access review campaigns (E41-02): the list with the figures, and one campaign with its systems and
 // reviewers, its removals, and the steps that move it on (launch, complete, record as a control test).
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   api, Button, Card, ConfirmDialog, EmptyState, ErrorState, errorMessage, formatDate, formatDateTime, Loading, Menu, Modal, Notice,
   PageHeader, ProgressBar, RecordPage, RecordPicker, ResourceList, Select, StatusChip, TableWrap, TextArea, todayInZone, UserPicker, useAuth, useFetch, useToast,
 } from '../../core';
 import type { MenuItem, RecordContext, RecordTab, Row } from '../../core';
 import { AttentionChip } from './Accounts';
-import { AccessTabs, SummaryTiles } from './shared';
+import { AccessTabs, GetStarted, SummaryTiles, useAccountCount } from './shared';
 
 export function ReviewList() {
+  const [search] = useSearchParams();
+  const { count: accounts, settled } = useAccountCount();
+  const campaigns = useFetch<{ total: number }>('/api/access-reviews?pageSize=1');
+  const reviews = campaigns.data?.total;
+  const creating = Boolean(search.get('new'));
+  // E45-35: nothing loaded and no campaign yet: the first step is importing the systems' account files.
+  // Until both counts are known the list is not drawn, so it never flashes before the first steps.
+  const start = accounts === 0 && reviews === 0 && !creating;
+  const waiting = !creating && (!settled || (reviews === undefined && !campaigns.error));
   return (
     <div className="stack">
       <PageHeader title="Access reviews"
         subtitle="Campaigns in which each system's owner keeps or removes every account on their system, with removals tracked until they are done." />
       <AccessTabs active="reviews" />
+      {start ? <GetStarted /> : waiting ? <Loading lines={4} label="Loading access reviews" /> : <ReviewTable />}
+    </div>
+  );
+}
+
+function ReviewTable() {
+  return (
+    <>
       <SummaryTiles />
       <ResourceList
         type="access_review"
@@ -24,7 +41,7 @@ export function ReviewList() {
         filters={['status', 'owner_id', 'due_on', 'completed_on']}
         createFields={['title', 'description', 'owner_id', 'starts_on', 'due_on', 'remind_days_before', 'removal_days', 'control_id']}
       />
-    </div>
+    </>
   );
 }
 

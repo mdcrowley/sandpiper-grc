@@ -16,13 +16,16 @@ export function SystemList() {
       title="Systems"
       columns={[
         'ref', 'name', 'system_group', 'status', 'criticality_tier', 'hosting_type', 'mfa_status', 'business_owner_id',
+        { field: 'support_end', priority: 3 },
+        { field: 'version', hidden: true },
+        { field: 'annual_cost', hidden: true },
         { field: 'technical_owner_id', hidden: true },
         { field: 'vendor_name', hidden: true },
         { field: 'rto_hours', label: 'Recovery time (h)', hidden: true },
         { field: 'rpo_hours', label: 'Recovery point (h)', hidden: true },
         { field: 'updated_at', hidden: true },
       ]}
-      filters={['status', 'criticality_tier', 'hosting_type', 'mfa_status', 'business_owner_id', 'technical_owner_id', 'vendor_id']}
+      filters={['status', 'criticality_tier', 'hosting_type', 'mfa_status', 'business_owner_id', 'technical_owner_id', 'vendor_id', 'support_end']}
       bulkFields={['status', 'criticality_tier', 'hosting_type', 'mfa_status', 'business_owner_id', 'technical_owner_id']}
       createFields={['name', 'function', 'system_group', 'status', 'criticality_tier', 'hosting_type', 'business_owner_id', 'technical_owner_id', 'vendor_name']}
       actions={<><ListExtensionActions recordType="system" /><Link className="btn btn-secondary" to="/systems/map">Relationship map</Link></>}

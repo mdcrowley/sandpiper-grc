@@ -10,7 +10,7 @@ import {
 import type { Row } from '../../core';
 import { GovernanceTabs, type Member } from './shared';
 
-const CREATE = ['name', 'kind', 'purpose', 'chair_id', 'secretary_id', 'quorum_rule', 'quorum_value', 'meeting_frequency', 'joint_labor_management'];
+const CREATE = ['name', 'kind', 'purpose', 'chair_id', 'secretary_id', 'quorum_rule', 'quorum_value', 'resolution_prefix', 'meeting_frequency', 'joint_labor_management'];
 
 export function CommitteeList() {
   return (
@@ -183,7 +183,7 @@ export function CommitteeDetail() {
           <EditableSummary type="committee" row={row} onSaved={reload} title="Committee"
             fields={['name', 'kind', 'status', 'purpose', 'meeting_frequency', 'joint_labor_management']} />
           <EditableSummary type="committee" row={row} onSaved={reload} title="Chair, secretary and quorum"
-            fields={['chair_id', 'secretary_id', 'quorum_rule', 'quorum_value']} />
+            fields={['chair_id', 'secretary_id', 'quorum_rule', 'quorum_value', 'resolution_prefix']} />
         </div>
       )}
       tabs={[

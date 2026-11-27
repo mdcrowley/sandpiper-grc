@@ -1,5 +1,6 @@
 import type { FastifyRequest } from 'fastify';
 import { approvalEngine, defineApprovalKind, type FinishEvent, type InstallHelpers } from '../../core/approval-kinds.ts';
+import { actorOf } from '../../core/dataload.ts';
 import type { ModuleContext, Row, SessionUser } from '../../core/module.ts';
 import { todayInZone } from '../../core/timezone.ts';
 
@@ -169,10 +170,13 @@ export function registerDisposalRequests(ctx: ModuleContext) {
       ctx.fail(409, 'already_requested', 'A disposal request for this asset is already awaiting approval.');
     }
     const reason = text(body.reason) ?? ctx.fail(400, 'validation', 'Check the highlighted fields.', { reason: 'Say why the asset should be disposed of.' });
+    // E18-94: a load records the request of the person it names (they need an account).
+    const requester = actorOf(req).id
+      ?? ctx.fail(400, 'validation', 'Check the highlighted fields.', { on_behalf_of: 'A disposal request is asked for by a person with an account (disabled accounts too).' });
     const row = (await db.one<Row>(
       `insert into asset_disposal_requests (asset_id, reason, disposal_method, approval_ref, requested_by)
        values ($1,$2,$3,$4,$5) returning *`,
-      [asset.id, reason, text(body.disposal_method), text(body.disposal_approval_ref), req.user!.id],
+      [asset.id, reason, text(body.disposal_method), text(body.disposal_approval_ref), requester],
     ))!;
     const patch: Row = { disposal_request_status: 'pending' };
     if (row.disposal_method) patch.disposal_method = row.disposal_method;
@@ -214,7 +218,7 @@ export function registerDisposalRequests(ctx: ModuleContext) {
     const body = (req.body ?? {}) as Row;
     const approve = body.decision === 'approve';
     if (!approve && body.decision !== 'refuse') ctx.fail(400, 'validation', 'Check the highlighted fields.', { decision: 'Choose approve or refuse.' });
-    if (request.requested_by === req.user!.id) {
+    if (request.requested_by === actorOf(req).id) {
       ctx.fail(403, 'self_approval', 'You asked for this disposal, so someone else must decide it.');
     }
     const comment = text(body.comment);
@@ -229,10 +233,10 @@ export function registerDisposalRequests(ctx: ModuleContext) {
     // No workflow (none was active when it was asked for): one decision settles it, as before.
     const row = await db.one<Row>(
       `update asset_disposal_requests set status = $2, decided_by = $3, decided_at = now(), decision_comment = $4 where id = $1 returning *`,
-      [request.id, approve ? 'approved' : 'refused', req.user!.id, comment],
+      [request.id, approve ? 'approved' : 'refused', actorOf(req).id, comment],
     );
     await ctx.resources.update('asset', asset.id, approve
-      ? { disposal_request_status: 'approved', disposal_approved_by: req.user!.displayName, disposal_approved_on: todayInZone() }
+      ? { disposal_request_status: 'approved', disposal_approved_by: actorOf(req).name, disposal_approved_on: todayInZone() }
       : { disposal_request_status: 'refused' });
     await ctx.audit(req, {
       action: approve ? 'asset.disposal_approved' : 'asset.disposal_refused', recordType: 'asset', recordId: asset.id,
@@ -252,7 +256,7 @@ export function registerDisposalRequests(ctx: ModuleContext) {
     const request = await pendingFor(req, asset);
     const row = await db.one<Row>(
       `update asset_disposal_requests set status = 'withdrawn', decided_by = $2, decided_at = now() where id = $1 returning *`,
-      [request.id, req.user!.id],
+      [request.id, actorOf(req).id],
     );
     await engine()?.cancel(DISPOSAL_KIND, asset.id, 'The disposal request was withdrawn.', req);
     await ctx.resources.update('asset', asset.id, { disposal_request_status: null });

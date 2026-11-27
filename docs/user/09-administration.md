@@ -220,8 +220,9 @@ A role is a named set of permissions. People get access only through the roles t
 | **Continuity manager** | Business continuity and emergency management: business processes, impact analyses, plans and activations, with the action tracker and read access to systems, sites, assets, fleet, vendors, the staff roster, exercises, dashboards and reports. | On |
 | **Records and privacy officer** | Legal holds, requests for records and personal data, and privacy impact assessments, with the action tracker and read access to data categories, systems and reports. | On |
 | **Asset manager** | Assets, sites and vehicles, their tags, inventory counts, condition and replacement, with the action tracker and read access to projects, funding, dashboards and reports. | On |
-| **Approver** | People who approve changes, service requests, asset decisions and project gates. It does not include risks: a risk acceptance is recorded by someone who can see the risk, naming the approver. | Off |
-| **Executive viewer** | Read-only dashboards and reports, projects, framework outcomes, committees and business continuity. | Off |
+| **Approver** | People who approve changes, service requests, asset decisions and project gates. It does not include risks: risk acceptance is left to the Risk manager role, and a risk acceptance is recorded by someone who can see the risk, naming the approver. | Off |
+| **Executive viewer** | Read-only dashboards and reports, projects, framework outcomes, committees, business continuity and the risk register. | Off |
+| **Risk manager** | Enterprise risk without access to security incidents: the risk register, reviews, acceptances, the risk appetite and key risk indicators, and the action tracker, with read access to obligations, controls, committees, audits, documents, dashboards and reports. Cybersecurity risks, which are restricted, stay hidden unless the person also holds the security permission. | Off |
 | **Auditor** | Read-only access to chosen areas, with export of framework evidence, audits and controls, and read access to business continuity, privacy assessments and legal holds. | Off |
 | **Requester** | Anyone in the organization submitting their own requests. | Off |
 
@@ -230,6 +231,8 @@ The list shows each role's **Access** (for example "12 permissions in 5 areas", 
 The Compliance officer, Audit lead and Training coordinator roles come with the audits, controls, funding, committees and staff roster parts. On an installation set up before these roles existed, the three new roles appear by themselves; the new permissions of the roles you already have are offered under [Applying default permissions after an upgrade](#applying-default-permissions-after-an-upgrade).
 
 The Continuity manager, Records and privacy officer and Asset manager roles come with the business continuity, legal holds, records requests and privacy, and asset condition parts. The three roles appear by themselves on an existing installation, and the new permissions of your existing roles are offered in the same way.
+
+The evidence library adds the permission area **Evidence library**. Compliance officers and audit leads get all of it; auditors get **View** and **Export**; security leads, safety managers, continuity managers, records and privacy officers, project managers and asset managers get **View**, **Create** and **Edit**, since they keep evidence of their own. On an existing installation these are offered under [Applying default permissions after an upgrade](#applying-default-permissions-after-an-upgrade).
 
 Asset tags add the permission area **Asset tags** with three permissions: **View** (tag history and stock), **Manage** (formats, stock, printing, attaching, replacing and ending tags) and **Count** (inventory counts). Asset managers get all three and agents get **View** and **Count**; on an existing installation they are offered under [Applying default permissions after an upgrade](#applying-default-permissions-after-an-upgrade). Finding a record by its tag needs no permission beyond seeing the record.
 
@@ -780,9 +783,13 @@ This never hides who did the load. The audit log and each record's history keep 
 
 For approval decisions the person must have an account and be one of the approvers of the step; the usual rules of the step apply.
 
+The person named is also recorded wherever an area keeps its own "who did it": approvals and decisions given outside an approval workflow, sign-offs, verifications, log entries, figures entered, check-outs and check-ins, and the people who added files. Rules tied to a person (the reviewer of an access review, the chair of a committee, the requester of an approval) are checked against the person named. Where the date or time of the act matters (a decision, a verification, a check-out, a confirmation), give it in the load and it is kept; otherwise it is the time of the load. A file attached in a load can carry the date it was originally added.
+
+An acknowledgment of a document version by a reader can be loaded with its date: `POST /api/policies/:id/versions/:version/acknowledgments`, or `record_acknowledgment` from an AI assistant.
+
 ### Undoing a load
 
-Every record created in data load mode is listed on **Administration > Data loads**, grouped by the day it was loaded and its record type, with how many were created, how many are still there and who loaded them.
+Every record created in data load mode is listed on **Administration > Data loads**, grouped by the day it was loaded and its record type (files added to records in a load are listed as **Files**), with how many were created, how many are still there and who loaded them.
 
 To undo a load, select **Delete this load** on its row (it deletes everything that load created), then **Delete them**, and give your password again. Each record is deleted as if it were deleted from its own page (it is kept in the database as deleted, and the deletion is in the audit log). Records under a legal hold are kept, and the message says how many. This works whether data load mode is on or off.
 
@@ -820,6 +827,7 @@ Each part has a switch, a line saying what it covers, whether it is **On** or **
 | **Records requests and privacy** | Requests for records and personal data with their deadlines, responsive records and exemptions, and privacy impact assessments. Legal holds stay on | On |
 | **Asset tags** | Tag numbers on assets, vehicles, sites and systems (printed digits, letters, barcodes or 2D codes), tag formats and stock, printing your own tags, finding a record by its tag, and inventory counts. While it is off, the **Tag number** of vehicles, sites and systems is hidden; an asset's **Tag** stays, because it is also the asset's reference | On |
 | **User access reviews** | The accounts each system holds, matched to the staff roster with leavers and people on leave flagged, and review campaigns in which system owners keep or remove each account, with removals tracked to done ([User access reviews](40-user-access-reviews.md)) | On |
+| **Evidence library** | Evidence filed once and linked to controls, obligations, audits, funder reviews and corrective actions, with expiry reminders, and the **Evidence** tab of those records ([Evidence library](43-evidence-library.md)) | On |
 | **Records retention schedule** | The organization's own record series, paper and electronic, with their retention periods and triggers, and the destruction log with approvals ([Records retention schedule](42-records-retention-schedule.md)). It uses the records permissions, so it is hidden while **Records requests and privacy** is off | On |
 | *Each register* | Every register an administrator defines under Administration > Registers has a switch of its own, named after the register ([Registers](41-registers.md#switching-a-register-off)) | On |
 | **Mobile app** | The Sandpiper GRC app for iPhone and Android: sign-in through the phone's browser, My work, reading asset tags with the camera, reporting problems with photos, inspections, condition assessments and counts that work offline, push notifications, and the list of signed-in devices. Switching it off signs out every device | Off |

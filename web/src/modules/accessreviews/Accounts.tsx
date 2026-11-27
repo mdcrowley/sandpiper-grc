@@ -1,9 +1,10 @@
 // The register of accounts on each system (E41-02): the list with its flags, the import of one
 // system's own account file, matching holders to the staff roster again, and one account's page.
 import { useState } from 'react';
-import { api, Button, errorMessage, LookupChip, PageHeader, RecordPage, ResourceList, useAuth, useToast } from '../../core';
+import { useSearchParams } from 'react-router-dom';
+import { api, Button, errorMessage, Loading, LookupChip, PageHeader, RecordPage, ResourceList, useAuth, useToast } from '../../core';
 import type { Row } from '../../core';
-import { AccessTabs, ImportDialog } from './shared';
+import { AccessTabs, GetStarted, ImportDialog, useAccountCount } from './shared';
 
 export const ACCOUNT_FIELDS = ['system_id', 'account_name', 'display_name', 'email', 'employee_number', 'holder_person_id', 'account_kind', 'role_on_system', 'privileged', 'status', 'last_seen_on', 'notes'];
 
@@ -17,7 +18,10 @@ export function AccountsList({ systemId, title }: { systemId?: string; title?: s
   const toast = useToast();
   const [importing, setImporting] = useState(false);
   const [busy, setBusy] = useState(false);
-  const reload = () => window.dispatchEvent(new CustomEvent('grc:list-changed'));
+  const [manual, setManual] = useState(false);
+  const [search] = useSearchParams();
+  const { count, settled, recount } = useAccountCount(systemId);
+  const reload = () => { recount(); window.dispatchEvent(new CustomEvent('grc:list-changed')); };
   const rematch = async () => {
     setBusy(true);
     try {
@@ -36,6 +40,14 @@ export function AccountsList({ systemId, title }: { systemId?: string; title?: s
       <Button variant="ghost" icon="refresh" loading={busy} onClick={rematch}>Match holders again</Button>
     </>
   ) : undefined;
+  // E45-35: with no account loaded yet, the first step is the import, not typing accounts in by hand.
+  // (The Create menu's link, ?new=1, still opens the form.)
+  const creating = !systemId && Boolean(search.get('new'));
+  if (count === 0 && !manual && !creating) {
+    return <GetStarted systemId={systemId} onManual={() => setManual(true)} onImported={recount} />;
+  }
+  // Until the count is known the list is not drawn, so it never flashes before the first steps.
+  if (!settled && !manual && !creating) return <Loading lines={4} label="Loading accounts" />;
   return (
     <>
       <ResourceList

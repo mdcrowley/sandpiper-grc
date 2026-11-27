@@ -30,7 +30,7 @@ describe('POST /api/audits/inspections/run', () => {
 
     const res = await lead.post('/api/audits/inspections/run');
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ created: expect.any(Number), missed: expect.any(Number), reminded: expect.any(Number), requestsReminded: expect.any(Number), skipped: [] });
+    expect(res.body).toEqual({ created: expect.any(Number), missed: expect.any(Number), reminded: expect.any(Number), requestsReminded: expect.any(Number), verificationsReminded: expect.any(Number), skipped: [] });
     expect(res.body.missed).toBeGreaterThanOrEqual(1);
     expect((await lead.get(`/api/inspections/${late.id}`)).body.status).toBe('missed');
     expect((await lead.get(`/api/inspections/${recent.id}`)).body.status).not.toBe('missed');

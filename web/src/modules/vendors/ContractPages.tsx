@@ -16,6 +16,7 @@ import {
 } from './shared';
 import type { ReminderState } from './shared';
 import { ValueByYear } from './ValueByYear';
+import { ContractSpendTotal } from './SpendTotal';
 
 const DAY = 24 * 3600 * 1000;
 
@@ -32,28 +33,31 @@ export function ContractList() {
   const count = missing.data?.rows.length ?? 0;
   const approval = useApprovalNumber();
   return (
-    <ResourceList
-      type="contract"
-      title="Contracts"
-      columns={[
-        'ref', 'title', 'vendor_id', 'status',
-        { field: 'notice_date', label: 'Notice date', sortable: true, render: (row) => <NoticeChip date={row.notice_date} status={row.status} /> },
-        'end_date', 'renewal_mechanism', 'total_value', 'owner_id',
-        { field: 'document_type', hidden: true }, { field: 'start_date', hidden: true },
-        { field: 'notice_days', hidden: true }, ...(approval ? [{ field: 'resolution_number', hidden: true }] : []),
-      ]}
-      filters={['status', 'vendor_id', 'renewal_mechanism', 'document_type', 'owner_id', 'notice_date', 'end_date']}
-      bulkFields={['status', 'owner_id', 'renewal_mechanism', 'document_type']}
-      createFields={['title', 'vendor_id', 'document_type', 'status', 'start_date', 'end_date', 'renewal_mechanism', 'notice_days', 'owner_id']}
-      actions={(
-        <>
-          {count > 0 && (
-            <Link className="btn btn-secondary" to="/contracts/dates">Complete the dates <span className="tab-count">{count}</span></Link>
-          )}
-          <Link className="btn btn-secondary" to="/contracts/renewals">Renewal calendar</Link>
-        </>
-      )}
-    />
+    <div className="stack">
+      <ResourceList
+        type="contract"
+        title="Contracts"
+        columns={[
+          'ref', 'title', 'vendor_id', 'status',
+          { field: 'notice_date', label: 'Notice date', sortable: true, render: (row) => <NoticeChip date={row.notice_date} status={row.status} /> },
+          'end_date', { field: 'annual_value', label: 'Annual value', sortable: true, priority: 1 }, 'renewal_mechanism', 'owner_id', { field: 'total_value', hidden: true },
+          { field: 'document_type', hidden: true }, { field: 'start_date', hidden: true },
+          { field: 'notice_days', hidden: true }, ...(approval ? [{ field: 'resolution_number', hidden: true }] : []),
+        ]}
+        filters={['status', 'vendor_id', 'renewal_mechanism', 'document_type', 'owner_id', 'notice_date', 'end_date']}
+        bulkFields={['status', 'owner_id', 'renewal_mechanism', 'document_type']}
+        createFields={['title', 'vendor_id', 'document_type', 'status', 'start_date', 'end_date', 'renewal_mechanism', 'notice_days', 'owner_id']}
+        actions={(
+          <>
+            {count > 0 && (
+              <Link className="btn btn-secondary" to="/contracts/dates">Complete the dates <span className="tab-count">{count}</span></Link>
+            )}
+            <Link className="btn btn-secondary" to="/contracts/renewals">Renewal calendar</Link>
+          </>
+        )}
+      />
+      <ContractSpendTotal />
+    </div>
   );
 }
 

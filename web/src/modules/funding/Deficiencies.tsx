@@ -5,7 +5,7 @@ import {
   api, Button, Card, errorMessage, PageHeader, RecordPage, ResourceList, useAuth, useResource, useToast,
 } from '../../core';
 import type { RecordContext } from '../../core';
-import { capsInBuild, DeficiencyCaps, FundingTabs } from './shared';
+import { capsInBuild, DeficiencyCaps, Evidence, evidenceInBuild, FundingTabs } from './shared';
 
 export function DeficiencyList() {
   return (
@@ -44,6 +44,10 @@ function Actions({ row, canEdit, reload }: RecordContext) {
 
 export function DeficiencyDetail() {
   const caps = useResource('cap');
+  const { areaOn } = useAuth();
+  const evidence = evidenceInBuild && areaOn('evidence')
+    ? [{ key: 'evidence', label: 'Closure evidence', content: ({ row }: RecordContext) => <Evidence recordType="review_deficiency" recordId={String(row.id)} title="Closure evidence" /> }]
+    : [];
   return (
     <RecordPage
       type="review_deficiency"
@@ -53,9 +57,12 @@ export function DeficiencyDetail() {
         ? <p className="notice">This deficiency closes by itself when its corrective action plan closes (its actions done and verified).</p>
         : null)}
       summaryFields={['title', 'review_id', 'area_code', 'status', 'owner_id', 'due_on', 'description', 'required_action', 'cap_id', 'closed_on']}
-      tabs={caps && capsInBuild
-        ? [{ key: 'caps', label: 'Corrective action plans', content: ({ row }) => <DeficiencyCaps deficiencyId={row.id} /> }]
-        : [{ key: 'caps', label: 'Corrective action plans', content: () => <Card title="Corrective action plans"><p className="muted">Corrective action plans are not part of this installation.</p></Card> }]}
+      tabs={[
+        ...(caps && capsInBuild
+          ? [{ key: 'caps', label: 'Corrective action plans', content: ({ row }: RecordContext) => <DeficiencyCaps deficiencyId={row.id} /> }]
+          : [{ key: 'caps', label: 'Corrective action plans', content: () => <Card title="Corrective action plans"><p className="muted">Corrective action plans are not part of this installation.</p></Card> }]),
+        ...evidence,
+      ]}
     />
   );
 }

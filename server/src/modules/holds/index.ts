@@ -9,6 +9,7 @@ import { UUID_RE } from '../../core/errors.ts';
 import { holdsOn } from '../../core/holds.ts';
 import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
+import { actorOf } from '../../core/dataload.ts';
 import { dayInZone } from '../../core/timezone.ts';
 import { routePattern } from '../../core/api/versioning.ts';
 import { notePermission } from '../../core/permission-use.ts';
@@ -330,7 +331,7 @@ async function register(ctx: ModuleContext) {
     if (!ctx.can(req.user, 'legal.approve')) {
       ctx.fail(409, 'no_workflow', 'No Legal hold release workflow applies, so only someone who may approve legal holds can release it.');
     }
-    await release(hold.id, req.user!.displayName, reason, req);
+    await release(hold.id, actorOf(req).name ?? req.user!.displayName, reason, req);
     return { status: 'released' };
   });
   ctx.describeRoute({

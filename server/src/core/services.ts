@@ -78,6 +78,8 @@ export const DEFAULT_ROLES: {
       'projects.view', 'dashboards.*', 'reports.*', 'audit.view', 'fleet.view', 'safety.view',
       'controls.*', 'audits.view', 'governance.view', 'people.view',
       'continuity.view', 'privacy.view',
+      // Wave 25 (E45-06): evidence they own goes in the evidence library.
+      'evidence.view', 'evidence.create', 'evidence.edit',
     ],
   },
   {
@@ -85,7 +87,7 @@ export const DEFAULT_ROLES: {
     description: 'Projects, gates and status reports.',
     grants: [
       'projects.*', 'actions.*', 'systems.view', 'vendors.view', 'contracts.view', 'changes.view',
-      'tickets.view', 'dashboards.view', 'reports.view',
+      'tickets.view', 'dashboards.view', 'reports.view', 'evidence.view', 'evidence.create', 'evidence.edit',
     ],
   },
   {
@@ -93,7 +95,7 @@ export const DEFAULT_ROLES: {
     description: 'Safety team: hazard log, safety events, investigations and safety performance indicators.',
     grants: [
       'safety.*', 'fleet.view', 'systems.view', 'sites.view', 'actions.*', 'dashboards.view', 'reports.view', 'policies.view', 'training.view',
-      'audits.*', 'governance.view', 'people.view', 'continuity.view',
+      'audits.*', 'governance.view', 'people.view', 'continuity.view', 'evidence.view', 'evidence.create', 'evidence.edit',
     ],
   },
   // Wave 10: compliance, audit and training roles (switched on, like the other working roles).
@@ -107,14 +109,14 @@ export const DEFAULT_ROLES: {
     grants: [
       'obligations.*', 'funding.*', 'controls.*', 'governance.*', 'audits.view', 'policies.view', 'vendors.view',
       'contracts.view', 'projects.view', 'assets.view', 'fleet.view', 'people.view', 'actions.*', 'reports.view', 'dashboards.view',
-      'continuity.view', 'records.view', 'privacy.view', 'legal.view',
+      'continuity.view', 'records.view', 'privacy.view', 'legal.view', 'evidence.*',
     ],
   },
   {
     key: 'audit_lead', name: 'Audit lead', enabled: true, requiresMfa: false,
     description: 'Internal audits and inspections, control testing and corrective actions.',
     describe: (on) => sentence(words([on('audits') && 'internal audits and inspections', on('controls') && 'control testing', 'corrective actions'])),
-    grants: ['audits.*', 'controls.*', 'actions.*', 'governance.view', 'obligations.view', 'policies.view', 'frameworks.view'],
+    grants: ['audits.*', 'controls.*', 'actions.*', 'governance.view', 'obligations.view', 'policies.view', 'frameworks.view', 'evidence.*'],
   },
   {
     key: 'training_coordinator', name: 'Training coordinator', enabled: true, requiresMfa: false,
@@ -129,13 +131,15 @@ export const DEFAULT_ROLES: {
     grants: [
       'continuity.*', 'systems.view', 'sites.view', 'assets.view', 'fleet.view', 'vendors.view', 'people.view',
       'exercises.view', 'actions.*', 'reports.view', 'dashboards.view', 'policies.view',
+      'evidence.view', 'evidence.create', 'evidence.edit',
     ],
   },
   {
     key: 'records_privacy_officer', name: 'Records and privacy officer', enabled: true, requiresMfa: false,
     description: 'Legal holds, requests for records and personal data, and privacy impact assessments.',
     describe: (on) => (on('records') ? 'Legal holds, requests for records and personal data, and privacy impact assessments.' : 'Legal holds.'),
-    grants: ['legal.*', 'records.*', 'privacy.*', 'data.view', 'systems.view', 'actions.*', 'reports.view'],
+    grants: ['legal.*', 'records.*', 'privacy.*', 'data.view', 'systems.view', 'actions.*', 'reports.view',
+      'evidence.view', 'evidence.create', 'evidence.edit'],
   },
   {
     key: 'asset_manager', name: 'Asset manager', enabled: true, requiresMfa: false,
@@ -144,13 +148,13 @@ export const DEFAULT_ROLES: {
       const their = words([on('tags') && 'tags', on('tags') && 'inventory counts', on('condition') && 'condition', on('condition') && 'replacement']);
       return `${sentence(words(['assets', 'sites', on('fleet') && 'vehicles'])).slice(0, -1)}${their ? `, their ${their}` : ''}.`;
     },
-    grants: ['assets.*', 'sites.*', 'fleet.*', 'projects.view', 'funding.view', 'actions.*', 'reports.view', 'dashboards.view', 'tags.*', 'vendors.view', 'contracts.view', 'systems.view'],
+    grants: ['assets.*', 'sites.*', 'fleet.*', 'projects.view', 'funding.view', 'actions.*', 'reports.view', 'dashboards.view', 'tags.*', 'vendors.view', 'contracts.view', 'systems.view',
+      'evidence.view', 'evidence.create', 'evidence.edit'],
   },
   {
     key: 'approver', name: 'Approver', enabled: false, requiresMfa: false,
-    // Risk acceptance is deliberately absent: risks are restricted records, and seeing them needs
-    // security.view, which would also open every security incident. An acceptance is recorded by
-    // someone who can see the risk, naming the approver (see the risks module).
+    // Risk acceptance is deliberately absent: it is left to the Risk manager role (risks.approve),
+    // or recorded by someone who can see the risk, naming the approver (see the risks module).
     description: 'Approves changes, service requests, asset decisions and project gates.',
     describe: (on) => `Approves ${words([on('changes') && 'changes', on('tickets') && 'service requests', 'asset decisions', on('projects') && 'project gates'])}.`,
     grants: [
@@ -162,7 +166,17 @@ export const DEFAULT_ROLES: {
     key: 'executive_viewer', name: 'Executive viewer', enabled: false, requiresMfa: false,
     description: 'Read-only dashboards and report packs.',
     describe: (on) => (on('reports') ? 'Read-only dashboards and report packs.' : 'Read-only access to the Overview and its figures.'),
-    grants: ['dashboards.view', 'reports.view', 'projects.view', 'frameworks.view', 'governance.view', 'continuity.view'],
+    // E45-01: the risk register summary, heat map, appetite and report (restricted risks stay hidden).
+    grants: ['dashboards.view', 'reports.view', 'projects.view', 'frameworks.view', 'governance.view', 'continuity.view', 'risks.view'],
+  },
+  {
+    // E45-01: enterprise risk management without access to security incidents (restricted risks stay hidden).
+    key: 'risk_manager', name: 'Risk manager', enabled: false, requiresMfa: false,
+    description: 'Enterprise risk management: the risk register, key risk indicators, reviews, appetite and the risk report.',
+    grants: [
+      'risks.*', 'actions.*', 'obligations.view', 'controls.view', 'governance.view', 'audits.view', 'policies.view',
+      'reports.view', 'dashboards.view',
+    ],
   },
   {
     key: 'auditor', name: 'Auditor', enabled: false, requiresMfa: false,
@@ -171,7 +185,7 @@ export const DEFAULT_ROLES: {
       'frameworks.view', 'frameworks.export', 'policies.view', 'obligations.view', 'vendors.view',
       'contracts.view', 'systems.view', 'assets.view', 'audit.view', 'fleet.view',
       'audits.view', 'audits.export', 'controls.view', 'controls.export', 'governance.view', 'funding.view',
-      'continuity.view', 'privacy.view', 'legal.view',
+      'continuity.view', 'privacy.view', 'legal.view', 'evidence.view', 'evidence.export',
     ],
   },
   {

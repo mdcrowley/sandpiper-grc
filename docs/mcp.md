@@ -148,28 +148,74 @@ reference (`TKT-00012`).
 reports `data_load` (with a type: `extra_fields`, and `settable_in_data_load` on read-only fields),
 `create_record` and `update_record` accept read-only fields and `created_at`, `created_by`,
 `updated_at` (their descriptions say so), and `delete_record` is offered. Field errors come back as
-usual. In data load mode the write tools (`create_record`, `update_record`, `add_comment`, `link_records`,
-`decide_approval`, `save_document`, `add_document_version`) also take `as`, the person who really wrote or
-did the thing (E18-71; see the user guide, chapter 21): the tools resolve it with `POST /api/data-load/person`
-and send `on_behalf_of`. The argument is part of the input schema only while the caller's saves are loads
-(`ToolSpec.dataLoadInput`).
+usual. In data load mode the write tools (`create_record`, `update_record`, `add_comment`, `link_records`, `attach_file`, `attach_link`,
+`decide_approval`, `save_document`, `add_document_version`, `link_document`, `record_document_review`,
+`record_acknowledgment`) also take `as`, the person who really wrote or did the thing (E18-71, E18-94; see
+the user guide, chapter 21): the tools resolve it with `POST /api/data-load/person` and send `on_behalf_of`.
+The argument is part of the input schema only while the caller's saves are loads (`ToolSpec.dataLoadInput`).
+Module columns that record who did something (approvals, decisions, log entries, figures entered,
+sign-offs) follow the person named (`actorOf(req)`), and `record_acknowledgment` is offered.
+
+Evidence library records (`evidence_record`) and funders (`funder`), added in wave 25, are ordinary
+record types, so `list_record_types` and the record tools cover them while their areas are on.
+Linking an evidence record to other records (`/api/evidence-links`) has no tool yet (E45-65).
 
 ### Records
 
 | Tool | Input | Output |
 |---|---|---|
-| `list_record_types` | `type?` | Without `type`: the types you can see with their field names. With: each field's label, kind, required, read-only, target type and allowed choices |
+| `list_record_types` | `type?` | Without `type`: the types you can see with their field names and required fields (`required`). With: each field's label, kind, required, read-only, target type, `help` (an administrator's help text on custom fields), `how` (how to give the value), `custom` and `multiple` for custom fields, and allowed choices (value and label); `related_types` (every type with a reference field pointing at this one: child records such as a vendor's contracts) and `links` (what `link_records`, `attach_file`, `attach_link` and `add_comment` add) |
 | `search` | `query`, `types?`, `limit?` (≤ 30) | Ranked matches across everything visible (`GET /api/search`) with snippets |
 | `list_records` | `type`, `query?`, `filters?`, `sort?`, `direction?`, `page?`, `page_size?` (≤ 50), `fields?` | `{ total, page, pages, rows }`. Filters as the list API: `{"status": ["new","open"]}`, `"me"` in person fields, `field.lt/gt/lte/gte`, `field.null` |
 | `get_record` | `type`, `id` | Every visible field with labels, tags, the five latest comments and changes |
 | `get_related` | `type`, `id` | Linked records both ways with relation (`GET /api/links`) |
 | `get_history` | `type`, `id`, `limit?` | Audit events for the record, naming any token used |
-| `add_comment` | `type`, `id`, `body`, `internal?` (default true) | Write. `POST /api/comments` |
-| `create_record` | `type`, `fields` | Write. Unknown and read-only fields refused before sending; `POST {path}` |
-| `update_record` | `type`, `id`, `changes` | Write. `PATCH {path}/:id` |
+| `add_comment` | `type`, `id`, `body`, `internal?` (default true) | Write. `POST /api/comments`. In data load mode `created_at` (ISO 8601, or a date in a common format) and `as` |
+| `create_record` | `type`, `fields` | Write. Unknown and read-only fields refused before sending; values resolved (below); `POST {path}`. Answers `resolved`, `unfilled` and `related_empty` (below) |
+| `update_record` | `type`, `id`, `changes` | Write. Values resolved as for `create_record`; `PATCH {path}/:id`. Answers `resolved`, `unfilled` and `related_empty` |
 | `link_records` | `from_type`, `from_id`, `to_type`, `to_id`, `relation?` | Write. `POST /api/links` |
 | `delete_record` | `type`, `id` | Write, `destructiveHint: true`. Offered only while data load mode is on and the token's saves are loads; deletes a record created in data load mode (`DELETE /api/data-load/records/:type/:id`); refused under a legal hold |
 | `decide_approval` | `step_id` (from `my_approvals`), `decision` (`approve` or `reject`), `comment?` (required to reject) | Write. `POST /api/workflows/steps/:id/decision`; refuses a step not waiting for you, including your own request |
+
+**Values resolved** (E45-46, `server/src/modules/mcp/resolve.ts`). `create_record` and `update_record` turn the
+values an assistant has in its sources into what the record routes take, through routes the caller may
+use, so a record or person the caller may not see is never matched:
+
+- a `ref` field: an id; the target's reference (`SYS-00012`, any case); or a title equal to the given
+  text (any case) on exactly one record the caller may see (`GET /api/records/lookup`, and the list
+  route's `f.<title>` filter when the picker's 25 rows may have cut it). A roster person (`ref` to
+  `person`) is also found by email or employee number. Several matches: a field error naming them
+  (give the reference); none: a field error with up to five close matches;
+- a `user` field: an id, `me`, or a username, email or display name equal to the text
+  (`GET /api/mcp/people`, tokens only, exact matches only). Active staff accounts only, except while the
+  token's saves are data loads, when disabled accounts count too. A username or email wins over a
+  display name; several people with one display name are a field error;
+- a `lookup` field (custom selects with several values too): the value, or the value or label in any case;
+  otherwise a field error listing the choices;
+- a `date` field: YYYY-MM-DD, an ISO date and time (cut to the date), YYYY/MM/DD, MM/DD/YYYY (month
+  first; a first number above 12 is read as the day), "March 5, 2024", "5 March 2024", or an Excel day
+  number; anything else is a field error. A `datetime` field takes anything `Date` reads, or a date;
+- `boolean`: also yes, no, y, n, 1, 0; `json`: a JSON object or list, also when sent as JSON text.
+
+Any field that cannot be matched stops the save (nothing is saved) with one field error per value.
+The answer's `resolved` lists `{ field, given, value, label }` for each value worked out, and the text
+says "Matched: …". After the save, `unfilled` lists the optional, writable fields still empty (`field`,
+`label`) and `related_empty` the related types (at most 12 counted, the type's own self-references left
+out) with no record pointing at this one yet (`type`, `plural`, `field`), so the assistant sees what its
+sources might still fill.
+
+### Files and links
+
+`server/src/modules/mcp/tools-files.ts` (E45-47). Files and links on any record type, through the
+attachments routes with the caller's token: seeing the record lists its files, editing it adds one. The
+upload tools (`start_upload`, `upload_part`, `finish_upload`, see Documents below) are offered to every
+token with write scopes, not only to document editors.
+
+| Tool | Input | Output |
+|---|---|---|
+| `attach_file` | `type`, `id`, `upload_id` (from `finish_upload`), `evidence?`, `description?`, `collected_on?`, `expires_on?` | Write. `POST /api/attachments/uploads/:id/attach`: the file on the record (the full intake ran when the upload was finished), once per upload. `evidence` defaults to the type's own default (evidence types); dates in the common formats above; `as` in data load mode (sent as `on_behalf_of`), and `created_at` (a date or ISO time) kept as the file's added date; a file attached in a load records the person named as "added by" and is listed with the load, so undoing it removes the file (E45-51, E45-52) |
+| `attach_link` | `type`, `id`, `url`, `title?`, `evidence?`, `description?`, `collected_on?`, `expires_on?` | Write. `POST /api/attachments/link`: http or https, no user name or password, never fetched; `as` in data load mode (the link's "added by" is the person named) |
+| `list_attachments` | `type`, `id` | `GET /api/attachments`: each file and link with kind, size, description, evidence dates, who added it and when |
 
 ### Work and insight
 
@@ -231,12 +277,13 @@ else.
 | `convert_upload` | `upload_id`, `max_chars?` | Read-only effect: the Markdown a `.docx` upload converts to and the conversion report (tracked changes, comments, left-out content, images, hints from headers and footers), nothing saved (`POST /api/documents/convert`). Any other type: the report says it is kept as the original file |
 | `start_upload` | `file_name`, `size`, `sha256?` | Write. `POST /api/attachments/uploads`: `upload_id`, `part_size` (1 MiB), `part_count` |
 | `upload_part` | `upload_id`, `part` (from 1), `data` (base64), `sha256?` | Write, idempotent. `POST /api/attachments/uploads/:id/parts/:n`; reports progress |
-| `finish_upload` | `upload_id`, `sha256?` | Write, idempotent. Joins the parts, checks the SHA-256, type and content, runs the malware scanner (`POST .../finish`). The upload is kept 24 hours and used once |
+| `finish_upload` | `upload_id`, `sha256?` | Write, idempotent. Joins the parts, checks the SHA-256, type and content, runs the malware scanner (`POST .../finish`). The upload is kept 24 hours and used once (`attach_file` on any record, or `add_document_version`). The three upload tools are offered to every token with write scopes (E45-47) |
 | `save_document` | `doc_number?`, `title?`, `summary?`, `type?`, `owner?` (user name, id or `me`), `owning_department?`, `parent_number?`, `approver_name?`, `approver_role?`, `review_months?`, `access?`, `access_departments?`, `access_roles?`, `access_groups?`, `access_users?`, `ack_required?`, `audience_*?`, `ack_days?`, `publisher?`, `edition?`, `published_on?`, `source_url?`, `license_note?`, `expires_on?` | Write, idempotent. Updates the document with that number (`PATCH /api/policies/:id`), or creates one (`POST /api/policies`). Setting a number by hand needs `policies.administer` except in data load mode, where the given number is kept |
 | `add_document_version` | `document`, `body_markdown` or `upload_id`, `convert?` (default true for `.docx`), `accept_as_is?`, `version?`, `version_label?`, `status?`, `approved_on?`, `effective_on?`, `superseded_on?`, `withdrawn_on?`, `approved_by_name?`, `approval_body?`, `approval_reference?`, `change_summary?`, `minor?` | Write. `POST /api/policies/:id/versions` with `source_upload_id`: a Word upload is converted (its images become files on the document); a tracked-changes file is refused before the upload is used, unless `accept_as_is`; a Word file that cannot be converted, a PDF or a legacy `.doc` becomes a file-only version with a note. The version number, status and dates are sent only in data load mode; otherwise the version is a draft and the answer says so |
 | `set_document_access` | `document`, `access`, `access_departments?`, `access_roles?`, `access_groups?`, `access_users?` | Write, idempotent. Replaces the distribution (owner or `policies.administer`); names are matched |
-| `link_document` | `document`, `to_type`, `to`, `relation?` | Write, idempotent. `POST /api/links` with a `document_link_relation` value (default `references`); a framework outcome goes through `POST /api/policies/:id/outcomes` |
-| `record_document_review` | `document`, `result` (`no_change`, `revise`, `retire`), `reviewed_on?`, `reviewed_by_name?`, `note?`, `reason?`, `replaced_by?` | Write. `POST /api/policies/:id/reviews`; past dates in data load mode |
+| `link_document` | `document`, `to_type`, `to`, `relation?`, `as?` (data load mode) | Write, idempotent. `POST /api/links` with a `document_link_relation` value (default `references`); a framework outcome goes through `POST /api/policies/:id/outcomes` |
+| `record_document_review` | `document`, `result` (`no_change`, `revise`, `retire`), `reviewed_on?`, `reviewed_by_name?`, `note?`, `reason?`, `replaced_by?`, `as?` (data load mode: the reviewer) | Write. `POST /api/policies/:id/reviews`; past dates in data load mode |
+| `record_acknowledgment` | `document`, `version?` (default: the effective version), `person` (user id, username or email; `person:<roster id, reference, email or employee number>`), `acknowledged_on` (`YYYY-MM-DD` or ISO time), `language?`, `as?` (who recorded a roster person's) | Write, idempotent. Offered only while data load mode is on and the token's saves are loads (E18-94). `POST /api/policies/:id/versions/:version/acknowledgments`: the person must be one of the document's readers; an account's acknowledgment is recorded as theirs, a roster person without an account on the roster list (method `recorded`); one already acknowledged is left as it was |
 
 In data load mode (`dataLoad.allowed`) the descriptions of `save_document`, `add_document_version`
 and `record_document_review` say that the dates, statuses and numbers given are kept and that nothing
@@ -268,6 +315,17 @@ arrive.
   per version, oldest first, the upload tools, `convert_upload` for Word files and
   `add_document_version`; then `check_document` and a report (files kept as originals only, warnings,
   links). It never invents a number, date, owner or reader.
+- `load_records_from_sources` (`record_type?`, `sources?`, E45-50): walks an assistant through building complete
+  records of one type from source files: `list_record_types` for the type and its related types, a mapping of
+  source columns and sections to fields (facts with a field of their own never go into the description),
+  data load mode when original dates and authors matter, then per record `create_record` with linked records
+  and people by reference, title, email or name, child records, `link_records`, the source files
+  (`attach_file`, `attach_link`), history as comments, `unfilled` and `related_empty` read and acted on, and a
+  report of what could not be placed.
+
+The server instructions (`server.ts`, `COMPLETENESS`) tell every assistant the same: fill every field the
+source supports, set reference and person fields, create child records and links, attach the source
+files, keep history as comments and report what it could not place.
 
 ## OAuth for remote connectors
 

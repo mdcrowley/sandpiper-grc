@@ -3,6 +3,7 @@ import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { computeDue, criticalityOf, hasSystems, loadPolicy, today } from './policy.ts';
 import { notifyAssigned } from './notify.ts';
+import { inCatalog } from './known-exploited.ts';
 
 /** Rules that hold however a finding is written: by hand, by the import or by the seed. */
 
@@ -250,6 +251,12 @@ async function applyRules(ctx: ModuleContext, req: FastifyRequest | null, existi
   }
   if (merged.fixed_on && merged.first_seen && String(merged.fixed_on) < String(merged.first_seen)) {
     ctx.fail(400, 'validation', 'Check the highlighted fields.', { fixed_on: 'Fixed on cannot be before first seen.' });
+  }
+
+  // E45-39: a CVE in the loaded known-exploited catalog marks the finding as known exploited when it
+  // is added, and when its CVEs change unless the same save sets the flag itself.
+  if ((!existing || ('cves' in patch && !('known_exploited' in patch))) && merged.known_exploited !== true && await inCatalog(ctx, merged.cves)) {
+    patch.known_exploited = merged.known_exploited = true;
   }
 
   if (merged.due_override_on && !text(merged.due_override_reason)) {

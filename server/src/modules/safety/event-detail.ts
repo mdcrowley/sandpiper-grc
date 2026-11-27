@@ -1,6 +1,7 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { Queryable } from '../../core/db.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { actorOf } from '../../core/dataload.ts';
 import { ANONYMIZED_TEXT } from '../../core/retention.ts';
 
 /**
@@ -131,7 +132,7 @@ export function registerEventDetail(ctx: ModuleContext) {
       let data = await parse(o.spec, (req.body ?? {}) as Row, 'create');
       if (o.prepare) data = await o.prepare(req, data, 'create');
       const extra = o.extraCols?.(req) ?? {};
-      const cols: Row = { ...data, ...extra, event_id: event.id, created_by: req.user!.id };
+      const cols: Row = { ...data, ...extra, event_id: event.id, created_by: actorOf(req).id };
       const keys = Object.keys(cols);
       const row = (await db.one<Row>(
         `insert into ${o.table} (${keys.join(', ')}) values (${keys.map((_, i) => `$${i + 1}`).join(', ')}) returning *`, keys.map((k) => cols[k])))!;
@@ -207,7 +208,7 @@ export function registerEventDetail(ctx: ModuleContext) {
     perms: ['safety.view'],
     spec: { at: { label: 'Time', type: 'datetime', required: true }, entry: { label: 'Entry', type: 'longtext', required: true, max: 4000 } },
     describe: (r) => new Date(r.at).toISOString(),
-    extraCols: (req) => ({ by_id: req.user!.id, by_name: req.user!.displayName }),
+    extraCols: (req) => ({ by_id: actorOf(req).id, by_name: actorOf(req).name }),
     // Entries the application wrote (reporting rules, clocks, alerts) are the record of what happened: they stay as written.
     locked: (r) => (r.by_id ? null : 'This entry was written by the application and cannot be changed.'),
   });

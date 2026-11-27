@@ -15,18 +15,20 @@ Beyond viewing, on **Vulnerabilities**:
 | Add a finding by hand | **Create** |
 | Assign, work, close or reopen a finding, or change several at once | **Edit** |
 | Import findings | **Create** and **Edit** |
-| Change the severity policy, or merge duplicate findings | **Administer** |
+| Change the severity policy, load the known-exploited catalog, or merge duplicate findings | **Administer** |
+| Raise a change from findings | **Create** on **Changes** as well |
 
 ## Find your way around
 
-Open **Security > Vulnerabilities**. Four tabs sit under the page title:
+Open **Security > Vulnerabilities**. Five tabs sit under the page title:
 
 | Tab | What it holds |
 |---|---|
 | **Findings** | The list of findings |
+| **By finding** | One row per finding ID (or CVE) with every host it is on; see [Work one finding on many hosts](#work-one-finding-on-many-hosts) |
 | **Dashboard** | Charts and totals; also found by its name, **Vulnerability dashboard**, in the search |
 | **Imports** | Every imported file, and the import wizard |
-| **Severity policy** | The days allowed to fix a finding, by severity |
+| **Severity policy** | The days allowed to fix a finding, by severity, and the [known-exploited catalog](#the-known-exploited-catalog) |
 
 ## The findings list
 
@@ -36,11 +38,24 @@ The tiles above the list each open the findings they count: **Open**, **Overdue*
 
 The **View** menu beside **Filters** holds ready-made saved views, which you can keep, rename or delete like your own: **Open**, **Overdue**, **Open: critical and high**, **Open: known exploited**, **Open: no owner** and **Open: mine**. **All vulnerabilities** shows every finding.
 
-You can search, select **Filters**, sort by a column, save a view and select **Export**. The search looks at the title, host name, IP address, finding ID, CVE and description. It matches whole words with their other forms (for example "gateways" finds "gateway") and, for a single word, any part of a word, so part of a host name, address or CVE number finds the finding too. Findings are found the same way in the global search. The address in the browser keeps the search, filters and sort, so you can bookmark a view or send it to a colleague.
+The list is sorted by **Urgency**, most urgent first (see [Urgency](#urgency)); select a column heading to sort by it instead. You can search, select **Filters**, sort by a column, save a view and select **Export**. The search looks at the title, host name, IP address, finding ID, CVE and description. It matches whole words with their other forms (for example "gateways" finds "gateway") and, for a single word, any part of a word, so part of a host name, address or CVE number finds the finding too. Findings are found the same way in the global search. The address in the browser keeps the search, filters and sort, so you can bookmark a view or send it to a colleague.
 
-The columns are the reference, title, **Severity**, **Host** (with the IP address and port beneath), **Status**, **Owner**, **Fix by** and **Age (days)**. A red **Overdue** label follows a fix-by date that has passed. More columns, such as **CVSS**, **Finding ID**, **System** and **Last seen**, can be switched on with the column button.
+The columns are the reference, title, **Severity**, **Host** (with the IP address and port beneath), **Status**, **Owner**, **Fix by**, **Age (days)** and **Urgency**. On a narrow screen the age and urgency columns are left out first. A red **Overdue** label follows a fix-by date that has passed. More columns, such as **CVSS**, **Exposure**, **Finding ID**, **System** and **Last seen**, can be switched on with the column button.
 
-To change many findings at once, check them and select **Edit selected…**: you can set the **Owner**, **Status**, **Severity**, **Known exploited**, **System** or **Asset** of all of them. Each finding is checked and recorded in its history as if you had changed it on its own page.
+To change many findings at once, check them and select **Edit selected…**: you can set the **Owner**, **Status**, **Severity**, **Known exploited**, **Exposure**, **System** or **Asset** of all of them. Each finding is checked and recorded in its history as if you had changed it on its own page. When changes are in use, **Raise a change** in the same bar raises one change for every selected finding (see [Raise a change](#raise-a-change)).
+
+### Urgency
+
+Each open finding has an **Urgency** score, worked out every day from four things, multiplied together:
+
+| Part | Weight |
+|---|---|
+| **Severity** | Critical 10, High 7, Medium 4, Low 2, Informational 0.5 (a severity added by an administrator counts 1) |
+| **Exposure** | Internet-facing 2, Internal network 1, Isolated 0.5, not recorded 1 |
+| **Known exploited** | 2 when the finding is known to be exploited, otherwise 1 |
+| **Fix-by date** | Passed 2, within 7 days 1.5, within 30 days 1.2, later or none 1 |
+
+For example, a high-severity finding on an internet-facing host that is known to be exploited and is past its fix-by date scores 7 × 2 × 2 × 2 = 56; a low one due in six months scores 2. Closed findings score 0. Set **Exposure** on the finding (or for many at once with **Edit selected…**) to say how reachable the host is.
 
 ## Add a finding by hand
 
@@ -50,7 +65,7 @@ Most findings arrive by import. To record one from a penetration test, a supplie
 2. Enter the **Title** and choose the **Severity**.
 3. Enter the **Host name**, the **IP address**, or both. Optionally enter the **Port**, the **Protocol** (such as `tcp` or `udp`) and the **Service**.
 4. Enter what identifies the finding: the **Finding ID** from the tool that reported it, or the **CVE** identifiers separated by commas.
-5. Optionally enter the **CVSS score** (0 to 10), check **Known exploited**, set **First seen** (today when left empty), and choose the **Owner**, **System** and **Asset**. With no **Owner**, a finding on an asset or system takes one: the asset's owner, else the system's technical owner, else its business owner (active accounts only). The same happens when a finding with no owner is later linked to a system or asset, and to findings an import adds; an owner already set is never changed. You can also enter a **Description**, the **Solution** and the **Source** (where the finding came from).
+5. Optionally enter the **CVSS score** (0 to 10), check **Known exploited**, choose the **Exposure** (**Internet-facing**, **Internal network** or **Isolated**), set **First seen** (today when left empty), and choose the **Owner**, **System** and **Asset**. With no **Owner**, a finding on an asset or system takes one: the asset's owner, else the system's technical owner, else its business owner (active accounts only). The same happens when a finding with no owner is later linked to a system or asset, and to findings an import adds; an owner already set is never changed. You can also enter a **Description**, the **Solution** and the **Source** (where the finding came from).
 6. Select **Create vulnerability**.
 
 The finding gets a reference such as `VUL-00042`, the status **Open** and a fix-by date. When you enter only a host name or only an address that is already recorded for a host, the finding joins that host.
@@ -85,8 +100,34 @@ The buttons at the top move a finding through its statuses.
 | **Close without a fix**, then **Accept the risk…** | Changes the status to **Risk accepted** |
 | **Close without a fix**, then **False positive…** | Asks for a **Reason** and changes the status to **False positive** |
 | **Reopen** | Returns a closed finding to **Open** and clears the fixed date |
+| **Raise a change** | Raises a draft change to fix the finding (see [Raise a change](#raise-a-change)); shown on an open finding when changes are in use and you may create them |
 
 Fixed, risk-accepted and false-positive findings are closed: they no longer count as open or overdue.
+
+Under **Host and identifiers**, **See this finding on every host** opens the same finding on every other host it was reported on.
+
+### Raise a change
+
+Fixing a finding on a production system usually needs a change record. **Raise a change** (on a finding, on the **By finding** page, or for the selected rows of the list) creates a **Draft** change and opens it:
+
+- The title names the finding and the hosts, such as "Fix: Outdated database engine on 3 hosts".
+- **What will be done** lists each finding with its reference, host, port and fix-by date, followed by the scanner's solution; **Why it is needed** gives the severities and says whether any is known exploited or overdue.
+- **Main system** and **Main asset** are filled in when all the findings share one.
+- The change and each finding are linked (relation **fixes**), so the change appears under **Related** on every finding, and the findings on the change.
+- Open findings move to **In remediation** when you may edit findings.
+
+Fill in the plan, test and back-out steps on the change and submit it as usual (see [Change enablement](10-change-enablement.md)). Anyone who can see changes can read the change's description, which names the hosts and findings: shorten it if that is more than they should see. Raising a change needs the **Create** permission on changes.
+
+### Work one finding on many hosts
+
+The **By finding** tab lists one row for each finding identifier: the scanner's finding ID, else the CVE list, else the title. Each row shows the worst open severity, how many hosts have it, how many are open (and of how many), how many are overdue and unassigned, the oldest open finding's age, the earliest fix-by date and the highest urgency, most urgent first. A red **Known exploited** label marks a row with an open known-exploited finding. Use **Search** for a title, finding ID or CVE; clear **Only findings on more than one host** to see every finding, and check **Include findings closed on every host** to see those too.
+
+Select a row's title to open it. The page lists every host with that finding: the host and port, the finding's reference, severity, status, owner, fix-by date, system and age, open findings first. With the **Edit** permission, check the hosts to work on (the box in the heading checks every open one) and choose:
+
+- **Assign** to set the owner of all of them.
+- **Mark fixed**, **Accept the risk** or **False positive**, which ask the same questions as on one finding.
+
+Each finding is saved on its own with every rule, as if you had changed it on its page. When a rule refuses one (for example, an approver who is also the person recording a risk acceptance), the others are saved and the dialog lists the findings that were not, with the reason. **Raise a change for every open host** (or **for N selected**) raises one change for them.
 
 ### Accept a risk
 
@@ -135,6 +176,16 @@ Saving recalculates the fix-by date of every open finding, except those with a d
 When the inventory is in use, each system has a criticality. The card **Shorter periods for critical systems** lists the criticality values; give one a share of the period to bring forward the fix-by dates of findings on systems with that criticality. For example, 50 gives a high-severity finding on such a system 15 days instead of 30. Leave a value empty for the whole period. The text beside each value shows the resulting days for every severity.
 
 A finding takes its system from the **System** field, or from the system of its **Asset**. A notice on the finding explains when its date was shortened this way. When a system's criticality changes, its open findings follow within the hour. Findings with no system, and findings with a date set by hand, are not affected.
+
+## The known-exploited catalog
+
+The most important sign that a finding needs fixing first is that attackers are already using it. Public catalogs of vulnerabilities known to be exploited are published as files. The application never fetches them itself: download the catalog file (JSON or CSV) on a computer that can reach it, then load it here.
+
+1. Open the **Severity policy** tab. The card **Known-exploited catalog** shows how many CVEs the catalog holds, when and by whom it was last loaded, and how many open findings are in it (select the number to list them).
+2. Under **Catalog file**, choose the file. A JSON file needs a `vulnerabilities` list whose entries carry `cveID`; a CSV file needs a `cveID` (or `cve`) column. Other columns, such as the vendor, product, name, date added and due date, are kept when present. Rows without a valid CVE number are skipped.
+3. Select **Load the catalog**.
+
+Loading replaces the catalog with the file's contents and marks every open finding whose **CVE** field names a CVE in it as **Known exploited**, which also gives it the shorter fix-by period of the [severity policy](#the-severity-policy). The message says how many findings were newly marked. From then on, a finding that is added, imported or given new CVE numbers is checked against the catalog as it is saved; a person who sets **Known exploited** in the same save decides. No finding is ever unmarked by a new catalog, and closed findings are left as they are. Each load is recorded in the audit log. Loading needs the **Administer** permission on vulnerabilities.
 
 ## Import findings
 
@@ -255,8 +306,10 @@ The other findings are removed. Their comments, files, links, tags and watchers 
 
 ## Sample data
 
-The `dev` sample data (never the `pilot` profile a real installation uses) adds about sixty invented findings on twelve invented hosts, with the source **[Sample] Monthly network scan**, and several weeks of history for the weekly chart. To remove them, filter the list by searching for the source, then delete the findings.
+The `dev` sample data (never the `pilot` profile a real installation uses) adds about sixty invented findings on twelve invented hosts (the first one internet-facing, some isolated, the rest on the internal network), with the source **[Sample] Monthly network scan**, and several weeks of history for the weekly chart. To remove them, filter the list by searching for the source, then delete the findings.
 
 ## Not available yet
 
 - A direct connection to a scanner that pulls findings on a schedule. Export a CSV file from the scanner and import it, or send it to the import through the API with an API token (see [API tokens](09-administration.md#api-tokens)).
+- Closing findings by themselves when the change that fixes them is completed. Mark them fixed after the change, or let the next import close them.
+- Exploit-probability scores. Only the known-exploited catalog is read.

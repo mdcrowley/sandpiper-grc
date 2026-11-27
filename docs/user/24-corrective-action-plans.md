@@ -48,6 +48,8 @@ The page shows where the plan stands (**Draft**, **Approval**, **Actions**, **Ve
 
 After approval the plan follows its actions by itself: it moves to **In progress**, **Verifying** and **Closed** as they do, and back to **In progress** if an action is reopened. Closing a plan by hand is refused while any action is not done. Canceled actions do not count.
 
+A plan raised from an audit finding closes only after the auditor's verification of that finding (see [Audits and inspections > Verifying a finding before it closes](25-audits-and-inspections.md#verifying-a-finding-before-it-closes)). Until then it stays at **Verifying**, even when every action is done.
+
 ## Approval
 
 Select **Submit for approval** on a draft or rejected plan (needs **Edit** on **Actions**). The plan needs a problem statement, a root cause and at least one action. Submitting starts the **Corrective action plan approval** workflow: one step for someone who may approve actions. Approvers find it under **My work > Approvals**, as for every other approval; see [Approval workflows](22-approval-workflows.md). An administrator can change the workflow (more steps, conditions, due times) under **Administration > Approval workflows**.

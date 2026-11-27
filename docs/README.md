@@ -80,6 +80,7 @@ The user guide is in [`user/`](user/) and is also shown inside the application u
 40. [User access reviews](user/40-user-access-reviews.md)
 41. [Registers](user/41-registers.md)
 42. [Records retention schedule](user/42-records-retention-schedule.md)
+43. [Evidence library](user/43-evidence-library.md)
 
 ## For people who integrate with it
 

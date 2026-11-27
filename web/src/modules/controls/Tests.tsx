@@ -22,9 +22,9 @@ export function TestList() {
       <ResourceList
         type="control_test"
         urlState
-        columns={['ref', 'control_id', 'test_type', 'status', 'result', 'planned_on', 'performed_on', 'tester_id', 'reviewer_id', { field: 'reviewed_on', hidden: true }, { field: 'method', hidden: true }]}
-        filters={['status', 'result', 'test_type', 'method', 'control_id', 'tester_id', 'reviewer_id', 'planned_on', 'performed_on']}
-        createFields={['control_id', 'test_type', 'planned_on', 'period_start', 'period_end', 'tester_id', 'method', 'population']}
+        columns={['ref', 'control_id', 'test_type', 'status', 'result', 'planned_on', 'performed_on', 'tester_id', 'reviewer_id', { field: 'reviewed_on', hidden: true }, { field: 'method', hidden: true }, { field: 'audit_id', hidden: true }]}
+        filters={['status', 'result', 'test_type', 'method', 'control_id', 'tester_id', 'reviewer_id', 'planned_on', 'performed_on', 'audit_id']}
+        createFields={['control_id', 'test_type', 'planned_on', 'period_start', 'period_end', 'tester_id', 'method', 'population', 'audit_id']}
       />
     </div>
   );
@@ -124,6 +124,8 @@ function TestActions({ row, reload }: RecordContext) {
   const notEffective = row.result === INEFFECTIVE || row.result === 'partly_effective';
   const tester = row.tester_id ?? row.created_by;
   const mayReview = can('controls.approve') && finished && !final;
+  // E45-17: a test that is part of an audit is reviewed by someone who also works on audits.
+  const auditBlocked = Boolean(row.audit_id) && !can('audits.edit');
 
   const review = async () => {
     setBusy(true);
@@ -149,6 +151,8 @@ function TestActions({ row, reload }: RecordContext) {
       {mayReview && (
         tester === user?.id
           ? <span className="muted ctl-note">Someone other than the tester reviews this test.</span>
+          : auditBlocked
+            ? <span className="muted ctl-note">This test is part of an audit: someone who works on audits reviews it.</span>
           : <Button variant="primary" icon="check-circle" onClick={() => setReviewing(true)}>Review and sign off</Button>
       )}
       {capType && capsInBuild && notEffective && finished && !row.cap_id && can('controls.edit') && can('actions.create') && (
@@ -179,7 +183,7 @@ export function TestDetail() {
       summary={(rec) => (
         <div className="stack">
           <EditableSummary type="control_test" row={rec.row} onSaved={rec.reload} title="Test" editable={rec.canEdit && rec.row.status !== REVIEWED}
-            fields={['title', 'control_id', 'test_type', 'status', 'planned_on', 'period_start', 'period_end', 'performed_on', 'tester_id', 'method', 'population', 'sample_size', 'exceptions_found', 'result', 'conclusion', 'reviewer_id', 'reviewed_on', 'review_note', 'flagged_on']} />
+            fields={['title', 'control_id', 'test_type', 'status', 'planned_on', 'period_start', 'period_end', 'performed_on', 'tester_id', 'method', 'population', 'sample_size', 'exceptions_found', 'result', 'conclusion', 'reviewer_id', 'reviewer_name', 'reviewed_on', 'review_note', 'flagged_on', 'audit_id']} />
           {rec.row.cap_id && rec.row._display?.cap_id && (
             <p className="notice">Corrective action plan: <Link to={`/caps/${rec.row.cap_id}`}>{rec.row._display.cap_id}</Link></p>
           )}

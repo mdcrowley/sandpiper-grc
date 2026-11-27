@@ -80,7 +80,18 @@ The buttons in the header change with the ticket so that the usual next step is 
 | **Close ticket** | The ticket is resolved | Asks for the resolution code and the requester's satisfaction |
 | **Reopen** | The ticket is resolved or closed | Moves it back to **In progress** |
 
-Everything else is under **More actions** (the **…** button): **Set status** to any status, the vendor actions and the major incident flag.
+Everything else is under **More actions** (the **…** button): **Set status** to any status, the vendor actions, the major incident flag, and the ways to take the ticket further (next section).
+
+### Take a ticket further
+
+A ticket often turns out to be more than a ticket. Under **More actions**, each of these creates or finds the other record in one step and links the two, so each record lists the other on its **Related** tab (or, for a problem, on the problem's **Linked tickets** tab):
+
+| Action | What it does |
+|---|---|
+| **Raise a security incident** | For a phishing report, malware or a lost device that reached the desk first. Opens a dialog with the title and an optional **Severity**, then creates a security incident with the ticket's description, the requester (name, email and department) and the affected system or asset. It is recorded as **Reported**, discovered when the ticket was opened, so its notification clocks count from then once it is declared. You then land on the incident. Shown to people who may create security incidents; the ticket's history does not mention the incident to anyone else |
+| **Raise a change** | Creates a draft change with the ticket's title and description, the requester and the affected system or asset in **Why it is needed**, and the ticket's system and asset as its main system and asset. The change lists the ticket under **Related work** as the one it fixes. You then land on the change to complete its plan. Shown to people who may create changes |
+| **Link to a problem** | Choose an existing problem, or check **Create a new problem from this ticket** to start one with the ticket's title and description. The ticket's **Problem** is set. Shows as **Change the problem** when the ticket already has one |
+| **Mark as duplicate of…** | Choose the ticket this one repeats (tickets with a similar title are offered). This ticket is resolved with the resolution code **Duplicate** and a note naming the original, and the two are linked; the work carries on in the original. If the original belongs to a problem and this one does not, it joins that problem too. Not offered once the ticket is resolved or closed, and refused when the other ticket is already marked as a duplicate of this one |
 
 ### Impact, urgency and priority
 
@@ -288,7 +299,7 @@ To record a problem:
 
 The problem page shows **What is known** (the description, workaround and cause) and a **Details** card with the title, status, owner and known-error flag. Problem statuses are **Open**, **Investigating**, **Known error**, **Resolved** and **Closed**. Change the status by editing the **Details** card.
 
-To link a ticket to a problem, open the ticket, select **Edit** on the **Details** card and set its **Problem** field. The problem's **Linked tickets** tab lists every ticket that points to it.
+The problem's **Linked tickets** tab lists every ticket that points to it. To link tickets from the problem, select **Link tickets** on that tab: open and recent tickets with a similar title are listed to check, and **Add another ticket** finds any other by reference or title. Select **Link** to link them all at once. From a ticket, use **More actions > Link to a problem** (which can also create the problem from the ticket), or set the **Problem** field on its **Details** card. Clear a ticket's **Problem** field to unlink it.
 
 ### Follow-up actions
 
@@ -336,7 +347,7 @@ A published article ends with **Was this helpful?** Select **Yes** or **No**. Ea
 
 The catalog holds standard requests. Choosing one starts a new ticket with the details already filled in, asks the questions that request needs, and adds the tasks to fulfill it. Open **IT services > Service catalog**.
 
-As installed it contains **New starter**, **Leaver**, **Access request**, **Hardware**, **Software**, **Vendor access** and **Equipment fault**, grouped by category. Tiles show when an item **Needs approval** and how many questions and tasks it has. Type in **Find a request** to narrow the tiles.
+As installed it contains **New starter**, **Leaver**, **Access request**, **Hardware**, **Software**, **Vendor access** and **Equipment fault**, grouped by category. Each comes with starter questions and fulfillment tasks; for example **Access request** asks who needs access, to which system, the level of access, the approving manager, the dates and the business reason, and its tasks are to confirm the approval, create the account, record it in the system's account list and confirm with the requester. Change them to suit your organization (see [Manage catalog items](#manage-catalog-items)). On an installation from before the starter questions existed, a built-in item that had no questions or no tasks was given the starter ones once; questions and tasks an administrator had set were kept. Tiles show when an item **Needs approval** and how many questions and tasks it has. Type in **Find a request** to narrow the tiles.
 
 To use an item:
 

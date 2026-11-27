@@ -1,6 +1,7 @@
 import type { FastifyRequest } from 'fastify';
 import { featureState, rolesShown } from '../../core/features.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { actorOf } from '../../core/dataload.ts';
 import { isDate, localDate, text, UUID } from './dates.ts';
 import { failingResults, loadUsers, recordsCte, resolvePerson, rosterOn, saveTraining } from './people.ts';
 import type { Completion, Person } from './people.ts';
@@ -294,7 +295,7 @@ export function registerRecords(ctx: ModuleContext) {
     const counts: Record<string, number> = { created: 0, completed: 0, assigned: 0, duplicate: 0, exists: 0, attempted: 0 };
     const rows: Row[] = [];
     for (const p of people) {
-      const saved = await saveTraining(db, course, p, data, 'manual', today, req.user!.id);
+      const saved = await saveTraining(db, course, p, data, 'manual', today, actorOf(req).id);
       counts[saved.outcome]++;
       rows.push({ id: saved.id, person: p.label, outcome: saved.outcome });
     }
@@ -343,7 +344,7 @@ export function registerRecords(ctx: ModuleContext) {
     const keys = Object.keys(changed);
     await db.query(
       `update training_records set ${keys.map((k, i) => `${k} = $${i + 3}`).join(', ')}, updated_at = now(), updated_by = $2 where id = $1`,
-      [before.id, req.user!.id, ...keys.map((k) => changed[k])],
+      [before.id, actorOf(req).id, ...keys.map((k) => changed[k])],
     );
     const completing = changed.completed_on && !before.completed_on;
     const attempt = changed.attempted_on !== undefined && changed.attempted_on !== null;

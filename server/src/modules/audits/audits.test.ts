@@ -203,6 +203,7 @@ describe('audits, evidence requests and report approval', () => {
   let auditId: string;
   let findingId: string;
   let areaId: string;
+  let itemId: string;
 
   it('runs an audit from planned through fieldwork to reporting', async () => {
     areaId = (await lead.post('/api/audit-areas', { name: 'Invented procurement', category: 'process', cycle_months: 12 })).body.id;
@@ -223,6 +224,7 @@ describe('audits, evidence requests and report approval', () => {
     const cl = await lead.put(`/api/audits/${auditId}/checklist`, { item_id: tpl.items[0].id, answer: 'no', note: 'Two purchases approved above the limit.' });
     expect(cl.status).toBe(200);
     expect(cl.body.answered).toBe(1);
+    itemId = tpl.items[0].id;
     const f = await lead.post('/api/audit-findings', { title: 'Approvals above the limit', source_type: 'audit_engagement', source_id: auditId, rating: 'minor_nonconformity', response_due: addDays(today, -1) });
     expect(f.status).toBe(201);
     expect(f.body.ref).toMatch(/^FND-/);
@@ -273,7 +275,11 @@ describe('audits, evidence requests and report approval', () => {
     expect(refuse.body.error.message).toContain('management response');
     const state = await lead.get(`/api/audits/${auditId}/report-approval`);
     expect(state.body).toMatchObject({ available: true, required: true, approved: false });
-    expect(state.body.problems).toHaveLength(2);
+    expect(state.body.problems).toHaveLength(3);
+    expect(state.body.problems.join(' ')).toContain('workpaper step');
+    // E45-15: the step is signed by its preparer and then by another person as reviewer.
+    expect((await lead.post(`/api/audits/${auditId}/steps/${itemId}/prepare`, {})).status).toBe(200);
+    expect((await t.api.post(`/api/audits/${auditId}/steps/${itemId}/review`, {})).status).toBe(200);
     expect((await lead.post(`/api/audits/${auditId}/report-approval`, {})).status).toBe(400);
     await lead.patch(`/api/audit-findings/${findingId}`, { management_response: 'Agreed; limits are now checked by the system.' });
     expect((await lead.get(`/api/audit-findings/${findingId}`)).body).toMatchObject({ status: 'responded', responded_on: today });

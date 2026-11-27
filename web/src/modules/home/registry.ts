@@ -6,16 +6,18 @@ import { MY_WORK_WIDGETS } from './widgetsMyWork';
 import { NEWER_WIDGETS } from './widgetsNewer';
 import { OPERATIONS_WIDGETS } from './widgetsOperations';
 import { SUMMARY_WIDGETS } from './widgetsSummary';
+import { VULN_AGE_WIDGETS } from './widgetsVulnAge';
+import { IT_LEADERSHIP_WIDGETS } from './widgetsItLeadership';
 
 /** Charts, figures and tables about the organization as a whole need this as well as their own area's permission. */
 export const DASHBOARD_PERMISSION = 'dashboards.view';
 
 const DASHBOARD_ORDER = [
-  'attention', 'headline', 'incident-clocks', 'tickets-priority', 'changes-week', 'vulnerabilities-severity',
+  'attention', 'headline', 'incident-clocks', 'tickets-priority', 'changes-week', 'change-success', 'service-levels', 'vulnerabilities-severity', 'vulnerabilities-age',
   'top-risks', 'framework-progress', 'training-completion', 'policies-status', 'contract-notice', 'projects-status',
 ];
 
-const dashboard = [...SUMMARY_WIDGETS, ...OPERATIONS_WIDGETS, ...NEWER_WIDGETS];
+const dashboard = [...SUMMARY_WIDGETS, ...OPERATIONS_WIDGETS, ...NEWER_WIDGETS, ...VULN_AGE_WIDGETS, ...IT_LEADERSHIP_WIDGETS];
 const position = (id: string) => {
   const at = DASHBOARD_ORDER.indexOf(id);
   return at < 0 ? DASHBOARD_ORDER.length : at;

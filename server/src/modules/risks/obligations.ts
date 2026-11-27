@@ -1,4 +1,5 @@
 import type { FastifyRequest } from 'fastify';
+import { actorOf } from '../../core/dataload.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { dayInZone } from '../../core/timezone.ts';
 import { addMonths, addDays } from '../../../../shared/dates.ts';
@@ -237,7 +238,7 @@ function registerPeriodRoutes(ctx: ModuleContext): void {
 
     await ctx.db.query(
       `update obligation_periods set status = $2, attested_by = $3, attested_on = $4, note = $5, evidence = $6, updated_at = now(), updated_by = $3 where id = $1`,
-      [before!.id, status, req.user!.id, attestedOn, note || null, evidence || null]);
+      [before!.id, status, actorOf(req).id, attestedOn, note || null, evidence || null]);
     const after = (await periodRow(before!.id))!;
     await ctx.audit(req, {
       action: 'obligation.attest', recordType: 'obligation', recordId: o.id,

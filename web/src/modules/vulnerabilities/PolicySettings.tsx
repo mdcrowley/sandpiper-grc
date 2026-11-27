@@ -7,6 +7,7 @@ import {
 import type { ColorName } from '../../core';
 import { SectionTabs, SeverityChip, useVulnAccess } from './shared';
 import type { Policy } from './shared';
+import { KnownExploitedCard } from './KnownExploited';
 
 type Percent = Record<string, number | null>;
 const shortened = (days: number, percent: number | null | undefined) => (percent && percent < 100 ? Math.max(1, Math.ceil((days * percent) / 100)) : days);
@@ -61,6 +62,7 @@ export function PolicySettings() {
   const timed = severities.filter((s) => days[s.value]);
 
   return (
+    <div className="stack">
     <form className="stack" onSubmit={(e) => { e.preventDefault(); void save(); }}>
       {header}
       {!access.administer && (
@@ -135,5 +137,7 @@ export function PolicySettings() {
         </div>
       </Card>
     </form>
+    <KnownExploitedCard />
+    </div>
   );
 }

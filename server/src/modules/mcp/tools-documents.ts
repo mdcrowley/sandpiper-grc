@@ -221,9 +221,9 @@ const registerSummary: ToolSpec = {
 // ---------- uploads ----------
 
 const startUpload: ToolSpec = {
-  name: 'start_upload', title: 'Start a file upload', group: 'Changes', write: true, available: edits,
+  name: 'start_upload', title: 'Start a file upload', group: 'Changes', write: true,
   description: 'Starts sending a file (a document\'s original: .docx, .pdf, .doc and so on) in parts. Give its name, size in bytes and SHA-256. '
-    + 'Then send each part of at most part_size bytes (1 MB) with upload_part as base64, and call finish_upload. The upload is kept for 24 hours and can be used once (add_document_version).',
+    + 'Then send each part of at most part_size bytes (1 MB) with upload_part as base64, and call finish_upload. The upload is kept for 24 hours and can be used once (attach_file for any record, or add_document_version).',
   input: {
     file_name: z.string().min(1).describe('File name with its extension, e.g. "SOP-IT-014 Rev C.docx".'),
     size: z.number().int().min(1).describe('Size in bytes.'),
@@ -239,7 +239,7 @@ const startUpload: ToolSpec = {
 };
 
 const uploadPart: ToolSpec = {
-  name: 'upload_part', title: 'Send one part of an upload', group: 'Changes', write: true, idempotent: true, available: edits,
+  name: 'upload_part', title: 'Send one part of an upload', group: 'Changes', write: true, idempotent: true,
   description: 'Sends one part of a file started with start_upload, as base64. Parts are numbered from 1; every part but the last is exactly part_size bytes before encoding. Sending a part again replaces it.',
   input: {
     upload_id: z.string().min(1),
@@ -258,13 +258,13 @@ const uploadPart: ToolSpec = {
 };
 
 const finishUpload: ToolSpec = {
-  name: 'finish_upload', title: 'Finish an upload', group: 'Changes', write: true, idempotent: true, available: edits,
-  description: 'Joins the parts, checks the SHA-256, the file type and its content, and runs the malware scanner. Returns the upload_id to use with convert_upload or add_document_version.',
+  name: 'finish_upload', title: 'Finish an upload', group: 'Changes', write: true, idempotent: true,
+  description: 'Joins the parts, checks the SHA-256, the file type and its content, and runs the malware scanner. Returns the upload_id to use with attach_file (any record), convert_upload or add_document_version.',
   input: { upload_id: z.string().min(1), sha256: z.string().regex(/^[0-9a-fA-F]{64}$/).optional().describe('SHA-256 of the whole file, if not given at the start.') },
   async run(args, t) {
     const u = await t.api.post<Json>(`/api/attachments/uploads/${encodeURIComponent(args.upload_id)}/finish`, { sha256: args.sha256 });
     return {
-      text: `Upload ${u.id} (${u.file_name}, ${u.size} bytes) is ready${u.scan_warning ? `; ${u.scan_warning}` : ''}. Use it once, with add_document_version (and convert_upload first to check a Word file).`,
+      text: `Upload ${u.id} (${u.file_name}, ${u.size} bytes) is ready${u.scan_warning ? `; ${u.scan_warning}` : ''}. Use it once: attach_file to put it on a record, or add_document_version (convert_upload first to check a Word file).`,
       data: { upload_id: u.id, file_name: u.file_name, size: u.size, sha256: u.sha256, scan_status: u.scan_status, expires_at: u.expires_at },
       audit: { recordType: 'upload', recordId: u.id, summary: `File ${u.file_name} uploaded` },
     };
@@ -495,23 +495,26 @@ const linkDocument: ToolSpec = {
     to: z.string().min(1).describe('The other record: id, reference, or for a document its number.'),
     relation: z.enum(['implements', 'references', 'replaces', 'meets', 'applies_to', 'taught_by', 'treats', 'produces', 'retention', 'based_on']).optional(),
   },
+  dataLoadInput: AS_INPUT,
   async run(args, t) {
     const d = await findDocument(t, args.document);
     const type = await t.typeOf(args.to_type);
     const target = type.type === DOC ? await findDocument(t, args.to) : await t.record(type, args.to);
     const tname = `${type.label.toLowerCase()} ${target[type.refField ?? ''] ?? target[type.titleField] ?? target.id}`;
+    const who = await named(t, args.as);
+    const as: Json = who ? { on_behalf_of: who.send } : {};
     if (type.type === 'framework_outcome') {
-      await t.api.post(`/api/policies/${d.id}/outcomes`, { outcome_id: target.id });
+      await t.api.post(`/api/policies/${d.id}/outcomes`, { outcome_id: target.id, ...as });
       return {
         text: `Mapped ${docName(d)} to ${tname}.`, data: { document_id: d.id, to_type: type.type, to_id: target.id, relation: 'supports' },
-        audit: { recordType: DOC, recordId: d.id, summary: `Document ${docName(d)} mapped to ${tname}` },
+        audit: { recordType: DOC, recordId: d.id, summary: `Document ${docName(d)} mapped to ${tname}`, onBehalf: who?.name },
       };
     }
-    const link = await t.api.post<Json>('/api/links', { from_type: DOC, from_id: d.id, to_type: type.type, to_id: target.id, relation: args.relation ?? 'references' });
+    const link = await t.api.post<Json>('/api/links', { from_type: DOC, from_id: d.id, to_type: type.type, to_id: target.id, relation: args.relation ?? 'references', ...as });
     return {
       text: `Linked ${docName(d)} to ${tname} (${link.relation}).`,
       data: { link_id: link.id, document_id: d.id, to_type: type.type, to_id: target.id, relation: link.relation },
-      audit: { recordType: DOC, recordId: d.id, summary: `Document ${docName(d)} linked to ${tname} (${link.relation})` },
+      audit: { recordType: DOC, recordId: d.id, summary: `Document ${docName(d)} linked to ${tname} (${link.relation})`, onBehalf: who?.name },
     };
   },
 };
@@ -520,7 +523,8 @@ const recordDocumentReview: ToolSpec = {
   name: 'record_document_review', title: 'Record a document review', group: 'Changes', write: true, available: edits,
   description: 'Records a periodic review of a document: "no_change" (moves the next review date), "revise" (opens a draft) or "retire" (makes it obsolete; needs approval rights and a reason). '
     + 'Past reviews can be loaded with their date and reviewer in data load mode.',
-  dataLoadNote: DATA_LOAD_NOTE,
+  dataLoadNote: `${DATA_LOAD_NOTE} Give "as" for the person who reviewed it (they are the reviewer unless reviewed_by_name is given).`,
+  dataLoadInput: AS_INPUT,
   input: {
     document: docArg,
     result: z.enum(['no_change', 'revise', 'retire']),
@@ -531,14 +535,47 @@ const recordDocumentReview: ToolSpec = {
   },
   async run(args, t) {
     const d = await findDocument(t, args.document);
-    const body: Json = { result: args.result, reviewed_on: args.reviewed_on, reviewed_by_name: args.reviewed_by_name, note: args.note, reason: args.reason };
+    const who = await named(t, args.as);
+    const body: Json = { result: args.result, reviewed_on: args.reviewed_on, reviewed_by_name: args.reviewed_by_name, note: args.note, reason: args.reason, ...(who ? { on_behalf_of: who.send } : {}) };
     if (args.replaced_by) body.replaced_by_id = (await findDocument(t, args.replaced_by)).id;
     const r = await t.api.post<Json>(`/api/policies/${d.id}/reviews`, body);
     const what = args.result === 'no_change' ? 'reviewed with no change' : args.result === 'revise' ? 'reviewed; a draft was opened' : 'made obsolete';
     return {
       text: `${docName(d)} ${what}${r.next_review_on ? `; next review ${r.next_review_on}` : ''}.`,
       data: { document_id: d.id, result: args.result, review: r.review ?? null, next_review_on: r.next_review_on ?? null, version: r.version?.version ?? null },
-      audit: { recordType: DOC, recordId: d.id, summary: `Review of document ${docName(d)} recorded (${args.result})` },
+      audit: { recordType: DOC, recordId: d.id, summary: `Review of document ${docName(d)} recorded (${args.result})`, onBehalf: who?.name },
+    };
+  },
+};
+
+const recordAcknowledgment: ToolSpec = {
+  name: 'record_acknowledgment', title: 'Record a past acknowledgment', group: 'Changes', write: true, idempotent: true, dataLoadOnly: true, available: edits,
+  description: 'Only while data load mode is on: records that a person acknowledged (read and understood) a version of a document on a past date, '
+    + 'for loading acknowledgment history from another system. The person must be one of the document\'s readers (its distribution). '
+    + 'An account is recorded as their own acknowledgment; a roster person without an account is recorded on the roster list as "recorded by hand". '
+    + 'One already acknowledged is left as it was. Nothing is sent to anyone.',
+  input: {
+    document: docArg,
+    version: z.number().int().min(1).optional().describe('The version number they acknowledged (default: the effective version). It must have been published.'),
+    person: z.string().min(1).max(250).describe('Who acknowledged it: a user id, username or email (disabled accounts too), or "person:<roster id, reference, email or employee number>" for someone on the people roster.'),
+    acknowledged_on: z.string().regex(/^\d{4}-\d{2}-\d{2}(T[0-9:.]+(Z|[+-]\d{2}:?\d{2})?)?$/).describe('When: YYYY-MM-DD, or an ISO 8601 date and time.'),
+    language: z.string().max(10).optional().describe('The language they read it in, when the version has a translation in it (default: the original).'),
+  },
+  dataLoadInput: { as: AS_INPUT.as.describe('For a roster person: who recorded the acknowledgment (for example the supervisor with the sign-in sheet). Same forms as "person".') },
+  async run(args, t) {
+    if (!loading(t)) fail('record_acknowledgment is only for data load mode.');
+    const d = await findDocument(t, args.document);
+    const version = args.version ?? d.current_version;
+    if (!version) fail(`${docName(d)} has no effective version: give the version number.`, 'validation', { version: 'Give the version number.' });
+    const who = await named(t, args.as);
+    const r = await t.api.post<Json>(`/api/policies/${d.id}/versions/${version}/acknowledgments`, {
+      user: args.person, acknowledged_at: args.acknowledged_on, language: args.language, ...(who ? { on_behalf_of: who.send } : {}),
+    });
+    const what = `${r.name}'s acknowledgment of version ${r.version} of ${docName(d)} on ${String(r.acknowledged_at).slice(0, 10)}`;
+    return {
+      text: r.recorded ? `Recorded ${what} (data load mode).` : `${r.name} had already acknowledged version ${r.version} of ${docName(d)}: left as it was.`,
+      data: { document_id: d.id, ...r },
+      audit: { recordType: DOC, recordId: d.id, summary: r.recorded ? `Recorded ${what} (data load mode)` : `${r.name} had already acknowledged version ${r.version} of ${docName(d)}`, onBehalf: who?.name },
     };
   },
 };
@@ -614,7 +651,7 @@ const checkDocument: ToolSpec = {
 
 export const DOCUMENT_TOOLS: ToolSpec[] = [
   findDocuments, readDocument, registerSummary, checkDocument, convertUpload,
-  startUpload, uploadPart, finishUpload, saveDocument, addDocumentVersion, setDocumentAccess, linkDocument, recordDocumentReview,
+  startUpload, uploadPart, finishUpload, saveDocument, addDocumentVersion, setDocumentAccess, linkDocument, recordDocumentReview, recordAcknowledgment,
 ];
 
 export type { ToolResult };

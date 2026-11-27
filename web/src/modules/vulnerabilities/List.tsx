@@ -2,10 +2,10 @@
 // saved views (the ready-made ones are in the View menu), bulk edit and export.
 import { useEffect, useMemo, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Badge, formatDate, PageHeader, ResourceList, Stat, useFetch } from '../../core';
+import { Badge, Button, formatDate, PageHeader, ResourceList, Stat, useFetch } from '../../core';
 import type { Row } from '../../core';
 import {
-  ensureStarterViews, fixedThisMonthLink, hostOf, listLink, portOf, SectionTabs, SeverityChip, useAvailableFields, useVulnAccess,
+  ensureStarterViews, fixedThisMonthLink, hostOf, listLink, portOf, SectionTabs, SeverityChip, useAvailableFields, useRaiseChange, useVulnAccess,
 } from './shared';
 import type { Summary } from './shared';
 
@@ -28,11 +28,12 @@ export function VulnerabilityList() {
   }, [params, setParams]);
 
   const filters = useAvailableFields([
-    'severity', 'status', 'closed', 'overdue', 'known_exploited', 'owner_id', 'system_id', 'asset_id', 'first_seen', 'last_seen', 'due_on', 'fixed_on',
+    'severity', 'status', 'closed', 'overdue', 'known_exploited', 'exposure', 'owner_id', 'system_id', 'asset_id', 'first_seen', 'last_seen', 'due_on', 'fixed_on',
   ]);
-  const bulkFields = useAvailableFields(['owner_id', 'status', 'severity', 'known_exploited', 'system_id', 'asset_id']);
+  const bulkFields = useAvailableFields(['owner_id', 'status', 'severity', 'known_exploited', 'exposure', 'system_id', 'asset_id']);
+  const change = useRaiseChange();
   const createFields = useAvailableFields([
-    'title', 'severity', 'host_name', 'host_ip', 'port', 'protocol', 'service', 'plugin_id', 'cves', 'cvss', 'known_exploited',
+    'title', 'severity', 'host_name', 'host_ip', 'port', 'protocol', 'service', 'plugin_id', 'cves', 'cvss', 'known_exploited', 'exposure',
     'first_seen', 'owner_id', 'system_id', 'asset_id', 'description', 'solution', 'source',
   ]);
   const optional = useAvailableFields(['system_id', 'asset_id']);
@@ -94,7 +95,9 @@ export function VulnerabilityList() {
               ? <span className="vuln-due">{formatDate(row.due_on)}{row.overdue && <Badge color="red">Overdue</Badge>}</span>
               : <span className="muted">No date</span>),
           },
-          { field: 'age_days', label: 'Age (days)' },
+          { field: 'age_days', label: 'Age (days)', priority: 3 },
+          { field: 'urgency', label: 'Urgency', sortable: true, priority: 3 },
+          { field: 'exposure', hidden: true },
           { field: 'cvss', label: 'CVSS', hidden: true },
           { field: 'known_exploited', hidden: true },
           { field: 'plugin_id', hidden: true },
@@ -109,7 +112,12 @@ export function VulnerabilityList() {
         ]}
         filters={filters}
         bulkFields={access.edit ? bulkFields : []}
-        defaultSort={{ field: 'due_on', dir: 'asc' }}
+        defaultSort={{ field: 'urgency', dir: 'desc' }}
+        bulkActions={change.available
+          ? (rows: Row[], clear: () => void) => (
+            <Button size="sm" icon="refresh" onClick={() => void change.raise(rows.map((r) => r.id)).then(clear)}>Raise a change</Button>
+          )
+          : undefined}
         createFields={access.create ? createFields : undefined}
       />
     </div>

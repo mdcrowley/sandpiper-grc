@@ -61,10 +61,16 @@ function Loader({ onLoaded }: { onLoaded: () => void }) {
     }
   };
 
+  // The invented sample is a starting point for the organization's own template (E45-12): it is downloaded
+  // to edit, not loaded here; only the dev sample data loads it.
   const sample = async () => {
     try {
       const content = await api.get<unknown>('/api/funding/review-area-sets/sample');
-      await send(content, 'review-areas.sample.json', false);
+      const url = URL.createObjectURL(new Blob([JSON.stringify(content, null, 2)], { type: 'application/json' }));
+      const a = document.createElement('a');
+      a.href = url; a.download = 'review-areas.sample.json';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (err) { toast.error(errorMessage(err)); }
   };
 
@@ -83,7 +89,7 @@ function Loader({ onLoaded }: { onLoaded: () => void }) {
             <span>Choose a file</span>
             <input id={inputId} type="file" accept=".json,application/json" onChange={(e) => void choose(e.target.files?.[0])} />
           </label>
-          <Button loading={busy && !file} onClick={sample}>Load the invented sample</Button>
+          <Button icon="download" onClick={sample}>Download an invented sample to start from</Button>
         </div>
         {problems.length > 0 && (
           <div className="notice notice-warn" role="alert">

@@ -267,6 +267,9 @@ Read them in code with `ctx.settings.get(key, fallback)`, using the same fallbac
 | `retention.audit_forward_log_days` | `30` | An audit-log forwarder's delivery log (`audit_forward_log`) is kept this many days; events already forwarded are not recalled |
 | `retention.tag_lookups_days` | `90` | Asset tag lookups (the "Last seen" log, `tag_lookups`) are removed after this many days by the daily job `tags.lookup_housekeeping` |
 | `tags.log_lookups` | `true` | Keep the asset tag lookup log |
+| `evidence.reminder_days` | `[30, 7, 0]` | Days before an evidence record's "valid until" date that its owner is reminded, once per step (Administration > Reminders) |
+| `audits.plan_settings` | weights 35/25/20/10/10, capacity 6, threshold 60, 36 months | The risk-ranked audit plan: `{ weights: { residual, time, result, change, significance }, capacity, threshold, default_cycle_months }`; changed on Audits > Audit plan by `audits.administer` |
+| `audits.verification_days` | `30` | Days the auditor has to verify a finding once it is ready for verification (Administration > Reminders) |
 
 Changing an `auth.*`, `tokens.*` or `integrations.*` setting needs a recent password
 confirmation.
@@ -522,7 +525,9 @@ Services other modules may offer are Fastify decorators; check before use:
   a child process (`attachments/text-reader.mjs`); never call pdf.js on untrusted files inside the
   server process. Converting a Word file or stamping a PDF (document control, E43) runs the same way in
   `policies/convert/sandbox.ts` (a forked process with time, memory and size limits): never parse a
-  Word file or PDF in the server process. Large files arrive in parts through `attachments/uploads.ts`
+  Word file or PDF in the server process. Appending uploaded PDFs to a generated PDF (the board book,
+  wave 25) runs in `governance/book-sandbox.ts` (a forked process with time and memory limits,
+  pdf-lib); appended pages are marked as artifacts; check the result with `checkPdfUa`. Large files arrive in parts through `attachments/uploads.ts`
   (`app.claimUpload`); a module's own rules for its files (keep, who may download) go through`
   `addAttachmentGuard` (`core/attachment-guards.ts`).
 - `app.sendMail({ userIds, template, purpose, data, record?, attachments? })` and
@@ -644,6 +649,18 @@ Modules that store an actor in their own columns use `actorOf(req)` from `core/d
 honored; the audit layer needs nothing. `onBehalfOf()` works without `req` inside the request. New MCP
 write tools add `dataLoadInput: AS_INPUT` and send `on_behalf_of` from `named(t, args.as)`
 (`modules/mcp/tools-records.ts`).
+Every module column that records who did something (approvals, decisions, sign-offs, log entries,
+figures entered, check-outs, verifications) uses `actorOf(req)` (E18-94), and a route that stamps
+the time of the act takes the time the body gives when `dataLoadFor` says the save is a load. Rules
+tied to a person (the named reviewer, the chair, the requester of an approval) are checked against
+the person named; where a column needs an account, a person named only by `name:` is refused with a
+field error on `on_behalf_of`, never replaced by the loader. `engine.start` makes the named person
+the requester of an approval asked for in a load. Files follow too: `claimUpload` and the plain
+upload record `actorOf(req)` as the uploader, and an attachment created in a load keeps a given
+`created_at` and is listed in `data_load_records` as record type `attachment`, so undoing the
+load soft-deletes it (E45-51, E45-52). MCP `create_record`/`update_record` resolve references,
+people, list labels and dates (`modules/mcp/resolve.ts`); new write tools that take person or record
+names reuse `resolveValues`.
 
 Field types: `text`, `longtext`, `number`, `currency`, `date`, `datetime`, `boolean`,
 `lookup` (needs `list`), `user`, `ref` (needs `to`), `json`. Field names are column names.
@@ -791,7 +808,7 @@ Module keys (fixed, `MODULE_KEYS` in `server/src/modules/admin/shared.ts`): `tic
 `frameworks`, `risks`, `security`, `vulnerabilities`, `policies`, `training`,
 `exceptions`, `obligations`, `exercises`, `actions`, `projects`, `dashboards`, `reports`,
 `audit`, `admin`, `portal`, `fleet`, `safety`, `audits`, `controls`, `funding`, `governance`,
-`people`, `continuity`, `legal`, `records`, `privacy`, `tags`. A new key is added there and here. The last four
+`people`, `continuity`, `legal`, `records`, `privacy`, `tags`, `evidence`. A new key is added there and here. The last four
 belong to the wave 11 parts (business continuity, legal holds, records requests, privacy
 assessments). Asset condition shares `assets`, `sites` and `fleet`, and OT security and user access reviews share `systems`.
 A module may also offer actions of its own (`MODULE_ACTIONS` in the same file): asset tags have
@@ -801,16 +818,25 @@ module of its own, added while the application runs.
 
 Default roles (`server/src/core/services.ts`): Administrator, Agent, Security lead,
 Project manager, Safety manager, Compliance officer, Audit lead, Training coordinator, Continuity
-manager, Records and privacy officer and Asset manager are enabled; Approver, Executive viewer, Auditor and Requester are present but switched off until an
-administrator enables them. A new default role is created on an existing database at the next
+manager, Records and privacy officer and Asset manager are enabled; Approver, Executive viewer, Auditor, Requester
+and Risk manager (wave 25: `risks.*`, `actions.*` and reading obligations, controls, governance,
+audits, documents, reports and dashboards, without `security.view`) are present but switched off until an
+administrator enables them. The Executive viewer reads the risk register (`risks.view`). A new default role is created on an existing database at the next
 start; new grants on an existing role reach it only when an administrator applies them with
 "Sync default grants" on the Roles page (`defaultGrantDifferences`, `syncDefaultGrants`).
 
-Restricted records (security incidents, risks, vulnerabilities, anything flagged) are
-invisible without `security.view` in lists, counts, search, links, exports and stats.
+Restricted records (security incidents, vulnerabilities, anything flagged) are
+invisible without `security.view` in lists, counts, search, links, exports and stats. Risks are
+restricted per risk (E45-01): the risk type is `restricted: 'flag'`, the flag is set from the
+category's meta (`restricted: true`, cybersecurity by default) and only a person holding
+`security.view` may set or lift it; key risk indicators follow their risk. Everything else about a
+risk needs `risks.<action>` only. A hand-written figure that lists records by name masks the ones
+the viewer may not open instead of dropping them (`modules/risks/masking.ts`: `riskMasker` shows
+"Restricted risk"), so counts stay the same for everyone.
 `defineResource` enforces this; hand-written routes must too
 (`ctx.resources.find(type, id, req.user)` for one record,
-`ctx.resources.visibleWhere(type, req.user)` in SQL). Actions are `restricted: 'flag'`
+`ctx.resources.visibleWhere(type, req.user)` in SQL), except for figures, which count every record.
+Actions are `restricted: 'flag'`
 and inherit the flag from their source record. Sensitive administrative routes call
 `sensitive(ctx, req, what)` (`modules/admin/shared.ts`), which needs a recent password
 confirmation (`POST /api/auth/confirm`).
@@ -889,7 +915,9 @@ vehicles, sites and systems) and `mobile` (Mobile app, off by default; no permis
 folder `mobile` and the OAuth client kind `mobile`). Wave 20 adds `accessreviews` (User access
 reviews, on by default; shares the systems permissions, so its types are hidden by name). Wave 22
 adds `recordsretention` (Records retention schedule, on by default; shares the records permissions,
-so its types are hidden by name).
+so its types are hidden by name). Wave 25 adds `evidence` (Evidence library, on by default;
+permission module `evidence`, job prefix `evidence.`): while it is off the library, the
+**Evidence** tab of other records and evidence links appear nowhere.
 
 ### Tests
 
@@ -1004,7 +1032,8 @@ The wave 10 plan's keys: `actions.overdue`, `actions.caps_overdue`,
 `continuity.processes_with_gap` (current month only), `continuity.plans_review_overdue`,
 `condition.past_useful_life_pct`, `condition.poor_condition_pct`, `condition.assessments_due`,
 `ot.zones_below_target` (current state, no history), `records.requests_overdue`,
-`vendors.reassessments_overdue` and `vendors.open_issues`.
+`vendors.reassessments_overdue` and `vendors.open_issues`. Wave 25 adds
+`audits.verifications_overdue` and `changes.success_pct`.
 
 Figures over time (E41-04, `modules/reports/figures.ts`) record metrics and counts monthly;
 `GET /api/figures`.
@@ -1066,8 +1095,35 @@ asker, and it cannot be `anyone`. Events carry `personId` and `ref`.
 `checkedEvents(ctx, user, sources, from, to, scope?)` re-checks each record with `visibleWhere`
 (feeds and the `work` module use it); `areaOf(source, resources)` gives the feature area for
 filters. Wave 21 adds `projects.certification` (open certification requirements, for their
-verifier). The `work` module (`server/src/modules/work`, `web/src/modules/work`, shapes in
+verifier). Wave 25 adds `evidence.expiry` (evidence about to lapse, for its owner),
+`audits.verifications` (finding verifications, for the auditor named) and `audits.review_notes`
+(workpaper review notes, for the step's preparer), all `work: true` and `anyone: true`. The `work` module (`server/src/modules/work`, `web/src/modules/work`, shapes in
 `shared/work-api.ts`) has no data of its own.
+
+### Evidence parts (shared registry)
+
+The evidence library (module `evidence`, E45-06) links one evidence record to many records, and to
+parts of records that are not record types of their own. `LINK_TYPES` in
+`modules/evidence/links.ts` lists the record types evidence may be linked to; the server checks the
+link (`evidence.view`, and the right to change the record). A module registers a part in `register`:
+
+```ts
+import { defineEvidencePart } from '../evidence/parts.ts';
+defineEvidencePart(ctx.app, { recordType: 'audit_engagement', prefix: 'step', label: 'Workpaper step',
+  describe: async (db, recordId, key) => 'Step 3 Access reviews' | null, // null: no such part (400)
+  mayLink: async (req, recordId, key) => boolean,   // optional: who else may link (an assignee)
+  mayChange: async (db, recordId, key) => null });  // optional: a reason to refuse adding or removing a link
+```
+
+A link to a part is stored with `part = '<prefix>:<key>'` (`step:<item>`, `area:<code>`,
+`request:<id>`, `period:<id>`). `mayChange` is checked when a link is added **and** removed, so a
+reviewed (locked) workpaper step keeps its evidence (E45-19). Parts today: audits `step` on
+`audit_engagement`, funding `area` and `request` on `compliance_review`, evidence `period` on
+`obligation`. On the web, `EvidencePanel` (`web/src/modules/evidence/EvidencePanel.tsx`) shows a
+record's or part's evidence (use existing, upload, remove, hidden counts). The shared record page
+adds an **Evidence** tab to every record of a linkable type by itself (unless the module has a tab
+named `evidence`), only while the evidence area is on and the person holds `evidence.view`
+(E45-08).
 
 ### Taggable types (shared registry)
 
@@ -1293,15 +1349,16 @@ has filter, sort, saved view and export; every record shows its history.
 | `changes` | `change` → changes |
 | `vendors` | `vendor` → vendors, `contract` → contracts, `evidence_item` → evidence_items, `vendor_issue` → vendor_issues, `vendor_offboarding` → vendor_offboardings (child tables vendor_exclusion_checks, vendor_offboarding_items) |
 | `frameworks` | `framework` → frameworks, `framework_outcome` → framework_outcomes, `assessment_snapshot` → assessment_snapshots |
-| `risks` | `risk` → risks (restricted), `action` → actions (flag, inherited), `cap` → caps (flag, inherited), `obligation` → obligations, `regulatory_change` → regulatory_changes, `kri` → key_risk_indicators (restricted) |
+| `risks` | `risk` → risks (flag, from the category; cybersecurity by default), `action` → actions (flag, inherited), `cap` → caps (flag, inherited), `obligation` → obligations, `regulatory_change` → regulatory_changes, `kri` → key_risk_indicators (flag, follows its risk); table risk_appetite_versions |
 | `secincidents` | `security_incident` → security_incidents (restricted), `notification_task` → notification_tasks |
 | `policies` | `policy` (label **Document**) → policies, `policy_exception` → policy_exceptions; tables `policy_person_acknowledgements`, `policy_plan_elements`, `policy_plan_reviews`, `policy_version_translations`, `document_groups`, `document_imports` and the other document-control tables (E43) |
 | `training` | `course` → courses, `exercise` → exercises, `certification` → certifications |
 | `people` | `person` → people, `position` → positions, `department` → departments (always on, not a feature area) |
-| `audits` | `audit_area` → audit_areas, `audit_engagement` → audits (flag), `checklist_template` → checklist_templates, `inspection_schedule` → inspection_schedules, `inspection` → inspections, `audit_finding` → audit_findings (flag, inherited from its audit), `audit_request` → audit_requests (flag, inherited). The type is `audit_engagement` because `audit` would clash with the audit log (`GET /api/audit`, `audit.export`) |
+| `audits` | `audit_area` → audit_areas, `audit_engagement` → audits (flag), `checklist_template` → checklist_templates, `inspection_schedule` → inspection_schedules, `inspection` → inspections, `audit_finding` → audit_findings (flag, inherited from its audit), `audit_request` → audit_requests (flag, inherited); tables audit_plans, workpaper_review_notes. The type is `audit_engagement` because `audit` would clash with the audit log (`GET /api/audit`, `audit.export`) |
 | `controls` | `control` → controls, `control_test` → control_tests (child table `control_test_samples`) |
-| `funding` | `funding_award` → funding_awards, `funding_certification` → funding_certifications, `compliance_review` → compliance_reviews, `review_deficiency` → review_deficiencies, `subrecipient` → subrecipients (child table subrecipient_monitoring) |
-| `governance` | `committee` → committees, `meeting` → meetings, `meeting_decision` → meeting_decisions (flag, inherited from the record decided) |
+| `funding` | `funding_award` → funding_awards, `funding_certification` → funding_certifications, `compliance_review` → compliance_reviews, `review_deficiency` → review_deficiencies, `subrecipient` → subrecipients (child table subrecipient_monitoring), `funder` → funders; tables compliance_review_awards, compliance_review_area_links |
+| `evidence` | `evidence_record` → evidence_records (flag); table evidence_links |
+| `governance` | `committee` → committees, `meeting` → meetings, `meeting_decision` → meeting_decisions (flag, inherited from the record decided); tables agenda_item_papers, meeting_decision_votes. `/api/governance/my-meetings*` are session-only routes that answer only for committee members |
 | `continuity` | `business_process` → business_processes, `bia` → bia_assessments, `continuity_plan` → continuity_plans, `emergency_activation` → emergency_activations; tables process_dependencies (source of the `depends_on` links), continuity_plan_processes, call_tree_nodes, continuity_checklist_items, activation_log_entries, activation_roles, activation_checklist (no record type) |
 | `condition` | `asset_class` → asset_classes, `condition_assessment` → condition_assessments (row rule: a vehicle's needs fleet.view, a site's sites.view); tables condition_targets, condition_reminders |
 | `ot` | `ot_zone` → ot_zones (flag), `ot_conduit` → ot_conduits (flag, set from its two zones) |
@@ -1343,7 +1400,7 @@ report_schedule, report_pack → `reports`; dashboard → `dashboards`; vehicle,
 `obligations`; kri → `risks`; certification → `training`; person, position, department → `people`; audit_area,
 audit_engagement, checklist_template, inspection_schedule, inspection, audit_finding, audit_request →
 `audits`; control, control_test → `controls`; funding_award, funding_certification, compliance_review,
-review_deficiency, subrecipient → `funding`; committee, meeting, meeting_decision → `governance`;
+review_deficiency, subrecipient, funder → `funding`; evidence_record → `evidence`; committee, meeting, meeting_decision → `governance`;
 vendor_issue, vendor_offboarding → `vendors`; business_process, bia, continuity_plan,
 emergency_activation → `continuity`; asset_class, condition_assessment → `assets`; ot_zone,
 ot_conduit, system_account, access_review → `systems`; legal_hold → `legal`; records_request → `records`; privacy_assessment →

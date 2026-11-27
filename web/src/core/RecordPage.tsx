@@ -165,6 +165,19 @@ const workflowLoaders = import.meta.glob<{ WorkflowPanel: ComponentType<{ record
 );
 const loadWorkflows = Object.values(workflowLoaders)[0];
 const WorkflowPanel = loadWorkflows ? lazy(() => loadWorkflows().then((m) => ({ default: m.WorkflowPanel }))) : null;
+// The evidence library (E45-08) supplies an Evidence tab for every record type it links to, the same
+// way: shown while the evidence area is on and the reader holds evidence.view, unless the module has a
+// tab of its own called "evidence". The list mirrors LINK_TYPES in server/src/modules/evidence/links.ts;
+// the server decides who may link and counts what the reader may not see.
+const evidenceLoaders = import.meta.glob<{ EvidencePanel: ComponentType<{ recordType: string; recordId: string }> }>(
+  '../modules/evidence/EvidencePanel.tsx',
+);
+const loadEvidence = Object.values(evidenceLoaders)[0];
+const EvidencePanel = loadEvidence ? lazy(() => loadEvidence().then((m) => ({ default: m.EvidencePanel }))) : null;
+const EVIDENCE_TYPES = new Set([
+  'control', 'control_test', 'obligation', 'audit_engagement', 'audit_request', 'audit_finding', 'cap', 'action',
+  'framework_outcome', 'policy', 'risk', 'evidence_item', 'funding_award', 'funding_certification',
+]);
 // Legal holds (E34): a banner on a held record, for people who may see holds (the server sends `_holds`).
 const holdLoaders = import.meta.glob<{ HoldBanner: ComponentType<{ row: Row }> }>('../modules/holds/HoldBanner.tsx');
 const loadHolds = Object.values(holdLoaders)[0];
@@ -224,7 +237,7 @@ export function RecordPage({
   const params = useParams();
   const id = idProp ?? params.id ?? '';
   const resource = useResource(type);
-  const { can } = useAuth();
+  const { can, areaOn } = useAuth();
   const { row, error, reload, save } = useRecord(type, id);
   const [search, setSearch] = useSearchParams();
   // Loaded here so the tabs can show counts; the panels reuse these requests.
@@ -311,9 +324,19 @@ export function RecordPage({
     },
     history: { key: 'history', label: 'History', content: <HistoryPanel type={type} id={id} row={row} /> },
   };
+  const evidenceTab: TabItem[] = EvidencePanel && EVIDENCE_TYPES.has(type) && areaOn('evidence') && can('evidence.view')
+    && !tabs.some((t) => t.key === 'evidence')
+    ? [{
+      key: 'evidence', label: 'Evidence',
+      content: <Suspense fallback={<Loading label="Loading evidence" lines={3} />}><EvidencePanel recordType={type} recordId={id} /></Suspense>,
+    }]
+    : [];
+  const shownDefaults = defaultTabs.filter((key) => key !== 'attachments' || (wantsFiles && !filesMissing)).map((key) => builtIn[key]);
+  const filesAt = shownDefaults.findIndex((t) => t.key === 'attachments');
   const allTabs: TabItem[] = [
     ...tabs.map((t) => ({ key: t.key, label: t.label, count: t.count, content: t.content(rec) })),
-    ...defaultTabs.filter((key) => key !== 'attachments' || (wantsFiles && !filesMissing)).map((key) => builtIn[key]),
+    // The Evidence tab comes just before the files (or before Related when there is no files tab).
+    ...(filesAt >= 0 ? [...shownDefaults.slice(0, filesAt), ...evidenceTab, ...shownDefaults.slice(filesAt)] : [...shownDefaults.slice(0, 1), ...evidenceTab, ...shownDefaults.slice(1)]),
   ];
   const wanted = search.get('tab');
   const active = allTabs.some((t) => t.key === wanted) ? (wanted as string) : allTabs[0]?.key;

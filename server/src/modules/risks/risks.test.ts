@@ -20,8 +20,14 @@ describe('risk scales', () => {
   it('seeds the 5 by 5 scale and the safety hazard scale', async () => {
     const res = await t.api.get('/api/risks/scales');
     expect(res.status).toBe(200);
-    expect(res.body.map((s: any) => s.key)).toEqual(['cyber_5x5', 'hazard_4x5']);
-    const [five, hazard] = res.body;
+    expect(res.body.map((s: any) => s.key)).toEqual(['enterprise_5x5', 'cyber_5x5', 'hazard_4x5']);
+    const [enterprise, five, hazard] = res.body;
+    // E45-02: enterprise risk has its own scale, worded for money, service, obligations and trust.
+    expect(enterprise.name).toBe('Enterprise risk (5 by 5)');
+    expect(enterprise.matrix).toEqual(five.matrix);
+    expect(enterprise.impact_levels[4].description).toMatch(/objectives or funding/);
+    expect(enterprise.acceptance_threshold).toBe('high');
+    expect(five.name).toBe('Cybersecurity risk (5 by 5)');
     expect(five.likelihood_levels.length).toBe(5);
     expect(five.impact_levels.length).toBe(5);
     expect(five.matrix['5']['5']).toBe('extreme');
@@ -155,8 +161,8 @@ describe('risks', () => {
     expect(summary.body.total).toBe(3);
     const level = (v: string) => summary.body.levels.find((l: any) => l.value === v);
     expect(level('medium').count).toBe(2);
-    expect(level('medium').by_scale).toEqual({ cyber_5x5: 2, hazard_4x5: 0 });
-    expect(level('high').by_scale).toEqual({ cyber_5x5: 0, hazard_4x5: 1 });
+    expect(level('medium').by_scale).toEqual({ enterprise_5x5: 0, cyber_5x5: 2, hazard_4x5: 0 });
+    expect(level('high').by_scale).toEqual({ enterprise_5x5: 0, cyber_5x5: 0, hazard_4x5: 1 });
     expect(summary.body.top[0].title).toBe('Invented safety hazard');
     expect(summary.body.top[0].rating_label).toBe('Serious');
   });
@@ -215,7 +221,7 @@ describe('risks', () => {
     await t.api.patch('/api/risks/scales/hazard_4x5', { acceptance_threshold: 'serious' });
   });
 
-  it('keeps risks invisible to an agent without security.view, everywhere', async () => {
+  it('keeps restricted risks invisible to an agent without security.view, everywhere', async () => {
     const agent = await t.as('agent');
     const risk = (await t.api.get('/api/risks?q=Invented cyber risk')).body.rows[0];
     const linked = await t.api.post('/api/actions', { title: 'Follow-up for a hidden risk', source: 'risk', source_type: 'risk', source_id: risk.id });
@@ -237,14 +243,16 @@ describe('risks', () => {
     expect(linked.body.restricted).toBe(true);
     expect((await agent.get(`/api/actions/${linked.body.id}`)).status).toBe(404);
 
-    // A role with risks.view but not security.view is still shut out of the hand-written routes.
+    // E45-01: a role with risks.view but not security.view reaches the register and its routes, but not a restricted (cyber) risk.
     const role = await t.db.one<{ id: string }>(`insert into roles (key, name) values ('risk_reader', 'Risk reader') returning id`);
     await t.db.query(`insert into role_permissions (role_id, permission) values ($1, 'risks.*')`, [role!.id]);
     const reader = await t.as('risk_reader');
-    expect((await reader.get('/api/risks')).status).toBe(403);
-    expect((await reader.get('/api/risks/heatmap')).status).toBe(403);
-    expect((await reader.get('/api/risks/summary')).status).toBe(403);
-    expect((await reader.get(`/api/risks/${risk.id}/acceptances`)).status).toBe(403);
+    const lead0 = async () => (await t.as('security_lead')).get('/api/risks/summary');
+    expect((await reader.get('/api/risks')).body.rows.some((r: any) => r.id === risk.id)).toBe(false);
+    expect((await reader.get('/api/risks/heatmap')).status).toBe(200);
+    expect((await reader.get('/api/risks/summary')).body.total).toBe((await lead0()).body.total); // figures: the same for everyone
+    expect((await reader.get(`/api/risks/${risk.id}/acceptances`)).status).toBe(404);
+    expect((await reader.get(`/api/risks/${risk.id}`)).status).toBe(404);
 
     const lead = await t.as('security_lead');
     expect((await lead.get('/api/risks')).body.total).toBeGreaterThan(2);
@@ -487,7 +495,7 @@ describe('seed', () => {
       // The nine sample risks and the two parent risks of the compliance samples (seed-compliance.ts).
       const samples = await t.api.get('/api/risks?q=[Sample]');
       expect(samples.body.total).toBe(11);
-      expect(new Set(samples.body.rows.map((r: any) => r.scale_key))).toEqual(new Set(['cyber_5x5', 'hazard_4x5']));
+      expect(new Set(samples.body.rows.map((r: any) => r.scale_key))).toEqual(new Set(['enterprise_5x5', 'cyber_5x5', 'hazard_4x5']));
       const accepted = samples.body.rows.filter((r: any) => r.status === 'accepted');
       expect(accepted.length).toBe(2);
       expect((await t.api.get(`/api/risks/${accepted[0].id}/acceptances`)).body.acceptances.length).toBe(1);

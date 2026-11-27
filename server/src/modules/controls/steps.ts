@@ -1,5 +1,6 @@
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { actorOf } from '../../core/dataload.ts';
 import { meanings } from './lists.ts';
 import { UUID_RE } from './shared.ts';
 
@@ -219,7 +220,7 @@ export function registerSteps(ctx: ModuleContext) {
          done_at = case when $4 then (case when $2::text is null then null else now() end) else done_at end,
          updated_at = now(), updated_by = $5
        where id = $1 returning ${RESULT_COLUMNS}`,
-      [before.id, result, note, resultChanged, req.user!.id]))!;
+      [before.id, result, note, resultChanged, actorOf(req).id]))!;
     if (resultChanged || note !== before.note) {
       const label = result ? (await ctx.lookups.values('control_step_result')).find((v) => v.value === result)?.label ?? result : 'no result';
       await ctx.audit(req, {

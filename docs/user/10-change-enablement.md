@@ -68,6 +68,8 @@ The **View** menu beside **Filters** holds ready-made saved views, which you can
 2. On the **Type** step, choose **Standard**, **Normal** or **Emergency**, then select **Next**.
 3. Follow the steps for that type, below. Select a step name at the top to go back to an earlier step.
 
+A change can also start from the work that needs it. On a service desk ticket, **More actions > Raise a change** creates a draft normal change with the ticket's title and description, the requester and the affected system or asset under **Why it is needed**, and the ticket's system and asset as the main system and asset; the ticket is listed under **Related work** as the one the change fixes (see [Service desk](02-service-desk.md#take-a-ticket-further)). From a vulnerability finding, a group of findings or several selected findings, **Raise a change** creates a draft change listing the findings, hosts and fix-by dates, linked to each finding as the change that fixes it (see [Vulnerabilities](13-vulnerabilities.md#raise-a-change)). Open the draft and complete its plan, risk and dates as below.
+
 ### A normal or emergency change
 
 1. On the **Details** step, enter a **Title**. Describe **What will be done** and **Why it is needed**.
@@ -251,6 +253,10 @@ A review can be recorded for any other completed change too.
 The change becomes **Reviewed** and can then be closed. Each follow-up action becomes a record in the Actions list, linked to the change, and is listed on the **Review** tab; see [Risks, actions and obligations](06-risks-actions-obligations.md). More actions can be added later with **Raise action**. Until the change is closed the review can be corrected with **Edit review**.
 
 The **Actions** tab (shown when actions are in use) lists every action raised from the change, with its owner, due date and progress, and lets you add one directly.
+
+### Change success rate
+
+The **Change success rate** widget on the home dashboard shows the share of changes finished in the last 90 days that succeeded. A change counts on the day of its **Actual end** (or the day its outcome was recorded). Canceled changes are left out; outcomes that need a post-implementation review (**Failed**, **Backed out**) count as not successful, and **Successful with issues** counts as successful. It is a figure, the same for everyone, and is also offered as the monthly metric **Change success rate** for indicators. Changes are not yet linked to the incidents they cause, so "caused an incident" is not counted.
 
 ## History, comments and attachments
 

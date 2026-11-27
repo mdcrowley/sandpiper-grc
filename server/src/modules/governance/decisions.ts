@@ -7,8 +7,10 @@
 // person). Only the chair may apply it, or the secretary once the chair has approved the minutes.
 import type { FastifyRequest } from 'fastify';
 import { approvalEngine, approvalKind, approvalKinds } from '../../core/approval-kinds.ts';
+import { actorOf, dataLoadFor, isDataLoad } from '../../core/dataload.ts';
 import { UUID_RE } from '../../core/errors.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { memberById, memberSql } from './committees.ts';
 import { visibleTarget } from './meetings.ts';
 
 const RELATION = 'decided';
@@ -31,16 +33,28 @@ export function registerDecisions(ctx: ModuleContext) {
     if (!req) return patch;
     if (existing && 'meeting_id' in patch && patch.meeting_id !== existing.meeting_id) invalid({ meeting_id: 'A decision stays with the meeting it was taken at.' });
     const meeting = await meetingOf(req, merged.meeting_id);
-    if (meeting.status === 'minutes_approved') ctx.fail(409, 'minutes_approved', 'The minutes of this meeting are approved, so its decisions can no longer be changed.');
+    if (meeting.status === 'minutes_approved' && !isDataLoad(req)) ctx.fail(409, 'minutes_approved', 'The minutes of this meeting are approved, so its decisions can no longer be changed.');
     if (meeting.status === 'canceled') ctx.fail(409, 'canceled', 'The meeting was canceled.');
     if (existing?.applied_at && ['outcome', 'record_type', 'record_id'].some((k) => k in patch && patch[k] !== existing[k])) {
       ctx.fail(409, 'applied', 'This decision has completed an approval step, so its outcome and record can no longer be changed.');
     }
     if ('agenda_item_id' in patch && !patch.agenda_item_id) patch.agenda_item_id = null;
     if ('agenda_item_id' in patch && patch.agenda_item_id) {
-      const ok = UUID_RE.test(String(patch.agenda_item_id))
-        && await db.one('select 1 from agenda_items where id = $1 and meeting_id = $2', [patch.agenda_item_id, meeting.id]);
-      if (!ok) invalid({ agenda_item_id: 'Choose an item of this meeting\'s agenda.' });
+      const item = UUID_RE.test(String(patch.agenda_item_id))
+        ? await db.one<Row>('select session from agenda_items where id = $1 and meeting_id = $2', [patch.agenda_item_id, meeting.id]) : undefined;
+      if (!item) invalid({ agenda_item_id: 'Choose an item of this meeting\'s agenda.' });
+      // A decision taken in closed session is read only by the committee's members (rowRule below).
+      patch.closed_session = item!.session === 'closed';
+    } else if ('agenda_item_id' in patch) patch.closed_session = false;
+    if (typeof patch.resolution_number === 'string') {
+      patch.resolution_number = patch.resolution_number.trim().slice(0, 60) || null;
+      if (patch.resolution_number) {
+        const taken = await db.one<Row>(
+          `select d.ref from meeting_decisions d join meetings m on m.id = d.meeting_id
+           where m.committee_id = $1 and d.deleted_at is null and lower(d.resolution_number) = lower($2) and d.id::text <> $3 limit 1`,
+          [meeting.committee_id, patch.resolution_number, String(existing?.id ?? '')]);
+        if (taken) invalid({ resolution_number: `Resolution ${patch.resolution_number} is already used (${taken.ref}).` });
+      }
     }
     if ('record_type' in patch || 'record_id' in patch) {
       if (merged.record_type || merged.record_id) {
@@ -59,7 +73,7 @@ export function registerDecisions(ctx: ModuleContext) {
       await db.query(
         `insert into record_links (from_type, from_id, to_type, to_id, relation, created_by) values ('meeting_decision', $1, $2, $3, $4, $5)
          on conflict (from_type, from_id, to_type, to_id, relation) do nothing`,
-        [row.id, row.record_type, row.record_id, RELATION, req?.user?.id ?? null]);
+        [row.id, row.record_type, row.record_id, RELATION, actorOf(req).id]);
     }
   }
 
@@ -69,7 +83,15 @@ export function registerDecisions(ctx: ModuleContext) {
     ref: { field: 'ref', prefix: 'DEC-' },
     // A decision about a restricted record (a risk, a security incident) is restricted with it.
     restricted: 'flag', restrictedFrom: { typeField: 'record_type', idField: 'record_id' },
-    searchable: ['title', 'notes'],
+    // A decision taken in closed session is read by the committee's members, chair and secretary and by
+    // the people who prepare meetings; figures still count it, without its words.
+    rowRule: {
+      where: (user, col) => (ctx.can(user, 'governance.edit') ? 'true'
+        : `(not coalesce(${col('closed_session')}, false) or ${memberSql(ctx, user.id, `(select mm_.committee_id from meetings mm_ where mm_.id = ${col('meeting_id')})`)})`),
+      figures: 'mask',
+      hidden: (col) => `coalesce(${col('closed_session')}, false)`,
+    },
+    searchable: ['title', 'notes', 'motion_text', 'resolution_number'],
     defaultSort: { field: 'created_at', dir: 'desc' },
     fields: {
       ref: { label: 'Reference', type: 'text', readOnly: true },
@@ -84,6 +106,26 @@ export function registerDecisions(ctx: ModuleContext) {
       applied_to_workflow: { label: 'Applied to approval', type: 'text', readOnly: true, personal: false },
       applied_at: { label: 'Applied', type: 'datetime', readOnly: true },
       applied_by: { label: 'Applied by', type: 'user', readOnly: true },
+      // The motion (wave 25): recorded with POST /api/meetings/:id/motions, which names the mover and
+      // seconder and records the vote; the text and resolution number can be corrected here.
+      motion_text: { label: 'Motion', type: 'longtext', personal: false },
+      resolution_number: { label: 'Resolution number', type: 'text', personal: false },
+      mover_name: { label: 'Moved by', type: 'text', readOnly: true, personal: true },
+      mover_member_id: { label: 'Mover (member)', type: 'text', readOnly: true },
+      mover_user_id: { label: 'Mover (account)', type: 'user', readOnly: true },
+      seconder_name: { label: 'Seconded by', type: 'text', readOnly: true, personal: true },
+      seconder_member_id: { label: 'Seconder (member)', type: 'text', readOnly: true },
+      seconder_user_id: { label: 'Seconder (account)', type: 'user', readOnly: true },
+      vote_mode: { label: 'Vote recorded', type: 'text', readOnly: true, personal: false },
+      votes_for: { label: 'For', type: 'number', readOnly: true },
+      votes_against: { label: 'Against', type: 'number', readOnly: true },
+      votes_abstain: { label: 'Abstaining', type: 'number', readOnly: true },
+      votes_absent: { label: 'Absent', type: 'number', readOnly: true },
+      vote_summary: { label: 'Vote', type: 'text', readOnly: true, personal: false },
+      closed_session: { label: 'Closed session', type: 'boolean', readOnly: true },
+      consent_agenda: { label: 'Adopts the consent agenda', type: 'boolean', readOnly: true },
+      recorded_by: { label: 'Recorded by', type: 'user', readOnly: true },
+      recorded_by_name: { label: 'Recorded by (name)', type: 'text', readOnly: true },
     },
     hooks: {
       beforeCreate: async (req, data) => {
@@ -124,8 +166,10 @@ export function registerDecisions(ctx: ModuleContext) {
     if (!OPEN_MEETING.has(meeting.status)) ctx.fail(409, 'not_held', 'A decision can be applied once the meeting has been held.');
     if (!meeting.chair_id) ctx.fail(409, 'no_chair', 'The meeting has no chair.');
     const committee = await db.one<Row>('select name, secretary_id from committees where id = $1', [meeting.committee_id]);
-    const isChair = meeting.chair_id === req.user!.id;
-    const isSecretary = [meeting.secretary_id, committee?.secretary_id].includes(req.user!.id) && ctx.can(req.user, 'governance.edit');
+    // E18-94: in a load that names the chair or secretary, the rules are checked against them.
+    const me = actorOf(req).id;
+    const isChair = !!me && meeting.chair_id === me;
+    const isSecretary = !!me && [meeting.secretary_id, committee?.secretary_id].includes(me) && ctx.can(req.user, 'governance.edit');
     if (!isChair && !isSecretary) ctx.fail(403, 'forbidden', 'Only the chair or the secretary of the committee may apply its decisions.');
     // The secretary acts for the chair only on minutes the chair has approved.
     if (!isChair && meeting.status !== 'minutes_approved') {
@@ -145,7 +189,9 @@ export function registerDecisions(ctx: ModuleContext) {
     const target = options[0];
 
     // Claimed first, so two requests at once cannot apply it twice.
-    const claimed = await db.one('update meeting_decisions set applied_at = now(), applied_by = $2 where id = $1 and applied_at is null returning id', [decision.id, req.user!.id]);
+    const at = (req.body as Row | null)?.applied_at;
+    const loadedAt = typeof at === 'string' && !Number.isNaN(Date.parse(at)) && await dataLoadFor(db, req) ? new Date(at).toISOString() : null;
+    const claimed = await db.one('update meeting_decisions set applied_at = coalesce($3::timestamptz, now()), applied_by = $2 where id = $1 and applied_at is null returning id', [decision.id, me, loadedAt]);
     if (!claimed) ctx.fail(409, 'already_applied', 'This decision has already been applied.');
     const verb = decision.outcome === 'approved' ? 'Approved' : 'Rejected';
     const comment = `Decided at ${meeting.ref} (${committee?.name ?? 'committee'}): ${decision.ref} ${decision.title}`.slice(0, 2000);
@@ -217,7 +263,10 @@ export function registerDecisions(ctx: ModuleContext) {
   app.get('/api/meetings/:id/decisions', { preHandler: ctx.requirePerm('governance.view') }, async (req) => {
     const meeting = (await ctx.resources.find('meeting', (req.params as { id: string }).id, req.user)) ?? ctx.fail(404, 'not_found', 'Meeting not found.');
     const rows = await db.query<Row>(
-      `select id, ref, title, outcome, record_type, record_id, agenda_item_id, applied_to_workflow, applied_at, restricted from meeting_decisions
+      `select id, ref, title, outcome, record_type, record_id, agenda_item_id, applied_to_workflow, applied_at, restricted, notes,
+              motion_text, resolution_number, mover_name, mover_member_id, seconder_name, seconder_member_id, vote_mode,
+              votes_for, votes_against, votes_abstain, votes_absent, vote_summary, closed_session, consent_agenda, created_at
+       from meeting_decisions
        where meeting_id = $1 and deleted_at is null and ${ctx.resources.visibleWhere('meeting_decision', req.user)} order by created_at`, [meeting.id]);
     // The records decided, read once per record type rather than once per decision (E40-09).
     const seen = new Map<string, string>();
@@ -239,10 +288,26 @@ export function registerDecisions(ctx: ModuleContext) {
       const label = def ? seen.get(`${def.type}:${r.record_id}`) : undefined;
       r.record = def && label !== undefined ? { type: def.type, typeLabel: def.label, id: r.record_id, label, route: def.route } : r.record_type ? { hidden: true } : null;
     }
+    const votes = await votesOf(ctx, rows.map((r) => String(r.id)));
+    for (const r of rows) r.votes = votes.get(String(r.id)) ?? [];
     return rows;
   });
   ctx.describeRoute({
     method: 'GET', path: '/api/meetings/:id/decisions', tag: 'Governance', permission: 'governance.view',
-    summary: 'Decisions taken at one meeting, with the record each is about when the reader may see it',
+    summary: 'Decisions taken at one meeting, with the motion, mover, seconder, vote (per member when recorded so) and resolution number, and the record each is about when the reader may see it',
   });
+}
+
+/** The votes of each member on some decisions, by decision id: `[{ member_id, name, vote }]`. */
+export async function votesOf(ctx: ModuleContext, decisionIds: string[]): Promise<Map<string, Row[]>> {
+  const out = new Map<string, Row[]>();
+  if (!decisionIds.length) return out;
+  const rows = await ctx.db.query<Row>(
+    `select v.decision_id::text as decision_id, v.member_id, v.vote from meeting_decision_votes v
+     join committee_members m on m.id = v.member_id
+     where v.decision_id::text = any($1::text[]) order by case m.role when 'chair' then 0 when 'member' then 1 else 2 end, m.created_at`, [decisionIds]);
+  const names = new Map<string, string>();
+  for (const id of [...new Set(rows.map((r) => String(r.member_id)))]) names.set(id, String((await memberById(ctx, id))?.name ?? 'A member'));
+  for (const r of rows) out.set(r.decision_id, [...(out.get(r.decision_id) ?? []), { member_id: r.member_id, name: names.get(String(r.member_id)), vote: r.vote }]);
+  return out;
 }

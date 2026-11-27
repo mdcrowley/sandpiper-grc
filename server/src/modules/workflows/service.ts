@@ -8,6 +8,7 @@ import {
   approvalKind, approvalKinds, type ApprovalEngine, type ApprovalInstance, type ApprovalKind, type InstallHelpers,
 } from '../../core/approval-kinds.ts';
 import { loadUser } from '../../core/auth.ts';
+import { actorOf, onBehalfOf } from '../../core/dataload.ts';
 import type { Queryable } from '../../core/db.ts';
 import { fail, UUID_RE as UUID } from '../../core/errors.ts';
 import type { MoveHolder } from '../../core/lifecycle.ts';
@@ -931,7 +932,9 @@ export function makeService(ctx: ModuleContext) {
         chosen = fitting.sort((a, b) => asJson<unknown[]>(b.conditions).length - asJson<unknown[]>(a.conditions).length)[0];
       }
       if (!chosen) return null;
-      const row = await start(chosen, def!, record, opts.requester, opts.req, opts.note ?? null, false, opts.data ?? {});
+      // E18-94: asked for in a load that names a person: they are the requester (their own rules apply).
+      const requester = opts.req && onBehalfOf(opts.req) && opts.requester === opts.req.user?.id ? actorOf(opts.req).id : opts.requester;
+      const row = await start(chosen, def!, record, requester, opts.req, opts.note ?? null, false, opts.data ?? {});
       return row ? instanceView((await loadInstance(row.id))!) : null;
     },
     async latest(key, recordId) {

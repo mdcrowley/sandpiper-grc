@@ -7,6 +7,7 @@ import { defineCalendarSource } from '../../core/calendar.ts';
 import { UUID_RE } from '../../core/errors.ts';
 import { defineMetric } from '../../core/metrics.ts';
 import type { ModuleContext, Row, RowRule, SessionUser } from '../../core/module.ts';
+import { actorOf } from '../../core/dataload.ts';
 import { ANONYMIZED_TEXT, onAnonymize } from '../../core/retention.ts';
 import { todayInZone } from '../../core/timezone.ts';
 import { byUrgency, clockOf } from '../secincidents/clocks.ts';
@@ -184,12 +185,12 @@ export async function registerRequests(ctx: ModuleContext) {
     const row = await db.one<Row>(
       `insert into records_request_items (request_id, record_type, record_id, exemption, disclosed, note, added_by) values ($1,$2,$3,$4,$5,$6,$7)
        on conflict (request_id, record_type, record_id) do nothing returning id`,
-      [request.id, type, id, exemption ?? null, disclosed ?? null, String(b.note ?? '').trim().slice(0, 2000) || null, req.user!.id]);
+      [request.id, type, id, exemption ?? null, disclosed ?? null, String(b.note ?? '').trim().slice(0, 2000) || null, actorOf(req).id]);
     if (!row) ctx.fail(409, 'duplicate', 'That record is already listed on this request.');
     // Mirrored as a link so the record's Related tab shows the request (contract C7).
     await db.query(
       `insert into record_links (from_type, from_id, to_type, to_id, relation, created_by) values ($1,$2,$3,$4,'responsive_to',$5) on conflict do nothing`,
-      [type, id, REQUEST_TYPE, request.id, req.user!.id]);
+      [type, id, REQUEST_TYPE, request.id, actorOf(req).id]);
     await ctx.audit(req, {
       action: 'records_request.item_add', recordType: REQUEST_TYPE, recordId: request.id,
       summary: `Responsive record added: ${def!.label} ${(await ctx.resources.labelFor(type, id)) ?? id}`, after: { record_type: type, record_id: id, exemption, disclosed },

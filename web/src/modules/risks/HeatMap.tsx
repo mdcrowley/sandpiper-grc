@@ -25,6 +25,10 @@ export interface HeatRisk {
   score: number | null;
   inherent: { likelihood: number; impact: number; rating: string | null } | null;
   residual: { likelihood: number; impact: number; rating: string | null } | null;
+  /** E45-03: where the treatment plan should bring the risk. */
+  target?: { likelihood: number; impact: number; rating: string | null; on?: string | null } | null;
+  /** E45-01: a restricted risk the viewer may not see: counted, with its ratings, but no reference, title or owner. */
+  masked?: boolean;
 }
 
 export interface HeatMovement {
@@ -36,7 +40,9 @@ export interface HeatMovement {
 
 export interface HeatMapData {
   scale: Scale;
-  basis: 'residual' | 'inherent';
+  basis: 'residual' | 'inherent' | 'target';
+  /** On the residual basis, risks scored on the inherent rating only (counted at that level in the tiles and the report). */
+  inherent_only?: number;
   cells: HeatCell[];
   totals: { rating: string; label: string; color: string; count: number }[];
   total: number;
@@ -71,7 +77,7 @@ export function HeatMap({ data, selected, onSelect, showMovement }: Props) {
   const { ref, width, height } = useElementSize();
   const cellAt = (l: number, i: number) => data.cells.find((c) => c.likelihood === l && c.impact === i);
   const ratingLabel = (key: string | null) => scale.ratings.find((r) => r.key === key)?.label ?? 'Not rated';
-  const basisWord = data.basis === 'residual' ? 'Residual' : 'Inherent';
+  const basisWord = data.basis === 'residual' ? 'Residual' : data.basis === 'target' ? 'Target' : 'Inherent';
 
   // Arrow keys move focus around the grid like a spreadsheet.
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -181,7 +187,8 @@ export function HeatMap({ data, selected, onSelect, showMovement }: Props) {
             {t.label} <strong className="num">{t.count}</strong>
           </li>
         ))}
-        {data.unscored > 0 && <li className="muted">Not yet scored <strong className="num">{data.unscored}</strong></li>}
+        {data.unscored > 0 && <li className="muted">{data.basis === 'target' ? 'No target' : data.basis === 'residual' ? 'No residual score' : 'Not yet scored'} <strong className="num">{data.unscored}</strong></li>}
+        {(data.inherent_only ?? 0) > 0 && <li className="muted">Of which scored on inherent only <strong className="num">{data.inherent_only}</strong> <span className="rk-legend-note">(counted at that level in the tiles and the report)</span></li>}
         {data.appetite && (
           <li className="muted rk-legend-appetite">
             <span className="rk-swatch rk-swatch-appetite" aria-hidden="true" />
@@ -195,7 +202,7 @@ export function HeatMap({ data, selected, onSelect, showMovement }: Props) {
               <path className="rk-arrow-head" d="M 25 1.5 L 33 5 L 25 8.5 z" />
               <circle className="rk-arrow-start" cx="5" cy="5" r="3.5" />
             </svg>
-            {data.movements.length > 0 ? 'Inherent to residual' : 'No risk moves between cells'}
+            {data.movements.length === 0 ? 'No risk moves between cells' : data.basis === 'target' ? 'Residual to target' : 'Inherent to residual'}
           </li>
         )}
       </ul>

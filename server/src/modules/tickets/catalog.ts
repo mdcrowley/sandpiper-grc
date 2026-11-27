@@ -3,7 +3,7 @@
 // (kind `ticket_approval` on the shared approval workflows).
 import type { FastifyRequest } from 'fastify';
 import { approvalEngine, defineApprovalKind } from '../../core/approval-kinds.ts';
-import { isDataLoad } from '../../core/dataload.ts';
+import { actorOf, isDataLoad } from '../../core/dataload.ts';
 import { UUID_RE } from '../../core/errors.ts';
 import type { ModuleContext, Row, SessionUser } from '../../core/module.ts';
 import type { TicketNotify } from './notify.ts';
@@ -115,7 +115,7 @@ export function makeCatalog(ctx: ModuleContext, notify: TicketNotify) {
       const was = before[i]?.title === title ? before[i] : before.find((b) => b.title === title);
       const done = raw.done === true;
       out.push(done
-        ? { title, done, done_at: was?.done ? was.done_at ?? now : now, done_by_name: was?.done ? was.done_by_name ?? null : req?.user?.displayName ?? 'System' }
+        ? { title, done, done_at: was?.done ? was.done_at ?? now : now, done_by_name: was?.done ? was.done_by_name ?? null : (req && actorOf(req).name) || 'System' }
         : { title, done });
     }
     if (out.length > 60) bad('fulfilment_tasks', 'A ticket can have at most 60 tasks.');

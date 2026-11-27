@@ -26,6 +26,7 @@ import { expiresText } from '../../core/mail/links.ts';
 import { EMAIL_RE, loadConfig } from '../../core/mail/service.ts';
 import { TEXT_MAX, textSettings } from '../../core/mail/texts.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { actorOf } from '../../core/dataload.ts';
 import { organizationName, readOrganization } from '../../core/organization.ts';
 import { makeDbLimiter } from '../../core/ratelimit.ts';
 import { clientIp } from '../../core/request.ts';
@@ -53,7 +54,7 @@ export function registerCallouts(ctx: ModuleContext) {
   const perActivation = makeDbLimiter(db, 'callout_send', 20, 60 * 60_000);
   const mailReady = ensureMail(ctx);
 
-  const byOf = (req: FastifyRequest) => ({ id: req.user?.id ?? null, name: req.user?.displayName ?? 'System' });
+  const byOf = (req: FastifyRequest) => ({ id: actorOf(req).id, name: actorOf(req).name ?? 'System' });
   const addLog = (activationId: string, entry: string, by: { id: string | null; name: string | null }) =>
     db.query('insert into activation_log_entries (activation_id, entry, by_id, by_name) values ($1, $2, $3, $4)', [activationId, entry, by.id, by.name]);
 
@@ -164,7 +165,7 @@ export function registerCallouts(ctx: ModuleContext) {
     const callout = (await db.one<Row>(
       `insert into activation_callouts (activation_id, plan_id, message, by_email, by_text, expires_at, sent_by, sent_by_name)
        values ($1, $2, $3, $4, $5, now() + make_interval(hours => $6::int), $7, $8) returning *`,
-      [a.id, plan!.id, message, byEmail, byText, hours, req.user!.id, req.user!.displayName]))!;
+      [a.id, plan!.id, message, byEmail, byText, hours, actorOf(req).id, actorOf(req).name]))!;
     const base = await linkBase(req);
     const org = organizationName(await readOrganization(db));
     const counts = { email: 0, text: 0, none: 0 };
@@ -253,8 +254,8 @@ export function registerCallouts(ctx: ModuleContext) {
     if (r.acknowledged_at) ctx.fail(409, 'acknowledged', 'This person has already acknowledged.');
     const note = text((req.body as Row | null)?.note, 500);
     await db.query(`update activation_callout_recipients set acknowledged_at = now(), ack_via = 'staff', ack_by = $2, ack_by_name = $3, ack_note = $4 where id = $1`,
-      [r.id, req.user!.id, req.user!.displayName, note]);
-    await addLog(a.id, `${r.name ?? 'Someone'} acknowledged the call-out (recorded by ${req.user!.displayName}${note ? `: ${note}` : ''}).`, byOf(req));
+      [r.id, actorOf(req).id, actorOf(req).name, note]);
+    await addLog(a.id, `${r.name ?? 'Someone'} acknowledged the call-out (recorded by ${actorOf(req).name}${note ? `: ${note}` : ''}).`, byOf(req));
     await ctx.audit(req, { action: 'emergency_activation.call_out_ack', recordType: 'emergency_activation', recordId: a.id, summary: `Call-out acknowledgment recorded for ${r.name ?? 'someone'}`, after: { recipient_id: r.id, via: 'staff', note } });
     return { ok: true };
   });

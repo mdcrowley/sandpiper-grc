@@ -10,7 +10,7 @@ import { RatedChip, RatingChip, useScales } from './scales';
 const days = (n: number) => `${n} ${n === 1 ? 'day' : 'days'}`;
 const WINDOWS = [{ value: '30', label: '30 days' }, { value: '60', label: '60 days' }, { value: '90', label: '90 days' }];
 
-/** Two worklists for the security lead: acceptances to renew and reviews that are due. */
+/** Two worklists for the risk owners and the risk manager: acceptances to renew and reviews that are due. */
 export function RiskReviews() {
   const { can } = useAuth();
   const { data: scales } = useScales();
@@ -29,7 +29,7 @@ export function RiskReviews() {
     <div className="stack rk-page">
       <PageHeader
         title="Risk reviews"
-        subtitle="Risks whose acceptance is running out, and risks whose review date has arrived. Restricted: visible only to people with access to security records."
+        subtitle="Risks whose acceptance is running out, and risks whose review date has arrived. Restricted risks are listed only for people with access to restricted records."
         breadcrumbs={[{ label: 'Risk register', to: '/risks' }, { label: 'Risk reviews' }]}
         actions={<SegmentedControl size="xs" aria-label="Look ahead" value={ahead} data={WINDOWS} onChange={setAhead} />}
       />

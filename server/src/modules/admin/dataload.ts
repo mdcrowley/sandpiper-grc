@@ -4,11 +4,14 @@
 import type { FastifyRequest } from 'fastify';
 import { asDataLoad, DATA_LOAD_DEFAULT_DAYS, DATA_LOAD_KEY, DATA_LOAD_MAX_DAYS, dataLoadFor, mayLoad, readDataLoad, resolvePerson, wasLoaded } from '../../core/dataload.ts';
 import { ApiError, UUID_RE } from '../../core/errors.ts';
+import { assertNotHeld } from '../../core/holds.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { TIME_ZONE } from '../../core/timezone.ts';
 import { adminRoute, body, invalid, sensitive } from './shared.ts';
 
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+/** How files a load added are listed in data_load_records (attachments/loaded.ts, E45-52). */
+const LOADED_FILES = 'attachment';
 
 export function registerDataLoad(ctx: ModuleContext): void {
   const { db } = ctx;
@@ -31,6 +34,8 @@ export function registerDataLoad(ctx: ModuleContext): void {
        from data_load_records l left join users u on u.id = l.loaded_by
        group by 1, 2 order by 1 desc, 2`, [TIME_ZONE]);
     const loads = rows.map((r): Row => {
+      // Files added by a load (E45-52) are listed as `attachment`: not a record type of their own.
+      if (r.record_type === LOADED_FILES) return { ...r, label: 'Files', route: null, installed: true };
       const def = ctx.resources.get(r.record_type);
       return { ...r, label: def?.plural ?? r.record_type, route: def?.route ?? null, installed: !!def };
     }).filter((r) => r.installed || r.remaining > 0);
@@ -104,18 +109,57 @@ export function registerDataLoad(ctx: ModuleContext): void {
   });
 
   /**
+   * Undoes the files a load added on one day (E45-52): each is removed as Remove on its record does
+   * (soft delete, bytes kept for the purge period); files of a record under a legal hold stay.
+   */
+  const undoFiles = async (req: FastifyRequest, day: string) => {
+    const rows = await db.query<Row>(
+      `select a.id, a.record_type, a.record_id, a.file_name, a.deleted_at from data_load_records l
+       left join attachments a on a.id = l.record_id
+       where l.record_type = $1 and l.deleted_at is null and to_char(l.loaded_at at time zone $3, 'YYYY-MM-DD') = $2 order by l.id`,
+      [LOADED_FILES, day, TIME_ZONE]);
+    let deleted = 0;
+    let missing = 0;
+    const held: string[] = [];
+    for (const a of rows) {
+      if (!a.id || a.deleted_at) { missing += 1; continue; }
+      try {
+        await assertNotHeld(db, a.record_type, a.record_id, 'remove_file');
+      } catch (err) {
+        if (err instanceof ApiError && err.code === 'on_hold') { held.push(a.id); continue; }
+        throw err;
+      }
+      await db.query(`update attachments set deleted_at = now(), removed_reason = 'removed', updated_at = now(), updated_by = $2 where id = $1 and deleted_at is null`, [a.id, req.user!.id]);
+      await db.query('update data_load_records set deleted_at = now(), deleted_by = $3 where record_type = $1 and record_id = $2 and deleted_at is null', [LOADED_FILES, a.id, req.user!.id]);
+      await ctx.audit(req, {
+        action: 'attachment.delete', recordType: a.record_type, recordId: a.record_id,
+        summary: `File removed: ${a.file_name} (undoing a data load)`, before: { attachment_id: a.id, file_name: a.file_name },
+      });
+      deleted += 1;
+    }
+    await ctx.audit(req, {
+      action: 'data_load.undo', recordType: LOADED_FILES,
+      summary: `Data load of ${day} undone: ${deleted} files removed${held.length ? `, ${held.length} kept under a legal hold` : ''}${missing ? `, ${missing} not found` : ''}`,
+      after: { day, type: LOADED_FILES, deleted, held: held.length, missing },
+    });
+    return { deleted, held: held.length, missing };
+  };
+
+  /**
    * Undoes one load: soft-deletes every record of one type that data load mode created on one day
    * (recent password confirmation). Records under a legal hold, and records already deleted, stay.
    */
   adminRoute(ctx, 'POST', '/api/admin/data-load/undo', async (req) => {
     sessionOnly(req);
     const b = body(req);
-    const def = typeof b.type === 'string' ? ctx.resources.get(b.type) : undefined;
+    const files = b.type === LOADED_FILES;
+    const def = typeof b.type === 'string' && !files ? ctx.resources.get(b.type) : undefined;
     const fields: Record<string, string> = {};
-    if (!def) fields.type = 'Choose a record type.';
+    if (!def && !files) fields.type = 'Choose a record type.';
     if (typeof b.day !== 'string' || !DAY_RE.test(b.day)) fields.day = 'Choose a day (YYYY-MM-DD).';
     if (Object.keys(fields).length) invalid(fields);
     await sensitive(ctx, req, 'deleting the records a data load created');
+    if (files) return undoFiles(req, b.day);
     const ids = (await db.query<{ record_id: string }>(
       `select record_id from data_load_records
        where record_type = $1 and deleted_at is null and to_char(loaded_at at time zone $3, 'YYYY-MM-DD') = $2 order by id`,

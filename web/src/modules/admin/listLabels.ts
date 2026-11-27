@@ -17,9 +17,11 @@ export const LIST_LABELS: Record<string, string> = {
   asset_type: 'Asset type',
   assignment_group: 'Ticket assignment group',
   audit_area_category: 'Audit area category',
+  audit_change_level: 'Audit area change level',
   audit_opinion: 'Audit opinion',
   audit_request_status: 'Audit request status',
   audit_risk_level: 'Audit risk level',
+  audit_significance: 'Audit area significance',
   audit_status: 'Audit status',
   audit_type: 'Audit type',
   bia_question: 'Business impact analysis question',
@@ -77,6 +79,8 @@ export const LIST_LABELS: Record<string, string> = {
   destruction_status: 'Records destruction status',
   disposal_request_status: 'Asset disposal request status',
   emergency_event_type: 'Emergency event type',
+  evidence_relation: 'Evidence relation',
+  evidence_source: 'Evidence source',
   evidence_type: 'Vendor evidence type',
   exception_status: 'Policy exception status',
   exclusion_list: 'Exclusion list',
@@ -241,8 +245,10 @@ export const LIST_LABELS: Record<string, string> = {
   vendor_status: 'Vendor status',
   verification_method: 'Action verification method',
   verification_result: 'Action verification result',
+  vulnerability_exposure: 'Vulnerability exposure',
   vulnerability_severity: 'Vulnerability severity',
   vulnerability_status: 'Vulnerability status',
+  workpaper_result: 'Workpaper step result',
 };
 
 /** A setting kept on each value of a list (in its `meta`), edited beside the value's name and color. */

@@ -8,7 +8,7 @@ Inventory is always on. When an administrator switches **Fleet and services** of
 
 A system is an application or service that people use, for example the scheduling system, the fare collection back office or the email service. Equipment on the vehicles themselves, such as the fareboxes or the onboard video, can be recorded as a system too. Open **Assets > Systems**; its tabs are **Systems**, **Map**, **Data categories** and **Checks**. The list shows 50 systems per page.
 
-Use the column chooser to add **Technical owner**, **Vendor (as recorded)**, **Recovery time (h)**, **Recovery point (h)** or **Updated**. To change several systems at once, check them and select **Edit selected…**: you can set **Status**, **Criticality**, **Hosting**, **Multi-factor**, **Business owner** or **Technical owner**.
+The list shows **End of support** when the page is wide enough. Use the column chooser to add **Version**, **Annual cost**, **Technical owner**, **Vendor (as recorded)**, **Recovery time (h)**, **Recovery point (h)** or **Updated**; sort by **End of support** or **Annual cost** to see what is going out of support next or what costs most, and filter on **End of support** to list the systems whose support ends before a date. To change several systems at once, check them and select **Edit selected…**: you can set **Status**, **Criticality**, **Hosting**, **Multi-factor**, **Business owner** or **Technical owner**.
 
 ### Add a system
 
@@ -24,7 +24,7 @@ The system gets a reference such as `SYS-00012`.
 
 ### The system record: a fact sheet
 
-The top of the record shows how complete the fact sheet is, as a percentage and a count ("7 of 12 key facts recorded"), with the facts people look for first: **Business owner**, **Technical owner**, **Criticality**, **Hosting**, **Recovery time / point**, **Multi-factor** and **Vendor**. A fact that is missing reads "Not recorded".
+The top of the record shows how complete the fact sheet is, as a percentage and a count ("7 of 12 key facts recorded"), with the facts people look for first: **Business owner**, **Technical owner**, **Criticality**, **Hosting**, **Recovery time / point**, **Multi-factor** and **Vendor**, and **End of support** once it is recorded (marked "(ended)" once the date has passed). A fact that is missing reads "Not recorded".
 
 Under **Still to record** there is one button for each gap, for example **a business owner** or **how people sign in**. Select one to open the right card for editing. **the data it holds** opens the **Data held** tab.
 
@@ -34,7 +34,7 @@ The tabs hold the rest:
 
 | Tab | What it holds |
 |---|---|
-| **Fact sheet** | One card for each subject: **Purpose**, **Ownership**, **Criticality and recovery**, **Hosting**, **Sign-in**, **Vendor and contract**, **Outlook and notes**; then **Sites served** |
+| **Fact sheet** | One card for each subject: **Purpose**, **Ownership**, **Criticality and recovery**, **Hosting**, **Sign-in**, **Vendor and contract**, **Version, support and cost**, **Outlook and notes**; then **Sites served** |
 | **Integrations** | Other systems this one exchanges data with |
 | **Data held** | Data categories held in this system |
 | **Assets** | Assets linked to this system |
@@ -50,6 +50,7 @@ Each card on **Fact sheet** has its own **Edit** button. A card is marked **Comp
 
 - **Vendor** and **Contract** link the system to records in [Vendors and contracts](04-vendors-and-contracts.md). **Vendor (as recorded)** is free text for when no vendor record exists yet.
 - **Recovery time objective (hours)** is how long the organization can do without the system. **Recovery point objective (hours)** is how much recent data it can afford to lose.
+- **Version, support and cost** holds the **Version** in use (for example "8.4"), the **End of support** date (when the vendor stops fixing it), the **Annual cost** (licenses, support and hosting for one year; zero or more) and the **Planned replacement**. These facts are not counted in the fact sheet's completeness, so the card is never marked **Complete**.
 - **Multi-factor** records whether sign-in to the system needs a second factor: **Enforced**, **Available, not enforced**, **Not in place**, **Not applicable** or **Not known**.
 
 Select **Show on map** to open the relationship map with this system selected.
@@ -268,9 +269,10 @@ If **Funder interest** is checked, the asset cannot be disposed of until the **D
 The application sends a notification (see the bell at the top of the page):
 
 - 30 days and 7 days before an asset's **Warranty end** or **Support end**, and on the day. It goes to the asset's **Owner**; if the asset has no owner, to everyone who may edit assets.
+- 30 days and 7 days before a system's **End of support**, and on the day. It goes to the system's **Technical owner**, or its **Business owner** when it has no technical owner; with neither, to everyone who may edit systems. Retired systems are left out.
 - 3 days before a loan is **Due back**, and on the day. It goes to the person who checked the asset out and, if the asset is with a user of the application, to that user.
 
-Retired and disposed assets are left out. Each reminder is sent once. In your notification preferences you can have **Reminders** and **Due dates** sent by email as well as, or instead of, the bell, or switch them off (see [Preferences](14-attachments-and-notifications.md#preferences)). An administrator chooses the steps for warranty and support end dates (30, 7 and 0 days unless changed) under **Administration** > **Reminders**; the change is kept in the audit log.
+Retired and disposed assets are left out. Each reminder is sent once. In your notification preferences you can have **Reminders** and **Due dates** sent by email as well as, or instead of, the bell, or switch them off (see [Preferences](14-attachments-and-notifications.md#preferences)). An administrator chooses the steps for warranty, support and end-of-support dates (30, 7 and 0 days unless changed) under **Administration** > **Reminders**; the change is kept in the audit log.
 
 ## Asset models
 

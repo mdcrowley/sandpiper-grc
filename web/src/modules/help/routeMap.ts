@@ -189,7 +189,8 @@ export const ROUTE_HELP: RouteHelp[] = [
   { prefix: '/caps', page: '24-corrective-action-plans', section: 'the-plan-page' },
 
   // Audits and inspections
-  { prefix: '/audits', page: '25-audits-and-inspections', section: 'plan-and-coverage' },
+  { prefix: '/audits/plan', page: '25-audits-and-inspections', section: 'the-risk-ranked-audit-plan' },
+  { prefix: '/audits', page: '25-audits-and-inspections', section: 'coverage' },
   { prefix: '/audits/areas', page: '25-audits-and-inspections', section: 'the-audit-universe' },
   { prefix: '/audits/engagements', page: '25-audits-and-inspections', section: 'audits' },
   { prefix: '/audits/templates', page: '25-audits-and-inspections', section: 'checklists' },
@@ -215,6 +216,7 @@ export const ROUTE_HELP: RouteHelp[] = [
   { prefix: '/funding/reviews', page: '27-funding-and-grants', section: 'compliance-reviews' },
   { prefix: '/funding/deficiencies', page: '27-funding-and-grants', section: 'deficiencies-and-corrective-action-plans' },
   { prefix: '/funding/review-areas', page: '27-funding-and-grants', section: 'review-areas-from-a-file' },
+  { prefix: '/funding/funders', page: '27-funding-and-grants', section: 'funders' },
   { prefix: '/funding/subrecipients', page: '27-funding-and-grants', section: 'sub-recipients' },
 
   // Committees and meetings
@@ -272,6 +274,10 @@ export const ROUTE_HELP: RouteHelp[] = [
   { prefix: '/retention-schedule', page: '42-records-retention-schedule', section: 'record-series' },
   { prefix: '/destruction-log', exact: true, page: '42-records-retention-schedule', section: 'proposing-a-destruction' },
   { prefix: '/destruction-log', page: '42-records-retention-schedule', section: 'approval' },
+  // Evidence library (E45-06).
+  { prefix: '/evidence-library', exact: true, page: '43-evidence-library', section: 'evidence-records' },
+  { prefix: '/evidence-library/expiring', page: '43-evidence-library', section: 'expiring-evidence' },
+  { prefix: '/evidence-library', page: '43-evidence-library', section: 'using-evidence-for-records' },
 
   // Integrations
   { prefix: '/admin/provisioning', page: '35-user-provisioning-and-log-forwarding', section: 'user-provisioning' },

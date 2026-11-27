@@ -139,10 +139,10 @@ export const DOCS: RouteDoc[] = [
     tag: 'Inventory', permission: 'admin.administer', description: 'A change is audited.',
     body: '{ disposalRoutedOnly: boolean }', response: '{ disposalRoutedOnly: boolean }',
   }),
-  route('POST', '/api/inventory/reminders/run', 'Send warranty, support and loan reminders now', {
+  route('POST', '/api/inventory/reminders/run', 'Send warranty, support, loan and system end-of-support reminders now', {
     tag: 'Inventory', permission: 'admin.administer',
     description: 'They also run on a timer several times a day. Each reminder goes out once per step. Nothing is sent when notifications are not available.',
-    response: '{ available: boolean, warranty: integer, support: integer, loans: integer }',
+    response: '{ available: boolean, warranty: integer, support: integer, loans: integer, systems: integer }',
   }),
   route('GET', '/api/inventory/reports', 'Canned inventory reports the caller may see, each with its row count', {
     tag: 'Inventory',

@@ -21,6 +21,15 @@ export interface Scale {
 export const COLORS = ['gray', 'blue', 'teal', 'green', 'amber', 'orange', 'red', 'purple'];
 export const THRESHOLD_SETTING = 'risks.acceptance_thresholds';
 export const DEFAULT_SCALE = 'cyber_5x5';
+/** E45-02: the scale of enterprise, compliance and third-party risk, apart from the cybersecurity scale. */
+export const ENTERPRISE_SCALE_KEY = 'enterprise_5x5';
+/** The categories scored on the enterprise scale by default. */
+export const ENTERPRISE_CATEGORIES = ['enterprise', 'compliance', 'third_party'];
+export const CYBER_SCALE_NAME = 'Cybersecurity risk (5 by 5)';
+export const CYBER_SCALE_DESCRIPTION = 'Five likelihood levels by five impact levels, for cybersecurity risk.';
+/** Name and description the five-by-five scale carried before the enterprise scale existed (renamed while unedited). */
+const EARLIER_CYBER_NAME = 'Cyber and enterprise risk (5 by 5)';
+const EARLIER_CYBER_DESCRIPTION = 'Five likelihood levels by five impact levels, for cyber and enterprise risk.';
 /** The safety hazard matrix: saving it re-rates the hazards too (BS-4). */
 export const HAZARD_SCALE_KEY = 'hazard_4x5';
 
@@ -61,8 +70,8 @@ function fiveByFive(): ScaleSeed {
     }
   }
   return {
-    key: 'cyber_5x5', name: 'Cyber and enterprise risk (5 by 5)', sort: 10,
-    description: 'Five likelihood levels by five impact levels, for cyber and enterprise risk.',
+    key: 'cyber_5x5', name: CYBER_SCALE_NAME, sort: 10,
+    description: CYBER_SCALE_DESCRIPTION,
     likelihood_label: 'Likelihood', impact_label: 'Impact',
     likelihood_levels, impact_levels, matrix,
     ratings: [
@@ -71,6 +80,28 @@ function fiveByFive(): ScaleSeed {
       { key: 'high', label: 'High', color: 'orange', sort: 30, summary_level: 'high' },
       { key: 'extreme', label: 'Extreme', color: 'red', sort: 40, summary_level: 'critical' },
     ],
+  };
+}
+
+/**
+ * Impact levels of the enterprise scale (E45-02): the same five steps, described in terms of money,
+ * service, obligations and trust rather than systems and data.
+ */
+const ENTERPRISE_IMPACT: ScaleLevel[] = [
+  { value: 1, label: 'Insignificant', description: 'Negligible cost; no effect on service, people or reputation' },
+  { value: 2, label: 'Minor', description: 'Small cost, or a brief disruption handled within a department' },
+  { value: 3, label: 'Moderate', description: 'Noticeable cost, service disruption of hours, or local attention' },
+  { value: 4, label: 'Major', description: 'Large cost, disruption of days, a missed obligation or wide public attention' },
+  { value: 5, label: 'Severe', description: 'A loss that threatens objectives or funding, harm to the public, or lasting damage to trust' },
+];
+
+/** The enterprise scale (key `enterprise_5x5`): five by five, for strategic, financial, operational and compliance risk. */
+function enterpriseFiveByFive(): ScaleSeed {
+  const base = fiveByFive();
+  return {
+    ...base, key: ENTERPRISE_SCALE_KEY, name: 'Enterprise risk (5 by 5)', sort: 5,
+    description: 'Five likelihood levels by five impact levels, for strategic, financial, operational and compliance risk.',
+    impact_levels: ENTERPRISE_IMPACT,
   };
 }
 
@@ -107,7 +138,11 @@ function hazardMatrix(): ScaleSeed {
   };
 }
 
-const DEFAULT_THRESHOLDS: Record<string, string> = { cyber_5x5: 'high', hazard_4x5: 'serious' };
+const DEFAULT_THRESHOLDS: Record<string, string> = { cyber_5x5: 'high', enterprise_5x5: 'high', hazard_4x5: 'serious' };
+
+/** The heat map's basis (E45-03 adds the target risk): residual unless inherent or target is asked for. */
+export type HeatBasis = 'inherent' | 'residual' | 'target';
+export const heatBasis = (v: unknown): HeatBasis => (v === 'inherent' ? 'inherent' : v === 'target' ? 'target' : 'residual');
 
 export interface Scored { rating: string | null; score: number | null; summary_level: string | null }
 
@@ -136,8 +171,67 @@ export function makeScales(ctx: ModuleContext) {
       [`Safety (${LEGACY_HAZARD_SCALE_NAME})`]);
   }
 
+  /**
+   * E45-02: enterprise, compliance and third-party risk get a scale of their own, apart from the
+   * cybersecurity scale. Runs once, when the enterprise scale does not exist yet: the new scale
+   * starts as a copy of the five-by-five scale as it stands (so no risk changes rating; impact
+   * levels the administrator has not renamed get the enterprise descriptions), those categories
+   * move to it unless an administrator gave them another scale, and their risks move with them.
+   * The cybersecurity category becomes restricted with its own field ("Affected systems and data").
+   */
+  async function splitEnterpriseScale(): Promise<void> {
+    if (await ctx.db.one('select 1 from risk_scales where key = $1', [ENTERPRISE_SCALE_KEY])) return;
+    const cyber = await ctx.db.one<Row>('select * from risk_scales where key = $1', [DEFAULT_SCALE]);
+    const seed = enterpriseFiveByFive();
+    const ratings = cyber
+      ? (await ctx.db.query<Row>('select * from risk_scale_ratings where scale_key = $1', [DEFAULT_SCALE]))
+        .map((r) => ({ key: r.rating_key, label: r.label, color: r.color, sort: r.sort, summary_level: r.summary_level }))
+      : seed.ratings;
+    const impact = cyber
+      ? (cyber.impact_levels as ScaleLevel[]).map((l) => {
+        const own = ENTERPRISE_IMPACT.find((x) => x.value === l.value && x.label === l.label);
+        return own ? { ...l, description: own.description } : l;
+      })
+      : seed.impact_levels;
+    await ctx.db.tx(async (tx) => {
+      await tx.query(
+        `insert into risk_scales (key, name, description, likelihood_label, impact_label, likelihood_levels, impact_levels, matrix, sort)
+         values ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8::jsonb,$9)`,
+        [seed.key, seed.name, seed.description, cyber?.likelihood_label ?? seed.likelihood_label, cyber?.impact_label ?? seed.impact_label,
+          JSON.stringify(cyber?.likelihood_levels ?? seed.likelihood_levels), JSON.stringify(impact), JSON.stringify(cyber?.matrix ?? seed.matrix), seed.sort]);
+      for (const r of ratings) {
+        await tx.query('insert into risk_scale_ratings (scale_key, rating_key, label, color, sort, summary_level) values ($1,$2,$3,$4,$5,$6)',
+          [seed.key, r.key, r.label, r.color, r.sort, r.summary_level]);
+      }
+      const moved = await tx.query<{ value: string }>(
+        `update lookups set meta = meta || jsonb_build_object('scale', $1::text)
+         where list_key = 'risk_category' and value = any($2::text[]) and coalesce(meta->>'scale', $3) = $3 returning value`,
+        [ENTERPRISE_SCALE_KEY, ENTERPRISE_CATEGORIES, DEFAULT_SCALE]);
+      await tx.query(
+        `update lookups set meta = jsonb_build_object('restricted', true, 'fields', jsonb_build_array('affected')) || meta
+         where list_key = 'risk_category' and value = 'cyber'`);
+      if (moved.length) {
+        await tx.query('update risks set scale_key = $1 where scale_key = $2 and category = any($3::text[])',
+          [ENTERPRISE_SCALE_KEY, DEFAULT_SCALE, moved.map((m) => m.value)]);
+      }
+    });
+    // The approval threshold follows the five-by-five scale's, when one has been saved.
+    const saved = await ctx.settings.get<Record<string, string | null> | null>(THRESHOLD_SETTING, null);
+    if (saved && typeof saved === 'object' && !(ENTERPRISE_SCALE_KEY in saved)) {
+      await ctx.settings.set(THRESHOLD_SETTING, { ...saved, [ENTERPRISE_SCALE_KEY]: saved[DEFAULT_SCALE] ?? null });
+    }
+    await ctx.audit(null, {
+      action: 'risk_scale.create', recordType: 'risk_scale', recordId: ENTERPRISE_SCALE_KEY,
+      summary: `Risk scale added: ${seed.name} (enterprise, compliance and third-party risk move to it from the five-by-five scale)`,
+    });
+  }
+
   async function seedDefaults(): Promise<void> {
     await renameLegacy();
+    await ctx.db.query(
+      `update risk_scales set name = $2, updated_at = now() where key = $1 and name = $3`, [DEFAULT_SCALE, CYBER_SCALE_NAME, EARLIER_CYBER_NAME]);
+    await ctx.db.query(
+      `update risk_scales set description = $2, updated_at = now() where key = $1 and description = $3`, [DEFAULT_SCALE, CYBER_SCALE_DESCRIPTION, EARLIER_CYBER_DESCRIPTION]);
     for (const s of [fiveByFive(), hazardMatrix()]) {
       if (await ctx.db.one('select 1 from risk_scales where key = $1', [s.key])) continue; // an administrator may have edited it
       await ctx.db.query(
@@ -153,6 +247,7 @@ export function makeScales(ctx: ModuleContext) {
         );
       }
     }
+    await splitEnterpriseScale();
   }
 
   const thresholds = () => ctx.settings.get<Record<string, string | null>>(THRESHOLD_SETTING, DEFAULT_THRESHOLDS);
@@ -214,9 +309,11 @@ export function makeScales(ctx: ModuleContext) {
   function scoreRisk(scale: Scale, levels: string[], risk: Row): Row {
     const inherent = score(scale, levels, risk.inherent_likelihood, risk.inherent_impact);
     const residual = score(scale, levels, risk.residual_likelihood, risk.residual_impact);
+    const target = score(scale, levels, risk.target_likelihood, risk.target_impact);
     return {
       inherent_rating: inherent.rating, inherent_score: inherent.score,
       residual_rating: residual.rating, residual_score: residual.score,
+      target_rating: target.rating, target_score: target.score,
       summary_level: residual.summary_level ?? inherent.summary_level,
       acceptance_executive: needsExecutive(scale, residual.rating ?? inherent.rating),
     };
@@ -259,10 +356,11 @@ export function makeScales(ctx: ModuleContext) {
       const c = scoreRisk(scale, levels, r);
       if (Object.keys(c).every((k) => (r[k] ?? null) === c[k])) continue;
       await ctx.db.query(
-        `update risks set inherent_rating = $2, inherent_score = $3, residual_rating = $4, residual_score = $5, summary_level = $6, acceptance_executive = $7 where id = $1`,
-        [r.id, c.inherent_rating, c.inherent_score, c.residual_rating, c.residual_score, c.summary_level, c.acceptance_executive],
+        `update risks set inherent_rating = $2, inherent_score = $3, residual_rating = $4, residual_score = $5, summary_level = $6, acceptance_executive = $7,
+           target_rating = $8, target_score = $9 where id = $1`,
+        [r.id, c.inherent_rating, c.inherent_score, c.residual_rating, c.residual_score, c.summary_level, c.acceptance_executive, c.target_rating, c.target_score],
       );
-      if (['inherent_rating', 'residual_rating'].some((k) => (r[k] ?? null) !== c[k])) changed += 1;
+      if (['inherent_rating', 'residual_rating', 'target_rating'].some((k) => (r[k] ?? null) !== c[k])) changed += 1;
     }
     return changed;
   }

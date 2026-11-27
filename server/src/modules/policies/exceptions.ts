@@ -1,6 +1,6 @@
 // Policy exceptions: time-limited, approved deviations from a policy or standard.
 import type { FastifyRequest } from 'fastify';
-import { isDataLoad } from '../../core/dataload.ts';
+import { actorOf, isDataLoad, onBehalfOf } from '../../core/dataload.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { readableSql, tablesFor, type AccessTables } from './access.ts';
 import { addDays, daysBetween, localDate } from './dates.ts';
@@ -40,7 +40,12 @@ export function registerExceptions(ctx: ModuleContext, tables: AccessTables = ta
   function checkStatus(req: FastifyRequest | null, from: string | null, to: string, merged: Row, patch: Row) {
     // Data load mode (E18-70): a historical exception keeps the status and dates given (an expired
     // or approved one included); no approval date is made up from today.
-    if (isDataLoad(req)) return;
+    if (isDataLoad(req)) {
+      // E18-94: a loaded approval with no approver named is the named person's.
+      const named = onBehalfOf(req);
+      if (to === 'approved' && named && !merged.approver_name) patch.approver_name = named.name;
+      return;
+    }
     const approver = !req || ctx.can(req.user, 'exceptions.approve');
     if (to === 'approved') {
       if (!approver) ctx.fail(403, 'forbidden', NO_PERMISSION);
@@ -80,7 +85,7 @@ export function registerExceptions(ctx: ModuleContext, tables: AccessTables = ta
     },
     hooks: {
       beforeCreate: async (req, data) => {
-        if (req && !data.requested_by) data.requested_by = req.user!.id;
+        if (req && !data.requested_by) data.requested_by = actorOf(req).id;
         await checkRefs(req, data, data);
         if (data.status && data.status !== 'requested') checkStatus(req, null, data.status, data, data);
         return data;

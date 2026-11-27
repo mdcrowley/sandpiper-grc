@@ -8,7 +8,9 @@ import {
 import { canMoveTo, editableLifecycle } from '../../core/lifecycleMenus';
 import type { RecordContext, RecordTab, Row } from '../../core';
 import { AcceptRiskDialog, AssignDialog, FalsePositiveDialog, FixedDialog } from './Dialogs';
-import { ActionsTab, hostOf, portOf, SeverityChip, useActionsAvailable, useAvailableFields } from './shared';
+import {
+  ActionsTab, findingKeyOf, groupLink, hostOf, portOf, SeverityChip, useActionsAvailable, useAvailableFields, useRaiseChange,
+} from './shared';
 import type { Policy } from './shared';
 
 type DialogKey = 'assign' | 'fixed' | 'accept' | 'false_positive';
@@ -22,7 +24,12 @@ function Actions({ row, resource, save, canEdit }: RecordContext) {
   const rules = editableLifecycle(resource.lifecycle, 'status');
   const values = useLookup('vulnerability_status').map((v) => v.value);
   const may = (to: string) => canMoveTo(rules, row.status, to, values);
-  if (!canEdit) return null;
+  const change = useRaiseChange();
+  const [raising, setRaising] = useState(false);
+  const raiseButton = change.available && !row.closed && (
+    <Button icon="refresh" loading={raising} onClick={() => { setRaising(true); void change.raise([row.id]).finally(() => setRaising(false)); }}>Raise a change</Button>
+  );
+  if (!canEdit) return raiseButton || null;
   const closeWithout = [
     ...(may('risk_accepted') ? [{ label: 'Accept the risk…', icon: 'scale' as const, onSelect: () => setDialog('accept') }] : []),
     ...(may('false_positive') ? [{ label: 'False positive…', icon: 'x' as const, onSelect: () => setDialog('false_positive') }] : []),
@@ -48,6 +55,7 @@ function Actions({ row, resource, save, canEdit }: RecordContext) {
         <>
           {row.status === 'open' && may('in_remediation') && <Button loading={busy} onClick={() => void setStatus('in_remediation', 'Remediation started.')}>Start remediation</Button>}
           {may('fixed') && <Button variant="primary" icon="check" onClick={() => setDialog('fixed')}>Mark fixed</Button>}
+          {raiseButton}
           {closeWithout.length > 0 && <Menu label="Close without a fix" align="end" items={closeWithout} />}
         </>
       )}
@@ -136,7 +144,7 @@ function Banner({ row }: { row: Row }) {
 }
 
 function Summary({ row, reload }: RecordContext) {
-  const finding = useAvailableFields(['title', 'description', 'severity', 'cvss', 'known_exploited', 'owner_id', 'system_id', 'asset_id', 'source']);
+  const finding = useAvailableFields(['title', 'description', 'severity', 'cvss', 'known_exploited', 'exposure', 'owner_id', 'system_id', 'asset_id', 'source']);
   return (
     <div className="grid-2 vuln-summary">
       <EditableSummary type="vulnerability" row={row} fields={finding} title="Finding" onSaved={reload} />
@@ -147,7 +155,8 @@ function Summary({ row, reload }: RecordContext) {
           {row.import_batch_id
             ? <>Last reported by an <Link to={`/vulnerabilities/imports/${row.import_batch_id}`}>import</Link>. </>
             : null}
-          An import recognizes this finding by its host, port and finding ID, and updates it rather than adding another.
+          An import recognizes this finding by its host, port and finding ID, and updates it rather than adding another.{' '}
+          <Link to={groupLink(findingKeyOf(row))}>See this finding on every host</Link>
         </p>
       </div>
     </div>

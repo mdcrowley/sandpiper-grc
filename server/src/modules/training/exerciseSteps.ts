@@ -1,5 +1,6 @@
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { actorOf } from '../../core/dataload.ts';
 import { text, UUID } from './dates.ts';
 
 /**
@@ -84,7 +85,7 @@ export function registerExerciseSteps(ctx: ModuleContext) {
        select $1, phase, step, $3 + row_number() over (order by phase, sort, id), scenario, $4, $4 from incident_checklist_templates
        where scenario = $2 and deleted_at is null and coalesce(active, true)
        returning id`,
-      [ex.id, scenario, base, req.user!.id],
+      [ex.id, scenario, base, actorOf(req).id],
     );
     if (!made.length) ctx.fail(400, 'validation', 'Check the highlighted fields.', { scenario: 'That scenario has no checklist steps.' });
     const label = await labelOf('security_incident_scenario', scenario);
@@ -127,7 +128,7 @@ export function registerExerciseSteps(ctx: ModuleContext) {
     const row = (await db.one<Row>(
       `insert into exercise_steps (exercise_id, phase, step, sort, outcome, notes, created_by, updated_by)
        values ($1,$2,$3,$4,$5,$6,$7,$7) returning *`,
-      [ex.id, data.phase ?? null, data.step, base + 1, data.outcome ?? null, data.notes ?? null, req.user!.id],
+      [ex.id, data.phase ?? null, data.step, base + 1, data.outcome ?? null, data.notes ?? null, actorOf(req).id],
     ))!;
     await ctx.audit(req, {
       action: 'exercise_step.create', recordType: 'exercise', recordId: ex.id,
@@ -145,7 +146,7 @@ export function registerExerciseSteps(ctx: ModuleContext) {
     if (!keys.length) return before;
     const row = (await db.one<Row>(
       `update exercise_steps set ${keys.map((k, i) => `${k} = $${i + 3}`).join(', ')}, updated_at = now(), updated_by = $2 where id = $1 returning *`,
-      [before.id, req.user!.id, ...keys.map((k) => data[k])],
+      [before.id, actorOf(req).id, ...keys.map((k) => data[k])],
     ))!;
     const outcome = keys.includes('outcome') ? await labelOf('exercise_step_outcome', row.outcome) : '';
     await ctx.audit(req, {
@@ -181,7 +182,7 @@ export function registerExerciseSteps(ctx: ModuleContext) {
     const row = (await db.one<Row>(
       `insert into exercise_findings (exercise_id, finding, severity, recommendation, step_id, created_by, updated_by)
        values ($1,$2,$3,$4,$5,$6,$6) returning id, finding, severity, recommendation, action_id, step_id`,
-      [ex.id, finding.slice(0, 4000), severity, text(body.recommendation), step.id, req.user!.id],
+      [ex.id, finding.slice(0, 4000), severity, text(body.recommendation), step.id, actorOf(req).id],
     ))!;
     await ctx.audit(req, {
       action: 'exercise_finding.create', recordType: 'exercise', recordId: ex.id,
@@ -201,7 +202,7 @@ export function registerExerciseSteps(ctx: ModuleContext) {
   app.delete('/api/exercises/:id/steps/:stepId', edit, async (req) => {
     const ex = await needExercise(req);
     const before = await needStep(req, ex);
-    await db.query('update exercise_steps set deleted_at = now(), updated_by = $2 where id = $1', [before.id, req.user!.id]);
+    await db.query('update exercise_steps set deleted_at = now(), updated_by = $2 where id = $1', [before.id, actorOf(req).id]);
     await ctx.audit(req, {
       action: 'exercise_step.delete', recordType: 'exercise', recordId: ex.id,
       summary: `Step removed from ${name(ex)}: ${before.step}`, before: { step: before.step, phase: before.phase, outcome: before.outcome, notes: before.notes },

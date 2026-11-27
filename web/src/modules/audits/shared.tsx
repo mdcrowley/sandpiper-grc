@@ -5,7 +5,8 @@ import { useNavigate } from 'react-router-dom';
 import { Loading, RecordPicker, Select, Tabs, useLookup, useResource } from '../../core';
 
 const SECTIONS = [
-  { key: 'dashboard', label: 'Plan and coverage', path: '/audits' },
+  { key: 'dashboard', label: 'Coverage', path: '/audits' },
+  { key: 'plan', label: 'Audit plan', path: '/audits/plan' },
   { key: 'engagements', label: 'Audits', path: '/audits/engagements' },
   { key: 'areas', label: 'Audit universe', path: '/audits/areas' },
   { key: 'findings', label: 'Findings', path: '/audit-findings' },

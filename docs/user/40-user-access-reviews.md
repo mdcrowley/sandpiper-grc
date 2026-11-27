@@ -10,6 +10,16 @@ If your organization does not use them, an administrator can switch **User acces
 
 The application does not connect to your systems: account lists come from files people export and import, and removals are carried out by people on each system.
 
+## Where to start
+
+Accounts come first: a campaign reviews the accounts already loaded for its systems. While no account has been loaded, **Access reviews** (with no campaign yet), **Accounts on systems** and a system's **Accounts** tab show the steps in order instead of an empty list:
+
+1. **Import each system's account file** (the primary button; see [Importing a system's account file](#importing-a-systems-account-file)).
+2. **Check the matches** to the staff roster and the flags on **Accounts on systems**.
+3. **Start a review campaign** for the systems whose accounts are loaded.
+
+**Add one account by hand** is there too, for a system with only a few accounts and no export; **Create > Account on a system** and **Create > Access review** still open the forms directly.
+
 ## What you need
 
 Access reviews use the **systems** permissions: `systems.view` to read the accounts and campaigns, `systems.create` and `systems.edit` to keep accounts, import files and set campaigns up, launch and complete them, and `systems.export` to export. The default **Agent** and **Security lead** roles hold them.

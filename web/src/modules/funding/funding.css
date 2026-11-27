@@ -70,3 +70,13 @@
 /* ---- sub-recipients (E35-07) ---- */
 .fund-sub-due { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); margin: 0; padding: var(--s-3) var(--s-4); }
 .table td.fund-wrap { white-space: normal; min-width: 24ch; overflow-wrap: anywhere; }
+
+/* What a review area relies on, and the evidence suggested from it (E45-10) */
+.fd-relies { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.fd-relies > li { display: flex; justify-content: space-between; align-items: center; gap: var(--s-3); padding: var(--s-2) 0; border-bottom: 1px solid var(--border); }
+.fd-relies > li:last-child { border-bottom: 0; }
+.fd-relies > li > span { min-width: 0; overflow-wrap: anywhere; }
+.fd-suggested { padding: var(--s-3); border: 1px dashed var(--border); border-radius: var(--radius); }
+.fd-add > :first-child { flex: 0 1 12rem; }
+.fd-add > :nth-child(2) { flex: 1 1 16rem; min-width: 0; }
+.fd-relies + .fd-add, .fd-area-body h3.fd-h3 { margin-top: var(--s-2); }

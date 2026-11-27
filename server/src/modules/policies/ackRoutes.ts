@@ -1,13 +1,14 @@
 // Acknowledgment routes: a person's own list and acknowledgment, and the tracking view per policy.
 import type { FastifyRequest } from 'fastify';
+import { actorOf, asDataLoad, dataLoadFor, resolvePerson } from '../../core/dataload.ts';
 import { guardFormula } from '../../core/export/csv.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
-import { readableSql, tablesFor, type AccessTables } from './access.ts';
+import { readableSql, readerIdsSql, readerParams, tablesFor, type AccessTables } from './access.ts';
 import { ackState, ackTracking } from './acknowledgments.ts';
 import { daysBetween, localDate } from './dates.ts';
 import { renderPolicyMarkdown } from './markdown.ts';
 import { readingOf, textRead, translatedLanguages, translateTitles } from './translations.ts';
-import { BASE_LANGUAGE, englishName } from '../../../../shared/i18n.ts';
+import { BASE_LANGUAGE, englishName, isLanguage, LANGUAGES } from '../../../../shared/i18n.ts';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -103,6 +104,104 @@ export function registerAckRoutes(ctx: ModuleContext, tables: AccessTables = tab
       after: { version: Number(a.version), user_id: req.user!.id, acknowledged_at: at, late: a.due_on < today, language, translation_sha256: stamp },
     });
     return mineView({ ...a, acknowledged_at: at, acknowledged_language: language }, today);
+  });
+
+  // ---------- loading past acknowledgments (E18-94) ----------
+
+  /** Whether an account (disabled ones too) is among the document's readers, as its distribution stands. */
+  async function accountReads(policy: Row, userId: string): Promise<boolean> {
+    const sql = readerIdsSql(tables).replace(`u.deleted_at is null and u.status = 'active'`, 'u.id = $9::uuid');
+    return (await db.query(sql, [...readerParams(policy), userId])).length > 0;
+  }
+
+  /** Whether a roster person is inside the distribution: their department is (below) a reader department. */
+  async function rosterReads(policy: Row, personId: string): Promise<boolean> {
+    if (policy.access !== 'restricted') return true;
+    const list = (v: unknown) => JSON.stringify(Array.isArray(v) ? v.map(String) : []);
+    return !!(await db.one(
+      `select 1 from people p where p.id = $1 and p.department_id in (
+         with recursive dn(id) as (
+           select d.id from departments d where d.deleted_at is null and (d.id::text in (select jsonb_array_elements_text($2::jsonb))
+             or exists (select 1 from document_groups g where g.deleted_at is null and $3::jsonb @> jsonb_build_array(g.id::text)
+                        and g.departments @> jsonb_build_array(d.id::text)))
+           union select d.id from departments d join dn on d.parent_id = dn.id where d.deleted_at is null)
+         select id from dn)`, [personId, list(policy.access_departments), list(policy.access_groups)]));
+  }
+
+  /**
+   * Data load mode only: records that a person acknowledged a version on a past date (history from
+   * another system). `user` names them as `on_behalf_of` does (an account by id, username or email,
+   * disabled ones too, or a roster person); a roster person without an account is recorded on the
+   * roster's list (method "recorded"). The person must be one of the document's readers. Nobody is
+   * told; the audit log names the loader. Without `user`, the person named by `on_behalf_of` is meant.
+   */
+  ctx.app.post('/api/policies/:id/versions/:vid/acknowledgments', { preHandler: ctx.requirePerm('policies.edit') }, async (req, reply) => {
+    if (!(await dataLoadFor(db, req, ctx.audit))) {
+      ctx.fail(409, 'not_loading', 'Another person\'s acknowledgment can be recorded only in data load mode (Administration > Settings), by an administrator.');
+    }
+    req.dataLoad = true;
+    return asDataLoad(async () => {
+      const policy = (await ctx.resources.find('policy', (req.params as Row).id, req.user)) ?? ctx.fail(404, 'not_found', 'Document not found.');
+      const vid = String((req.params as Row).vid ?? '');
+      const version = await db.one<Row>(
+        `select * from policy_versions where policy_id = $1 and status in ('published', 'superseded', 'withdrawn')
+           and (id::text = $2 or ($2 ~ '^[0-9]{1,6}$' and version = ($2)::int))`, [policy.id, vid])
+        ?? ctx.fail(404, 'not_found', 'No published version of this document has that id or number.');
+      const b = (req.body ?? {}) as Row;
+      const fields: Record<string, string> = {};
+      const named = b.user ?? b.person;
+      const who = named !== undefined && named !== null && named !== '' ? await resolvePerson(db, named, 'user') : req.onBehalf;
+      if (!who) fields.user = 'Name the person who acknowledged it.';
+      else if (who.kind === 'name') fields.user = `${who.name} has no account and is not on the roster, so an acknowledgment cannot be recorded for them.`;
+      const raw = String(b.acknowledged_at ?? '').trim();
+      const at = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? new Date(`${raw}T12:00:00Z`) : new Date(raw);
+      if (!raw || Number.isNaN(at.getTime())) fields.acknowledged_at = 'Give the date or time it was acknowledged (YYYY-MM-DD or ISO 8601).';
+      else if (at.getTime() > Date.now()) fields.acknowledged_at = 'The date cannot be in the future.';
+      if (b.language !== undefined && b.language !== null && b.language !== '' && !isLanguage(b.language)) {
+        fields.language = `Choose one of: ${LANGUAGES.map((l) => l.code).join(', ')}.`;
+      }
+      if (Object.keys(fields).length) ctx.fail(400, 'validation', 'Check the highlighted fields.', fields);
+      const person = who!;
+      const reads = person.userId ? await accountReads(policy, person.userId) : await rosterReads(policy, person.personId!);
+      if (!reads) ctx.fail(400, 'validation', 'Check the highlighted fields.', { user: `${person.name} is not one of this document's readers. Add them to its distribution first.` });
+      const { language, translation_sha256: stamp } = await textRead(db, String(version.id), b.language);
+      const iso = at.toISOString();
+      const day = localDate(at);
+      const row = person.userId
+        ? await db.one<Row>(
+          `insert into policy_acknowledgements (policy_id, version_id, user_id, requested_at, due_on, acknowledged_at, language, translation_sha256)
+           values ($1, $2, $3, $4, $5::date, $4, $6, $7)
+           on conflict (version_id, user_id) do update set acknowledged_at = excluded.acknowledged_at, superseded_at = null,
+             language = excluded.language, translation_sha256 = excluded.translation_sha256
+           where policy_acknowledgements.acknowledged_at is null
+           returning id`, [policy.id, version.id, person.userId, iso, day, language, stamp])
+        : await db.one<Row>(
+          `insert into policy_person_acknowledgements (policy_id, version_id, person_id, requested_at, due_on, acknowledged_at, method, recorded_by, language, translation_sha256)
+           values ($1, $2, $3, $4, $5::date, $4, 'recorded', $6, $7, $8)
+           on conflict (version_id, person_id) do update set acknowledged_at = excluded.acknowledged_at, method = excluded.method,
+             recorded_by = excluded.recorded_by, superseded_at = null, language = excluded.language, translation_sha256 = excluded.translation_sha256
+           where policy_person_acknowledgements.acknowledged_at is null
+           returning id`, [policy.id, version.id, person.personId, iso, day, actorOf(req).id, language, stamp]);
+      const name = [policy.doc_number ?? policy.ref, policy.title].filter(Boolean).join(' ');
+      if (row) {
+        await ctx.audit(req, {
+          action: person.userId ? 'policy.acknowledge' : 'policy.person_acknowledge', recordType: 'policy', recordId: policy.id,
+          summary: `${person.name} acknowledged version ${version.version} of ${name} on ${day}${language === BASE_LANGUAGE ? '' : ` (read in ${englishName(language)})`} (loaded)`,
+          after: { version: Number(version.version), user_id: person.userId, person_id: person.userId ? null : person.personId, acknowledged_at: iso, language, translation_sha256: stamp, loaded: true },
+        });
+        reply.code(201);
+      }
+      return {
+        recorded: !!row, already: !row, kind: person.userId ? 'user' : 'person', user_id: person.userId, person_id: person.userId ? null : person.personId,
+        name: person.name, policy_id: policy.id, version: Number(version.version), acknowledged_at: iso, language,
+      };
+    });
+  });
+  ctx.describeRoute({
+    method: 'POST', path: '/api/policies/:id/versions/:vid/acknowledgments', permission: 'policies.edit',
+    summary: 'Data load mode only: record that a reader of the document acknowledged a version on a past date (an account, or a roster person without one)',
+    body: '{ user (user id, username or email; "person:<roster id, reference or email>"; default: on_behalf_of), acknowledged_at: YYYY-MM-DD or ISO time, language? }',
+    response: '{ recorded, already, kind: user | person, user_id, person_id, name, policy_id, version, acknowledged_at, language }',
   });
 
   // ---------- tracking ----------

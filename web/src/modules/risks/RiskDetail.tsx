@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState, type ComponentType } from 'react';
 import {
-  Button, Card, DefinitionList, ErrorState, formatDate, Loading, LookupChip, Modal, RecordPage, ResourceForm, TableWrap, useFetch, useToast,
+  Badge, Button, Card, DefinitionList, ErrorState, formatDate, Loading, LookupChip, Modal, RecordPage, ResourceForm, TableWrap, useAuth, useFetch, useLookup, useToast,
 } from '../../core';
 import type { ListResult, RecordContext, Row } from '../../core';
 import { Link } from 'react-router-dom';
@@ -9,7 +9,7 @@ import { ActionsPanel } from './ActionsPanel';
 import { ReviewPanel } from './ReviewPanel';
 import { ScoringPanel } from './ScoringPanel';
 import { RiskKris } from './KriPages';
-import { AppetiteBadge, DueChip, RatingChip, useScales, type Scale } from './scales';
+import { AppetiteBadge, categoryShows, DueChip, RatingChip, RiskPath, useScales, type Scale } from './scales';
 
 // The controls covering a risk (E26-11), from the control library when it is part of the build. The
 // panel renders nothing while the controls area is off or without controls.view.
@@ -71,6 +71,12 @@ function RiskStory({ rec, scale }: { rec: RecordContext; scale: Scale | undefine
   const toast = useToast();
   const [editing, setEditing] = useState(false);
   const text = (v: unknown, empty: string) => (v ? <p className="prose">{String(v)}</p> : <p className="muted">{empty}</p>);
+  const { can } = useAuth();
+  const categories = useLookup('risk_category') as { value: string; meta?: Record<string, unknown> | null }[];
+  // E45-02: a category's own fields (cybersecurity: affected systems and data) show only for its risks;
+  // a value already recorded stays visible. Only people who see restricted records change the flag.
+  const shows = (field: string) => categoryShows(categories, row.category, field) || Boolean(row[field]);
+  const fields = DETAIL_FIELDS.filter((f) => shows(f)).concat(can('security.view') ? ['restricted'] : []);
 
   return (
     <div className="stack rk-story">
@@ -97,7 +103,8 @@ function RiskStory({ rec, scale }: { rec: RecordContext; scale: Scale | undefine
           { label: 'Category', value: <LookupChip list="risk_category" value={row.category} /> },
           { label: 'Owner', value: row._display?.owner_id ?? 'No owner' },
           { label: 'Appetite', value: <AppetiteBadge breach={row.appetite_breach} /> },
-          { label: 'Affected systems and data', value: row.affected ? <span className="prose">{row.affected}</span> : null, wide: true },
+          ...(shows('affected') ? [{ label: 'Affected systems and data', value: row.affected ? <span className="prose">{row.affected}</span> : null, wide: true }] : []),
+          ...(row.restricted ? [{ label: 'Access', value: <Badge color="gray">Restricted to people with access to restricted records</Badge> }] : []),
         ]} />
       </Card>
 
@@ -125,12 +132,12 @@ function RiskStory({ rec, scale }: { rec: RecordContext; scale: Scale | undefine
           type="risk"
           id={row.id}
           initial={row}
-          fields={DETAIL_FIELDS}
+          fields={fields}
           sections={[
-            { title: 'What could happen', fields: ['title', 'description', 'category', 'parent_id', 'cause', 'consequence', 'affected'] },
-            { title: 'Controls and treatment', fields: ['existing_controls', 'treatment', 'status', 'owner_id', 'due_on', 'review_on'] },
+            { title: 'What could happen', fields: ['title', 'description', 'category', 'parent_id', 'cause', 'consequence', ...(shows('affected') ? ['affected'] : [])] },
+            { title: 'Controls and treatment', fields: ['existing_controls', 'treatment', 'status', 'owner_id', 'due_on', 'review_on', ...(can('security.view') ? ['restricted'] : [])] },
           ]}
-          hints={{ status: 'To mark a risk Accepted, record an acceptance instead.', category: 'The category decides which scale the risk is scored on.', parent_id: 'The enterprise risk this one rolls up under, if any.' }}
+          hints={{ status: 'To mark a risk Accepted, record an acceptance instead.', category: 'The category decides which scale the risk is scored on and which fields it has.', parent_id: 'The enterprise risk this one rolls up under, if any.', restricted: 'A restricted risk is seen only by people with access to restricted records; others see it counted as "Restricted risk".' }}
           onCancel={() => setEditing(false)}
           onSaved={() => { setEditing(false); toast.success('Risk saved.'); rec.reload(); }}
         />
@@ -148,10 +155,7 @@ export function RiskDetail() {
       type="risk"
       subtitle={(row) => (
         <span className="row">
-          <RatingChip scale={scaleOf(row.scale_key)} rating={row.inherent_rating} prefix="Inherent" />
-          <span className="risk-arrow" aria-hidden="true">→</span>
-          <span className="sr-only">reduced by controls to</span>
-          <RatingChip scale={scaleOf(row.scale_key)} rating={row.residual_rating} prefix="Residual" />
+          <RiskPath scale={scaleOf(row.scale_key)} inherent={row.inherent_rating} residual={row.residual_rating} target={row.target_rating ?? null} prefix />
           <span className="muted">Treatment:</span>
           <LookupChip list="risk_treatment" value={row.treatment} />
           {row.appetite_breach && <AppetiteBadge breach />}

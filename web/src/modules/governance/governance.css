@@ -19,3 +19,9 @@
 .gv-group .table th:nth-child(3) { width: 5rem; }
 .gv-group .table th:nth-child(4) { width: 13rem; }
 .gv-group .table th:nth-child(5) { width: 11rem; }
+/* Board book and structured minutes (wave 25). */
+.gv-papers { margin: 0.35rem 0 0; padding-inline-start: 1.1rem; }
+.gv-papers li { display: flex; align-items: center; gap: 0.25rem; flex-wrap: wrap; overflow-wrap: anywhere; }
+.gv-time { margin-inline-start: 0.35rem; }
+.gv-motion { display: flex; gap: 1rem; align-items: flex-start; justify-content: space-between; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: var(--radius-sm, 6px); }
+.gv-discussion { white-space: pre-wrap; overflow-wrap: anywhere; }

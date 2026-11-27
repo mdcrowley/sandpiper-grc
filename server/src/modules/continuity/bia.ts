@@ -8,6 +8,7 @@
 import type { FastifyRequest } from 'fastify';
 import { approvalEngine, defineApprovalKind } from '../../core/approval-kinds.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { actorOf } from '../../core/dataload.ts';
 import { dayInZone } from '../../core/timezone.ts';
 import { PROCESS_HOURS } from './processes.ts';
 import { addMonths, checkHours, invalid, text } from './shared.ts';
@@ -239,8 +240,8 @@ export function registerBia(ctx: ModuleContext) {
     const process = (await ctx.resources.find('business_process', bia.process_id, req.user))
       ?? ctx.fail(409, 'process_gone', 'The business process of this analysis no longer exists.');
     // A sign-off made directly replaces a request still waiting in the approval workflow.
-    await approvalEngine(app)?.cancel(BIA_KIND, bia.id, `Signed off directly by ${req.user!.displayName}.`, req);
-    await signOff(bia, process, req.user!.displayName, req);
+    await approvalEngine(app)?.cancel(BIA_KIND, bia.id, `Signed off directly by ${actorOf(req).name ?? req.user!.displayName}.`, req);
+    await signOff(bia, process, actorOf(req).name ?? req.user!.displayName, req);
     return db.one<Row>('select status, signed_off_by_name, signed_off_on::text as signed_off_on from bia_assessments where id = $1', [bia.id]);
   });
   ctx.describeRoute({

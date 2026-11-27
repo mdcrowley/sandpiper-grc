@@ -21,7 +21,7 @@ export interface Session {
   dataLoad?: { on: boolean; until: string | null; allowed: boolean };
 }
 
-export interface FieldMeta { label: string; type: string; required?: boolean; readOnly?: boolean; list?: string; to?: string; custom?: boolean }
+export interface FieldMeta { label: string; type: string; required?: boolean; readOnly?: boolean; list?: string; to?: string; custom?: boolean; multiple?: boolean; help?: string }
 export interface TypeMeta {
   type: string; label: string; plural: string; module: string; path: string; route: string;
   titleField: string; refField?: string; restricted: boolean | 'flag'; fields: Record<string, FieldMeta>;

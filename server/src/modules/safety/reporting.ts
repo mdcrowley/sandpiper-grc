@@ -1,6 +1,7 @@
 import type { FastifyRequest } from 'fastify';
 import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { actorOf, dataLoadFor } from '../../core/dataload.ts';
 import { byUrgency, clockOf, duration, stamp } from '../secincidents/clocks.ts';
 
 /**
@@ -79,7 +80,7 @@ export function registerReporting(ctx: ModuleContext): Reporting {
   async function addTimeline(eventId: string, entry: string, req: FastifyRequest | null, at = new Date()) {
     await db.query(
       `insert into safety_event_timeline (event_id, at, entry, by_id, by_name, created_by) values ($1,$2,$3,null,$4,$5)`,
-      [eventId, at.toISOString(), entry, req?.user?.displayName ?? null, req?.user?.id ?? null],
+      [eventId, at.toISOString(), entry, req ? actorOf(req).name : null, req ? actorOf(req).id : null],
     );
   }
 
@@ -285,7 +286,7 @@ export function registerReporting(ctx: ModuleContext): Reporting {
       if (!text('note')) invalid({ note: 'Say why this notification is not required.' });
       row = (await db.one<Row>(
         `update safety_notifications set status = 'not_required', note = $2, completed_by = $3, completed_at = now(), updated_at = now() where id = $1 returning *`,
-        [n!.id, text('note', 2000), req.user!.id]))!;
+        [n!.id, text('note', 2000), actorOf(req).id]))!;
       await addTimeline(event!.id, `Notification to ${n!.party} marked not required: ${text('note', 2000)}`, req);
     } else {
       const errors: Record<string, string> = {};
@@ -297,8 +298,8 @@ export function registerReporting(ctx: ModuleContext): Reporting {
       if (Object.keys(errors).length) invalid(errors);
       row = (await db.one<Row>(
         `update safety_notifications set status = 'done', notified_who = $2, notified_how = $3, notified_at = $4, reference_received = $5,
-           completed_by = $6, completed_at = now(), updated_at = now() where id = $1 returning *`,
-        [n!.id, text('notified_who'), text('notified_how'), at.toISOString(), text('reference_received') || null, req.user!.id]))!;
+           completed_by = $6, completed_at = coalesce($7::timestamptz, now()), updated_at = now() where id = $1 returning *`,
+        [n!.id, text('notified_who'), text('notified_how'), at.toISOString(), text('reference_received') || null, actorOf(req).id, b.notified_at && await dataLoadFor(db, req) ? at.toISOString() : null]))!;
       await addTimeline(event!.id, `Notification made: ${n!.party}. Told ${row.notified_who} by ${row.notified_how} at ${stamp(at)}${row.reference_received ? `; reference ${row.reference_received}` : ''}.`, req);
     }
     await ctx.audit(req, {

@@ -152,7 +152,7 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | [E15](epics/E15-self-service-portal.md) | Self-service portal | done | 14 / 14 |
 | [E16](epics/E16-hosting-operations-and-hardening.md) | Hosting, operations and hardening | in progress | 35 / 39 |
 | [E17](epics/E17-documentation.md) | Documentation | done | 14 / 14 |
-| [E18](epics/E18-quality-and-known-defects.md) | Quality and known defects | in progress | 93 / 94 |
+| [E18](epics/E18-quality-and-known-defects.md) | Quality and known defects | done | 94 / 94 |
 | [E19](epics/E19-fleet-and-services.md) | Fleet and services | done | 14 / 14 |
 | [E20](epics/E20-safety-management.md) | Safety management | done | 15 / 15 |
 | [E21](epics/E21-mcp-server.md) | MCP server (AI assistant access) | done | 25 / 25 |
@@ -179,7 +179,21 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | [E42](epics/E42-windows-installer.md) | Windows installer, in-place updates and the update check | in progress | 7 / 8 |
 | [E43](epics/E43-document-control.md) | Document control: policies, standards, procedures, SOPs and plans | in progress | 15 / 19 |
 | [E44](epics/E44-navigation-and-usability.md) | Navigation and usability | in progress | 6 / 10 |
-| | **Total** | | **829 / 849** |
+| [E45](epics/E45-product-gaps-wave-24-review.md) | Product gaps found in the wave 24 review | in progress | 52 / 67 |
+| | **Total** | | **882 / 916** |
+
+Wave 25 built the product gaps of the wave 24 review (E45): enterprise risk stands on its own beside
+cybersecurity (risks need only `risks.view`, restriction per risk, target risk, a versioned appetite, a
+Risk manager role); an evidence library filed once and linked to many records, with expiry reminders
+and an Evidence tab on every evidence-bearing record; funders as records and funder reviews connected
+to awards, controls and evidence, carried forward to the next review; internal audit with a risk-ranked
+and approved audit plan, workpapers with preparer and reviewer sign-off, and findings (and their
+corrective action plans) closed only after an auditor's verification; a board book PDF, closed sessions,
+structured minutes, motions with votes and resolution numbers, and a member reading view; the IT
+workflow gaps (escalating tickets, a next-stage button for incidents, vulnerabilities grouped and ranked
+by urgency, system lifecycle and vendor spend, change success and IT leadership widgets); and an AI
+assistant that builds complete records with files. Every module's who-did-it columns now follow the
+person a data load names (E18-94). The 15 E45 issues not done are listed in the epic.
 
 Wave 24 reviewed the application as its staff use it and rebuilt the navigation (E44: 13 groups
 named after the work, 46 menu entries for an administrator instead of 154, a My work page, one

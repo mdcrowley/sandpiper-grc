@@ -102,7 +102,7 @@ async function devActions(ctx: ModuleContext): Promise<number> {
 /** About eight invented risks spread across both scales and the heat map. */
 async function sampleRisks(ctx: ModuleContext): Promise<number> {
   // `reviewed` is an earlier review: [days ago, residual rating then, residual score then].
-  type Sample = Row & { actions?: Row[]; acceptance?: Row; reviewed?: [number, string, number] };
+  type Sample = Row & { actions?: Row[]; acceptance?: Row; reviewed?: [number, string, number]; target?: [number, number] };
   // Scores are [likelihood, impact]; on the safety hazard scale impact is severity (1-4).
   const samples: Sample[] = [
     {
@@ -110,7 +110,7 @@ async function sampleRisks(ctx: ModuleContext): Promise<number> {
       description: 'Invented example. The computer-aided dispatch and automatic vehicle location system stops during the morning peak.',
       cause: 'A failed update on the dispatch servers', consequence: 'Controllers lose sight of vehicles; service runs on radio and paper until it is restored',
       affected: 'CAD/AVL servers; operations control room', existing_controls: 'Backup control room; radio voice procedures',
-      inherent: [4, 5], residual: [3, 4], treatment: 'mitigate', status: 'in_treatment', due_on: day(45), review_on: day(90),
+      inherent: [4, 5], residual: [3, 4], target: [2, 4], target_on: day(120), treatment: 'mitigate', status: 'in_treatment', due_on: day(45), review_on: day(90),
       reviewed: [60, 'extreme', 479],
       actions: [
         { title: 'Test failover of the dispatch servers to the backup control room', priority: 'high', due_on: day(14) },
@@ -122,7 +122,7 @@ async function sampleRisks(ctx: ModuleContext): Promise<number> {
       description: 'Invented example. Malicious software encrypts the back office that settles fares and passes.',
       cause: 'An administrator account is phished', consequence: 'Fares cannot be settled and passes cannot be sold online for several days',
       affected: 'Fare back office; ticket vending machines', existing_controls: 'Email filtering; off-site backups of the fare database',
-      inherent: [5, 3], residual: [3, 3], treatment: 'mitigate', status: 'open', due_on: day(60), review_on: day(-4),
+      inherent: [5, 3], residual: [3, 3], target: [2, 3], target_on: day(90), treatment: 'mitigate', status: 'open', due_on: day(60), review_on: day(-4),
       reviewed: [95, 'low', 116],
       actions: [{ title: 'Enroll every fare system administrator in the second factor', priority: 'high', due_on: day(-3) }],
     },
@@ -130,7 +130,7 @@ async function sampleRisks(ctx: ModuleContext): Promise<number> {
       title: '[Sample] Scheduling software supplier fails with no exit plan', category: 'third_party',
       description: 'Invented example. The hosted service that builds timetables and duty rosters is withdrawn at short notice.',
       cause: 'Supplier ceases trading', consequence: 'Timetable and roster changes are made by hand for months',
-      affected: 'Hosted scheduling and rostering service', existing_controls: 'Contract includes data return',
+      existing_controls: 'Contract includes data return',
       inherent: [2, 4], residual: [2, 3], treatment: 'transfer', status: 'open', review_on: day(180),
     },
     {
@@ -148,28 +148,28 @@ async function sampleRisks(ctx: ModuleContext): Promise<number> {
       title: '[Sample] Budget cycle delays replacement of the on-board radio system', category: 'enterprise',
       description: 'Invented example. Funding slips a year and support for the old radios ends.',
       cause: 'Competing capital priorities', consequence: 'Running radios the maker no longer supports',
-      affected: 'Vehicle radio fleet', existing_controls: 'Extended support agreement; stock of spare handsets',
-      inherent: [3, 4], residual: [3, 2], treatment: 'mitigate', status: 'open', due_on: day(200),
+      existing_controls: 'Extended support agreement; stock of spare handsets',
+      inherent: [3, 4], residual: [3, 2], target: [2, 2], target_on: day(365), treatment: 'mitigate', status: 'open', due_on: day(200),
     },
     {
       title: '[Sample] Total loss of the operations control center data room', category: 'enterprise',
       description: 'Invented example. Fire or flood destroys the equipment in the control center.',
       cause: 'Building incident', consequence: 'All control center systems unavailable until rebuilt elsewhere',
-      affected: 'All control center systems', existing_controls: 'Off-site backups',
+      existing_controls: 'Off-site backups',
       inherent: [1, 5], residual: null, treatment: 'avoid', status: 'open', review_on: day(365),
     },
     {
       title: '[Sample] Signal priority fault at a busy junction goes unnoticed', category: 'safety',
       description: 'Invented example. The traffic signal priority link for buses drops for part of a week.',
       cause: 'Network change cuts off the junction controller', consequence: 'Buses and general traffic conflict at a busy junction',
-      affected: 'Junction signal priority link', existing_controls: 'Daily link health check',
+      existing_controls: 'Daily link health check',
       inherent: [3, 3], residual: [2, 3], treatment: 'mitigate', status: 'in_treatment', due_on: day(75),
     },
     {
       title: '[Sample] Depot door access fails locked during an evacuation', category: 'safety',
       description: 'Invented example. Controlled depot doors do not release when the fire alarm sounds.',
       cause: 'Door controller fault', consequence: 'Staff are slowed on their way out of the depot',
-      affected: 'Depot door access control', existing_controls: 'Manual release at each door; quarterly evacuation drill',
+      existing_controls: 'Manual release at each door; quarterly evacuation drill',
       inherent: [4, 2], residual: [2, 1], treatment: 'mitigate', status: 'open', due_on: day(120),
     },
     {
@@ -187,13 +187,14 @@ async function sampleRisks(ctx: ModuleContext): Promise<number> {
   // Owned by the first person set up, so the samples show an owner as real risks would.
   const owner = (await ctx.db.one<{ id: string }>(`select id from users where status = 'active' and deleted_at is null order by created_at limit 1`))?.id ?? null;
   let added = 0;
-  for (const { inherent, residual, actions, acceptance, reviewed, ...s } of samples) {
+  for (const { inherent, residual, target, actions, acceptance, reviewed, ...s } of samples) {
     if (await ctx.db.one('select 1 from risks where title = $1', [s.title])) continue;
     const risk = await ctx.resources.create('risk', {
       owner_id: owner,
       ...s,
       inherent_likelihood: inherent?.[0] ?? null, inherent_impact: inherent?.[1] ?? null,
       residual_likelihood: residual?.[0] ?? null, residual_impact: residual?.[1] ?? null,
+      target_likelihood: target?.[0] ?? null, target_impact: target?.[1] ?? null,
     });
     for (const a of actions ?? []) {
       await ctx.resources.create('action', { owner_id: owner, ...a, source: 'risk', source_type: 'risk', source_id: risk.id, department: 'IT' });

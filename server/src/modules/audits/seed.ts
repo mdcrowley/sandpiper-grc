@@ -8,18 +8,19 @@ import { dayInZone } from '../../core/timezone.ts';
 import { seedDevEstate } from '../inventory/seed-sample.ts';
 import { scoreOf, type ChecklistItem } from './checklists.ts';
 import { addDays, addMonths } from './dates.ts';
+import { rankAreas, refreshScores } from './plan.ts';
 
 const MARK = '[Sample] Station walk-down';
 
 const AREAS: Row[] = [
   { name: 'Safety management policy and objectives', category: 'safety_plan_element', cycle_months: 36, risk_level: 'medium', back: 20 },
-  { name: 'Safety risk management (hazard process)', category: 'safety_plan_element', cycle_months: 24, risk_level: 'high', back: null },
+  { name: 'Safety risk management (hazard process)', category: 'safety_plan_element', cycle_months: 24, risk_level: 'high', back: null, significance: 'high', change: 'medium' },
   { name: 'Safety assurance and performance monitoring', category: 'safety_plan_element', cycle_months: 24, risk_level: 'high', back: 27 },
   { name: 'Safety promotion and training', category: 'safety_plan_element', cycle_months: 36, risk_level: 'medium', back: 14 },
-  { name: 'Procurement and purchasing', category: 'process', cycle_months: 24, risk_level: 'medium', back: 30 },
-  { name: 'Change management', category: 'process', cycle_months: 24, risk_level: 'medium', back: 8 },
-  { name: 'Bus maintenance', category: 'department', cycle_months: 12, risk_level: 'high', back: 13 },
-  { name: 'Fare collection system access control', category: 'system', cycle_months: 12, risk_level: 'high', back: null },
+  { name: 'Procurement and purchasing', category: 'process', cycle_months: 24, risk_level: 'medium', back: 30, significance: 'high', change: 'low' },
+  { name: 'Change management', category: 'process', cycle_months: 24, risk_level: 'medium', back: 8, significance: 'medium', change: 'none' },
+  { name: 'Bus maintenance', category: 'department', cycle_months: 12, risk_level: 'high', back: 13, significance: 'high', change: 'high' },
+  { name: 'Fare collection system access control', category: 'system', cycle_months: 12, risk_level: 'high', back: null, significance: 'medium', change: 'high' },
 ];
 
 const WALK_DOWN: [string, string, boolean, boolean][] = [
@@ -104,6 +105,7 @@ export async function seedAudits(ctx: ModuleContext, opts: SeedOptions): Promise
     const last = a.back === null ? null : addMonths(today, -a.back);
     const row = await ctx.resources.create('audit_area', {
       name: a.name, category: a.category, cycle_months: a.cycle_months, risk_level: a.risk_level, owner_id: user,
+      significance: a.significance ?? null, change_level: a.change ?? null,
       description: 'Invented sample area.', last_audited_on: last,
       next_due_on: last ? addMonths(last, a.cycle_months) : addDays(today, 45),
     });
@@ -125,6 +127,16 @@ export async function seedAudits(ctx: ModuleContext, opts: SeedOptions): Promise
     status: 'planned',
   });
   await answer(ctx, 'audit_engagement', closed.id, proc.items, new Map([[2, 'Review dates missed on 4 of 20 sampled hazards.'], [4, 'Two staff reports took over a month to reach the log.'], [7, 'One earlier action still open.']]), user, addDays(today, -95));
+  // The workpapers (E45-15): each step with its procedure, sample and result, signed by the lead auditor
+  // as preparer and by an invented audit manager (a name only) as reviewer.
+  await ctx.db.query(
+    `update checklist_responses set
+       procedure = 'Inspect the records for the sample and compare them with the procedure.',
+       sample = case when answer = 'no' then 'Twenty records picked at random from the period.' else 'Five records picked at random from the period.' end,
+       result = case answer when 'yes' then 'satisfactory' when 'no' then 'exceptions' else 'not_applicable' end,
+       prepared_by = $2, prepared_by_name = coalesce((select display_name from users where id = $2), 'Sample Lead Auditor'), prepared_at = $3::date + time '16:00',
+       reviewed_by = null, reviewed_by_name = 'Sample Audit Manager', reviewed_at = $4::date + time '11:00'
+     where parent_type = 'audit_engagement' and parent_id = $1`, [closed.id, user, addDays(today, -94), addDays(today, -90)]);
   const FINDINGS: Row[] = [
     { title: 'Hazard reviews are not held on schedule', rating: 'minor_nonconformity', item: 2, criteria: 'Each hazard is reviewed by its review date.', condition: 'Four of twenty sampled hazards were past their review date.', cause: 'Owners are not reminded and reviews are not on the committee agenda.', effect: 'Ratings may not reflect current controls.', recommendation: 'Remind owners ahead of the review date and report overdue reviews monthly.', management_response: 'Agreed. Reminders are switched on and overdue reviews go to the monthly safety meeting.', cap: true },
     { title: 'Staff reports reach the hazard log late', rating: 'major_nonconformity', item: 4, criteria: 'Staff reports are assessed within ten working days.', condition: 'Two of eight sampled reports took more than a month.', cause: 'No single owner for triaging reports.', effect: 'Hazards stay uncontrolled for longer than needed.', recommendation: 'Name a triage owner and track the time to assess.', management_response: 'Agreed. The safety officer triages reports weekly.', cap: true },
@@ -137,6 +149,15 @@ export async function seedAudits(ctx: ModuleContext, opts: SeedOptions): Promise
       cause: f.cause ?? null, effect: f.effect ?? null, recommendation: f.recommendation, management_response: f.management_response,
       response_owner_id: user, response_due: addDays(today, -70), responded_on: addDays(today, -80),
     });
+    // E45-16: the observation was put right and verified by an invented audit manager; the major finding's
+    // fix waits for verification, now overdue.
+    if (!f.cap) {
+      await ctx.resources.update('audit_finding', row.id, {
+        status: 'closed', verified_on: addDays(today, -40), verified_by_name: 'Sample Audit Manager',
+        verification_note: 'Sampled three hazards closed since the audit: each has its evidence attached.',
+      }, null);
+    }
+    if (f.rating === 'major_nonconformity') await ctx.db.query('update audit_findings set verification_due = $2 where id = $1', [row.id, addDays(today, -5)]);
     if (f.item !== null) await ctx.db.query('update audit_findings set item_id = $2 where id = $1', [row.id, proc.items[f.item].id]);
     const cap = ctx.resources.get('cap');
     if (f.cap && cap) {
@@ -145,7 +166,7 @@ export async function seedAudits(ctx: ModuleContext, opts: SeedOptions): Promise
         root_cause: f.cause ?? null, responsible_id: user, due_on: addDays(today, 30),
       }).filter(([k, v]) => k in cap.fields && v !== null));
       const plan = await ctx.resources.create('cap', data);
-      await ctx.resources.update('audit_finding', row.id, { cap_id: plan.id, status: 'cap_raised' }, null);
+      await ctx.resources.update('audit_finding', row.id, { cap_id: plan.id, status: f.rating === 'major_nonconformity' ? 'awaiting_verification' : 'cap_raised' }, null);
       await ctx.db.query(`insert into record_links (from_type, from_id, to_type, to_id, relation) values ('audit_finding', $1, 'cap', $2, 'raised') on conflict do nothing`, [row.id, plan.id]);
       caps += 1;
     }
@@ -227,12 +248,23 @@ export async function seedAudits(ctx: ModuleContext, opts: SeedOptions): Promise
         const f = await ctx.resources.create('audit_finding', {
           title: i.prompt, source_type: 'inspection', source_id: row.id, rating: i.critical ? 'major_nonconformity' : 'minor_nonconformity',
           criteria: i.prompt, condition: no.get(tpl.items.indexOf(i)) ?? 'Not met.', response_owner_id: user, response_due: addDays(performed, 30),
-          ...(k > 3 ? { management_response: 'Put right the same week.', status: 'closed', responded_on: addDays(performed, 3) } : {}),
+          ...(k > 3 ? {
+            management_response: 'Put right the same week.', status: 'closed', responded_on: addDays(performed, 3),
+            verified_on: addDays(performed, 7), verified_by_name: 'Sample Safety Inspector', verification_note: 'Seen put right at the next walk-round.',
+          } : {}),
         });
         await ctx.db.query('update audit_findings set item_id = $2 where id = $1', [f.id, i.id]);
         findings += 1;
       }
     }
   }
+  const { areas: ranked, settings } = await rankAreas(ctx, year);
+  await ctx.db.query(
+    `insert into audit_plans (plan_year, version, status, entries, settings, note, prepared_by, prepared_by_name, prepared_at, approved_by_name, approved_on, approval_note)
+     values ($1, 1, 'approved', $2::jsonb, $3::jsonb, $4, $5, coalesce((select display_name from users where id = $5), 'Sample Lead Auditor'), $6::date + time '09:00', 'Sample Audit Committee Chair', $7, 'Approved at the committee meeting.')
+     on conflict (plan_year, version) do nothing`,
+    [year, JSON.stringify(ranked.map((a) => ({ area_id: a.id, name: a.name, score: a.score, rank: a.rank, proposed: a.proposed, included: a.proposed, reasons: a.reasons, due_by_cycle: a.due_by_cycle, factors: a.factors }))),
+      JSON.stringify(settings), 'Invented sample plan.', user, `${year}-01-05` > today ? addDays(today, -2) : `${year}-01-05`, `${year}-01-20` > today ? addDays(today, -1) : `${year}-01-20`]);
+  await refreshScores(ctx);
   return `audit areas ${AREAS.length}, checklist templates 3, audits 3, evidence requests ${REQUESTS.length}, inspection schedules ${PLACES.length}, inspections ${inspections}, findings ${findings}, corrective action plans ${caps}`;
 }

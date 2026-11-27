@@ -34,7 +34,7 @@ Open **Controls**. Filter by status, domain, type, automation, how often the con
 6. Leave the **Status** as **Draft** until the control is in place, then set it to **Active**. A control that is no longer used is **Retired**: it is left out of the coverage view, the figures and the reminders.
 7. Select **Create control**.
 
-The control gets a reference such as `CTL-00001`. Its page shows the details, **Ratings and testing**, and the tabs **Coverage**, **Test steps**, **Tests**, **Activity**, **Evidence files**, **Related** and **History**. Files attached to a control are evidence (for example the written procedure or a configuration screenshot).
+The control gets a reference such as `CTL-00001`. Its page shows the details, **Ratings and testing**, and the tabs **Coverage**, **Test steps**, **Tests**, **Activity**, **Evidence files**, **Related** and **History**. Files attached to a control are evidence (for example the written procedure or a configuration screenshot). While the [evidence library](43-evidence-library.md) is on (and you may view it), controls and control tests also have an **Evidence** tab with the library's evidence linked to them: link evidence already filed (a report, a policy, an export) instead of uploading it again.
 
 ### Ratings and the test schedule
 
@@ -86,7 +86,11 @@ On the **Items sampled** tab, list each item the test looked at (a log entry, a 
 
 When the testing is done, set the **Result** (**Effective**, **Partly effective** or **Ineffective**), the **Performed on** date (not in the future) and the **Conclusion**, and set the status to **Awaiting review**. A result other than effective needs a conclusion, and every written test step needs its result first.
 
-The status **Reviewed** cannot be chosen by hand. Someone other than the tester, holding `controls.approve`, opens the test and selects **Review and sign off**, adds an optional note and selects **Sign off**. The test is then final: it cannot be changed, and its test steps and sampled items are fixed. The result rolls up to the control's ratings and next test date. The tester (or, when none is named, whoever recorded the test) cannot sign off their own test.
+The status **Reviewed** cannot be chosen by hand. Someone other than the tester, holding `controls.approve`, opens the test and selects **Review and sign off**, adds an optional note and selects **Sign off**. The test is then final: it cannot be changed, and its test steps and sampled items are fixed. The result rolls up to the control's ratings and next test date. The tester (or, when none is named, whoever recorded the test) cannot sign off their own test. The test records the reviewer (**Reviewed by** and **Reviewer**) and the date. In data load mode an administrator loading past tests may name the reviewer (`on_behalf_of`) and give the date (`reviewed_on`); the reviewer must still be someone other than the tester.
+
+### Tests that are part of an audit
+
+A test carried out for an internal audit is recorded with **Part of audit** set to that audit, or from the audit's **Control tests** tab (while audits are on; see [Audits and inspections](25-audits-and-inspections.md#audits)). Such a test is signed off the same way, by someone other than the tester who also holds `audits.edit`: someone who may review controls but does not work on audits sees "This test is part of an audit: someone who works on audits reviews it". The audit cannot close while one of its control tests is not reviewed. The **Control tests** list can be filtered by **Part of audit**.
 
 ### When a test fails
 

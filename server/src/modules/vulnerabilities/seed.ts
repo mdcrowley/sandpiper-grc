@@ -86,6 +86,8 @@ export async function seedVulnerabilities(ctx: ModuleContext, opts: SeedOptions)
         description: `${title}. Reported by the sample scan of ${hostName}; invented data for demonstration.`,
         first_seen: firstSeen, last_seen: addDays(now, -(t % 3)), source: SAMPLE_SOURCE,
         asset_id: assetId, system_id: systemId,
+        // E45-38: exposure feeds the urgency order; the first sample host faces the internet.
+        exposure: h === 0 ? 'internet' : h % 4 === 3 ? 'isolated' : 'internal',
       });
       if (kind <= 1) {
         // Fixed: some this month, some earlier, never before the day after first seen.

@@ -3,7 +3,7 @@ import { approvalEngine, defineApprovalKind } from '../../core/approval-kinds.ts
 import { scheduleWork } from '../../core/jobs/index.ts';
 import { defineMetric } from '../../core/metrics.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
-import { isDataLoad } from '../../core/dataload.ts';
+import { actorOf, dataLoadFor, isDataLoad } from '../../core/dataload.ts';
 import { MASKED_LABEL } from '../../core/resource.ts';
 import { dayInZone, displayDate } from '../../core/timezone.ts';
 import { PENDING_VERIFICATION, verifiedNow } from './actions-resource.ts';
@@ -68,13 +68,24 @@ async function actionCounts(ctx: ModuleContext, capId: string) {
 }
 
 /**
+ * A plan raised from an audit finding closes only once an auditor has verified that finding (E45-18,
+ * Audits > Verify and close). True while the finding exists and has no verification yet.
+ */
+export async function awaitsFindingVerification(ctx: ModuleContext, cap: Row): Promise<boolean> {
+  if (cap.source_type !== 'audit_finding' || !cap.source_id || !ctx.resources.get('audit_finding')) return false;
+  const f = await ctx.db.one<Row>('select verified_on from audit_findings where id::text = $1 and deleted_at is null', [String(cap.source_id)]);
+  return !!f && !f.verified_on;
+}
+export const FINDING_NOT_VERIFIED = 'An auditor verifies the finding (Audit findings > Verify and close) before its plan closes.';
+
+/**
  * Moves an approved plan on from its actions: closed when every action is done, verifying when the
  * rest wait for verification, in progress once work has started (or again after a reopen). Plans
  * not yet approved are left alone. System work, audited by the resource engine.
  */
 export async function syncCap(ctx: ModuleContext, capId: string, opts: { countsOnly?: boolean } = {}): Promise<void> {
   if (!ctx.resources.get('cap')) return;
-  const cap = await ctx.db.one<Row>('select id, status, closed_on from caps where id = $1 and deleted_at is null', [capId]);
+  const cap = await ctx.db.one<Row>('select id, status, closed_on, source_type, source_id from caps where id = $1 and deleted_at is null', [capId]);
   if (!cap) return;
   const c = await actionCounts(ctx, capId);
   // Computed counts for list filters ("awaiting verification"): not a change anyone made, so not audited.
@@ -85,6 +96,8 @@ export async function syncCap(ctx: ModuleContext, capId: string, opts: { countsO
   if (c.live > 0 && c.done === c.live) next = 'closed';
   else if (c.pending > 0 && c.pending + c.done === c.live) next = 'verifying';
   else if (c.started > 0 || cap.status === 'closed' || cap.status === 'verifying') next = 'in_progress';
+  // Every action is done, but the audit finding it fixes waits for the auditor's verification (E45-18).
+  if (next === 'closed' && cap.status !== 'closed' && await awaitsFindingVerification(ctx, cap)) next = 'verifying';
   if (next !== cap.status) await ctx.resources.update('cap', capId, { status: next }, null);
 }
 
@@ -209,6 +222,7 @@ export async function registerCaps(ctx: ModuleContext): Promise<void> {
           if (c.live === 0 || c.done !== c.live) {
             ctx.fail(409, 'actions_open', 'A plan closes only when every action is done: an action that needs verification is done once it has been verified.');
           }
+          if (await awaitsFindingVerification(ctx, { ...existing, ...data })) ctx.fail(409, 'finding_not_verified', FINDING_NOT_VERIFIED);
         }
       }
       if (closed && !data.closed_on) data.closed_on = today();
@@ -254,6 +268,13 @@ export async function registerCaps(ctx: ModuleContext): Promise<void> {
   // A deleted action no longer counts on its plan.
   ctx.resources.onChange?.(async (change) => {
     if (change.def.type === 'action' && change.action === 'delete' && change.row.cap_id) await syncCap(ctx, String(change.row.cap_id));
+  });
+  // Once the auditor verifies the finding a plan was raised from, the plan closes if its actions are done (E45-18).
+  ctx.resources.onChange?.(async (change) => {
+    if (change.def.type !== 'audit_finding' || change.action !== 'update' || !change.row.verified_on) return;
+    const plans = await ctx.db.query<{ id: string }>(
+      `select id from caps where source_type = 'audit_finding' and source_id::text = $1 and status = 'verifying' and deleted_at is null`, [String(change.row.id)]);
+    for (const p of plans) await syncCap(ctx, p.id);
   });
 
   const visibleCap = async (req: FastifyRequest) =>
@@ -366,7 +387,7 @@ export async function registerCaps(ctx: ModuleContext): Promise<void> {
     if (!chosen) errors.result = 'Choose the result.';
     else if (chosen.meta?.reopen && !note) errors.note = 'Say why the action was not effective: the action is reopened with this reason.';
     if (Object.keys(errors).length) ctx.fail(400, 'validation', 'Check the highlighted fields.', errors);
-    const recorded = { verified_by: uid, verified_on: today(), verification_method: method, verification_result: result, verification_note: note || null };
+    const recorded = { verified_by: actorOf(req).id, verified_on: typeof b.verified_on === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(b.verified_on) && await dataLoadFor(db, req) ? b.verified_on : today(), verification_method: method, verification_result: result, verification_note: note || null };
     if (chosen!.meta?.reopen) {
       const row = await ctx.resources.update('action', action.id, { ...recorded, status: 'in_progress', completed_on: null }, null);
       await ctx.audit(req, {
@@ -458,7 +479,7 @@ export async function registerCaps(ctx: ModuleContext): Promise<void> {
     }
     const ext = (await db.one<Row>(
       `insert into action_extensions (action_id, requested_by, requested_on, old_due_on, new_due_on, reason)
-       values ($1,$2,$3,$4,$5,$6) returning id`, [action.id, req.user!.id, today(), oldDue, newDue, reason],
+       values ($1,$2,$3,$4,$5,$6) returning id`, [action.id, actorOf(req).id, today(), oldDue, newDue, reason],
     ))!;
     await ctx.audit(req, {
       action: 'action.extension_requested', recordType: 'action', recordId: action.id,

@@ -38,6 +38,8 @@ export const PAGE_AREA: Record<string, string> = {
   'user-access-reviews': 'accessreviews',
   // Wave 22 (E41-15).
   'records-retention-schedule': 'recordsretention',
+  // Wave 25 (E45-06).
+  'evidence-library': 'evidence',
 };
 
 /** Whether a guide page's part of the application is on (pages of no particular part always are). */

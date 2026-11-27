@@ -1,4 +1,5 @@
 import type { FastifyRequest } from 'fastify';
+import { actorOf, onBehalfOf } from '../../core/dataload.ts';
 import { approvalEngine } from '../../core/approval-kinds.ts';
 import { ApiError, UUID_RE } from '../../core/errors.ts';
 import type { ModuleContext, ResourceDef, Row, SessionUser } from '../../core/module.ts';
@@ -144,7 +145,7 @@ export function makeService(ctx: ModuleContext) {
     const sets = cols.map((c, i) => `${c} = ${marks[i]}`);
     return (await db.one<Row>(
       `update ${table} set ${[...sets, 'updated_at = now()', 'updated_by = $2'].join(', ')} where id = $1 returning *`,
-      [id, req?.user?.id ?? null, ...params],
+      [id, actorOf(req).id, ...params],
     ))!;
   }
 
@@ -163,7 +164,8 @@ export function makeService(ctx: ModuleContext) {
     return { before, after, changed: Object.keys(after).length > 0 };
   }
 
-  const actorName = (req: Req) => req?.user?.displayName ?? 'System';
+  // The person a load names (E18-71/E18-94), else the signed-in person.
+  const actorName = (req: Req) => actorOf(req).name ?? 'System';
   const projectLabel = (p: Row) => [p.ref, p.name].filter(Boolean).join(' ');
 
   async function needProject(id: string, req: Req): Promise<Row> {
@@ -360,7 +362,7 @@ export function makeService(ctx: ModuleContext) {
       documents: templateDocuments(def.required_documents).map((d) => ({ ...d, received: false, reference: '' })),
       approvers: def.approvers ?? {}, wants_change: def.wants_change === true,
       requires_certificate: def.requires_certificate === true,
-      created_by: req?.user?.id ?? null, updated_by: req?.user?.id ?? null,
+      created_by: actorOf(req).id, updated_by: actorOf(req).id,
     });
     await db.query(
       `insert into gate_checklist_items (project_gate_id, label, sort)
@@ -635,7 +637,7 @@ export function makeService(ctx: ModuleContext) {
     const patch = c.finish();
     if (patch.checked === null) patch.checked = false;
     if (patch.checked !== undefined && patch.checked !== item.checked) {
-      patch.checked_by = patch.checked ? req?.user?.id ?? null : null;
+      patch.checked_by = patch.checked ? actorOf(req).id : null;
       patch.checked_by_name = patch.checked ? actorName(req) : null;
       patch.checked_at = patch.checked ? new Date().toISOString() : null;
     }
@@ -742,7 +744,7 @@ export function makeService(ctx: ModuleContext) {
     await insertRow('project_gate_decisions', {
       project_gate_id: gate.id, project_id: project.id, decision: 'reopened',
       approver_name: actorName(req), approver_role: null, decided_on: today(), reference: null, notes: reason,
-      recorded_by: req?.user?.id ?? null, recorded_by_name: actorName(req),
+      recorded_by: actorOf(req).id, recorded_by_name: actorName(req),
     });
     const saved = await updateRow('project_gates', gate.id, { status: 'open' }, req);
     await ctx.audit(req, {
@@ -759,6 +761,9 @@ export function makeService(ctx: ModuleContext) {
 
   async function decideGate(req: Req, project: Row, gateId: string, body: Row) {
     const gate = await needGate(project, gateId);
+    // E18-94: a load that names a person records their decision (unless an approver is named).
+    const ob = onBehalfOf(req);
+    if (ob && !String(body.approver_name ?? '').trim()) body = { ...body, approver_name: ob.name };
     const c = checker(body, false);
     c.oneOf('decision', 'Decision', DECISIONS, true);
     c.text('approver_name', 'Approver name', true);
@@ -838,7 +843,7 @@ export function makeService(ctx: ModuleContext) {
       project_gate_id: gate.id, project_id: project.id, decision: d.decision,
       approver_name: d.approver_name, approver_role: d.approver_role ?? null, decided_on: d.decided_on,
       reference: d.reference ?? null, notes: d.notes ?? null,
-      recorded_by: req?.user?.id ?? null, recorded_by_name: actorName(req),
+      recorded_by: actorOf(req).id, recorded_by_name: actorName(req),
     });
     const saved = await updateRow('project_gates', gate.id, {
       status: d.decision, decided_by_name: d.approver_name, decided_by_role: d.approver_role ?? null,
@@ -983,8 +988,8 @@ export function makeService(ctx: ModuleContext) {
     const data = reportInput(body, false);
     const row = await insertRow('status_reports', {
       ...data, project_id: project.id,
-      author_id: req?.user?.id ?? null, author_name: req ? actorName(req) : String(body.author_name ?? 'System'),
-      created_by: req?.user?.id ?? null, updated_by: req?.user?.id ?? null,
+      author_id: actorOf(req).id, author_name: req ? actorName(req) : String(body.author_name ?? 'System'),
+      created_by: actorOf(req).id, updated_by: actorOf(req).id,
     });
     await ctx.audit(req, {
       action: 'project.status_report_create', recordType: 'project', recordId: project.id,
@@ -1009,7 +1014,7 @@ export function makeService(ctx: ModuleContext) {
 
   async function removeChild(req: Req, project: Row, table: string, label: string, action: string, id: string, describe: (r: Row) => string) {
     const existing = await needChild(table, label, project.id, id);
-    await db.query(`update ${table} set deleted_at = now(), updated_by = $2 where id = $1`, [existing.id, req?.user?.id ?? null]);
+    await db.query(`update ${table} set deleted_at = now(), updated_by = $2 where id = $1`, [existing.id, actorOf(req).id]);
     await ctx.audit(req, {
       action, recordType: 'project', recordId: project.id, summary: `${label} deleted: ${describe(existing)}`,
       before: Object.fromEntries(Object.entries(existing).filter(([k, v]) => v !== null && !['id', 'project_id', 'created_by', 'updated_by', 'created_at', 'updated_at', 'deleted_at'].includes(k))),
@@ -1072,7 +1077,7 @@ export function makeService(ctx: ModuleContext) {
   async function addItem(req: Req, project: Row, body: Row): Promise<Row> {
     const data = await itemInput(body, false);
     const row = await insertRow('project_items', {
-      ...data, project_id: project.id, created_by: req?.user?.id ?? null, updated_by: req?.user?.id ?? null,
+      ...data, project_id: project.id, created_by: actorOf(req).id, updated_by: actorOf(req).id,
     });
     await ctx.audit(req, {
       action: 'project.item_create', recordType: 'project', recordId: project.id,
@@ -1236,7 +1241,7 @@ export function makeService(ctx: ModuleContext) {
   async function addMilestone(req: Req, project: Row, body: Row): Promise<Row> {
     const data = milestoneInput(body, false);
     const row = await insertRow('project_milestones', {
-      ...data, project_id: project.id, created_by: req?.user?.id ?? null, updated_by: req?.user?.id ?? null,
+      ...data, project_id: project.id, created_by: actorOf(req).id, updated_by: actorOf(req).id,
     });
     await ctx.audit(req, {
       action: 'project.milestone_create', recordType: 'project', recordId: project.id,

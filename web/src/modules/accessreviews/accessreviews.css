@@ -13,3 +13,13 @@
 .ar-file { display: flex; flex-direction: column; gap: var(--s-1); }
 .ar-file-label { font-weight: 600; font-size: var(--fs-sm, 0.875rem); }
 .ar-errors { margin: var(--s-2) 0 0; padding-left: var(--s-5); }
+
+/* E45-35: the first-steps panel shown while no account is loaded. */
+.ar-start { border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); padding: var(--s-5); display: grid; gap: var(--s-3); }
+.ar-start h2 { margin: 0; font-size: var(--fs-lg); }
+.ar-start > p { margin: 0; max-width: 60rem; }
+.ar-start-steps { margin: 0; padding-inline-start: 1.6rem; list-style: decimal; max-width: 60rem; }
+.ar-start-steps li { display: list-item; padding-inline-start: var(--s-1); }
+.ar-start-steps li + li { margin-top: var(--s-2); }
+.ar-start-steps li strong, .ar-start-steps li span { display: block; }
+.ar-start-steps li span { color: var(--text-muted); }

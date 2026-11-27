@@ -219,8 +219,8 @@ describe('roles, risk scales and asset classes of a switched-off area', () => {
     expect(before.body.scale_key).toBe('hazard_4x5');
 
     expect((await setFeatures({ safety: false })).status).toBe(200);
-    expect(await offered()).toEqual(['cyber_5x5']);
-    expect((await t.api.get('/api/risks/summary')).body.scales.map((s: any) => s.key)).toEqual(['cyber_5x5']);
+    expect(await offered()).toEqual(['enterprise_5x5', 'cyber_5x5']);
+    expect((await t.api.get('/api/risks/summary')).body.scales.map((s: any) => s.key)).toEqual(['enterprise_5x5', 'cyber_5x5']);
     expect((await t.api.get('/api/risks/heatmap?scale=hazard_4x5')).status).toBe(404);
     expect((await t.api.get('/api/risks/appetite')).body.categories.map((c: any) => c.scale_name ?? '').join(' ')).not.toMatch(/hazard|safety/i);
     // A new risk in a category scored on it uses the default scale; the earlier one keeps its scale.

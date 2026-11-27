@@ -94,7 +94,7 @@ export const AREAS: Area[] = [
     description: 'The risk register, risk reviews and acceptances, and compliance obligations. The action tracker stays on.',
     // The risks folder also holds the action tracker, which stays on: its routes are not switched off wholesale.
     permissions: ['risks', 'obligations'], modules: [], jobs: ['risks.', 'obligations.'],
-    lookupValues: { action_source: ['risk', 'regulatory_change'] },
+    lookupValues: { action_source: ['risk', 'regulatory_change'] }, owns: { role: ['risk_manager'] },
   },
   {
     key: 'secincidents', label: 'Security incidents', defaultOn: true,
@@ -245,6 +245,14 @@ export const AREAS: Area[] = [
     description: 'The organization\'s own record series, paper and electronic, with how long each is kept after which event and what happens at the end, and a destruction log in which each batch of records is approved before it is destroyed and recorded with its certificate afterwards. Legal holds stop a destruction.',
     permissions: [], types: ['record_series', 'records_destruction'], modules: ['recordsretention'], jobs: ['recordsretention.'],
     lists: ['record_series_status', 'record_series_category', 'record_medium', 'retention_unit', 'retention_trigger', 'record_disposition', 'destruction_status', 'destruction_method'],
+  },
+  // Wave 25 (E45-06). Evidence filed once and linked to many records; its own permission module and
+  // module folder. Files on records (attachments) are not part of it and stay on.
+  {
+    key: 'evidence', label: 'Evidence library', defaultOn: true,
+    description: 'Evidence filed once and linked to controls, obligations, audits, funder reviews and corrective actions, with expiry reminders to its owner.',
+    permissions: ['evidence'], types: ['evidence_record'], modules: ['evidence'], jobs: ['evidence.'],
+    lists: ['evidence_source', 'evidence_relation'],
   },
 ];
 

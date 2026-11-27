@@ -2,7 +2,9 @@
 import { lazy, Suspense } from 'react';
 import type { ComponentType, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Forbidden, Loading, lookupColor, lookupLabel, StatusChip, Tabs, todayInZone, useAuth, useMeta, useResource } from '../../core';
+import {
+  api, errorMessage, Forbidden, Loading, lookupColor, lookupLabel, StatusChip, Tabs, todayInZone, useAuth, useMeta, useResource, useToast,
+} from '../../core';
 
 export interface Summary {
   today: string;
@@ -62,6 +64,7 @@ export function Guard({ children, need = 'view' }: { children: ReactNode; need?:
 
 const SECTIONS = [
   { key: 'findings', label: 'Findings', path: '/vulnerabilities' },
+  { key: 'groups', label: 'By finding', path: '/vulnerabilities/groups' },
   { key: 'dashboard', label: 'Dashboard', path: '/vulnerabilities/dashboard' },
   { key: 'imports', label: 'Imports', path: '/vulnerabilities/imports' },
   { key: 'policy', label: 'Severity policy', path: '/vulnerabilities/settings' },
@@ -96,6 +99,38 @@ export function useAvailableFields(fields: string[]): string[] {
 }
 
 export const hostOf = (row: Record<string, any>): string => row.host_name || row.host_ip || '—';
+
+/** The identifier findings are grouped by, worked out as the server does: scanner id, else the CVE list, else the title. */
+export function findingKeyOf(row: Record<string, any>): string {
+  const plugin = String(row.plugin_id ?? '').trim();
+  const cves = String(row.cves ?? '').trim();
+  return (plugin ? `id:${plugin}` : cves ? `cve:${cves}` : `title:${String(row.title ?? '').trim()}`).toLowerCase();
+}
+
+export const groupLink = (key: string) => `/vulnerabilities/groups?key=${encodeURIComponent(key)}`;
+
+/**
+ * "Raise a change" for findings (E45-37): offered when changes are in use and the person may create
+ * them. The server creates a draft change naming the findings, links it to each and opens it.
+ */
+export function useRaiseChange(): { available: boolean; raise: (ids: string[]) => Promise<void> } {
+  const { can } = useAuth();
+  const changes = useResource('change');
+  const navigate = useNavigate();
+  const toast = useToast();
+  return {
+    available: Boolean(changes) && can('changes.create'),
+    raise: async (ids) => {
+      try {
+        const res = await api.post<{ id: string; ref: string; route: string; linked: number }>('/api/vulnerabilities/raise-change', { ids });
+        toast.success(`Change ${res.ref} raised for ${res.linked} finding${res.linked === 1 ? '' : 's'}. Fill in the plan and submit it.`);
+        navigate(res.route);
+      } catch (err) {
+        toast.error(errorMessage(err));
+      }
+    },
+  };
+}
 
 /** "443/tcp" from the port and protocol of a finding, as the duplicate key reads them. */
 export function portOf(row: Record<string, any>): string {

@@ -17,6 +17,7 @@ import { checksBlock, ensureIntake, registerIntake } from './intake.ts';
 import { registerPerformance } from './performance.ts';
 import { endedStatuses, ensureOffboardingLists, registerOffboarding, startEndedContracts, startForContract } from './offboarding.ts';
 import { seedVendors } from './seed.ts';
+import { refreshAllSpend, refreshVendorSpend, registerSpend, annualValueOf } from './spend.ts';
 
 export { runContractReminders, runEvidenceReminders } from './reminders.ts';
 
@@ -102,6 +103,8 @@ const mod: ModuleDef = {
     await ensureOffboardingLists(ctx);
     // Intake with risk tiers and required checks (E41-10).
     await ensureIntake(ctx);
+    // Annual values and spend (E45-43): worked out again at every start (a new year, deleted contracts).
+    await refreshAllSpend(ctx);
   },
 
   async register(ctx) {
@@ -143,6 +146,8 @@ const mod: ModuleDef = {
         // Set by the latest intake questionnaire (E41-10).
         risk_tier: { label: 'Risk tier', type: 'lookup', list: 'vendor_risk_tier', readOnly: true },
         risk_tier_on: { label: 'Risk tier set on', type: 'date', readOnly: true },
+        // The sum of its active contracts' annual values (E45-43, spend.ts).
+        annual_spend: { label: 'Annual spend', type: 'currency', readOnly: true },
       },
       hooks: {
         beforeCreate: async (_req, data) => {
@@ -210,6 +215,8 @@ const mod: ModuleDef = {
         notice_date: { label: 'Notice date', type: 'date', readOnly: true },
         total_value: { label: 'Total value', type: 'currency' },
         value_by_year: { label: 'Value by year', type: 'json' },
+        // Worked out from the value by year, or the total value over the term (E45-43, spend.ts).
+        annual_value: { label: 'Annual value', type: 'currency', readOnly: true },
         resolution_number: { label: 'Approval or resolution number', type: 'text' },
         owner_id: { label: 'Owner', type: 'user' },
         document_on_file: { label: 'Document on file', type: 'longtext' },
@@ -229,6 +236,7 @@ const mod: ModuleDef = {
           checkContractNumbers(data);
           await checkActivation(req, data.vendor_id, (data.status ?? 'active') === 'active');
           data.notice_date = noticeDate(data.end_date, data.notice_days);
+          data.annual_value = annualValueOf(data);
           return data;
         },
         beforeUpdate: async (req, existing, patch) => {
@@ -243,10 +251,13 @@ const mod: ModuleDef = {
           if (patch.status === 'active' && existing.status !== 'active') await checkActivation(req, merged.vendor_id, true);
           else if (moved && merged.status === 'active') await checkActivation(req, merged.vendor_id, true, 'vendor_id');
           patch.notice_date = noticeDate(merged.end_date, merged.notice_days);
+          patch.annual_value = annualValueOf(merged);
           return patch;
         },
         // A contract that moves to an ended status starts the vendor's offboarding (E35-04), once.
         afterUpdate: async (req, before, after) => {
+          // A contract moved to another vendor leaves the first vendor's spend (E45-43).
+          if (before.vendor_id !== after.vendor_id) await refreshVendorSpend(ctx, [before.vendor_id]);
           if (after.status === before.status || !ctx.resources.get('vendor_offboarding')) return;
           if (!(await endedStatuses(ctx)).includes(after.status)) return;
           await startForContract(ctx, after, after.status === 'terminated' ? 'terminated' : 'contract_ended', req);
@@ -787,6 +798,9 @@ const mod: ModuleDef = {
 
     await scheduleWork(ctx, 'vendors.contract_reminders', async () => ({ fired: (await runContractReminders(ctx)).length }), { every: HOUR, firstRunInMs: 60_000 });
     await scheduleWork(ctx, 'vendors.evidence_reminders', async () => ({ fired: (await runEvidenceReminders(ctx)).length }), { every: HOUR, firstRunInMs: 70_000 });
+    // Every six hours: annual values and spend (E45-43); a contract's save also works them out.
+    registerSpend(ctx);
+    await scheduleWork(ctx, 'vendors.spend', async () => refreshAllSpend(ctx), { every: 6 * HOUR, firstRunInMs: 100_000 });
     // Daily: reassessment and exclusion-check reminders, offboardings for contracts whose end date passed.
     await scheduleWork(ctx, 'vendors.lifecycle', async () => runLifecycle(ctx), { every: DAY, firstRunInMs: 90_000 });
   },

@@ -12,6 +12,7 @@ import type { FastifyRequest } from 'fastify';
 import { UUID_RE } from '../../core/errors.ts';
 import { assertNotHeld } from '../../core/holds.ts';
 import type { LookupValue, ModuleContext, Row } from '../../core/module.ts';
+import { actorOf } from '../../core/dataload.ts';
 import { notePermission } from '../../core/permission-use.ts';
 import { localDate } from './dates.ts';
 
@@ -390,7 +391,7 @@ export function registerIntake(ctx: ModuleContext): void {
     const row = (await db.one<Row>(
       `insert into vendor_intakes (vendor_id, questions, answers, tier, reasons, notes, completed_on, completed_by, created_by, updated_by)
        values ($1,$2::jsonb,$3::jsonb,$4,$5::jsonb,$6,$7,$8,$8,$8) returning *, completed_on::text as completed_on`,
-      [vendor.id, JSON.stringify(config.questions), JSON.stringify(answers), tier, JSON.stringify(reasons), notes, today, req.user!.id],
+      [vendor.id, JSON.stringify(config.questions), JSON.stringify(answers), tier, JSON.stringify(reasons), notes, today, actorOf(req).id],
     ))!;
     // System work: the tier is read-only to people. The change is audited on the vendor.
     if (vendor.risk_tier !== tier || vendor.risk_tier_on !== today) await ctx.resources.update('vendor', vendor.id, { risk_tier: tier, risk_tier_on: today });
@@ -409,7 +410,7 @@ export function registerIntake(ctx: ModuleContext): void {
       });
     }
     reply.code(201);
-    return intakeView({ ...row, completed_by_name: req.user!.displayName }, tiers);
+    return intakeView({ ...row, completed_by_name: actorOf(req).name }, tiers);
   });
   ctx.describeRoute({
     method: 'POST', path: '/api/vendors/:id/intake', tag: 'Vendors', permission: 'vendors.edit',
@@ -466,7 +467,7 @@ export function registerIntake(ctx: ModuleContext): void {
     const row = (await db.one<Row>(
       `insert into vendor_checks (vendor_id, check_key, outcome, done_on, expires_on, reference, note, recorded_by, created_by, updated_by)
        values ($1,$2,$3,$4,$5,$6,$7,$8,$8,$8) returning *, done_on::text as done_on, expires_on::text as expires_on`,
-      [vendor.id, b.check_key, outcome, doneOn, expiresOn, reference, note, req.user!.id],
+      [vendor.id, b.check_key, outcome, doneOn, expiresOn, reference, note, actorOf(req).id],
     ))!;
     const label = lookupOf(checks, b.check_key).label;
     await ctx.audit(req, {
@@ -475,7 +476,7 @@ export function registerIntake(ctx: ModuleContext): void {
       after: { check_id: row.id, check_key: b.check_key, outcome, done_on: doneOn, expires_on: expiresOn, reference, note },
     });
     reply.code(201);
-    return { ...checkView({ ...row, recorded_by_name: req.user!.displayName }), check_label: label };
+    return { ...checkView({ ...row, recorded_by_name: actorOf(req).name }), check_label: label };
   });
   ctx.describeRoute({
     method: 'POST', path: '/api/vendors/:id/checks', tag: 'Vendors', permission: 'vendors.edit',

@@ -3,7 +3,9 @@ import { approvalEngine, defineApprovalKind } from '../../core/approval-kinds.ts
 import { UUID_RE } from '../../core/errors.ts';
 import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { actorOf, dataLoadFor } from '../../core/dataload.ts';
 import { todayInZone } from '../../core/timezone.ts';
+import { applyFunder } from './funders.ts';
 import { activeUser, cleanText, idParam } from './shared.ts';
 
 /**
@@ -47,7 +49,7 @@ export async function copyForward(ctx: ModuleContext, from: Row, year: number, r
     return `${y + (year - Number(from.year))}-${String(m).padStart(2, '0')}-${String(m === 2 && day === 29 ? 28 : day).padStart(2, '0')}`;
   };
   const row = await ctx.resources.create('funding_certification', {
-    year, title: from.title, funder_name: from.funder_name ?? null, signer_id: from.signer_id ?? null,
+    year, title: from.title, funder_id: from.funder_id ?? null, funder_name: from.funder_name ?? null, signer_id: from.signer_id ?? null,
     due_on: shift(from.due_on ? String(from.due_on).slice(0, 10) : null), status: 'draft',
     notes: `Made from ${from.ref} (${from.year}).`,
   }, req);
@@ -110,7 +112,8 @@ export async function registerCertifications(ctx: ModuleContext) {
       // Text in the form (so it is not shown as 2,026); stored as a whole number and checked in the hooks.
       year: { label: 'Year', type: 'text', required: true, personal: false },
       title: { label: 'Certification', type: 'text', required: true },
-      funder_name: { label: 'Funder', type: 'text', personal: false },
+      funder_id: { label: 'Funder', type: 'ref', to: 'funder' },
+      funder_name: { label: 'Funder name', type: 'text', personal: false },
       due_on: { label: 'Due', type: 'date' },
       signer_id: { label: 'Authorized official', type: 'user' },
       status: { label: 'Status', type: 'lookup', list: 'funding_certification_status', default: 'draft' },
@@ -118,13 +121,13 @@ export async function registerCertifications(ctx: ModuleContext) {
       notes: { label: 'Notes', type: 'longtext', personal: false },
     },
     hooks: {
-      beforeCreate: (req, data) => {
+      beforeCreate: async (req, data) => {
         data.year = checkYear(data);
         // A new certification starts as a draft; its status follows the sign-off.
         if (req) data.status = 'draft';
-        return data;
+        return applyFunder(ctx, req, data);
       },
-      beforeUpdate: (req, existing, patch) => {
+      beforeUpdate: async (req, existing, patch) => {
         if ('year' in patch) patch.year = checkYear(patch);
         if (req && 'status' in patch && patch.status !== existing.status) {
           // By hand only: a signed certification is marked submitted (or back to signed). Review and
@@ -139,7 +142,7 @@ export async function registerCertifications(ctx: ModuleContext) {
           if ('signer_id' in patch && (patch.signer_id ?? null) !== (existing.signer_id ?? null)) invalid({ signer_id: locked });
           if ('year' in patch && Number(patch.year) !== Number(existing.year)) invalid({ year: locked });
         }
-        return patch;
+        return applyFunder(ctx, req, patch);
       },
     },
   });
@@ -325,7 +328,9 @@ export async function registerCertifications(ctx: ModuleContext) {
     const cert = await needCert(req);
     draftOnly(cert);
     const item = await needItem(req, cert);
-    if (item.responsible_id !== req.user!.id && !ctx.can(req.user, 'funding.edit')) {
+    // E18-94: a load records the confirmation of the person it names.
+    const by = actorOf(req);
+    if (item.responsible_id !== by.id && !ctx.can(req.user, 'funding.edit')) {
       ctx.fail(403, 'forbidden', 'Only the person responsible for this item, or someone who may edit funding records, can confirm it.');
     }
     const b = (req.body ?? {}) as Row;
@@ -334,7 +339,7 @@ export async function registerCertifications(ctx: ModuleContext) {
     const note = 'note' in b ? cleanText(b.note, 2000) : item.note;
     const row = (await db.one<Row>(
       `update funding_certification_items set confirmed_by = $2, confirmed_on = $3, note = $4, updated_at = now(), updated_by = $5 where id = $1 returning *`,
-      [item.id, confirmed ? req.user!.id : null, confirmed ? todayInZone() : null, note, req.user!.id]))!;
+      [item.id, confirmed ? by.id : null, confirmed ? (typeof b.confirmed_on === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(b.confirmed_on) && await dataLoadFor(db, req) ? b.confirmed_on : todayInZone()) : null, note, by.id]))!;
     await ctx.audit(req, {
       action: confirmed ? 'funding_certification.item_confirm' : 'funding_certification.item_unconfirm',
       recordType: 'funding_certification', recordId: cert.id,

@@ -418,8 +418,11 @@ added to responses sent over HTTPS (see "Network exposure").
   confirmation and is audited. Its data is kept.
 - Roles grant permissions of the form `<module>.<action>`, with wildcards. A role that is
   switched off grants nothing.
-- **Restricted records.** Risks, security incidents, notification tasks and vulnerability
-  findings need `security.view` in addition to their module permission. Without it they
+- **Restricted records.** Security incidents, notification tasks, vulnerability findings and
+  restricted risks (cybersecurity risks by default, set per risk from its category; wave 25,
+  E45-01) need `security.view` in addition to their module permission. Other risks need
+  `risks.view` only; figures that list risks by name (heat maps, the summary, the report, the
+  roll-up) show a restricted one as "Restricted risk", so the counts are the same for everyone. Without it they
   are absent from lists (and the totals of those lists), single reads, exports, global
   search, record pickers, links, reference labels (shown as "Restricted") and the audit
   search. A direct request for a restricted record returns "not found" rather than
@@ -507,7 +510,12 @@ What still protects details in a figure:
   anyone. Without this, "how many actions mention this person's name?" would read a
   restricted record one word at a time.
 - **Labels stay protected.** A figure grouped by a reference to a restricted record
-  labels it "Restricted" for people who may not see it; the count is the same.
+  labels it "Restricted" for people who may not see it; the count is the same. Figures that
+  list records by name keep them and mask the name: a restricted risk appears in heat maps, the
+  risk summary, the report and the roll-up as "Restricted risk" (wave 25,
+  `modules/risks/masking.ts`), and a closed-session decision of a committee as "Closed session
+  item" for people who are not members. The evidence library's figures
+  (`/api/evidence-library/summary`) and the vendor and contract spend totals count every record.
 - **Figure snapshots** (`figure_values`, figures over time, E41-04) hold numbers and list values
   only, worked out as the system; they never hold record words or people.
 - **Saved figures are checked as the person who saves them (wave 23).** A figure is worked out as
@@ -573,10 +581,10 @@ What still protects details in a figure:
   administrator after a sync is not offered again. On a database from before this
   feature, the first sync offers every default the role does not hold, including any an
   administrator had removed on purpose: read the list before applying.
-- **The Approver role does not accept risks.** Seeing a risk needs `security.view`, which
-  would also open every security incident, so the default Approver role has no risk
-  permission. A risk acceptance is recorded by someone who can see the risk and names
-  the approver.
+- **The Approver role does not accept risks.** Risk acceptance is left to the Risk manager
+  role (switched off by default; `risks.*` without `security.view`, so restricted
+  cybersecurity risks stay hidden from it). A risk acceptance is recorded by someone who can see
+  the risk and names the approver.
 - Administrative routes all need `admin.administer`, and a test checks each one refuses
   a non-administrator.
 
@@ -989,7 +997,10 @@ records with their original dates.
   the named person needs no access and is told nothing. The audit log stays truthful: `actor_id`,
   `actor_name` and `token_name` are always the real caller; `on_behalf_id`, `on_behalf_name` and the
   summary say whom the work was written for. Outside data load mode the field and header are refused
-  (400), so nobody can forge an author.
+  (400), so nobody can forge an author. The person named is recorded in every module's own
+  who-did-it columns too (approvals, decisions, sign-offs, verifications, files' "added by"; E18-94);
+  the audit log keeps the real actor and token. Files attached in a load are listed with the load,
+  so undoing it removes them too.
 
 ### AI assistant access (MCP)
 
@@ -1246,6 +1257,27 @@ interrupted upgrade with its own copy of the script, never one in the data folde
 keeps only `SeChangeNotifyPrivilege` and `SeCreateGlobalPrivilege` (no `SeImpersonatePrivilege`).
 `setup.log` is written where the service cannot write, and removing the data folder deletes links
 as links, never what they point to.
+
+### Evidence library
+
+`server/src/modules/evidence/` (wave 25, area **Evidence library**, permission module `evidence`).
+An evidence record is an ordinary record type: restricted records (`restricted` flag) and department
+scope apply, and its files are attachments with the usual checks. Linking evidence to a record needs
+`evidence.view` on the evidence and the right to change the record (or the part's own rule, such as
+the assignee of a funder's document request while the review is open); the list of a record's
+evidence shows only what the viewer may open, with a count of the rest. A part may refuse changes:
+evidence linked to a reviewed audit workpaper step cannot be added or removed. Figures count every
+record.
+
+### Committee members' reading view
+
+`server/src/modules/governance/members.ts` (wave 25). `/api/governance/my-meetings*` need no
+permission but answer only for the committee's members (session only, never a token), and only for
+published agendas and minutes; closed-session items, papers and decisions are shown to members,
+the chair, the secretary and `governance.edit` only. Papers are downloaded through the attachments
+module's checks (`sendStoredFile`, `sandboxDownload`). PDF papers appended to the board book are
+read in a forked process with time and memory limits (`governance/book-sandbox.ts`), never in the
+server process.
 
 ### Calendar feeds, work-tracker bridge and evidence links
 

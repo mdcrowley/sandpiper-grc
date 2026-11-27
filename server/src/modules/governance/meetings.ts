@@ -4,10 +4,15 @@
 // approval kind. Approved minutes lock the meeting: its minutes, attendance, agenda and decisions.
 import type { FastifyRequest } from 'fastify';
 import { approvalEngine, approvalKind, defineApprovalKind } from '../../core/approval-kinds.ts';
+import { actorOf, isDataLoad } from '../../core/dataload.ts';
 import { UUID_RE } from '../../core/errors.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
-import { todayInZone } from '../../core/timezone.ts';
+import { dayInZone, todayInZone } from '../../core/timezone.ts';
 import { memberById, membersOn, quorumOf } from './committees.ts';
+
+export const SESSIONS = ['open', 'closed'] as const;
+/** Shown in place of a closed-session item to people who may not read it: the count stays, the detail goes. */
+export const CLOSED_TITLE = 'Closed session item';
 
 export const MINUTES_KIND = 'meeting_minutes';
 const LOCKED = 'minutes_approved';
@@ -43,7 +48,8 @@ export function registerMeetings(ctx: ModuleContext) {
       ? await ctx.resources.find('committee', String(data.committee_id ?? ''), req.user)
       : await db.one<Row>('select * from committees where id = $1 and deleted_at is null', [data.committee_id]);
     if (!committee) invalid({ committee_id: 'Choose a committee.' });
-    if (req && data.status === LOCKED) invalid({ status: 'Minutes are approved by the chair through the approval workflow.' });
+    // A data load (E18-70) may load a past meeting whose minutes were approved long ago.
+    if (req && data.status === LOCKED && !isDataLoad(req)) invalid({ status: 'Minutes are approved by the chair through the approval workflow.' });
     // The chair and secretary of the day are kept with the meeting: the chair approves its minutes.
     data.chair_id = committee!.chair_id ?? null;
     data.secretary_id = committee!.secretary_id ?? null;
@@ -55,6 +61,7 @@ export function registerMeetings(ctx: ModuleContext) {
     if ('committee_id' in patch && patch.committee_id !== existing.committee_id) {
       invalid({ committee_id: 'A meeting stays with its committee. Cancel it and plan one for the other committee.' });
     }
+    if (isDataLoad(req)) return patch; // loading history: the dates and statuses given are kept
     if (existing.status === LOCKED) {
       ctx.fail(409, 'minutes_approved', 'The minutes of this meeting are approved, so the meeting can no longer be changed.');
     }
@@ -87,11 +94,37 @@ export function registerMeetings(ctx: ModuleContext) {
       pack_snapshot_id: { label: 'Frozen pack', type: 'text', readOnly: true },
       pack_frozen_at: { label: 'Pack frozen', type: 'datetime', readOnly: true },
       invited_at: { label: 'Invitations sent', type: 'datetime', readOnly: true },
+      // Minutes approved at a later meeting by a motion, or by the chair through the approval workflow; then published.
+      minutes_approved_on: { label: 'Minutes approved on', type: 'date', readOnly: true },
+      minutes_approved_meeting_id: { label: 'Minutes approved at', type: 'ref', to: 'meeting', readOnly: true },
+      minutes_approved_decision_id: { label: 'Approving decision', type: 'text', readOnly: true },
+      minutes_published_at: { label: 'Minutes published', type: 'datetime', readOnly: true },
+      minutes_published_by: { label: 'Minutes published by', type: 'user', readOnly: true },
+      minutes_published_by_name: { label: 'Published by (name)', type: 'text', readOnly: true },
     },
-    hooks: { beforeCreate, beforeUpdate },
+    hooks: { beforeCreate, beforeUpdate, afterUpdate: async (req, before, after) => { await agendaPublished(req, before, after); } },
   });
 
-  async function locked(meeting: Row) {
+  /** Members with an account hear that the agenda and board book are ready, with a link to their reading view. */
+  async function agendaPublished(_req: FastifyRequest | null, before: Row, after: Row) {
+    if (before.status === after.status || after.status !== 'agenda_published' || !ctx.app.hasDecorator('notify')) return;
+    const members = await membersOn(ctx, after.committee_id, todayInZone(new Date(after.scheduled_at)));
+    const person = ctx.resources.get('person');
+    const viaPerson = person?.fields.user_id
+      ? (await db.query<{ u: string }>(`select user_id::text as u from ${person.table} where id::text = any($1::text[]) and user_id is not null and deleted_at is null`,
+        [members.filter((m) => !m.user_id && m.person_id).map((m) => String(m.person_id))])).map((r) => r.u)
+      : [];
+    const userIds = [...new Set([...members.map((m) => m.user_id).filter(Boolean).map(String), ...viaPerson])];
+    if (!userIds.length) return;
+    await ctx.app.notify({
+      userIds, kind: 'governance', route: `/governance/my-meetings/${after.id}`,
+      title: `Agenda published: ${after.ref} ${after.title}`,
+      body: 'The agenda and the board book are ready to read.', once: `governance.agenda:${after.id}`,
+    });
+  }
+
+  async function locked(meeting: Row, req?: FastifyRequest | null) {
+    if (isDataLoad(req)) return; // a data load may add the agenda, minutes and votes of a past meeting
     if (meeting.status === LOCKED) ctx.fail(409, 'minutes_approved', 'The minutes of this meeting are approved, so it can no longer be changed.');
   }
 
@@ -117,7 +150,7 @@ export function registerMeetings(ctx: ModuleContext) {
         });
         return;
       }
-      await ctx.resources.update('meeting', meeting.id, { status: LOCKED }, null);
+      await ctx.resources.update('meeting', meeting.id, { status: LOCKED, minutes_approved_on: dayInZone() }, null);
       await ctx.audit(e.req, { action: 'meeting.minutes_approved', recordType: 'meeting', recordId: meeting.id, summary: `Minutes of ${meeting.ref} approved by ${who}` });
     },
   });
@@ -127,7 +160,9 @@ export function registerMeetings(ctx: ModuleContext) {
     const eng = engine();
     if (!eng) ctx.fail(409, 'approvals_unavailable', 'Approval workflows are not available in this installation.');
     if (meeting.status !== 'held') ctx.fail(409, 'not_held', 'Minutes can be submitted once the meeting is marked as held.');
-    if (!String(meeting.minutes ?? '').trim()) invalid({ minutes: 'Write the minutes before submitting them.' });
+    const written = String(meeting.minutes ?? '').trim()
+      || await db.one(`select 1 as ok from agenda_items where meeting_id = $1 and coalesce(trim(discussion), '') <> '' limit 1`, [meeting.id]);
+    if (!written) invalid({ minutes: 'Write the minutes before submitting them.' });
     if (!meeting.chair_id) ctx.fail(409, 'no_chair', 'The meeting has no chair to approve its minutes. Name the committee\'s chair first.');
     if (meeting.chair_id === req.user!.id) ctx.fail(409, 'chair_submits', 'You chaired this meeting, so the secretary submits the minutes for your approval.');
     if (await eng!.running(MINUTES_KIND, meeting.id)) ctx.fail(409, 'already_submitted', 'The minutes are already waiting for approval.');
@@ -174,7 +209,7 @@ export function registerMeetings(ctx: ModuleContext) {
 
   app.put('/api/meetings/:id/attendance', { preHandler: ctx.requirePerm('governance.edit') }, async (req) => {
     const meeting = await meetingFor(ctx, req);
-    await locked(meeting);
+    await locked(meeting, req);
     if (meeting.status === 'canceled') ctx.fail(409, 'canceled', 'The meeting was canceled.');
     const list = (req.body as Row | null)?.attendance;
     if (!Array.isArray(list) || list.length > 500) invalid({ attendance: 'Send the list of members.' });
@@ -188,7 +223,7 @@ export function registerMeetings(ctx: ModuleContext) {
       await db.query(
         `insert into meeting_attendance (meeting_id, member_id, present, apology, updated_by) values ($1,$2,$3,$4,$5)
          on conflict (meeting_id, member_id) do update set present = excluded.present, apology = excluded.apology, updated_at = now(), updated_by = excluded.updated_by`,
-        [meeting.id, id, present, apology, req.user!.id]);
+        [meeting.id, id, present, apology, actorOf(req).id]);
     }
     const after = await attendanceOf(meeting);
     const changed = after.members.filter((m: Row) => {
@@ -211,138 +246,11 @@ export function registerMeetings(ctx: ModuleContext) {
     body: '{ attendance: [{ member_id, present, apology }] }',
   });
 
-  // ---------- agenda ----------
-
-  async function agendaOf(req: FastifyRequest, meeting: Row): Promise<Row[]> {
-    const rows = await db.query<Row>(
-      `select id, meeting_id, sort, title, presenter, record_type, record_id, workflow_kind, workflow_instance_id, notes
-       from agenda_items where meeting_id = $1 order by sort, created_at`, [meeting.id]);
-    const eng = engine();
-    for (const r of rows) {
-      r.record = null;
-      if (r.record_type && r.record_id) {
-        const def = ctx.resources.get(r.record_type);
-        const found = def && ctx.can(req.user, `${def.module}.view`) ? await ctx.resources.find(def.type, r.record_id, req.user) : undefined;
-        // A record the reader may not see (restricted, switched off, deleted) is not named.
-        r.record = found ? { type: def!.type, typeLabel: def!.label, id: found.id, label: await ctx.resources.labelFor(def!.type, found.id), ref: def!.ref ? found[def!.ref.field] : null, route: def!.route } : { hidden: true };
-      }
-      if (r.workflow_kind && eng && r.record_id && r.record && !r.record.hidden) {
-        const latest = await eng.latest(r.workflow_kind, r.record_id);
-        r.workflow = latest && latest.id === r.workflow_instance_id ? { name: latest.name, status: latest.status, label: approvalKind(app, r.workflow_kind)?.label ?? r.workflow_kind } : null;
-      }
-    }
-    return rows;
-  }
-
-  async function agendaInput(req: FastifyRequest, body: Row, existing: Row | null): Promise<Row> {
-    const out: Row = {};
-    const text = (k: string, max: number) => { if (body[k] !== undefined) out[k] = String(body[k] ?? '').trim().slice(0, max) || null; };
-    text('title', 300); text('presenter', 160); text('notes', 4000);
-    if (!existing && !out.title) invalid({ title: 'Give the item a title.' });
-    if ('title' in out && !out.title) invalid({ title: 'Give the item a title.' });
-    if (body.record_type !== undefined || body.record_id !== undefined) {
-      if (body.record_type && body.record_id) {
-        const target = await visibleTarget(ctx, req, body.record_type, body.record_id);
-        out.record_type = String(body.record_type);
-        out.record_id = target.id;
-      } else { out.record_type = null; out.record_id = null; }
-      out.workflow_kind = null; out.workflow_instance_id = null;
-    }
-    if (body.workflow_kind) {
-      const kind = approvalKind(app, String(body.workflow_kind));
-      const recordType = out.record_type ?? existing?.record_type;
-      const recordId = out.record_id ?? existing?.record_id;
-      const running = kind && kind.recordType === recordType && recordId ? await engine()?.running(kind.key, recordId) : null;
-      if (!running) invalid({ workflow_kind: 'No approval of that kind is waiting on this record.' });
-      out.workflow_kind = kind!.key;
-      out.workflow_instance_id = running!.id;
-    }
-    return out;
-  }
-
-  const itemOf = async (meetingId: string, itemId: string): Promise<Row> =>
-    (UUID_RE.test(itemId) ? await db.one<Row>('select * from agenda_items where id = $1 and meeting_id = $2', [itemId, meetingId]) : undefined)
-      ?? ctx.fail(404, 'not_found', 'Agenda item not found.');
-
-  app.get('/api/meetings/:id/agenda', { preHandler: ctx.requirePerm('governance.view') }, async (req) => agendaOf(req, await meetingFor(ctx, req)));
-  ctx.describeRoute({
-    method: 'GET', path: '/api/meetings/:id/agenda', tag: 'Governance', permission: 'governance.view',
-    summary: 'A meeting\'s agenda; a record the reader may not see is not named',
-    response: '[{ id, sort, title, presenter, record_type, record_id, record: { type, typeLabel, id, label, ref, route } | { hidden }, workflow_kind, workflow, notes }]',
-  });
-
-  app.post('/api/meetings/:id/agenda', { preHandler: ctx.requirePerm('governance.edit') }, async (req, reply) => {
-    const meeting = await meetingFor(ctx, req);
-    await locked(meeting);
-    const input = await agendaInput(req, (req.body ?? {}) as Row, null);
-    const next = (await db.one<{ n: number }>('select coalesce(max(sort), 0)::int + 10 as n from agenda_items where meeting_id = $1', [meeting.id]))!.n;
-    const row = (await db.one<Row>(
-      `insert into agenda_items (meeting_id, sort, title, presenter, record_type, record_id, workflow_kind, workflow_instance_id, notes, created_by, updated_by)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10) returning id`,
-      [meeting.id, next, input.title, input.presenter ?? null, input.record_type ?? null, input.record_id ?? null,
-        input.workflow_kind ?? null, input.workflow_instance_id ?? null, input.notes ?? null, req.user!.id]))!;
-    await ctx.audit(req, { action: 'meeting.agenda_add', recordType: 'meeting', recordId: meeting.id, summary: `Agenda item added: ${input.title}`, after: { item_id: row.id, ...input } });
-    reply.code(201);
-    return (await agendaOf(req, meeting)).find((r) => r.id === row.id);
-  });
-  ctx.describeRoute({
-    method: 'POST', path: '/api/meetings/:id/agenda', tag: 'Governance', permission: 'governance.edit',
-    summary: 'Add an agenda item, optionally about a record or an approval waiting for the chair',
-    body: '{ title, presenter?, notes?, record_type?, record_id?, workflow_kind? }',
-  });
-
-  app.patch('/api/meetings/:id/agenda/:itemId', { preHandler: ctx.requirePerm('governance.edit') }, async (req) => {
-    const meeting = await meetingFor(ctx, req);
-    await locked(meeting);
-    const before = await itemOf(meeting.id, (req.params as { itemId: string }).itemId);
-    const input = await agendaInput(req, (req.body ?? {}) as Row, before);
-    const keys = Object.keys(input);
-    if (keys.length) {
-      await db.query(`update agenda_items set ${keys.map((k, i) => `${k} = $${i + 2}`).join(', ')}, updated_at = now(), updated_by = $${keys.length + 2} where id = $1`,
-        [before.id, ...keys.map((k) => input[k]), req.user!.id]);
-      await ctx.audit(req, {
-        action: 'meeting.agenda_change', recordType: 'meeting', recordId: meeting.id, summary: `Agenda item changed: ${input.title ?? before.title}`,
-        before: Object.fromEntries(keys.map((k) => [k, before[k]])), after: input,
-      });
-    }
-    return (await agendaOf(req, meeting)).find((r) => r.id === before.id);
-  });
-  ctx.describeRoute({
-    method: 'PATCH', path: '/api/meetings/:id/agenda/:itemId', tag: 'Governance', permission: 'governance.edit',
-    summary: 'Change an agenda item', body: '{ title?, presenter?, notes?, record_type?, record_id?, workflow_kind? }',
-  });
-
-  app.delete('/api/meetings/:id/agenda/:itemId', { preHandler: ctx.requirePerm('governance.edit') }, async (req) => {
-    const meeting = await meetingFor(ctx, req);
-    await locked(meeting);
-    const before = await itemOf(meeting.id, (req.params as { itemId: string }).itemId);
-    await db.query('delete from agenda_items where id = $1', [before.id]);
-    await ctx.audit(req, { action: 'meeting.agenda_remove', recordType: 'meeting', recordId: meeting.id, summary: `Agenda item removed: ${before.title}`, before });
-    return { ok: true };
-  });
-  ctx.describeRoute({ method: 'DELETE', path: '/api/meetings/:id/agenda/:itemId', tag: 'Governance', permission: 'governance.edit', summary: 'Remove an agenda item' });
-
-  app.put('/api/meetings/:id/agenda/order', { preHandler: ctx.requirePerm('governance.edit') }, async (req) => {
-    const meeting = await meetingFor(ctx, req);
-    await locked(meeting);
-    const ids = (req.body as Row | null)?.ids;
-    const current = await db.query<{ id: string }>('select id from agenda_items where meeting_id = $1', [meeting.id]);
-    if (!Array.isArray(ids) || ids.length !== current.length || new Set(ids).size !== ids.length || !ids.every((id) => current.some((c) => c.id === id))) {
-      invalid({ ids: 'Send every item of the agenda once, in the new order.' });
-    }
-    await db.tx(async (tx) => {
-      for (const [i, id] of (ids as string[]).entries()) await tx.query('update agenda_items set sort = $2 where id = $1', [id, (i + 1) * 10]);
-    });
-    await ctx.audit(req, { action: 'meeting.agenda_order', recordType: 'meeting', recordId: meeting.id, summary: 'Agenda reordered', after: { ids } });
-    return agendaOf(req, meeting);
-  });
-  ctx.describeRoute({ method: 'PUT', path: '/api/meetings/:id/agenda/order', tag: 'Governance', permission: 'governance.edit', summary: 'Put the agenda in a new order', body: '{ ids: [item id, ...] }' });
-
   // ---------- the frozen pack ----------
 
   app.post('/api/meetings/:id/freeze-pack', { preHandler: ctx.requirePerm('governance.edit') }, async (req, reply) => {
     const meeting = await meetingFor(ctx, req);
-    await locked(meeting);
+    await locked(meeting, req);
     if (!ctx.resources.get('report_pack')) ctx.fail(409, 'reports_unavailable', 'Report packs are not available in this installation.');
     if (!ctx.can(req.user, 'reports.export')) ctx.fail(403, 'forbidden', 'Freezing a pack produces it as a document, which needs permission to export reports.');
     const packId = String((req.body as Row | null)?.pack_id ?? '');

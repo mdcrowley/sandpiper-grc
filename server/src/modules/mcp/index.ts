@@ -17,6 +17,7 @@ import { UUID_RE } from '../../core/errors.ts';
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
 import { checkSources, issueToken, scopeCovered, tokenScopes } from '../../core/tokens.ts';
 import { dataLoadFor, readDataLoad } from '../../core/dataload.ts';
+import { reviewerSql } from '../../core/reviewers.ts';
 import { registerEndpoint } from './http.ts';
 import { oauthBase, registerOAuth, secureBase } from './oauth.ts';
 import { chosenTools, hasMcpScope, KEYS, MCP_SCOPE, mayConnect, readSettings, type McpSettings } from './settings.ts';
@@ -104,6 +105,29 @@ const mod: ModuleDef = {
       };
     });
     ctx.describeRoute({ method: 'GET', path: '/api/mcp/session', summary: 'Who an MCP token acts as, and whether it is accepted at /mcp (tokens only)', tag: 'AI assistants' });
+
+    // People by an exact username, email or display name, for the record tools' person fields (E45-46,
+    // wave 25). Only exact matches, so it tells no more than the user picker does; active staff
+    // accounts only, except in a data load, which may name disabled accounts and outside reviewers.
+    app.get('/api/mcp/people', async (req) => {
+      if (!req.apiToken) ctx.fail(403, 'token_required', 'Only a personal access token can be used here.');
+      const q = String((req.query as Row).q ?? '').trim().slice(0, 250);
+      if (!q) return [];
+      const load = await dataLoadFor(db, req, ctx.audit);
+      const rows = await db.query<Row>(
+        `select id, display_name, lower(username) = lower($1) as by_username, lower(coalesce(email, '')) = lower($1) as by_email
+         from users u
+         where deleted_at is null and (lower(username) = lower($1) or lower(coalesce(email, '')) = lower($1) or lower(display_name) = lower($1))
+           ${load ? '' : `and status <> 'disabled' and not ${await reviewerSql(db, 'u.id')}`}
+         order by display_name limit 10`, [q]);
+      return rows.map((r) => ({ id: r.id, name: r.display_name, by: r.by_username ? 'username' : r.by_email ? 'email' : 'name' }));
+    });
+    ctx.describeRoute({
+      method: 'GET', path: '/api/mcp/people', tag: 'AI assistants', summary: 'Accounts with exactly this username, email or display name (tokens only)',
+      query: { q: 'A username, email address or display name (exact, any case).' },
+      response: '[{ id, name, by: "username" | "email" | "name" }]',
+      description: 'For the assistant tools that fill person fields. Active staff accounts only, except while the token\'s saves are data loads, when disabled accounts count too.',
+    });
 
     // ---------- connecting an assistant (each person) ----------
 

@@ -11,6 +11,7 @@ import { ChecklistTab } from './ChecklistTab';
 import { ClocksRail } from './Clocks';
 import { EditableTable } from './EditableTable';
 import { LogTab } from './LogTab';
+import { NextStageButton } from './NextStage';
 import { RansomTab } from './RansomTab';
 import { ReviewTab } from './ReviewTab';
 import { RolesTab, TeamCard } from './Roles';
@@ -142,23 +143,10 @@ export function Workspace() {
   const refresh = () => { reload(); bump(); };
   const rec: RecordContext = { row, resource, reload, save: (patch) => save(patch).then((r) => { bump(); return r; }), canEdit };
   const version = `${row.updated_at}:${tick}`;
-  const stage = lifecycle?.statuses.find((s) => s.value === row.status)?.stage;
-  const declareAs = lifecycle?.statuses.find((s) => s.stage === 'declared')?.value;
-  // Declaring follows the lifecycle rules too (E14-31).
-  const declareBlocked = declareAs
-    ? moveBlockedReason(editableLifecycle(resource.lifecycle, 'status'), row.status, declareAs, lifecycle?.statuses.find((s) => s.value === declareAs)?.label ?? declareAs, lifecycle?.statuses.map((s) => s.value))
-    : '';
+  // The next-stage button follows the lifecycle rules too (E14-31): a move they do not allow says why.
+  const rules = editableLifecycle(resource.lifecycle, 'status');
+  const moveBlocked = (to: string, label: string) => moveBlockedReason(rules, row.status, to, label, lifecycle?.statuses.map((s) => s.value));
   const goTo = (key: string) => setSearch((old) => { const next = new URLSearchParams(old); next.set('tab', key); return next; }, { replace: true });
-
-  async function declare() {
-    if (!declareAs) return;
-    try {
-      await rec.save({ status: declareAs });
-      toast.success('Incident declared. The notification clocks are running.');
-    } catch (err) {
-      toast.error(errorMessage(err));
-    }
-  }
 
   const stepsLeft = checklist.data ? checklist.data.filter((i) => !i.done).length : undefined;
   const filesMissing = files.error instanceof ApiError && files.error.status === 404;
@@ -219,7 +207,9 @@ export function Workspace() {
         )}
         actions={(
           <>
-            {canEdit && stage === 'reported' && <Button variant="primary" icon="alert" onClick={declare} disabled={Boolean(declareBlocked)} title={declareBlocked || undefined}>Declare incident</Button>}
+            {canEdit && (
+              <NextStageButton incidentId={row.id} declared={!!row.declared_at} version={version} onMoved={refresh} goTo={goTo} blockedReason={moveBlocked} />
+            )}
             {canEdit && <Button icon="edit" onClick={() => setEditing(true)}>Edit details</Button>}
             <Link className="btn btn-secondary" to={`/security-incidents/${row.id}/report`}>Incident report</Link>
             <Menu label="More" icon="more" iconOnly align="end" items={[

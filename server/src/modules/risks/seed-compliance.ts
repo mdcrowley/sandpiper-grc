@@ -107,15 +107,20 @@ async function seedAppetite(ctx: ModuleContext): Promise<number> {
     ['enterprise', 'Invented example: moderate appetite for enterprise risks taken on to improve service.', 'high'],
     ['third_party', 'Invented example: low appetite for dependence on a single supplier without an exit plan.', 'medium'],
     ['compliance', 'Invented example: no appetite for knowingly missing a legal or funding requirement.', 'low'],
-    ['safety', 'Invented example: no appetite for hazards above "serious" without immediate controls.', 'medium'],
+    ['safety', 'Invented example: no appetite for harm to passengers or staff above "serious" without immediate controls.', 'medium'],
   ];
   const categories = new Set((await ctx.lookups.values('risk_category')).map((v) => v.value));
   let added = 0;
   for (const [category, statement, max] of rows) {
     if (!categories.has(category)) continue;
+    // E45-04: each category's appetite is version 1, approved by an invented board.
     await ctx.db.query(
-      `insert into risk_appetite (category, statement, max_rating, approved_on, approved_by_name, reference) values ($1,$2,$3,$4,$5,$6)
-       on conflict (category) do nothing`, [category, statement, max, day(-90), 'Sample Board', 'SAMPLE-RES-014']);
+      `insert into risk_appetite (category, statement, max_rating, approved_on, approved_by_name, approval_body, reference, version, reason) values ($1,$2,$3,$4,$5,$6,$7,1,$8)
+       on conflict (category) do nothing`, [category, statement, max, day(-90), 'Sample Chair', 'Sample Board of Directors', 'SAMPLE-RES-014', 'Sample: first appetite statement']);
+    await ctx.db.query(
+      `insert into risk_appetite_versions (category, version, statement, max_rating, approved_on, approved_by_name, approval_body, reference, reason)
+       values ($1,1,$2,$3,$4,$5,$6,$7,$8) on conflict (category, version) do nothing`,
+      [category, statement, max, day(-90), 'Sample Chair', 'Sample Board of Directors', 'SAMPLE-RES-014', 'Sample: first appetite statement']);
     added += 1;
   }
   return added;

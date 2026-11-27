@@ -7,6 +7,7 @@ import type { FastifyRequest } from 'fastify';
 import { UUID_RE } from '../../core/errors.ts';
 import { assertNotHeld } from '../../core/holds.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { actorOf } from '../../core/dataload.ts';
 import { addMonths, monthEndOf } from '../../../../shared/dates.ts';
 import { CLOSED_CONTRACT_STATUSES } from './reminders.ts';
 import { addDays, localDate } from './dates.ts';
@@ -341,7 +342,7 @@ export function registerPerformance(ctx: ModuleContext): void {
       `insert into contract_scores (measure_id, contract_id, period, period_end, value, comment, recorded_by, created_by, updated_by)
        values ($1,$2,$3,$4,$5,$6,$7,$7,$7)
        on conflict (measure_id, period) where deleted_at is null do nothing returning id`,
-      [measure.id, contract.id, period, range!.end, value, comment, req.user!.id]);
+      [measure.id, contract.id, period, range!.end, value, comment, actorOf(req).id]);
     if (!row) ctx.fail(409, 'conflict', `A score for ${periodLabel(period)} is already recorded. Change that score instead.`, { period: 'Already scored.' });
     const met = meets(value!, Number(measure.target), measure.direction as Direction);
     await ctx.audit(req, {
@@ -383,7 +384,7 @@ export function registerPerformance(ctx: ModuleContext): void {
         `update contract_scores set value = $2, comment = $3, updated_at = now(), updated_by = $4
          where id = $1 and deleted_at is null
            and ($5::timestamptz is null or abs(extract(epoch from (updated_at - $5::timestamptz))) < 0.001) returning id`,
-        [existing.id, next.value ?? existing.value, 'comment' in next ? next.comment : existing.comment, req.user!.id, seen]);
+        [existing.id, next.value ?? existing.value, 'comment' in next ? next.comment : existing.comment, actorOf(req).id, seen]);
       if (!saved) ctx.fail(409, 'version_conflict', 'Someone else changed this score. Reload to see their change.');
       await ctx.audit(req, {
         action: 'contract.score_update', recordType: 'contract', recordId: contract.id,

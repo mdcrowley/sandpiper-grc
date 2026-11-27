@@ -1,6 +1,7 @@
 import type { FastifyRequest } from 'fastify';
 import { UUID_RE } from '../../core/errors.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { applyFunder } from './funders.ts';
 import { idParam, label } from './shared.ts';
 
 /**
@@ -116,7 +117,8 @@ export function registerAwards(ctx: ModuleContext) {
     fields: {
       ref: { label: 'Reference', type: 'text', readOnly: true },
       title: { label: 'Award', type: 'text', required: true },
-      funder_name: { label: 'Funder', type: 'text', personal: false },
+      funder_id: { label: 'Funder', type: 'ref', to: 'funder' },
+      funder_name: { label: 'Funder name', type: 'text', personal: false },
       program_name: { label: 'Funding program', type: 'text', personal: false },
       award_number: { label: 'Award number', type: 'text' },
       status: { label: 'Status', type: 'lookup', list: 'funding_award_status', default: 'applied' },
@@ -132,8 +134,8 @@ export function registerAwards(ctx: ModuleContext) {
       notes: { label: 'Notes', type: 'longtext', personal: false },
     },
     hooks: {
-      beforeCreate: (_req, data) => { check(data); return data; },
-      beforeUpdate: (_req, existing, patch) => { check({ ...existing, ...patch }); return patch; },
+      beforeCreate: async (req, data) => { check(data); return applyFunder(ctx, req, data); },
+      beforeUpdate: async (req, existing, patch) => { check({ ...existing, ...patch }); return applyFunder(ctx, req, patch); },
       afterCreate: (_req, row) => follow(row),
       afterUpdate: (_req, _before, after) => follow(after),
     },

@@ -45,7 +45,7 @@ function NeedsAttention() {
   if (overdue > 0) items.push({ key: 'overdue', count: overdue, label: plural(overdue, 'Action overdue', 'Actions overdue'), detail: `${actions.data?.due_this_week ?? 0} more due this week`, to: '/actions', tone: 'red' });
   const lateFixes = vulnerabilities.data?.totals.overdue ?? 0;
   if (lateFixes > 0) items.push({ key: 'vulnerabilities', count: lateFixes, label: plural(lateFixes, 'Vulnerability past its fix-by date', 'Vulnerabilities past their fix-by date'), detail: `${vulnerabilities.data?.totals.open ?? 0} open in all`, to: '/vulnerabilities?f.overdue=true&f.closed=false', tone: 'red' });
-  // Risks (only for people who can see them: the source is allowed only with risks.view and security.view).
+  // Risks (only for people who can see them: the source is allowed with risks.view; restricted risks are masked by the server).
   const expiredAcceptances = risks.data?.acceptances_expired ?? 0;
   if (expiredAcceptances > 0) items.push({ key: 'risk-acceptances', count: expiredAcceptances, label: plural(expiredAcceptances, 'Risk acceptance expired', 'Risk acceptances expired'), detail: 'Accept the risk again, or treat it', to: '/risks/reviews', tone: 'red' });
   const toReview = risks.data?.needs_review ?? 0;

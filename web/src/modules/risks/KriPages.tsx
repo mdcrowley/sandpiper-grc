@@ -9,7 +9,7 @@ import { RiskTabs } from './RiskTabs';
 
 // Key risk indicators (E30-07): the list and one indicator with its monthly values. An indicator is
 // entered by hand each month or computed every day from a metric another module offers; at red it
-// brings its risk's review forward and tells the owners. Indicators are restricted like risks.
+// brings its risk's review forward and tells the owners. An indicator on a restricted risk is restricted with it (E45-01).
 
 const LEVEL: Record<string, { label: string; color: ColorName }> = {
   green: { label: 'Green', color: 'green' }, amber: { label: 'Amber', color: 'amber' }, red: { label: 'Red', color: 'red' },
@@ -67,7 +67,7 @@ export function KriList() {
     <div className="stack">
       <PageHeader
         title="Key risk indicators"
-        subtitle="Early warnings for the risk register: a monthly value against amber and red thresholds, entered by hand or computed from the application's own records. Restricted, like risks."
+        subtitle="Early warnings for the risk register: a monthly value against amber and red thresholds, entered by hand or computed from the application's own records. An indicator on a restricted risk is restricted with it."
       />
       <RiskTabs active="indicators" />
       <div className="grid-stats">

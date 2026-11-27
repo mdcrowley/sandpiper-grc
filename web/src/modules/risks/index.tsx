@@ -26,7 +26,7 @@ const mod: ModuleDef = {
     { group: 'Risk and compliance', label: 'Key risk indicators', path: '/kris', icon: 'target', permission: 'risks.view', order: 12, menu: false, parent: '/risks' },
     { group: 'Risk and compliance', label: 'Risk report', path: '/risks/report', icon: 'chart', permission: 'risks.view', order: 13, menu: false, parent: '/risks' },
     { group: 'Risk and compliance', label: 'Risk scales', path: '/risks/scales', icon: 'target', permission: 'risks.administer', order: 14, menu: false, parent: '/risks', hub: 'Area settings', hint: 'Likelihood and impact levels and the rating matrix.' },
-    { group: 'Risk and compliance', label: 'Risk appetite', path: '/risks/appetite', icon: 'scale', permission: 'risks.administer', order: 15, menu: false, parent: '/risks', hub: 'Area settings', hint: 'How much risk the organization accepts, by category.' },
+    { group: 'Risk and compliance', label: 'Risk appetite', path: '/risks/appetite', icon: 'scale', permission: 'risks.view', order: 15, menu: false, parent: '/risks', hub: 'Area settings', hint: 'How much risk the organization accepts, by category.' },
     { group: 'Risk and compliance', label: 'Obligations', path: '/obligations', icon: 'scale', permission: 'obligations.view', order: 20, tabs: 'Obligations' },
     { group: 'Risk and compliance', label: 'Regulatory changes', path: '/regulatory-changes', icon: 'file-text', permission: 'obligations.view', order: 21, menu: false, parent: '/obligations', tab: 'Regulatory changes' },
     { group: 'Risk and compliance', label: 'Action tracker', path: '/actions', icon: 'check-square', permission: 'actions.view', order: 60, tabs: 'Action tracker' },
@@ -49,7 +49,7 @@ const mod: ModuleDef = {
     { path: '/regulatory-changes/:id', element: <RegulatoryChangeDetail />, permission: 'obligations.view' },
     { path: '/kris', element: <KriList />, permission: 'risks.view' },
     { path: '/kris/:id', element: <KriDetail />, permission: 'risks.view' },
-    { path: '/risks/appetite', element: <Appetite />, permission: 'risks.administer' },
+    { path: '/risks/appetite', element: <Appetite />, permission: 'risks.view' },
   ],
   create: [
     { label: 'Risk', path: '/risks?new=1', permission: 'risks.create' },

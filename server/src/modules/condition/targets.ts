@@ -1,6 +1,7 @@
 import type { FastifyRequest } from 'fastify';
 import { approvalEngine, defineApprovalKind } from '../../core/approval-kinds.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { actorOf } from '../../core/dataload.ts';
 import { dayInZone } from '../../core/timezone.ts';
 
 /**
@@ -101,7 +102,7 @@ export function registerTargets(ctx: ModuleContext) {
          approved_on = case when $7::boolean then condition_targets.approved_on end,
          approved_by_name = case when $7::boolean then condition_targets.approved_by_name end,
          updated_at = now(), updated_by = excluded.updated_by
-       returning id`, [cls.id, year, pct, decision, note, req.user!.id, keepApproval, keepPending]);
+       returning id`, [cls.id, year, pct, decision, note, actorOf(req).id, keepApproval, keepPending]);
     const after = (await db.one<TargetRow>(`${SELECT} where id = $1`, [row!.id]))!;
     await ctx.audit(req, {
       action: 'asset_class.target', recordType: 'asset_class', recordId: cls.id,
@@ -129,7 +130,7 @@ export function registerTargets(ctx: ModuleContext) {
     if (before!.status === 'pending_approval') await approvalEngine(app)?.cancel(KIND, cls.id, `Approved directly${decision ? ` (${decision})` : ''}.`, req);
     await db.query(
       `update condition_targets set status = 'approved', approved_on = $2, approved_by_name = $3, decision_ref = $4, updated_at = now(), updated_by = $5
-       where id = $1 and status <> 'approved'`, [before!.id, dayInZone(), req.user!.displayName, decision, req.user!.id]);
+       where id = $1 and status <> 'approved'`, [before!.id, dayInZone(), actorOf(req).name, decision, actorOf(req).id]);
     const after = (await db.one<TargetRow>(`${SELECT} where id = $1`, [before!.id]))!;
     await ctx.audit(req, {
       action: 'asset_class.target_approve', recordType: 'asset_class', recordId: cls.id,

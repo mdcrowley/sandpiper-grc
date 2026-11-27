@@ -1,3 +1,4 @@
+import { actorOf } from '../../core/dataload.ts';
 import { UUID_RE } from '../../core/errors.ts';
 import { TIME_ZONE } from '../../core/timezone.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
@@ -181,7 +182,7 @@ export function makeConflicts(ctx: ModuleContext, base: Base) {
       await base.insertRow('change_conflict_overrides', {
         change_id: change.id, conflict_key: c.key, summary: c.summary, reason,
         window_start: new Date(change.planned_start).toISOString(), window_end: new Date(change.planned_end).toISOString(),
-        acknowledged_by: req?.user?.id ?? null, acknowledged_by_name: base.actorName(req),
+        acknowledged_by: actorOf(req).id, acknowledged_by_name: base.actorName(req),
       });
       await ctx.audit(req, {
         action: 'change.conflict_override', recordType: 'change', recordId: change.id,

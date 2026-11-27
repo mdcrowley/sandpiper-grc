@@ -3,6 +3,7 @@
 // their acknowledgments from a sign-in sheet, by hand, or on the kiosk on a signed-in device.
 // There is no unauthenticated route: every acknowledgment records who recorded it.
 import type { FastifyRequest } from 'fastify';
+import { actorOf, dataLoadFor } from '../../core/dataload.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { makeDbLimiter } from '../../core/ratelimit.ts';
 import { readableSql, readerIds, tablesFor, type AccessTables } from './access.ts';
@@ -138,18 +139,24 @@ export function registerPersonAcks(ctx: ModuleContext, tables: AccessTables = ta
    * { people?: [person id], employee_numbers?: [text], method: 'sign_in_sheet' | 'recorded',
    *   acknowledged_on?: YYYY-MM-DD (default today, never in the future), sheet_attachment_id? }.
    * A person who was not asked is added; one who has already acknowledged is skipped.
+   * In data load mode (E18-94) `version` may name an earlier version (or one of an obsolete document),
+   * `acknowledged_at` may give the time, and the person who recorded it follows `on_behalf_of`.
    */
   app.post('/api/policies/:id/person-acknowledgments', recording, async (req, reply) => {
     needRoster();
     const policy = await needPolicy(req);
-    if (policy.status === 'retired') ctx.fail(409, 'retired', 'This policy is retired. There is nothing to acknowledge.');
-    const version = await versionOf(policy, undefined) ?? ctx.fail(409, 'not_published', 'This policy has no published version to acknowledge.');
     const body = (req.body ?? {}) as Row;
+    const load = await dataLoadFor(db, req, ctx.audit);
+    if (policy.status === 'retired' && !load) ctx.fail(409, 'retired', 'This policy is retired. There is nothing to acknowledge.');
+    const version = await versionOf(policy, load ? body.version : undefined)
+      ?? ctx.fail(409, 'not_published', load && body.version !== undefined ? `This document has no published version ${body.version}.` : 'This policy has no published version to acknowledge.');
     const today = localDate();
     const fields: Record<string, string> = {};
     const method = String(body.method ?? 'recorded');
     if (!['sign_in_sheet', 'recorded'].includes(method)) fields.method = 'Choose a sign-in sheet or recorded by hand.';
-    const on = body.acknowledged_on ? String(body.acknowledged_on) : today;
+    const loadedAt = load && body.acknowledged_at ? new Date(String(body.acknowledged_at)) : null;
+    if (loadedAt && (Number.isNaN(loadedAt.getTime()) || loadedAt.getTime() > Date.now())) fields.acknowledged_at = 'Enter a past date and time (ISO 8601).';
+    const on = loadedAt && !fields.acknowledged_at ? localDate(loadedAt) : body.acknowledged_on ? String(body.acknowledged_on) : today;
     if (!isDate(on)) fields.acknowledged_on = 'Enter a date as YYYY-MM-DD.';
     else if (on > today) fields.acknowledged_on = 'The date cannot be in the future.';
     // E41-07: the language the sheet was read in, when the version has a translation in it (default: the original's).
@@ -179,8 +186,10 @@ export function registerPersonAcks(ctx: ModuleContext, tables: AccessTables = ta
     );
     const known = new Set(found.flatMap((p) => [p.id, String(p.employee_number ?? '').toLowerCase()]));
     const unknown = [...ids.filter((i) => !known.has(i)), ...numbers.filter((n) => !known.has(n.toLowerCase()))];
-    const at = on === today ? new Date().toISOString() : `${on}T12:00:00Z`;
-    const due = addDays(today, Math.max(1, Math.trunc(Number(policy.ack_days) || 14)));
+    const at = loadedAt ? loadedAt.toISOString() : on === today ? new Date().toISOString() : `${on}T12:00:00Z`;
+    // A load is history: the request was due when it was answered.
+    const due = load ? on : addDays(today, Math.max(1, Math.trunc(Number(policy.ack_days) || 14)));
+    const by = actorOf(req);
     const { language, translation_sha256: stamp } = await textRead(db, String(version.id), body.language);
     let recorded = 0;
     let already = 0;
@@ -193,13 +202,13 @@ export function registerPersonAcks(ctx: ModuleContext, tables: AccessTables = ta
                sheet_attachment_id = excluded.sheet_attachment_id, superseded_at = null, language = excluded.language, translation_sha256 = excluded.translation_sha256
            where policy_person_acknowledgements.acknowledged_at is null
          returning id`,
-        [policy.id, version.id, p.id, due, at, method, req.user!.id, sheet, language, stamp],
+        [policy.id, version.id, p.id, due, at, method, by.id, sheet, language, stamp],
       );
       if (row) recorded++; else already++;
     }
     await ctx.audit(req, {
       action: 'policy.person_acknowledge', recordType: 'policy', recordId: policy.id,
-      summary: `${recorded} roster ${recorded === 1 ? 'acknowledgment' : 'acknowledgments'} of version ${version.version} of ${label(policy)} recorded by ${req.user!.displayName} (${method === 'sign_in_sheet' ? 'sign-in sheet' : 'by hand'}, ${on})`,
+      summary: `${recorded} roster ${recorded === 1 ? 'acknowledgment' : 'acknowledgments'} of version ${version.version} of ${label(policy)} recorded by ${by.name ?? req.user!.displayName} (${method === 'sign_in_sheet' ? 'sign-in sheet' : 'by hand'}, ${on})`,
       after: { version: Number(version.version), method, acknowledged_on: on, people: found.map((p) => p.id), recorded, already, sheet_attachment_id: sheet, language, translation_sha256: stamp },
     });
     reply.code(201);
@@ -208,7 +217,7 @@ export function registerPersonAcks(ctx: ModuleContext, tables: AccessTables = ta
   ctx.describeRoute({
     method: 'POST', path: '/api/policies/:id/person-acknowledgments', permission: 'policies.edit',
     summary: 'Record roster people\'s acknowledgments of the published version, from a sign-in sheet or by hand (needs policies.edit and people.view)',
-    body: '{ people?: [person id], employee_numbers?: [text], method: sign_in_sheet | recorded, acknowledged_on?: YYYY-MM-DD, sheet_attachment_id?, language? (the language read; recorded when the version has a translation in it) }',
+    body: '{ people?: [person id], employee_numbers?: [text], method: sign_in_sheet | recorded, acknowledged_on?: YYYY-MM-DD, sheet_attachment_id?, language? (the language read; recorded when the version has a translation in it); data load mode only: version? (an earlier published version), acknowledged_at? (ISO time), on_behalf_of? (who recorded it) }',
     response: '{ recorded, already, unknown: [ids or numbers not on the roster] }',
   });
 
@@ -331,7 +340,7 @@ export function registerPersonAcks(ctx: ModuleContext, tables: AccessTables = ta
          and p.id = a.policy_id and p.deleted_at is null and p.status = 'published' and v.id = a.version_id and v.status = 'published'
          and ${readableSql(req.user, 'p', tables)}
        returning a.id, a.policy_id, a.version_id, p.ref, p.title, v.version`,
-      [person.id, wanted, req.user!.id],
+      [person.id, wanted, actorOf(req).id],
     );
     // E41-07: the language each document was read in ({ ack id: code }, or one `language` for all).
     const said = (body.languages && typeof body.languages === 'object' ? body.languages : {}) as Row;
@@ -340,8 +349,8 @@ export function registerPersonAcks(ctx: ModuleContext, tables: AccessTables = ta
       await db.query('update policy_person_acknowledgements set language = $2, translation_sha256 = $3 where id = $1', [s.id, language, stamp]);
       await ctx.audit(req, {
         action: 'policy.person_acknowledge', recordType: 'policy', recordId: s.policy_id,
-        summary: `${person.ref} acknowledged version ${s.version} of ${label(s)} on the kiosk${language === BASE_LANGUAGE ? '' : ` (read in ${englishName(language)})`} (recorded by ${req.user!.displayName})`,
-        after: { version: Number(s.version), person_id: person.id, method: 'kiosk', recorded_by: req.user!.id, language, translation_sha256: stamp },
+        summary: `${person.ref} acknowledged version ${s.version} of ${label(s)} on the kiosk${language === BASE_LANGUAGE ? '' : ` (read in ${englishName(language)})`} (recorded by ${actorOf(req).name ?? req.user!.displayName})`,
+        after: { version: Number(s.version), person_id: person.id, method: 'kiosk', recorded_by: actorOf(req).id, language, translation_sha256: stamp },
       });
     }
     return { acknowledged: stamped.length };

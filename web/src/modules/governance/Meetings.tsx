@@ -3,13 +3,13 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  api, Button, Card, ConfirmDialog, EditableSummary, EmptyState, errorMessage, ErrorState, formatDateTime, IconButton, Loading,
-  LookupChip, LookupSelect, Modal, PageHeader, RecordPage, RecordPicker, ResourceList, Select, Stepper, TableWrap, TextArea, TextField, useAuth,
-  useFetch, useMeta, useResource, useLookup, useToast,
+  api, Button, Card, ConfirmDialog, EditableSummary, EmptyState, errorMessage, ErrorState, formatDateTime, Loading,
+  LookupChip, LookupSelect, Modal, Notice, PageHeader, RecordPage, RecordPicker, ResourceList, Select, Stepper, TableWrap, TextArea, TextField, useAuth,
+  useFetch, useResource, useLookup, useToast,
 } from '../../core';
 import type { RecordContext, Row } from '../../core';
 import { canMoveTo, editableLifecycle } from '../../core/lifecycleMenus';
-import { WaitingApprovals } from './Committees';
+import { Agenda, BookCard, MinutesTab, useRecordTypes, type AgendaItem } from './Board';
 import { GovernanceTabs, MeetingActions, RecordName, type NamedRecord } from './shared';
 
 export function MeetingList() {
@@ -130,120 +130,6 @@ function Invitations({ meeting, onChanged }: { meeting: Row; onChanged: () => vo
   );
 }
 
-// ---------- agenda ----------
-
-interface AgendaItem { id: string; sort: number; title: string; presenter: string | null; notes: string | null; record_type: string | null; record_id: string | null; record: NamedRecord | null; workflow_kind: string | null; workflow: { name: string; status: string; label: string } | null }
-
-/** Record types the person may pick from: those with a page, sorted by name. */
-function useRecordTypes(): { value: string; label: string }[] {
-  const { resources } = useMeta();
-  const { can } = useAuth();
-  return Object.entries(resources).filter(([, r]) => r.route && can(`${r.module}.view`)).map(([type, r]) => ({ value: type, label: r.label }))
-    .sort((a, b) => a.label.localeCompare(b.label));
-}
-
-function AgendaDialog({ meetingId, item, onClose, onSaved }: { meetingId: string; item: AgendaItem | null; onClose: () => void; onSaved: () => void }) {
-  const toast = useToast();
-  const types = useRecordTypes();
-  const [form, setForm] = useState({ title: item?.title ?? '', presenter: item?.presenter ?? '', notes: item?.notes ?? '', record_type: item?.record_type ?? '', record_id: item?.record_id ?? null as string | null });
-  const [start] = useState(form);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [busy, setBusy] = useState(false);
-  const set = (p: Partial<typeof form>) => setForm((f) => ({ ...f, ...p }));
-  const save = async () => {
-    setBusy(true); setErrors({});
-    const body: Record<string, unknown> = { title: form.title, presenter: form.presenter, notes: form.notes };
-    if (!item || form.record_type !== (item.record_type ?? '') || form.record_id !== item.record_id) {
-      body.record_type = form.record_type && form.record_id ? form.record_type : null;
-      body.record_id = form.record_type && form.record_id ? form.record_id : null;
-    }
-    try {
-      if (item) await api.patch(`/api/meetings/${meetingId}/agenda/${item.id}`, body); else await api.post(`/api/meetings/${meetingId}/agenda`, body);
-      toast.success(item ? 'Agenda item saved.' : 'Agenda item added.');
-      onSaved();
-    } catch (err) { setErrors((err as { fields?: Record<string, string> }).fields ?? {}); toast.error(errorMessage(err)); }
-    finally { setBusy(false); }
-  };
-  return (
-    <Modal open title={item ? 'Change agenda item' : 'Add an agenda item'} onClose={onClose} dirty={JSON.stringify(form) !== JSON.stringify(start)}
-      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" loading={busy} onClick={save}>{item ? 'Save' : 'Add'}</Button></>}>
-      <div className="form-grid">
-        <TextField className="form-cell-wide" label="Title" required value={form.title} error={errors.title} onChange={(v) => set({ title: v })} />
-        <TextField label="Presenter" value={form.presenter} onChange={(v) => set({ presenter: v })} />
-        <Select label="About a record of type" value={form.record_type} options={types} onChange={(v) => set({ record_type: v, record_id: null })} />
-        {form.record_type && <RecordPicker className="form-cell-wide" label="Record" type={form.record_type} value={form.record_id} error={errors.record_id} onChange={(id) => set({ record_id: id })} />}
-        <TextArea className="form-cell-wide" label="Notes" value={form.notes} onChange={(v) => set({ notes: v })} />
-      </div>
-    </Modal>
-  );
-}
-
-function Agenda({ meeting }: { meeting: Row }) {
-  const { can } = useAuth();
-  const toast = useToast();
-  const { data, error, reload } = useFetch<AgendaItem[]>(`/api/meetings/${meeting.id}/agenda`);
-  const [editing, setEditing] = useState<AgendaItem | 'new' | null>(null);
-  const [picking, setPicking] = useState(false);
-  const [removing, setRemoving] = useState<AgendaItem | null>(null);
-  const [busy, setBusy] = useState(false);
-  const canEdit = can('governance.edit') && meeting.status !== LOCKED && meeting.status !== 'canceled';
-  const run = async (fn: () => Promise<unknown>, done: string) => {
-    setBusy(true);
-    try { await fn(); toast.success(done); reload(); } catch (err) { toast.error(errorMessage(err)); } finally { setBusy(false); }
-  };
-  const move = (i: number, by: number) => {
-    if (!data) return;
-    const ids = data.map((x) => x.id);
-    [ids[i], ids[i + by]] = [ids[i + by], ids[i]];
-    void run(() => api.put(`/api/meetings/${meeting.id}/agenda/order`, { ids }), 'Agenda reordered.');
-  };
-  return (
-    <Card title="Agenda" flush actions={canEdit && (
-      <div className="row">
-        <Button size="sm" onClick={() => setPicking(true)}>Add a waiting approval</Button>
-        <Button size="sm" icon="plus" onClick={() => setEditing('new')}>Add an item</Button>
-      </div>
-    )}>
-      {error ? <ErrorState error={error} onRetry={reload} />
-        : !data ? <div className="gv-pad"><Loading lines={3} /></div>
-        : data.length === 0 ? <EmptyState icon="clipboard" title="No agenda yet" message="Add the items to discuss, and the approvals waiting for the chair's decision." />
-        : (
-          <ol className="gv-agenda">
-            {data.map((a, i) => (
-              <li key={a.id} className="gv-agenda-item">
-                <div className="gv-agenda-main">
-                  <strong>{i + 1}. {a.title}</strong>
-                  {a.presenter && <span className="muted"> · {a.presenter}</span>}
-                  {a.record && <div><RecordName record={a.record} /></div>}
-                  {a.workflow && <div className="muted">Waiting approval: {a.workflow.label} ({a.workflow.status === 'running' ? 'waiting' : a.workflow.status})</div>}
-                  {a.notes && <div className="prose muted">{a.notes}</div>}
-                </div>
-                {canEdit && (
-                  <div className="gv-actions">
-                    <IconButton icon="arrow-up" label={`Move "${a.title}" up`} size="sm" variant="ghost" disabled={i === 0 || busy} onClick={() => move(i, -1)} />
-                    <IconButton icon="arrow-down" label={`Move "${a.title}" down`} size="sm" variant="ghost" disabled={i === data.length - 1 || busy} onClick={() => move(i, 1)} />
-                    <Button size="sm" variant="ghost" aria-label={`Change: ${a.title}`} onClick={() => setEditing(a)}>Change</Button>
-                    <Button size="sm" variant="ghost" aria-label={`Remove: ${a.title}`} onClick={() => setRemoving(a)}>Remove</Button>
-                  </div>
-                )}
-              </li>
-            ))}
-          </ol>
-        )}
-      {editing && <AgendaDialog meetingId={meeting.id} item={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reload(); }} />}
-      <Modal open={picking} title="Approvals waiting for the chair" size="lg" onClose={() => setPicking(false)} footer={<Button onClick={() => setPicking(false)}>Close</Button>}>
-        <WaitingApprovals committeeId={meeting.committee_id} picking={busy} onPick={(w) => void run(async () => {
-          await api.post(`/api/meetings/${meeting.id}/agenda`, { title: `${w.kind_label}: ${w.ref ? `${w.ref} ` : ''}${w.label}`, record_type: w.record_type, record_id: w.record_id, workflow_kind: w.kind });
-          setPicking(false);
-        }, 'Added to the agenda.')} />
-      </Modal>
-      <ConfirmDialog open={!!removing} title="Remove this agenda item?" message={`"${removing?.title ?? ''}" will be removed from the agenda.`} danger busy={busy} confirmLabel="Remove"
-        onConfirm={() => void run(async () => { await api.del(`/api/meetings/${meeting.id}/agenda/${removing!.id}`); setRemoving(null); }, 'Agenda item removed.')}
-        onCancel={() => setRemoving(null)} />
-    </Card>
-  );
-}
-
 // ---------- pack ----------
 
 interface PackState { snapshot: { id: string; title: string; created_at: string; restricted: boolean } | null; frozen_at: string | null }
@@ -267,7 +153,8 @@ function Pack({ meeting }: { meeting: Row }) {
   if (!data) return <Loading lines={3} />;
   return (
     <div className="stack">
-      <Card title="Meeting pack">
+      <BookCard meeting={meeting} />
+      <Card title="Report pack">
         {data.snapshot ? (
           <p>
             {reports ? <Link to={`/reports/snapshots/${data.snapshot.id}`}>{data.snapshot.title}</Link> : data.snapshot.title}
@@ -347,7 +234,7 @@ function AttendanceTab({ meeting, onChanged }: { meeting: Row; onChanged: () => 
 
 // ---------- decisions ----------
 
-interface Decision { id: string; ref: string; title: string; outcome: string; record_type: string | null; record_id: string | null; agenda_item_id: string | null; applied_to_workflow: string | null; applied_at: string | null; record: NamedRecord | null }
+interface Decision { id: string; ref: string; title: string; outcome: string; record_type: string | null; record_id: string | null; agenda_item_id: string | null; applied_to_workflow: string | null; applied_at: string | null; record: NamedRecord | null; resolution_number: string | null; vote_summary: string | null }
 
 function DecisionDialog({ meeting, onClose, onSaved }: { meeting: Row; onClose: () => void; onSaved: () => void }) {
   const toast = useToast();
@@ -426,17 +313,19 @@ function Decisions({ meeting }: { meeting: Row }) {
     <Card title="Decisions" flush actions={canAdd && <Button size="sm" icon="plus" onClick={() => setAdding(true)}>Record a decision</Button>}>
       {error ? <ErrorState error={error} onRetry={reload} />
         : !data ? <div className="gv-pad"><Loading lines={3} /></div>
-        : data.length === 0 ? <EmptyState icon="check-square" title="No decisions recorded" message="Record each decision the committee takes, and the record it is about." />
+        : data.length === 0 ? <EmptyState icon="check-square" title="No decisions recorded" message="Record motions on the Minutes tab, or a decision without a motion here." />
         : (
-          <TableWrap label="Decisions taken at this meeting">
+          <TableWrap label="Decisions taken at this meeting" fit>
             <table className="table">
               <caption className="sr-only">Decisions taken at this meeting</caption>
-              <thead><tr><th scope="col">Decision</th><th scope="col">Outcome</th><th scope="col">Record</th><th scope="col">Approval</th></tr></thead>
+              <thead><tr><th scope="col">Decision</th><th scope="col">Outcome</th><th scope="col" data-priority="2">Resolution</th><th scope="col" data-priority="2">Vote</th><th scope="col">Record</th><th scope="col">Approval</th></tr></thead>
               <tbody>
                 {data.map((d) => (
                   <tr key={d.id}>
                     <td><Link className="row-title" to={`/governance/decisions/${d.id}`}><span className="ref">{d.ref}</span> {d.title}</Link></td>
                     <td><LookupChip list="decision_outcome" value={d.outcome} /></td>
+                    <td data-priority="2">{d.resolution_number ?? <span className="muted">None</span>}</td>
+                    <td data-priority="2">{d.vote_summary ?? <span className="muted">Not recorded</span>}</td>
                     <td><RecordName record={d.record} /></td>
                     <td>
                       {d.applied_at ? <span>{d.applied_to_workflow}</span>
@@ -461,7 +350,8 @@ export function MeetingDetail() {
       banner={({ row }) => (
         <div className="stack">
           {row.status === 'canceled' && <p className="notice notice-warn">This meeting was canceled.</p>}
-          {row.status === LOCKED && <p className="notice notice-success">The chair approved the minutes: the meeting is locked.</p>}
+          {row.status === LOCKED && <p className="notice notice-success">The minutes are approved: the meeting is locked.{row.minutes_published_at ? ' They are published to the members.' : ''}</p>}
+          {!row.chair_id && row.status !== 'canceled' && row.status !== LOCKED && <Notice tone="warning">The committee had no chair when this meeting was planned, so nobody can approve its minutes through the workflow. Approve them at a later meeting by a motion instead, or name the committee's chair.</Notice>}
           {row.status !== 'canceled' && <Stepper label="Progress" current={row.status} steps={STEPS} />}
         </div>
       )}
@@ -472,12 +362,14 @@ export function MeetingDetail() {
       )}
       tabs={[
         { key: 'agenda', label: 'Agenda', content: ({ row }) => <Agenda meeting={row} /> },
-        { key: 'pack', label: 'Pack', content: ({ row }) => <Pack meeting={row} /> },
+        { key: 'pack', label: 'Board book', content: ({ row }) => <Pack meeting={row} /> },
         { key: 'invitations', label: 'Invitations', content: ({ row, reload }) => <Invitations meeting={row} onChanged={reload} /> },
         { key: 'attendance', label: 'Attendance', content: ({ row, reload }) => <AttendanceTab meeting={row} onChanged={reload} /> },
         {
           key: 'minutes', label: 'Minutes', content: ({ row, reload }) => (
-            <EditableSummary type="meeting" row={row} onSaved={reload} title="Minutes" fields={['minutes']} editable={row.status === LOCKED ? false : undefined} />
+            <MinutesTab meeting={row} reload={reload} generalMinutes={(
+              <EditableSummary type="meeting" row={row} onSaved={reload} title="General minutes" fields={['minutes']} editable={row.status === LOCKED ? false : undefined} />
+            )} />
           ),
         },
         { key: 'decisions', label: 'Decisions', content: ({ row }) => <Decisions meeting={row} /> },

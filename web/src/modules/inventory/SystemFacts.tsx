@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { Badge, Group, Paper, RingProgress, SimpleGrid, Text, UnstyledButton } from '@mantine/core';
 import {
-  Button, Card, fieldMeta, FieldValue, Icon, LookupChip, ResourceForm, useAuth, useResource, useToast,
+  Button, Card, fieldMeta, FieldValue, formatDate, Icon, LookupChip, ResourceForm, todayInZone, useAuth, useResource, useToast,
 } from '../../core';
 import type { IconName, ResourceMeta, Row } from '../../core';
 import { plural } from './shared';
@@ -30,7 +30,9 @@ export const FACT_SECTIONS: FactSection[] = [
     hints: { authentication_method: 'For example single sign-on, or its own user names and passwords.', mfa_status: 'Whether sign-in needs a second factor.' } },
   { key: 'vendor', title: 'Vendor and contract', icon: 'building', fields: ['vendor_id', 'vendor_name', 'contract_id', 'agreement_on_file'],
     hints: { vendor_name: 'Free text for when no vendor record exists yet.' } },
-  { key: 'outlook', title: 'Outlook and notes', icon: 'file-text', fields: ['planned_replacement', 'status_outlook', 'sensitive_data_held', 'to_confirm', 'source', 'notes'] },
+  { key: 'lifecycle', title: 'Version, support and cost', icon: 'calendar', fields: ['version', 'support_end', 'annual_cost', 'planned_replacement'],
+    hints: { version: 'The release in use, for example "8.4".', support_end: 'When the vendor stops fixing it. Its technical owner is reminded before then.', annual_cost: 'Licenses, support and hosting for one year.' } },
+  { key: 'outlook', title: 'Outlook and notes', icon: 'file-text', fields: ['status_outlook', 'sensitive_data_held', 'to_confirm', 'source', 'notes'] },
 ];
 
 export interface FactCheck { key: string; label: string; section: string; done: boolean }
@@ -102,6 +104,11 @@ export function FactStrip({ row, checks, canEdit, onFill }: { row: Row; checks: 
         <KeyFact label="Hosting" missing={!filled(row.hosting_type)}><LookupChip list="hosting_type" value={row.hosting_type} /></KeyFact>
         <KeyFact label="Recovery time / point" missing={!filled(row.rto_hours) && !filled(row.rpo_hours)}>{hours(row.rto_hours)} / {hours(row.rpo_hours)}</KeyFact>
         <KeyFact label="Multi-factor" missing={!filled(row.mfa_status)}><LookupChip list="mfa_status" value={row.mfa_status} /></KeyFact>
+        {filled(row.support_end) && (
+          <KeyFact label="End of support" missing={false}>
+            {formatDate(row.support_end)}{String(row.support_end) < todayInZone() ? ' (ended)' : ''}
+          </KeyFact>
+        )}
         {checks.some((c) => c.key === 'vendor') && <KeyFact label="Vendor" missing={!filled(row.vendor_id) && !filled(row.vendor_name)}>{row._display?.vendor_id ?? row.vendor_name}</KeyFact>}
       </dl>
     </Paper>
@@ -128,7 +135,7 @@ function FactCard({ section, row, gaps, canEdit, editing, onEdit, onSaved }: {
   );
   const state = gaps.length
     ? <Badge color="amber" variant="light">{gaps.length} to record</Badge>
-    : section.key !== 'outlook' && <Badge color="green" variant="light" leftSection={<Icon name="check" size={11} />}>Complete</Badge>;
+    : section.key !== 'outlook' && section.key !== 'lifecycle' && <Badge color="green" variant="light" leftSection={<Icon name="check" size={11} />}>Complete</Badge>;
   return (
     <div ref={ref} id={`fact-${section.key}`} className="inv-fact">
       <Card

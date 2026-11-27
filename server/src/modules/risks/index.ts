@@ -1,7 +1,7 @@
 import type { FastifyRequest } from 'fastify';
 import { featureState, ownedOff, SWITCHED_OFF } from '../../core/features.ts';
 import { scheduleWork } from '../../core/jobs/index.ts';
-import { isDataLoad } from '../../core/dataload.ts';
+import { actorOf, isDataLoad } from '../../core/dataload.ts';
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
 import { registerAcceptanceWorkflow } from './acceptance.ts';
 import { makeActionExtras } from './actions.ts';
@@ -14,7 +14,8 @@ import { makeLifecycle } from './lifecycle.ts';
 import { runObligationReminders } from './obligation-reminders.ts';
 import { registerObligations, seedObligationDefaults } from './obligations.ts';
 import { registerRegulatoryChanges, seedRegulatoryChangeDefaults } from './regulatory-change.ts';
-import { DEFAULT_SCALE, makeScales, THRESHOLD_SETTING, type Scale } from './scales.ts';
+import { DEFAULT_SCALE, ENTERPRISE_SCALE_KEY, heatBasis, makeScales, THRESHOLD_SETTING, type Scale } from './scales.ts';
+import { riskMasker, seesRestricted } from './masking.ts';
 import { seedRisksModule } from './seed.ts';
 
 // Risk register, cross-module action tracker (actions-resource.ts) and obligations register
@@ -29,11 +30,13 @@ async function seedLookups(ctx: ModuleContext): Promise<void> {
     { value: 'high', label: 'High', color: 'orange', sort: 30 },
     { value: 'critical', label: 'Critical', color: 'red', sort: 40 },
   ], { module: 'risks' });
+  // Each category names its scale; `restricted` makes its new risks restricted records (security.view
+  // to see them) and `fields` lists the category's own fields (E45-02), shown only for its risks.
   await ctx.lookups.ensure('risk_category', [
-    { value: 'cyber', label: 'Cybersecurity', color: 'blue', sort: 10, meta: { scale: 'cyber_5x5' } },
-    { value: 'enterprise', label: 'Enterprise', color: 'purple', sort: 20, meta: { scale: 'cyber_5x5' } },
-    { value: 'third_party', label: 'Third party', color: 'teal', sort: 30, meta: { scale: 'cyber_5x5' } },
-    { value: 'compliance', label: 'Compliance', color: 'gray', sort: 40, meta: { scale: 'cyber_5x5' } },
+    { value: 'cyber', label: 'Cybersecurity', color: 'blue', sort: 10, meta: { scale: 'cyber_5x5', restricted: true, fields: ['affected'] } },
+    { value: 'enterprise', label: 'Enterprise', color: 'purple', sort: 20, meta: { scale: ENTERPRISE_SCALE_KEY } },
+    { value: 'third_party', label: 'Third party', color: 'teal', sort: 30, meta: { scale: ENTERPRISE_SCALE_KEY } },
+    { value: 'compliance', label: 'Compliance', color: 'gray', sort: 40, meta: { scale: ENTERPRISE_SCALE_KEY } },
     { value: 'safety', label: 'Safety', color: 'orange', sort: 50, meta: { scale: 'hazard_4x5' } },
   ], { module: 'risks' });
   await ctx.lookups.ensure('risk_treatment', [
@@ -107,8 +110,11 @@ const mod: ModuleDef = {
     const statusesWith = async (list: string, flag: string) =>
       (await ctx.lookups.values(list)).filter((v) => v.meta?.[flag]).map((v) => v.value);
 
-    // Risks are restricted: hand-written routes need security.view as well as the risks permission.
-    const riskPre = (action: string) => [ctx.requirePerm(`risks.${action}`), ctx.requirePerm('security.view')];
+    // E45-01: risks stand apart from security incidents: hand-written routes need the risks permission
+    // only. A restricted risk (cybersecurity risks by default) is seen only with security.view as well:
+    // one risk goes through ctx.resources.find, lists through visibleWhere, and figures count every
+    // risk and mask the restricted ones (masking.ts).
+    const riskPre = (action: string) => [ctx.requirePerm(`risks.${action}`)];
     /**
      * Whether a scale is offered: one that belongs to a switched-off area (`owns.risk_scale`, the safety
      * hazard matrix while safety is off) is not offered for new risks, the heat map or the scales page
@@ -141,6 +147,8 @@ const mod: ModuleDef = {
         ['inherent_impact', `Inherent ${scale.impact_label.toLowerCase()}`, scale.impact_levels],
         ['residual_likelihood', `Residual ${scale.likelihood_label.toLowerCase()}`, scale.likelihood_levels],
         ['residual_impact', `Residual ${scale.impact_label.toLowerCase()}`, scale.impact_levels],
+        ['target_likelihood', `Target ${scale.likelihood_label.toLowerCase()}`, scale.likelihood_levels],
+        ['target_impact', `Target ${scale.impact_label.toLowerCase()}`, scale.impact_levels],
       ];
       for (const [field, label, levels] of checks) {
         const v = merged[field];
@@ -149,7 +157,7 @@ const mod: ModuleDef = {
           errors[field] = `${label} must be one of the levels of the ${scale.name} scale: ${levels.map((l) => `${l.value} ${l.label}`).join(', ')}.`;
         }
       }
-      for (const basis of ['inherent', 'residual']) {
+      for (const basis of ['inherent', 'residual', 'target']) {
         const l = merged[`${basis}_likelihood`] ?? null;
         const i = merged[`${basis}_impact`] ?? null;
         if ((l === null) !== (i === null)) {
@@ -167,7 +175,27 @@ const mod: ModuleDef = {
         const parentError = await enterprise.checkParent(existing, data.parent_id);
         if (parentError) errors.parent_id = parentError;
       }
+      // E45-03: a target date belongs to a target rating.
+      if (merged.target_on && (merged.target_likelihood ?? null) === null && !errors.target_likelihood && !errors.target_impact) {
+        errors.target_on = 'Give the target likelihood and impact as well as the date, or clear the date.';
+      }
+      // E45-01: restriction is per risk. A new risk takes it from its category (cybersecurity risks are
+      // restricted by default). Only someone who sees restricted records may set or lift it, and
+      // nobody may create a risk that they could not then see.
+      if (!existing && (data.restricted === undefined || data.restricted === null)) {
+        const category = (await ctx.lookups.values('risk_category')).find((v) => v.value === merged.category);
+        data.restricted = category?.meta?.restricted === true;
+      }
+      if (req && !seesRestricted(ctx, req.user)) {
+        const wanted = data.restricted === undefined ? undefined : Boolean(data.restricted);
+        if (!existing && wanted) {
+          errors.category = 'Risks in this category are restricted records. Ask someone with access to restricted records to add it, or choose another category.';
+        } else if (existing && wanted !== undefined && wanted !== Boolean(existing.restricted)) {
+          errors.restricted = 'Only people with access to restricted records can change this.';
+        }
+      }
       if (Object.keys(errors).length) ctx.fail(400, 'validation', 'Check the highlighted fields.', errors);
+      if (data.restricted !== undefined) data.restricted = Boolean(data.restricted);
 
       const scored = scales.scoreRisk(scale, await scales.summaryLevels(), merged);
       return { ...data, ...scored, appetite_breach: await enterprise.breachFor({ ...merged, ...scored }, scale) };
@@ -176,7 +204,8 @@ const mod: ModuleDef = {
     ctx.defineResource({
       type: 'risk', table: 'risks', module: 'risks', label: 'Risk', plural: 'Risks',
       path: '/api/risks', route: '/risks', titleField: 'title', ref: { field: 'ref', prefix: 'RSK-' },
-      restricted: true,
+      // E45-01: restricted one by one (cybersecurity risks by default), not as a whole type.
+      restricted: 'flag',
       searchable: ['title', 'description', 'cause', 'consequence', 'affected'],
       defaultSort: { field: 'residual_score', dir: 'desc' },
       fields: {
@@ -210,10 +239,24 @@ const mod: ModuleDef = {
         // E30-08: the enterprise risk this one rolls up under; E30-06: above its category's appetite (kept by the module).
         parent_id: { label: 'Parent risk', type: 'ref', to: 'risk' },
         appetite_breach: { label: 'Above appetite', type: 'boolean', readOnly: true },
+        // E45-03: the target risk, where the treatment plan should bring it, and by when.
+        target_likelihood: { label: 'Target likelihood', type: 'number' },
+        target_impact: { label: 'Target impact', type: 'number' },
+        target_rating: { label: 'Target rating', type: 'text', readOnly: true },
+        target_score: { label: 'Target score', type: 'number', readOnly: true },
+        target_on: { label: 'Target date', type: 'date' },
+        // E45-01: a restricted risk needs access to restricted records (security.view) as well.
+        restricted: { label: 'Restricted', type: 'boolean' },
       },
       hooks: {
         beforeCreate: (req, data) => prepareRisk(req, null, data),
         beforeUpdate: (req, existing, patch) => prepareRisk(req, existing, patch),
+        // Key risk indicators follow their risk's restriction.
+        afterUpdate: async (_req, before, after) => {
+          if (Boolean(before.restricted) !== Boolean(after.restricted)) {
+            await ctx.db.query('update key_risk_indicators set restricted = $2 where risk_id = $1 and restricted <> $2', [after.id, Boolean(after.restricted)]);
+          }
+        },
       },
     });
 
@@ -241,12 +284,12 @@ const mod: ModuleDef = {
       if (existing) {
         // Levels in use by a risk cannot be removed: the risk would lose its meaning.
         const used = await ctx.db.query<Row>(
-          `select inherent_likelihood, inherent_impact, residual_likelihood, residual_impact from risks where scale_key = $1 and deleted_at is null`, [existing.key]);
+          `select inherent_likelihood, inherent_impact, residual_likelihood, residual_impact, target_likelihood, target_impact from risks where scale_key = $1 and deleted_at is null`, [existing.key]);
         const has = (levels: { value: number }[], v: number | null) => v === null || levels.some((l) => l.value === v);
-        if (used.some((r) => !has(next.likelihood_levels, r.inherent_likelihood) || !has(next.likelihood_levels, r.residual_likelihood))) {
+        if (used.some((r) => !has(next.likelihood_levels, r.inherent_likelihood) || !has(next.likelihood_levels, r.residual_likelihood) || !has(next.likelihood_levels, r.target_likelihood))) {
           ctx.fail(400, 'validation', 'Check the highlighted fields.', { likelihood_levels: 'A level that risks are scored on cannot be removed. Re-score those risks first.' });
         }
-        if (used.some((r) => !has(next.impact_levels, r.inherent_impact) || !has(next.impact_levels, r.residual_impact))) {
+        if (used.some((r) => !has(next.impact_levels, r.inherent_impact) || !has(next.impact_levels, r.residual_impact) || !has(next.impact_levels, r.target_impact))) {
           ctx.fail(400, 'validation', 'Check the highlighted fields.', { impact_levels: 'A level that risks are scored on cannot be removed. Re-score those risks first.' });
         }
       }
@@ -279,7 +322,7 @@ const mod: ModuleDef = {
       }
       if (next.acceptance_threshold === '') next.acceptance_threshold = null;
       await scales.validate(next, false);
-      if (!ctx.can(req.user, 'security.view')) return { total: null, rerated: null, level_in_use: null };
+      // E45-01: counts are figures, the same for everyone who may see risks (the route needs risks.administer).
       const levels = await scales.summaryLevels();
       const rows = await ctx.db.query<Row>('select * from risks where scale_key = $1 and deleted_at is null', [existing.key]);
       const has = (list: { value: number }[], v: number | null) => v === null || list.some((l) => l.value === v);
@@ -287,10 +330,10 @@ const mod: ModuleDef = {
         total: rows.length,
         rerated: rows.filter((r) => {
           const c = scales.scoreRisk(next as Scale, levels, r);
-          return (r.inherent_rating ?? null) !== c.inherent_rating || (r.residual_rating ?? null) !== c.residual_rating;
+          return (r.inherent_rating ?? null) !== c.inherent_rating || (r.residual_rating ?? null) !== c.residual_rating || (r.target_rating ?? null) !== c.target_rating;
         }).length,
-        level_in_use: rows.some((r) => !has(next.likelihood_levels, r.inherent_likelihood) || !has(next.likelihood_levels, r.residual_likelihood)
-          || !has(next.impact_levels, r.inherent_impact) || !has(next.impact_levels, r.residual_impact)),
+        level_in_use: rows.some((r) => ['inherent', 'residual', 'target'].some((b) =>
+          !has(next.likelihood_levels, r[`${b}_likelihood`]) || !has(next.impact_levels, r[`${b}_impact`]))),
       };
     });
 
@@ -311,24 +354,28 @@ const mod: ModuleDef = {
       const q = req.query as Record<string, string>;
       const scale = (await scales.get(q.scale ?? DEFAULT_SCALE)) ?? ctx.fail(404, 'not_found', 'Scale not found.');
       if (!(await scaleOffered(scale.key))) ctx.fail(404, 'switched_off', SWITCHED_OFF);
-      const basis = q.basis === 'inherent' ? 'inherent' : 'residual';
+      const basis = heatBasis(q.basis);
+      const mask = riskMasker(ctx, req.user);
       const closed = q.include_closed === 'true' ? [] : await statusesWith('risk_status', 'closed');
       const allClosed = await statusesWith('risk_status', 'closed');
       const rows = await ctx.db.query<Row>(
-        `select r.id, r.ref, r.title, r.status, r.category, u.display_name as owner_name, r.${basis}_likelihood as l, r.${basis}_impact as i,
+        `select r.id, r.ref, r.title, r.status, r.category, r.restricted, u.display_name as owner_name, r.${basis}_likelihood as l, r.${basis}_impact as i,
                 r.inherent_likelihood as il, r.inherent_impact as ii, r.residual_likelihood as rl, r.residual_impact as ri,
-                r.inherent_rating, r.residual_rating, r.${basis}_score as score
+                r.target_likelihood as tl, r.target_impact as ti, r.target_on::text as target_on,
+                r.inherent_rating, r.residual_rating, r.target_rating, r.${basis}_score as score
          from risks r left join users u on u.id = r.owner_id
          where r.deleted_at is null and r.scale_key = $1 and not (coalesce(r.status, '') = any($2::text[]))
          order by r.${basis}_score desc nulls last, r.ref`,
         [scale.key, closed],
       );
-      // Where controls move risks: one entry per pair of cells, inherent to residual.
+      // Where controls move risks: one entry per pair of cells, inherent to residual; on the target
+      // basis, where the treatment plan should still move them, residual (else inherent) to target.
       const moves = new Map<string, { from: { likelihood: number; impact: number }; to: { likelihood: number; impact: number }; count: number; risk_ids: string[] }>();
       for (const r of rows) {
-        if (r.il === null || r.ii === null || r.rl === null || r.ri === null || (r.il === r.rl && r.ii === r.ri)) continue;
-        const key = `${r.il}.${r.ii}.${r.rl}.${r.ri}`;
-        const m = moves.get(key) ?? { from: { likelihood: r.il, impact: r.ii }, to: { likelihood: r.rl, impact: r.ri }, count: 0, risk_ids: [] as string[] };
+        const [fl, fi, tl, ti] = basis === 'target' ? [r.rl ?? r.il, r.rl === null ? r.ii : r.ri, r.tl, r.ti] : [r.il, r.ii, r.rl, r.ri];
+        if (fl === null || fi === null || tl === null || ti === null || (fl === tl && fi === ti)) continue;
+        const key = `${fl}.${fi}.${tl}.${ti}`;
+        const m = moves.get(key) ?? { from: { likelihood: fl, impact: fi }, to: { likelihood: tl, impact: ti }, count: 0, risk_ids: [] as string[] };
         m.count += 1;
         m.risk_ids.push(r.id);
         moves.set(key, m);
@@ -368,12 +415,17 @@ const mod: ModuleDef = {
         total: rows.length, unscored: rows.length - scored,
         include_closed: q.include_closed === 'true',
         movements: [...moves.values()],
-        // Ranked for the list beside the matrix: highest on this basis first, unscored last.
-        risks: rows.map((r) => ({
+        // E18-88: on the residual basis, risks scored on the inherent rating only are "not yet scored"
+        // here but count at their inherent level in the register's tiles and the report; say how many.
+        inherent_only: basis === 'residual' ? rows.filter((r) => r.rl === null && r.il !== null).length : 0,
+        // Ranked for the list beside the matrix: highest on this basis first, unscored last. A
+        // restricted risk the caller may not see is listed as "Restricted risk" (masking.ts).
+        risks: rows.map((r) => mask({
           id: r.id, ref: r.ref, title: r.title, status: r.status, closed: allClosed.includes(r.status), owner_name: r.owner_name,
-          likelihood: r.l, impact: r.i, score: r.score,
+          restricted: r.restricted, likelihood: r.l, impact: r.i, score: r.score,
           inherent: r.il === null ? null : { likelihood: r.il, impact: r.ii, rating: r.inherent_rating },
           residual: r.rl === null ? null : { likelihood: r.rl, impact: r.ri, rating: r.residual_rating },
+          target: r.tl === null ? null : { likelihood: r.tl, impact: r.ti, rating: r.target_rating, on: r.target_on },
         })),
       };
     });
@@ -381,7 +433,8 @@ const mod: ModuleDef = {
     // E41-17: every scale on one heat map at the common level.
     registerCommonHeatmap(ctx, { scales, riskPre, statusesWith, scaleOffered });
 
-    ctx.app.get('/api/risks/summary', { preHandler: riskPre('view') }, async () => {
+    ctx.app.get('/api/risks/summary', { preHandler: riskPre('view') }, async (req) => {
+      const mask = riskMasker(ctx, req.user);
       const all = await scales.all();
       const st = await featureState(ctx.db);
       const offered = all.filter((s) => !ownedOff(st, 'risk_scale', s.key));
@@ -391,7 +444,7 @@ const mod: ModuleDef = {
         `select scale_key, summary_level, count(*)::int as count from risks
          where deleted_at is null and not (coalesce(status, '') = any($1::text[])) group by 1, 2`, [closed]);
       const top = await ctx.db.query<Row>(
-        `select r.id, r.ref, r.title, r.scale_key, r.status, r.summary_level, r.owner_id, u.display_name as owner_name,
+        `select r.id, r.ref, r.title, r.scale_key, r.status, r.summary_level, r.owner_id, u.display_name as owner_name, r.restricted,
                 coalesce(r.residual_rating, r.inherent_rating) as rating, coalesce(r.residual_score, r.inherent_score) as score
          from risks r left join users u on u.id = r.owner_id
          where r.deleted_at is null and not (coalesce(r.status, '') = any($1::text[])) and coalesce(r.residual_score, r.inherent_score) is not null
@@ -401,6 +454,8 @@ const mod: ModuleDef = {
         `select count(*) filter (where r.status = any($2::text[]))::int as needs_review,
                 count(*) filter (where r.review_on <= current_date)::int as reviews_due,
                 count(*) filter (where r.appetite_breach)::int as above_appetite,
+                count(*) filter (where r.target_score is not null)::int as with_target,
+                count(*) filter (where r.target_score is not null and coalesce(r.residual_score, r.inherent_score) > r.target_score)::int as above_target,
                 count(*) filter (where r.status = 'accepted' and a.expires_on >= current_date and a.expires_on <= current_date + 60)::int as acceptances_expiring,
                 count(*) filter (where (r.status = 'accepted' or r.status = any($2::text[])) and a.expires_on < current_date)::int as acceptances_expired
          from risks r
@@ -420,7 +475,7 @@ const mod: ModuleDef = {
         total: sum(counts),
         top: top.map((r) => {
           const rating = all.find((s) => s.key === r.scale_key)?.ratings.find((x) => x.key === r.rating);
-          return { ...r, rating_label: rating?.label ?? r.rating, color: rating?.color ?? 'gray' };
+          return mask({ ...r, rating_label: rating?.label ?? r.rating, color: rating?.color ?? 'gray' });
         }),
       };
     });
@@ -453,7 +508,7 @@ const mod: ModuleDef = {
          join lateral (select * from risk_acceptances x where x.risk_id = r.id and x.revoked_on is null
                        order by x.approved_on desc, x.created_at desc limit 1) a on true
          left join users u on u.id = r.owner_id
-         where r.deleted_at is null and (r.status = 'accepted' or r.status = any($2::text[])) and a.expires_on <= current_date + $1::int
+         where r.deleted_at is null and ${ctx.resources.visibleWhere('risk', req.user, 'r')} and (r.status = 'accepted' or r.status = any($2::text[])) and a.expires_on <= current_date + $1::int
          order by a.expires_on, r.ref`, [days, await statusesWith('risk_status', 'needs_review')]);
     });
 
@@ -502,8 +557,8 @@ const mod: ModuleDef = {
       const row = (await ctx.db.one<Row>(
         `insert into risk_acceptances (risk_id, approver_name, approver_title, approved_on, expires_on, reference, rationale, rating_at_acceptance, executive_required, created_by)
          values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) returning *`,
-        [risk.id, text('approver_name') || req.user!.displayName, text('approver_title') || null, approvedOn, text('expires_on'),
-          text('reference') || null, text('rationale'), rule.rating, rule.executive_required, req.user!.id],
+        [risk.id, text('approver_name') || actorOf(req).name || req.user!.displayName, text('approver_title') || null, approvedOn, text('expires_on'),
+          text('reference') || null, text('rationale'), rule.rating, rule.executive_required, actorOf(req).id],
       ))!;
       await ctx.audit(req, {
         action: 'risk.accept', recordType: 'risk', recordId: risk.id,

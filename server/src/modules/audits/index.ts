@@ -9,6 +9,8 @@ import { registerReport } from './report.ts';
 import { registerRequests } from './requests.ts';
 import { registerResources } from './resources.ts';
 import { seedAudits } from './seed.ts';
+import { registerPlan } from './plan.ts';
+import { registerWorkpapers } from './workpapers.ts';
 
 /**
  * Audits and inspections (E24, feature area `audits`, permission module `audits`): the audit
@@ -97,7 +99,31 @@ async function seedDefaults(ctx: ModuleContext) {
     { value: 'open', label: 'Open', color: 'blue', sort: 10 },
     { value: 'responded', label: 'Response given', color: 'amber', sort: 20 },
     { value: 'cap_raised', label: 'Corrective action plan raised', color: 'purple', sort: 30 },
+    // E45-16: the fix is done and waits for an auditor's verification; Closed needs that verification.
+    { value: 'awaiting_verification', label: 'Awaiting verification', color: 'teal', sort: 35 },
     { value: 'closed', label: 'Closed', color: 'green', sort: 40, meta: { closed: true } },
+  ], own);
+  // E45-13: risk factors of an audit area for the risk-ranked plan. meta.factor (0 to 1) is how much the
+  // value adds to the score; an administrator may change it.
+  await ctx.lookups.ensure('audit_significance', [
+    { value: 'high', label: 'High', color: 'red', sort: 10, meta: { factor: 1 } },
+    { value: 'medium', label: 'Medium', color: 'amber', sort: 20, meta: { factor: 0.6 } },
+    { value: 'low', label: 'Low', color: 'green', sort: 30, meta: { factor: 0.3 } },
+  ], own);
+  await ctx.lookups.ensure('audit_change_level', [
+    { value: 'high', label: 'Major change', color: 'red', sort: 10, meta: { factor: 1 } },
+    { value: 'medium', label: 'Some change', color: 'amber', sort: 20, meta: { factor: 0.6 } },
+    { value: 'low', label: 'Little change', color: 'green', sort: 30, meta: { factor: 0.3 } },
+    { value: 'none', label: 'No change', color: 'gray', sort: 40, meta: { factor: 0 } },
+  ], own);
+  // E45-15: the result of a workpaper step. meta.answer is what it counts as in the report (met, not
+  // met, not applicable); meta.default marks the result an old yes / no / not applicable answer takes.
+  await ctx.lookups.ensure('workpaper_result', [
+    { value: 'satisfactory', label: 'Satisfactory, no exceptions', color: 'green', sort: 10, meta: { answer: 'yes', default: true } },
+    { value: 'minor_exceptions', label: 'Minor exceptions', color: 'amber', sort: 20, meta: { answer: 'no' } },
+    { value: 'exceptions', label: 'Exceptions found', color: 'red', sort: 30, meta: { answer: 'no', default: true } },
+    { value: 'limitation', label: 'Could not be tested (scope limitation)', color: 'orange', sort: 40 },
+    { value: 'not_applicable', label: 'Not applicable', color: 'gray', sort: 50, meta: { answer: 'na', default: true } },
   ], own);
   await ctx.lookups.ensure('audit_request_status', [
     { value: 'requested', label: 'Requested', color: 'blue', sort: 10 },
@@ -120,7 +146,9 @@ async function seedDefaults(ctx: ModuleContext) {
 
 async function register(ctx: ModuleContext) {
   registerResources(ctx);
-  registerChecklists(ctx);
+  const checklists = registerChecklists(ctx);
+  registerWorkpapers(ctx, checklists); // E45-15: preparer and reviewer sign-off, review notes
+  await registerPlan(ctx); // E45-13: the risk-ranked audit plan and its approved versions
   registerFindings(ctx);
   await registerRequests(ctx);
   registerCoverage(ctx);

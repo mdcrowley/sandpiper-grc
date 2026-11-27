@@ -12,10 +12,12 @@
 import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
 import type { FastifyRequest } from 'fastify';
+import { actorOf } from '../../core/dataload.ts';
 import { UUID_RE } from '../../core/errors.ts';
 import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleContext, ResourceDef, Row } from '../../core/module.ts';
 import { discardReceived, insertAttachment, prepareFile, receiveFile, type Received } from './intake.ts';
+import { fileLoad, noteLoadedFile } from './loaded.ts';
 import { formatBytes, present, readSettings, validateDescriptive } from './service.ts';
 import { newStorageKey, type FileStorage } from './storage.ts';
 import { queueFileTexts } from './text.ts';
@@ -212,15 +214,22 @@ export async function readUploadBytes(ctx: ModuleContext, req: FastifyRequest, i
  */
 export async function claimUpload(
   ctx: ModuleContext, req: FastifyRequest, id: unknown,
-  owner: { recordType: string; recordId: string; kind?: 'file' | 'evidence'; description?: string | null; collectedOn?: string | null; expiresOn?: string | null; audit?: boolean },
+  owner: {
+    recordType: string; recordId: string; kind?: 'file' | 'evidence'; description?: string | null; collectedOn?: string | null; expiresOn?: string | null; audit?: boolean;
+    /** Data load mode only (E45-52): the date the file was first added. */
+    createdAt?: unknown;
+  },
 ): Promise<Row> {
   const u = await readyUpload(ctx, req, id);
+  const load = await fileLoad(ctx, req, owner.createdAt);
   const taken = await ctx.db.one<Row>(`update uploads_pending set status = 'used', used_at = now() where id = $1 and status = 'ready' returning id`, [u.id]);
   if (!taken) ctx.fail(409, 'upload_used', 'This upload has been attached already.');
   const row = await insertAttachment(ctx.db, u.file as Received, {
     recordType: owner.recordType, recordId: owner.recordId, kind: owner.kind ?? 'file', description: owner.description ?? null,
-    collectedOn: owner.collectedOn ?? null, expiresOn: owner.expiresOn ?? null, uploadedByName: req.user!.displayName, userId: req.user!.id,
-  });
+    collectedOn: owner.collectedOn ?? null, expiresOn: owner.expiresOn ?? null,
+    // In a data load, the person named is the one who added it (E45-51); the audit event keeps the real actor.
+    uploadedByName: actorOf(req).name, userId: actorOf(req).id,
+  }).then((r) => noteLoadedFile(ctx, req, r, load));
   await ctx.db.query('update uploads_pending set attachment_id = $2 where id = $1', [u.id, row.id]);
   if (owner.audit !== false) {
     await ctx.audit(req, {
@@ -353,14 +362,14 @@ export async function registerUploads(ctx: ModuleContext, h: Helpers) {
     const meta = validateDescriptive(ctx, b);
     const row = await claimUpload(ctx, req, (req.params as Row).id, {
       recordType: parent.def.type, recordId: parent.row.id, kind: meta.kind, description: meta.description,
-      collectedOn: meta.collected_on, expiresOn: meta.expires_on,
+      collectedOn: meta.collected_on, expiresOn: meta.expires_on, createdAt: b.created_at,
     });
     reply.code(201);
     return present(row);
   });
   ctx.describeRoute({
     method: 'POST', path: '/api/attachments/uploads/:id/attach', tag: T, summary: 'Attach a finished chunked upload to a record',
-    description: 'Body `{ record_type, record_id, kind?, description?, collected_on?, expires_on? }`. Needs edit permission on the record, as a single upload does; a record you cannot see answers 404. An upload is attached once (409 `upload_used`).',
+    description: 'Body `{ record_type, record_id, kind?, description?, collected_on?, expires_on?, created_at? }`; `created_at` (the date the file was first added) only in data load mode, where the file is also listed so that undoing the load removes it. Needs edit permission on the record, as a single upload does; a record you cannot see answers 404. An upload is attached once (409 `upload_used`).',
     response: 'The attachment, as GET /api/attachments lists it.',
   });
 }

@@ -143,6 +143,7 @@ const EXTERNAL_FIELDS = ['publisher', 'edition', 'published_on', 'source_url', '
 
 function Summary({ rec, versions }: { rec: RecordContext; versions: VersionsState }) {
   const { row } = rec;
+  const { can } = useAuth();
   const external = row.document_type === 'external';
   const fields = [
     'title', 'doc_number', 'document_type', 'summary', 'parent_id', 'owning_department_id', 'owner_id', 'approver_name', 'approver_role',
@@ -157,7 +158,8 @@ function Summary({ rec, versions }: { rec: RecordContext; versions: VersionsStat
         <Reader row={row} versions={versions} />
         <div className="stack">
           <EditableSummary type="policy" row={row} onSaved={rec.reload} fields={fields} />
-          <AccessCard row={row} onChanged={rec.reload} />
+          {/* Who may read it: the lists are for people who write documents (GET .../access needs policies.edit). */}
+          {can('policies.edit') && <AccessCard row={row} onChanged={rec.reload} />}
           {row.ack_required !== false ? <AudienceCard rec={rec} /> : (
             <Card title="Who must acknowledge"><p className="muted">Readers are not asked to acknowledge this document. Turn on "Readers must acknowledge" above to ask them.</p></Card>
           )}

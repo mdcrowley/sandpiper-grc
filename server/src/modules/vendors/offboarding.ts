@@ -9,6 +9,7 @@ import type { FastifyRequest } from 'fastify';
 import { approvalEngine, defineApprovalKind } from '../../core/approval-kinds.ts';
 import { UUID_RE } from '../../core/errors.ts';
 import type { LookupValue, ModuleContext, Row } from '../../core/module.ts';
+import { actorOf } from '../../core/dataload.ts';
 import { notePermission } from '../../core/permission-use.ts';
 import { ANONYMIZED_TEXT, onAnonymize } from '../../core/retention.ts';
 import { addDays, localDate } from './dates.ts';
@@ -353,7 +354,7 @@ export function registerOffboarding(ctx: ModuleContext): void {
          done_by = case when $4 then (case when $5 then $6::uuid else done_by end) else null end,
          done_on = case when $4 then (case when $5 then $7::date else done_on end) else null end,
          updated_at = now(), updated_by = $6 where id = $1`,
-      [item!.id, status, note, done, changedStatus, req.user!.id, localDate()]);
+      [item!.id, status, note, done, changedStatus, actorOf(req).id, localDate()]);
     if (changedStatus || note !== item!.evidence_note) {
       await ctx.audit(req, {
         action: 'vendor_offboarding.item', recordType: 'vendor_offboarding', recordId: ob.id,
@@ -409,7 +410,7 @@ export function registerOffboarding(ctx: ModuleContext): void {
     }
     // No approval workflow applies: someone who holds the approval permission signs it off directly.
     if (!ctx.can(req.user, 'vendors.approve')) ctx.fail(403, 'forbidden', 'Signing off an offboarding needs permission to approve vendor records.');
-    await signOff(ob, req.user!.displayName, req);
+    await signOff(ob, actorOf(req).name ?? req.user!.displayName, req);
     return { workflow: null, status: 'signed_off', ...(await view((await ctx.resources.find('vendor_offboarding', ob.id))!, req)) };
   });
   ctx.describeRoute({

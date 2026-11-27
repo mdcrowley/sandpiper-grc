@@ -163,5 +163,44 @@ export async function seedFunding(ctx: ModuleContext, opts: SeedOptions): Promis
     : 'funded items: none yet (assets, vehicles, projects and contracts seed after funding; run the seed again to link them)');
   const subrecipients = await seedSubrecipients(ctx, opts);
   if (subrecipients) parts.push(subrecipients);
+  parts.push(await connectSampleReview(ctx, awards));
   return parts.join(', ');
+}
+
+/**
+ * The sample review covers the two awards of its funder; its areas rely on the sample controls and
+ * obligations that exist by now and use the sample evidence records (E45-10). Idempotent: a second run
+ * links what seeded after funding (obligations).
+ */
+async function connectSampleReview(ctx: ModuleContext, awards: Row[]): Promise<string> {
+  const review = await ctx.db.one<Row>(`select id from compliance_reviews where title = '[Sample] Funder compliance review' and deleted_at is null`);
+  if (!review) return 'sample review links: none';
+  let n = 0;
+  for (const a of awards.filter((x) => ['[Sample] Bus replacement', '[Sample] Operating assistance'].includes(x.title))) {
+    n += (await ctx.db.query('insert into compliance_review_awards (review_id, award_id) values ($1,$2) on conflict do nothing returning award_id', [review.id, a.id])).length;
+  }
+  const related: [string, string, string][] = [
+    ['PR', 'control', 'Supplier security assessment before award'], ['AM', 'control', 'Software license reconciliation'],
+    ['FM', 'obligation', 'Quarterly ridership and service data return'],
+  ];
+  for (const [code, type, title] of related) {
+    const def = ctx.resources.get(type);
+    if (!def) continue;
+    const target = await ctx.db.one<Row>(`select id from ${def.table} where deleted_at is null and ${def.titleField} = $1 order by created_at limit 1`, [title]);
+    if (!target) continue;
+    n += (await ctx.db.query(
+      `insert into compliance_review_area_links (review_id, area_code, record_type, record_id) values ($1,$2,$3,$4) on conflict do nothing returning id`,
+      [review.id, code, type, target.id])).length;
+  }
+  if (ctx.resources.get('evidence_record')) {
+    const evidence: [string, string][] = [['PR', '[Sample] Procurement procedure with price analysis step'], ['AM', '[Sample] Funded equipment inventory export'], ['FM', '[Sample] Independent financial audit report']];
+    for (const [code, title] of evidence) {
+      const e = await ctx.db.one<Row>('select id from evidence_records where title = $1 and deleted_at is null', [title]);
+      if (!e) continue;
+      n += (await ctx.db.query(
+        `insert into evidence_links (evidence_id, record_type, record_id, part, relation) values ($1,'compliance_review',$2,$3,'demonstrates') on conflict do nothing returning id`,
+        [e.id, review.id, `area:${code}`])).length;
+    }
+  }
+  return `sample review links ${n}`;
 }

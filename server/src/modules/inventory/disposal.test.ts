@@ -310,7 +310,7 @@ describe('date reminders', () => {
     const first = (await t.api.post('/api/inventory/reminders/run')).body;
     if (!t.app.hasDecorator('notify')) {
       // Without the notifications module nothing is sent and nothing is recorded as sent.
-      expect(first).toEqual({ available: false, warranty: 0, support: 0, loans: 0 });
+      expect(first).toEqual({ available: false, warranty: 0, support: 0, loans: 0, systems: 0 });
       return;
     }
     expect(first.available).toBe(true);

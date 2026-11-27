@@ -422,3 +422,6 @@ a.vnd-cell:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px;
 .vnd-spark-dot { fill: var(--c-blue-solid); }
 .vnd-intake-name { font-weight: 600; }
 .vnd-intake-matrix td.vnd-intake-name { text-align: start; }
+
+/* E45-43: the spend total under the contract and vendor lists. */
+.vnd-spend-total { margin: var(--s-2) 0 0; display: flex; flex-wrap: wrap; gap: 0 var(--s-1); align-items: baseline; }

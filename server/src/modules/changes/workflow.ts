@@ -1,3 +1,4 @@
+import { actorOf, dataLoadFor, onBehalfOf } from '../../core/dataload.ts';
 import { todayInZone } from '../../core/timezone.ts';
 import type { ModuleContext, Row, SessionUser } from '../../core/module.ts';
 import type { Base, Req } from './base.ts';
@@ -99,6 +100,12 @@ export function makeWorkflow(ctx: ModuleContext, base: Base, conflicts: Conflict
     if (d.decided_on > todayInZone()) ctx.fail(400, 'validation', 'Check the highlighted fields.', { decided_on: 'The decision date cannot be in the future.' });
 
     const state = await awaiting(change);
+    // E18-94: a data load records a past decision as it was, by the person it names (or the approver
+    // named by hand), whether or not a workflow is waiting; nothing is sent.
+    if (req?.user && (onBehalfOf(req) || !state.open) && await dataLoadFor(db, req, ctx.audit)) {
+      const by = actorOf(req);
+      return recordAsSystem(change, { ...d, approver_name: byHand ? d.approver_name : by.name }, state.retrospective, req, { id: by.id, name: by.name, own: !byHand });
+    }
     if (!state.open) ctx.fail(409, 'not_awaiting_approval', 'This change is not waiting for approval.');
     if (req?.user && change.created_by === req.user.id) {
       ctx.fail(403, 'own_change', 'You raised this change, so someone else must record its approval.');
@@ -129,11 +136,11 @@ export function makeWorkflow(ctx: ModuleContext, base: Base, conflicts: Conflict
    * application): kept on the change by name and counted per name as before; once it settles the
    * approval the running workflow is closed with it.
    */
-  async function recordAsSystem(change: Row, d: Row, retrospective: boolean) {
+  async function recordAsSystem(change: Row, d: Row, retrospective: boolean, req: Req = null, by?: { id: string | null; name: string | null; own: boolean }) {
     await base.insertRow('change_approvals', {
       change_id: change.id, decision: d.decision, approver_name: d.approver_name, approver_role: d.approver_role ?? null,
       decided_on: d.decided_on, reference: d.reference ?? null, notes: d.notes ?? null, retrospective,
-      recorded_by: null, recorded_by_name: base.actorName(null), approver_user_id: null,
+      recorded_by: by?.id ?? null, recorded_by_name: by?.name ?? base.actorName(null), approver_user_id: by?.own ? by.id : null,
     });
     const current = (await decisions(change)).filter((r) => r.current && r.decision === 'approved');
     const received = new Set(current.map((r) => String(r.approver_name).trim().toLowerCase())).size;
@@ -144,13 +151,13 @@ export function makeWorkflow(ctx: ModuleContext, base: Base, conflicts: Conflict
       else if (received >= required) patch.status = 'approved';
     } else if (d.decision === 'approved' && received >= required) patch.approved_retrospectively = true;
     if (d.decision === 'rejected' || received >= required) await approval.engine().cancel(KIND, change.id, `Decided outside the application: ${d.approver_name}.`, null);
-    await ctx.audit(null, {
+    await ctx.audit(req, {
       action: 'change.approval', recordType: 'change', recordId: change.id,
       summary: `${base.changeLabel(change)} ${d.decision} by ${d.approver_name}: ${received} of ${required} approvals`,
       after: { ...d, retrospective, approvals_received: received, approvals_required: required },
     });
-    const updated = await base.setFields(null, change.id, patch);
-    return { change: updated, approvals: await approvalsFor(updated, null) };
+    const updated = await base.setFields(req, change.id, patch);
+    return { change: updated, approvals: await approvalsFor(updated, req?.user ?? null) };
   }
 
 

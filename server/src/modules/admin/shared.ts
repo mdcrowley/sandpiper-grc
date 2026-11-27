@@ -24,6 +24,8 @@ export const MODULE_KEYS = [
   'audits', 'controls', 'funding', 'governance', 'people',
   'continuity', 'legal', 'records', 'privacy',
   'tags',
+  // Wave 25 (E45-06): the evidence library.
+  'evidence',
 ];
 /** The actions every permission module offers. */
 export const BASE_ACTIONS = ['view', 'create', 'edit', 'delete', 'approve', 'administer', 'export'];

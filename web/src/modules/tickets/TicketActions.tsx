@@ -8,6 +8,7 @@ import {
 import type { RecordContext } from '../../core';
 import { canMoveTo, editableLifecycle } from '../../core/lifecycleMenus';
 import { fieldErrors, useStatuses } from './util';
+import { useEscalations } from './Escalate';
 
 type Dialog = null | 'resolve' | 'vendor' | 'close';
 
@@ -44,6 +45,8 @@ export function TicketActions({ rec }: { rec: RecordContext }) {
   const [opened, setOpened] = useState<Record<string, any>>({});   // the values the dialog opened with
   const set = (key: string) => (value: unknown) => setF((old) => ({ ...old, [key]: value }));
 
+  // E45-28 to E45-32: raise a security incident or change, link a problem, mark as duplicate (called before the early return: it is a hook).
+  const escalate = useEscalations(rec, ['resolved', 'closed'].includes(category(row.status)));
   if (!canEdit) return null;
   const cat = category(row.status);
   const done = cat === 'resolved' || cat === 'closed';
@@ -139,8 +142,10 @@ export function TicketActions({ rec }: { rec: RecordContext }) {
           row.major_incident
             ? { label: 'Remove major incident flag', separated: true, onSelect: () => apply({ major_incident: false }, 'Major incident flag removed.') }
             : { label: 'Declare a major incident', separated: true, onSelect: () => apply({ major_incident: true }, 'Major incident declared. See the Major incident tab.') },
+          ...escalate.items,
         ]}
       />
+      {escalate.dialogs}
 
       <Modal open={dialog === 'resolve'} title="Resolve ticket" onClose={() => setDialog(null)} dirty={dirty}
         footer={footer(() => apply({ status: f.status, resolution_code: f.resolution_code || null, resolution_notes: f.resolution_notes || null }, 'Ticket resolved.'), 'Resolve')}>

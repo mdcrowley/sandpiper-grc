@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
 import { act, createElement as h, useRef } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { createMemoryRouter, Link, RouterProvider } from 'react-router-dom';
+import { createMemoryRouter, Link, Navigate, RouterProvider } from 'react-router-dom';
 import { afterEach, describe, expect, it } from 'vitest';
-import { noteSignedIn, useRouteFocus } from './routeFocus';
+import { noteSignedIn, resetRouteFocusForTests, useRouteFocus } from './routeFocus';
 
 // E16-15: after a change of page without a page load, the focus goes to the new page's heading, so a
 // screen reader says where the person is; not on the first page of a load, and not when the new page
@@ -33,6 +33,8 @@ async function start(path = '/') {
     { path: '/', element: h(Layout, null, h('h1', null, 'Overview')) },
     { path: '/tickets', element: h(Layout, null, h('h1', null, 'Tickets')) },
     { path: '/search', element: h(Layout, null, h(Search)) },
+    // An old address that moved (E43-13): replaced at once by its new one.
+    { path: '/old', element: h(Layout, null, h(Navigate, { replace: true, to: '/tickets' })) },
   ], { initialEntries: [path] });
   el = document.createElement('div');
   document.body.appendChild(el);
@@ -43,6 +45,7 @@ async function start(path = '/') {
 }
 
 describe('useRouteFocus', () => {
+
   it('leaves the focus alone on the first page of a load', async () => {
     await start('/');
     expect(document.activeElement === document.body || document.activeElement === null).toBe(true);
@@ -70,5 +73,13 @@ describe('useRouteFocus', () => {
     noteSignedIn();
     await start('/tickets');
     expect((document.activeElement as HTMLElement).textContent).toBe('Tickets');
+  });
+
+  // Last: a page load that starts at another address leaves the module state of an earlier load behind.
+  it('treats an old address that redirects at once as the page load: the focus stays at the top', async () => {
+    resetRouteFocusForTests();
+    const router = await start('/old');
+    expect(router.state.location.pathname).toBe('/tickets');
+    expect(document.activeElement === document.body || document.activeElement === null).toBe(true);
   });
 });

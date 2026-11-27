@@ -13,13 +13,23 @@
 // page of a page load, where the browser already starts at the top and the screen reader reads the
 // new document. It does on the first page after signing in
 // on the sign-in form (`noteSignedIn`), and when another layout is reached from inside the application
-// (the portal from the main application).
+// (the portal from the main application). An old address that replaces itself with its new one at once
+// (a redirect on the first page of a load) is still the page load: the focus stays at the top.
 import { useEffect, useRef, type RefObject } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigationType } from 'react-router-dom';
 
 let signedInHere = false;
 /** The last path any layout using this hook showed: a layout that mounts on another path was reached in the application (the portal from the main application, say). */
 let lastPath: string | null = null;
+/** The first path of this page load and when it showed: an old address that redirects at once is still the page load. */
+let loadPath: { path: string; at: number } | null = null;
+
+/** Tests only: forget earlier page loads, as a new browser tab would. */
+export function resetRouteFocusForTests(): void {
+  signedInHere = false;
+  lastPath = null;
+  loadPath = null;
+}
 
 /** Called by the sign-in form when it succeeds: the next page takes the focus. */
 export function noteSignedIn(): void {
@@ -31,6 +41,7 @@ const BUSY = '.route-loading, .mantine-Skeleton-root[data-visible], [aria-busy="
 /** Moves the focus to the new page's main heading after each change of path (see above). */
 export function useRouteFocus(container: RefObject<HTMLElement | null>): void {
   const { pathname } = useLocation();
+  const navigationType = useNavigationType();
   const shown = useRef<string | null>(null);
   useEffect(() => {
     const before = shown.current;
@@ -39,7 +50,17 @@ export function useRouteFocus(container: RefObject<HTMLElement | null>): void {
     if (before === pathname) return undefined;
     const arrived = lastPath !== null && lastPath !== pathname;
     lastPath = pathname;
-    if (before === null && !signedInHere && !arrived) return undefined;
+    if (before === null && !signedInHere && !arrived) {
+      loadPath = { path: pathname, at: Date.now() };
+      return undefined;
+    }
+    // The first address of the load replaced itself with another (an old address that moved, E43-13):
+    // still the page load, so the focus stays at the top and Tab starts at the skip link.
+    if (navigationType === 'REPLACE' && loadPath && before === loadPath.path && Date.now() - loadPath.at < 2000) {
+      loadPath = null;
+      return undefined;
+    }
+    loadPath = null;
     signedInHere = false;
     let tries = 0;
     let timer = 0;

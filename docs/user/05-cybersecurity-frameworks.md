@@ -433,7 +433,21 @@ Select a snapshot's name in the **Snapshots** table. The snapshot page shows:
 - the **Outcomes** tab: every outcome with its **Status at the time**. Filter the list with **Priority only** and **Status**;
 - the **History** tab: who took the snapshot and when.
 
+**Send to owners** turns the outcomes that were below target in this snapshot into actions for their owners; see [Sending outcomes that need work to their owners](#sending-outcomes-that-need-work-to-their-owners).
+
 **Compare with another** opens the **Assessments** page comparing this snapshot with the one before it (or with now, for the first snapshot).
+
+### Sending outcomes that need work to their owners
+
+An assessment is only useful if the outcomes that fall short are worked on. **Send to owners** (on the outcomes board, and on a snapshot page) does this in one step: every outcome below the target status ("Largely met" unless changed under **Framework settings**) becomes an action for its owner. You need **Edit** on frameworks and permission to create actions.
+
+1. Select **Send to owners**.
+2. The dialog counts first: how many outcomes need work, how many will be sent, how many already have an open action, and which have no owner (each a link to the outcome).
+3. Optionally check **Priority outcomes only** (it starts checked when the board is showing priority outcomes only).
+4. Choose the **Due on** date (30 days from today unless changed; it cannot be in the past).
+5. Select **Send** *n* **actions**. The dialog then says what was sent, with a link to the actions.
+
+Each action is titled "Bring *code* to *target*", goes to the outcome's **Owner**, is due on the date chosen, has priority **High** for a priority outcome and **Medium** otherwise, and its source is **Assessment**, linked to the outcome (it appears on the outcome's **Risks, policies and actions** tab and in the [action tracker](06-risks-actions-obligations.md)). From the board, the status judged is today's; from a snapshot, the status the snapshot captured (the owner is always today's). An outcome that still has an open action from an earlier send gets no second one, so sending again after giving owners to the rest adds only the new ones. Outcomes with no owner are not sent: give them an owner and send again. The send is recorded in the audit log.
 
 ### Printable assessment report
 

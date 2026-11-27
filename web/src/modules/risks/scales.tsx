@@ -59,11 +59,11 @@ export function RatedChip({ label, color }: { label: string | null | undefined; 
 export interface Position { likelihood: number; impact: number }
 
 /**
- * The scale's matrix in miniature, marking where one risk sits: "I" for inherent, "R" for
- * residual (one "I R" cell when they coincide). Purely a picture: the same facts are given in
+ * The scale's matrix in miniature, marking where one risk sits: "I" for inherent, "R" for residual,
+ * "T" for target (one "I·R" cell when they coincide). Purely a picture: the same facts are given in
  * words by `label`, which screen readers get instead of the grid.
  */
-export function MiniMatrix({ scale, inherent, residual, label }: { scale: Scale; inherent: Position | null; residual: Position | null; label: string }) {
+export function MiniMatrix({ scale, inherent, residual, target = null, label }: { scale: Scale; inherent: Position | null; residual: Position | null; target?: Position | null; label: string }) {
   const rows = [...scale.likelihood_levels].sort((a, b) => b.value - a.value);
   const cols = scale.impact_levels;
   const at = (p: Position | null, l: number, i: number) => p !== null && p.likelihood === l && p.impact === i;
@@ -74,14 +74,16 @@ export function MiniMatrix({ scale, inherent, residual, label }: { scale: Scale;
           const rating = ratingFor(scale, l.value, i.value);
           const isI = at(inherent, l.value, i.value);
           const isR = at(residual, l.value, i.value);
+          const isT = at(target, l.value, i.value);
+          const marks = [isI && 'I', isR && 'R', isT && 'T'].filter(Boolean).join('·');
           return (
             <span
               key={`${l.value}.${i.value}`}
-              className={`rk-mini-cell${isI || isR ? ' is-marked' : ''}${isR ? ' is-residual' : ''}`}
+              className={`rk-mini-cell${isI || isR || isT ? ' is-marked' : ''}${isR ? ' is-residual' : ''}${isT && !isR ? ' is-target' : ''}`}
               style={{ background: `var(--c-${rating?.color ?? 'gray'}-bg)`, color: `var(--c-${rating?.color ?? 'gray'}-fg)` }}
               title={`${l.label} by ${i.label}: ${rating?.label ?? 'not rated'}`}
             >
-              {isI && isR ? 'I·R' : isI ? 'I' : isR ? 'R' : ''}
+              {marks}
             </span>
           );
         }))}
@@ -132,4 +134,37 @@ export function AppetiteBadge({ breach }: { breach: boolean | null | undefined }
   if (breach === true) return <Badge color="red">Above appetite</Badge>;
   if (breach === false) return <span className="muted">Within</span>;
   return <span className="muted">—</span>;
+}
+
+/**
+ * E45-02: fields that belong to some categories only (the category's `meta.fields` in the risk category
+ * list): "Affected systems and data" for cybersecurity risks. Other categories do not show them.
+ */
+export const CATEGORY_FIELDS = ['affected'];
+
+export function categoryShows(categories: { value: string; meta?: Record<string, unknown> | null }[], category: unknown, field: string): boolean {
+  if (!CATEGORY_FIELDS.includes(field)) return true;
+  const fields = categories.find((c) => c.value === category)?.meta?.fields;
+  return Array.isArray(fields) && fields.includes(field);
+}
+
+/** E45-03: a risk's path in chips: inherent, then residual with controls, then the target. */
+export function RiskPath({ scale, inherent, residual, target, prefix }: {
+  scale: Scale | undefined; inherent: string | null | undefined; residual: string | null | undefined; target?: string | null; prefix?: boolean;
+}) {
+  return (
+    <span className="rk-path">
+      <RatingChip scale={scale} rating={inherent} prefix={prefix ? 'Inherent' : undefined} />
+      <span className="risk-arrow" aria-hidden="true">→</span>
+      <span className="sr-only">{prefix ? 'reduced by controls to' : 'inherent, reduced by controls to'}</span>
+      <RatingChip scale={scale} rating={residual} prefix={prefix ? 'Residual' : undefined} />
+      {target !== undefined && (
+        <>
+          <span className="risk-arrow" aria-hidden="true">→</span>
+          <span className="sr-only">{prefix ? 'with a target of' : 'residual, with a target of'}</span>
+          {target ? <RatingChip scale={scale} rating={target} prefix={prefix ? 'Target' : undefined} /> : <span className="muted">{prefix ? 'No target' : 'no target'}</span>}
+        </>
+      )}
+    </span>
+  );
 }

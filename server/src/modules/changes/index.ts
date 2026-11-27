@@ -4,6 +4,7 @@ import { registerStartSweep } from './notify.ts';
 import { defineChange } from './resource.ts';
 import { registerChangeRoutes } from './routes.ts';
 import { seedSampleChanges } from './seed.ts';
+import { registerSuccessRate } from './success.ts';
 import { makeService } from './service.ts';
 
 // Change enablement: changes with a risk questionnaire, approvals by type and risk,
@@ -18,6 +19,7 @@ const mod: ModuleDef = {
     const svc = makeService(ctx);
     // Fixed paths are registered before the generated `/api/changes/:id`.
     registerChangeRoutes(ctx, svc);
+    registerSuccessRate(ctx);
     defineChange(ctx, svc.base);
     await registerStartSweep(ctx);
   },

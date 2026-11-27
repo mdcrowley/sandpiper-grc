@@ -45,9 +45,9 @@ export function CertificationList() {
       <ResourceList
         type="funding_certification"
         urlState
-        columns={['ref', 'year', 'title', 'funder_name', 'status', 'due_on', 'signer_id', 'signed_on']}
-        filters={['status', 'signer_id', 'due_on']}
-        createFields={['year', 'title', 'funder_name', 'due_on', 'signer_id', 'notes']}
+        columns={['ref', 'year', 'title', 'funder_id', 'status', 'due_on', 'signer_id', 'signed_on']}
+        filters={['status', 'funder_id', 'signer_id', 'due_on']}
+        createFields={['year', 'title', 'funder_id', 'due_on', 'signer_id', 'notes']}
         createInitial={{ year: String(new Date().getFullYear()) }}
         bulkFields={[]}
       />
@@ -248,7 +248,7 @@ export function CertificationDetail() {
       subtitle={(row) => `${row.year}${row.funder_name ? ` · ${row.funder_name}` : ''}${row.due_on ? ` · due ${formatDate(row.due_on)}` : ''}`}
       banner={({ row }) => <Stepper label="Progress" current={row.status} steps={STEPS} />}
       actions={(rec) => <Actions {...rec} />}
-      summaryFields={['year', 'title', 'funder_name', 'due_on', 'signer_id', 'signed_on', 'notes']}
+      summaryFields={['year', 'title', 'funder_id', 'due_on', 'signer_id', 'signed_on', 'notes']}
       tabs={[{ key: 'checklist', label: 'Checklist', content: ({ row, canEdit, reload }) => <Checklist row={row} canEdit={canEdit} reloadRecord={reload} /> }]}
     />
   );

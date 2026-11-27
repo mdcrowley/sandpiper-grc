@@ -3,6 +3,7 @@ import { todayInZone } from '../../core/config.ts';
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
 import { registerAdmin } from './admin.ts';
 import { registerExtras } from './extras.ts';
+import { registerOwnerActions } from './owner-actions.ts';
 import { DEFAULT_NAMES, NAMES_LIST, mappingProblem, rowsFromText, textFromRows } from './mappings.ts';
 import { seedFrameworks } from './seed.ts';
 import { COLORS, DEFAULT_STATUS, saveStructure } from './structure.ts';
@@ -628,6 +629,7 @@ const mod: ModuleDef = {
       )).map((r) => r.framework_name));
 
     await registerExtras(ctx, loadScale);
+    registerOwnerActions(ctx, loadScale);
     registerAdmin(ctx);
   },
 

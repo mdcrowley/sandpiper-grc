@@ -5,13 +5,14 @@ import { setWorkingCalendarSource, toWorkingCalendar, WORKING_CALENDAR_KEY } fro
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
 import { registerAssist } from './assist.ts';
 import { registerRequesters } from './requesters.ts';
+import { registerEscalation } from './escalate.ts';
 import { AGENT_AUDIENCE, audienceRule, makeAudience } from './audience.ts';
 import { makeAutomation, registerAutomation } from './automation.ts';
 import { makeCatalog } from './catalog.ts';
 import { recordArticleFeedback } from './feedback.ts';
 import { clock } from './clock.ts';
 import { makeTicketNotify } from './notify.ts';
-import { CATALOG, seedDefaults } from './defaults.ts';
+import { CATALOG, fillCatalogStarters, seedDefaults } from './defaults.ts';
 import { registerMetrics } from './metrics.ts';
 import { makeEmailIntake } from './email.ts';
 import { registerSharedFiles } from './shared-files.ts';
@@ -572,6 +573,7 @@ const mod: ModuleDef = {
     registerAutomation(ctx, notify);
     registerAssist(ctx, audience.isAgent);
     registerRequesters(ctx);
+    registerEscalation(ctx);
     registerSharedFiles(ctx, notify);
     await seedSharedQueues(ctx);
     const intake = makeEmailIntake(ctx, notify);
@@ -584,6 +586,12 @@ const mod: ModuleDef = {
         for (const item of CATALOG) await ctx.resources.create('catalog_item', { ...item, active: true });
       }
       await ctx.settings.set('tickets.catalogue_seeded', true);
+    }
+    // E45-33: built-in items added before they had questions and tasks get them once. An item an
+    // administrator has already given questions or tasks keeps its own; only the empty part is filled.
+    if (!(await ctx.settings.get('tickets.catalog_starters_filled', false))) {
+      await fillCatalogStarters(ctx);
+      await ctx.settings.set('tickets.catalog_starters_filled', true);
     }
 
     // ---------- SLA clock for one ticket ----------

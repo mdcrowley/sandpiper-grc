@@ -472,3 +472,23 @@
 .rk-applies-add { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--s-2); }
 .rk-applies-add > :first-child { flex: 1 1 16rem; min-width: 0; }
 .rk-applies-add > button { margin-top: 1.6rem; }
+
+/* ---------- E45-03, E45-04: the target risk, the path of a risk, appetite versions ---------- */
+
+/* Four steps do not fit in one row beside the matrix: two by two, read across then down. */
+.rk-assess-flow.has-target { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.rk-assess-flow.has-target .rk-flow-arrow { display: none; }
+.rk-assess-target { border-style: dashed; }
+.rk-target-date { flex-wrap: wrap; gap: var(--s-2); font-size: var(--fs-sm); }
+.rk-mini-cell.is-target { box-shadow: inset 0 0 0 2px currentColor; outline: 2px dashed currentColor; outline-offset: -5px; }
+.rk-path { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
+.rk-legend-note { font-size: var(--fs-sm); }
+.rk-appetite-history { table-layout: fixed; width: 100%; min-width: 40rem; }
+.rk-appetite-history td { vertical-align: top; white-space: normal; overflow-wrap: anywhere; }
+.rk-appetite-history th:nth-child(1) { width: 7.5rem; }
+.rk-appetite-history th:nth-child(2) { width: 32%; }
+@media (max-width: 900px) {
+  .rk-assess-flow.has-target { grid-template-columns: minmax(0, 1fr); }
+}
+/* Six tiles on the report (E45-03 adds "Above target"): one row at desktop width. */
+.rk-report .grid-stats { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }

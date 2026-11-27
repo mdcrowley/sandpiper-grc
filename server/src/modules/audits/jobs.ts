@@ -23,7 +23,7 @@ export const MISSED_AFTER_DAYS = 7;
 const CATCH_UP = 24;
 const HOUR = 3_600_000;
 
-export interface InspectionRun { created: number; missed: number; reminded: number; requestsReminded: number; skipped: string[] }
+export interface InspectionRun { created: number; missed: number; reminded: number; requestsReminded: number; verificationsReminded: number; skipped: string[] }
 
 async function leadDays(ctx: ModuleContext, key: string, fallback: number): Promise<number> {
   const raw = Math.round(Number(await ctx.settings.get<unknown>(key, fallback)));
@@ -31,7 +31,7 @@ async function leadDays(ctx: ModuleContext, key: string, fallback: number): Prom
 }
 
 export async function runInspectionWork(ctx: ModuleContext): Promise<InspectionRun> {
-  const run: InspectionRun = { created: 0, missed: 0, reminded: 0, requestsReminded: 0, skipped: [] };
+  const run: InspectionRun = { created: 0, missed: 0, reminded: 0, requestsReminded: 0, verificationsReminded: 0, skipped: [] };
   const { db } = ctx;
   const today = dayInZone();
   const lead = await leadDays(ctx, INSPECTION_REMINDER_SETTING, DEFAULT_INSPECTION_REMINDER_DAYS);
@@ -108,6 +108,21 @@ export async function runInspectionWork(ctx: ModuleContext): Promise<InspectionR
     });
     run.requestsReminded += res.sent;
   }
+
+  // 4. Finding verifications past their date (E45-16): the auditor named to verify is told once.
+  const unverified = await db.query<Row>(
+    `select id, ref, verifier_id, verification_due from audit_findings
+     where deleted_at is null and verifier_id is not null and verified_on is null and coalesce(status, '') <> 'closed'
+       and verification_due < $1::date order by verification_due limit 2000`, [today]);
+  for (const f of unverified) {
+    const res = await ctx.app.notify({
+      userIds: [f.verifier_id], kind: 'audits', recordType: 'audit_finding', recordId: f.id, route: `/audit-findings/${f.id}`,
+      title: `Verification overdue: finding ${f.ref}`,
+      body: `Verify that the finding was put right (due ${displayDate(String(f.verification_due))}), with the evidence you looked at.`,
+      once: `audit_finding.verify_overdue:${f.id}:${f.verification_due}`,
+    });
+    run.verificationsReminded += res.sent;
+  }
   return run;
 }
 
@@ -115,8 +130,8 @@ export async function registerJobs(ctx: ModuleContext) {
   ctx.app.post('/api/audits/inspections/run', { preHandler: ctx.requirePerm('audits.administer') }, async () => runInspectionWork(ctx));
   ctx.describeRoute({
     method: 'POST', path: '/api/audits/inspections/run', tag: 'Audits', permission: 'audits.administer',
-    summary: 'Run the inspection work now: create due inspections from the schedules, mark missed ones and send reminders (it also runs every few hours)',
-    response: '{ created, missed, reminded, requestsReminded, skipped: string[] }',
+    summary: 'Run the inspection work now: create due inspections from the schedules, mark missed ones and send reminders, finding verifications past their date included (it also runs every few hours)',
+    response: '{ created, missed, reminded, requestsReminded, verificationsReminded, skipped: string[] }',
   });
   // Every three hours on the job queue (Administration > Background jobs); each step is safe to repeat.
   await scheduleWork(ctx, 'audits.inspections', () => runInspectionWork(ctx), { every: 3 * HOUR, firstRunInMs: 120_000 });

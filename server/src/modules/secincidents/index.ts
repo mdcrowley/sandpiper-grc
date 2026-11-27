@@ -1,7 +1,7 @@
 import type { FastifyRequest } from 'fastify';
 import { featureState, optionName, optionOn } from '../../core/features.ts';
 import { scheduleWork } from '../../core/jobs/index.ts';
-import { isDataLoad } from '../../core/dataload.ts';
+import { actorOf, isDataLoad } from '../../core/dataload.ts';
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
 import { TIME_ZONE, todayInZone } from '../../core/timezone.ts';
 import { emitWebhookEvent } from '../../core/webhooks.ts';
@@ -16,6 +16,7 @@ import { registerKit, scheduleKit } from './kit.ts';
 import { registerLists } from './lists.ts';
 import { alertResponders, registerAlertRoutes } from './responders.ts';
 import { buildReport } from './report.ts';
+import { makeNextStep } from './nextstage.ts';
 import { seedSample } from './seed.ts';
 
 export { DEFAULT_AMBER_FRACTION } from './clocks.ts';
@@ -126,7 +127,7 @@ export function makeService(ctx: ModuleContext): IncidentService & {
     return (await db.one<Row>(
       `insert into incident_log_entries (incident_id, at, author_id, author_name, entry, kind)
        values ($1, coalesce($2::timestamptz, now()), $3, $4, $5, $6) returning *`,
-      [incidentId, at ? at.toISOString() : null, req?.user?.id ?? null, req?.user?.displayName ?? 'System', entry, kind],
+      [incidentId, at ? at.toISOString() : null, req ? actorOf(req).id : null, (req && actorOf(req).name) || 'System', entry, kind],
     ))!;
   }
 
@@ -256,7 +257,7 @@ const mod: ModuleDef = {
     }
 
     async function insertRow(table: string, data: Row, req: FastifyRequest): Promise<Row> {
-      const d = { ...data, created_by: req.user!.id, updated_by: req.user!.id };
+      const d = { ...data, created_by: actorOf(req).id, updated_by: actorOf(req).id };
       const cols = Object.keys(d);
       return (await db.one<Row>(
         `insert into ${table} (${cols.join(', ')}) values (${cols.map((_, i) => `$${i + 1}`).join(', ')}) returning *`,
@@ -269,7 +270,7 @@ const mod: ModuleDef = {
       return (await db.one<Row>(
         `update ${table} set ${cols.map((c, i) => `${c} = $${i + 3}`).join(', ')}${cols.length ? ',' : ''}
            updated_at = now(), updated_by = $2 where id = $1 returning *`,
-        [id, req.user!.id, ...Object.values(patch)],
+        [id, actorOf(req).id, ...Object.values(patch)],
       ))!;
     }
 
@@ -464,7 +465,7 @@ const mod: ModuleDef = {
       if (isDataLoad(req)) {
         if (next === 'completed' && was !== 'completed' && !patch.review_completed_at) {
           patch.review_completed_at = merged.review_held_at ?? merged.closed_at ?? now;
-          patch.review_completed_by ??= req?.user?.id ?? null;
+          patch.review_completed_by ??= actorOf(req).id;
         }
         const closingLoad = patch.status !== undefined && patch.status !== existing.status && (await stageOf(patch.status)) === 'closed';
         if (closingLoad && next === 'open' && !merged.review_due_on) {
@@ -485,7 +486,7 @@ const mod: ModuleDef = {
         if (!filled(merged.root_cause)) fields.root_cause = 'Record the root cause before completing the review.';
         if (!filled(merged.to_improve)) fields.to_improve = 'Record what to improve before completing the review.';
         patch.review_completed_at = now;
-        patch.review_completed_by = req?.user?.id ?? null;
+        patch.review_completed_by = actorOf(req).id;
       }
       if (next === 'not_required' && !filled(merged.review_skip_reason)) {
         fields.review_skip_reason = 'Say why no review is needed; the reason is added to the incident log.';
@@ -668,7 +669,7 @@ const mod: ModuleDef = {
       if (isDataLoad(req)) {
         if (!stamp || (!merged.notified_at && !merged.completed_at)) return;
         patch.completed_at ??= merged.completed_at ?? merged.notified_at;
-        patch.completed_by ??= req?.user?.id ?? null;
+        patch.completed_by ??= actorOf(req).id;
         return;
       }
       if (!String(merged.notified_who ?? '').trim()) fields.notified_who = 'Record who was notified.';
@@ -678,7 +679,7 @@ const mod: ModuleDef = {
       if (!stamp) return;
       const now = new Date().toISOString();
       if (!merged.notified_at) patch.notified_at = now;
-      patch.completed_by = req?.user?.id ?? null;
+      patch.completed_by = actorOf(req).id;
       patch.completed_at = now;
     }
 
@@ -743,6 +744,23 @@ const mod: ModuleDef = {
 
     /** The generated incident report: timeline, decisions, notifications made and lessons, for printing. */
     app.get('/api/security-incidents/:id/report', view, async (req) => buildReport(ctx, req, await incidentOf(req)));
+
+    // E45-34: the next stage as one button, with the checks it needs.
+    const steps = makeNextStep(ctx);
+    app.get('/api/security-incidents/:id/next-step', view, async (req) => steps.nextStep(await incidentOf(req)));
+    ctx.describeRoute({
+      method: 'GET', path: '/api/security-incidents/:id/next-step', permission: 'security.view',
+      summary: 'The next status of an incident and the checks it needs',
+      description: 'The next status in the lifecycle list, the button wording, and each check with whether it passes and whether it blocks the move.',
+    });
+    app.post('/api/security-incidents/:id/advance', edit, async (req) =>
+      steps.advance(req, await incidentOf(req), (req.body as Row | undefined)?.to));
+    ctx.describeRoute({
+      method: 'POST', path: '/api/security-incidents/:id/advance', permission: 'security.edit',
+      summary: 'Move an incident to its next status',
+      description: 'Refuses with 409 `checks` while a blocking check fails (closing needs the Affected answers, every required notification made and no ransom payment under consideration), and with 409 `stale` when `to` is not the next status any more.',
+      body: '{ to? }',
+    });
 
     app.get('/api/security-incidents/:id/clocks', view, async (req) => {
       const incident = await incidentOf(req);
@@ -938,7 +956,7 @@ const mod: ModuleDef = {
       const b = await parseCols({ done: { label: 'Done', type: 'boolean' } }, (req.body ?? {}) as Row, 'update');
       if (b.done === undefined || b.done === before.done) return before;
       const row = await updateRow('incident_checklist_items', before.id, b.done
-        ? { done: true, done_by: req.user!.id, done_by_name: req.user!.displayName, done_at: new Date().toISOString() }
+        ? { done: true, done_by: actorOf(req).id, done_by_name: actorOf(req).name, done_at: new Date().toISOString() }
         : { done: false, done_by: null, done_by_name: null, done_at: null }, req);
       await ctx.audit(req, {
         action: b.done ? 'security_incident.checklist_tick' : 'security_incident.checklist_untick',

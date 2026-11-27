@@ -1,6 +1,7 @@
 import type { FastifyRequest } from 'fastify';
 import { approvalEngine, defineApprovalKind } from '../../core/approval-kinds.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { actorOf } from '../../core/dataload.ts';
 import { dayInZone } from '../../core/timezone.ts';
 
 /**
@@ -82,7 +83,7 @@ export function registerTargets(ctx: ModuleContext) {
     await db.query(
       `insert into safety_indicator_values (indicator_id, period, value, note, entered_by) values ($1,$2::date,$3,$4,$5)
        on conflict (indicator_id, period) do update set value = excluded.value, note = excluded.note, entered_by = excluded.entered_by, updated_at = now()`,
-      [ind.id, `${period}-01`, value, note, req.user!.id]);
+      [ind.id, `${period}-01`, value, note, actorOf(req).id]);
     await ctx.audit(req, {
       action: 'safety_indicator.value', recordType: 'safety_indicator', recordId: ind.id,
       summary: `Value for ${period} recorded: ${value}`, before: before ?? undefined, after: { period, value, note },
@@ -265,7 +266,7 @@ export function registerTargets(ctx: ModuleContext) {
     const updated = (await db.one<Row>(
       `update safety_indicator_targets set status = $2, approved_by_name = $3, approved_on = $4, approval_ref = $5,
          decision_id = $6, updated_at = now(), updated_by = $7 where id = $1 returning *`,
-      [row.id, decided, by, on, ref, decision && ctx.resources.get('meeting_decision') ? decision : null, req.user!.id]))!;
+      [row.id, decided, by, on, ref, decision && ctx.resources.get('meeting_decision') ? decision : null, actorOf(req).id]))!;
     await ctx.audit(req, {
       action: decided === 'approved' ? 'safety_indicator.target_approved' : 'safety_indicator.target_rejected',
       recordType: 'safety_indicator', recordId: ind.id,

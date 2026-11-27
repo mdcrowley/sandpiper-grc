@@ -6,6 +6,7 @@
 import type { FastifyRequest } from 'fastify';
 import { UUID_RE } from '../../core/errors.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { actorOf } from '../../core/dataload.ts';
 import { invalid, text } from './shared.ts';
 
 export const ACTIVATION_DONE = ['stood_down', 'closed'];
@@ -35,7 +36,7 @@ export function registerActivations(ctx: ModuleContext) {
     await db.query('insert into activation_log_entries (activation_id, at, entry, by_id, by_name) values ($1, coalesce($2::timestamptz, now()), $3, $4, $5)',
       [activationId, at ?? null, entry, by.id, by.name]);
   }
-  const byOf = (req: FastifyRequest | null) => ({ id: req?.user?.id ?? null, name: req?.user?.displayName ?? 'System' });
+  const byOf = (req: FastifyRequest | null) => (req ? { id: actorOf(req).id, name: actorOf(req).name ?? 'System' } : { id: null, name: 'System' });
 
   async function beforeCreate(req: FastifyRequest | null, data: Row): Promise<Row> {
     if (req && data.status && data.status !== 'active') invalid(ctx, { status: 'An activation starts active.' });
@@ -44,7 +45,7 @@ export function registerActivations(ctx: ModuleContext) {
     data.sites_affected = await idsOf(ctx, req, data.sites_affected, 'site', 'sites_affected');
     data.services_affected = await idsOf(ctx, req, data.services_affected, 'service', 'services_affected');
     if (!data.declared_at) data.declared_at = new Date().toISOString();
-    if (!data.declared_by && req) data.declared_by = req.user!.id;
+    if (!data.declared_by && req) data.declared_by = actorOf(req).id;
     return data;
   }
 
@@ -188,7 +189,7 @@ export function registerActivations(ctx: ModuleContext) {
     if (!userId && !personId && !name) errors.name = 'Choose a person or an account, or type a name.';
     if (Object.keys(errors).length) invalid(ctx, errors);
     const row = (await db.one<Row>('insert into activation_roles (activation_id, role, user_id, person_id, name, created_by) values ($1,$2,$3,$4,$5,$6) returning id',
-      [a.id, role, userId, personId, name, req.user!.id]))!;
+      [a.id, role, userId, personId, name, actorOf(req).id]))!;
     const shown = (await rolesOf(a.id)).find((r) => r.id === row.id)!;
     await addLog(a.id, `${shown.name ?? 'Someone'} took the role ${role}.`, byOf(req));
     await ctx.audit(req, { action: 'emergency_activation.role', recordType: 'emergency_activation', recordId: a.id, summary: `Role assigned: ${role}`, after: { role, user_id: userId, person_id: personId } });
@@ -322,7 +323,7 @@ export function registerActivations(ctx: ModuleContext) {
     const plan = await ctx.resources.create('cap', data, req);
     await db.query(
       `insert into record_links (from_type, from_id, to_type, to_id, relation, created_by) values ('emergency_activation', $1, 'cap', $2, 'raised', $3) on conflict do nothing`,
-      [a.id, plan.id, req.user!.id]);
+      [a.id, plan.id, actorOf(req).id]);
     await ctx.audit(req, {
       action: 'emergency_activation.cap', recordType: 'emergency_activation', recordId: a.id,
       summary: `Corrective action plan ${plan.ref ?? ''} raised from ${a.ref}`.replace(/\s+/g, ' '), after: { cap_id: plan.id },

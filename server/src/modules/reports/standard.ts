@@ -46,6 +46,10 @@ export const STANDARD_DASHBOARDS: StandardDashboard[] = [
       chart('c5', 8, 6, 4, 4, 'Open actions by priority', 'bar', { type: 'action', filters: openActions, groupBy: [{ field: 'priority' }] }),
       list('l1', 0, 10, 6, 4, 'Contract notice dates coming up', { type: 'contract', columns: ['title', 'vendor_id', 'notice_date'], filters: all(c('notice_date', 'next_days', 180)), sort: [{ by: 'notice_date', dir: 'asc' }] }, { dateField: 'notice_date' }),
       list('l2', 6, 10, 6, 4, 'Changes planned', { type: 'change', columns: ['title', 'status', 'planned_start'], filters: all(c('planned_start', 'next_days', 30)), sort: [{ by: 'planned_start', dir: 'asc' }] }, { dateField: 'planned_start' }),
+      // Wave 25 (E45-45): vulnerability age, service levels and change success.
+      chart('c6', 0, 14, 6, 4, 'Open vulnerabilities by age and severity', 'stacked', { type: 'vulnerability', filters: openVulns, groupBy: [{ field: 'first_seen', bucket: 'quarter' }, { field: 'severity' }] }),
+      { id: 'g1', kind: 'gauge', title: 'Tickets resolved within target', x: 6, y: 14, w: 3, h: 4, config: { spec: { type: 'ticket', filters: all(c('resolved_at', 'nempty'), c('target_missed', 'false')) }, of: all(c('resolved_at', 'nempty')), target: 90, dateField: 'resolved_at' } },
+      { id: 'g2', kind: 'gauge', title: 'Change success rate', x: 9, y: 14, w: 3, h: 4, config: { spec: { type: 'change', filters: all(c('outcome', 'in', ['successful', 'successful_with_issues'])) }, of: all(c('outcome', 'in', ['successful', 'successful_with_issues', 'failed', 'backed_out'])), target: 95, dateField: 'actual_end' } },
     ],
   },
   {

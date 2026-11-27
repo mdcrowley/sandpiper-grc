@@ -118,7 +118,7 @@ const POLICIES = [
   { priority: 'p4', respond: DAY, resolve: 5 * DAY, calendar: 'business' },
 ];
 
-/** Starting catalog entries. `defaults` pre-fill the request each one creates. */
+/** Starting catalog entries. `defaults` pre-fill the request each one creates; `questions` and `tasks` (E45-33) are copied onto it. */
 export const CATALOG = [
   { name: 'New starter', category: 'people', description: 'Set up accounts, equipment and access for someone joining the organization.',
     defaults: { type: 'request', category: 'access', title: 'New starter: ', impact: 'individual', urgency: 'medium',
@@ -134,25 +134,95 @@ export const CATALOG = [
     tasks: ['Create the account', 'Prepare and label the equipment', 'Grant access to the systems asked for', 'Hand over on the first day'] },
   { name: 'Leaver', category: 'people', description: 'Remove access and recover equipment when someone leaves.',
     defaults: { type: 'request', category: 'access', title: 'Leaver: ', impact: 'individual', urgency: 'medium',
-      description: 'Name:\nLast working day:\nManager:\nEquipment to return:\nMailbox and files to hand over to:' },
+      description: 'Anything else IT should know:' },
+    questions: [
+      { key: 'name', label: 'Name of the person leaving', type: 'text', required: true },
+      { key: 'last_day', label: 'Last working day', type: 'date', required: true },
+      { key: 'manager', label: 'Department and manager', type: 'text', required: true },
+      { key: 'equipment', label: 'Equipment to return', type: 'longtext', hint: 'Laptop, phone, access card, tokens' },
+      { key: 'handover', label: 'Mailbox and files to hand over to', type: 'text' },
+    ],
     tasks: ['Disable the account at the end of the last day', 'Recover equipment', 'Hand over mailbox and files', 'Remove licenses'] },
   { name: 'Access request', category: 'access', description: 'Ask for access to a system, shared folder or mailbox.',
     defaults: { type: 'request', category: 'access', title: 'Access request: ', impact: 'individual', urgency: 'low',
-      description: 'Who needs access:\nSystem or folder:\nLevel of access:\nBusiness reason:\nApproved by:' } },
+      description: 'Anything else IT should know:' },
+    questions: [
+      { key: 'who', label: 'Who needs access', type: 'text', required: true },
+      { key: 'system', label: 'System, shared folder or mailbox', type: 'text', required: true },
+      { key: 'level', label: 'Level of access', type: 'choice', options: ['Read only', 'Read and change', 'Administrator'], required: true },
+      { key: 'manager', label: 'Manager who approves', type: 'text', required: true },
+      { key: 'start_date', label: 'Needed from', type: 'date' },
+      { key: 'end_date', label: 'Needed until (leave empty if permanent)', type: 'date' },
+      { key: 'reason', label: 'Business reason', type: 'longtext', required: true },
+    ],
+    tasks: ['Confirm the approval with the manager', 'Create or change the account', 'Record the access in the account list of the system', 'Confirm with the requester'] },
   { name: 'Hardware', category: 'equipment', description: 'Request a computer, monitor, phone or other equipment.',
     defaults: { type: 'request', category: 'hardware', title: 'Hardware request: ', impact: 'individual', urgency: 'low',
-      description: 'What is needed:\nFor whom:\nLocation:\nFunding source or budget code:' } },
+      description: 'Anything else IT should know:' },
+    questions: [
+      { key: 'item', label: 'What is needed', type: 'choice', options: ['Laptop', 'Desktop', 'Monitor', 'Mobile phone', 'Tablet', 'Other'], required: true },
+      { key: 'for_whom', label: 'For whom', type: 'text', required: true },
+      { key: 'location', label: 'Delivery location', type: 'text', required: true },
+      { key: 'needed_by', label: 'Needed by', type: 'date' },
+      { key: 'budget', label: 'Funding source or budget code', type: 'text' },
+      { key: 'replaces', label: 'Does it replace equipment that should be returned?', type: 'yes_no' },
+    ],
+    tasks: ['Check stock or order the equipment', 'Record the asset and its tag', 'Set up and deliver', 'Collect the old equipment'] },
   { name: 'Software', category: 'software', description: 'Request software to be installed or a license to be assigned.',
     defaults: { type: 'request', category: 'software', title: 'Software request: ', impact: 'individual', urgency: 'low',
-      description: 'Software and version:\nFor whom:\nBusiness reason:\nLicense held or to be bought:' } },
+      description: 'Anything else IT should know:' },
+    questions: [
+      { key: 'software', label: 'Software and version', type: 'text', required: true },
+      { key: 'for_whom', label: 'For whom', type: 'text', required: true },
+      { key: 'device', label: 'Computer or asset tag', type: 'text' },
+      { key: 'license', label: 'License', type: 'choice', options: ['Already held', 'To be bought', 'Free or open source', 'Not sure'], required: true },
+      { key: 'reason', label: 'Business reason', type: 'longtext', required: true },
+    ],
+    tasks: ['Check the license and security review', 'Assign the license', 'Install and test', 'Confirm with the requester'] },
   { name: 'Vendor access', category: 'vendors', description: 'Arrange supervised or time-limited access for a vendor.',
     defaults: { type: 'request', category: 'access', title: 'Vendor access: ', impact: 'department', urgency: 'medium',
-      description: 'Vendor and contact:\nSystem:\nReason for access:\nStart and end time:\nInternal sponsor:' },
+      description: 'Anything else IT should know:' },
+    questions: [
+      { key: 'vendor', label: 'Vendor and contact', type: 'text', required: true },
+      { key: 'system', label: 'System', type: 'text', required: true },
+      { key: 'reason', label: 'Reason for access', type: 'longtext', required: true },
+      { key: 'start', label: 'Access from', type: 'date', required: true },
+      { key: 'end', label: 'Access until', type: 'date', required: true },
+      { key: 'sponsor', label: 'Internal sponsor', type: 'text', required: true },
+      { key: 'supervised', label: 'Supervised session', type: 'yes_no' },
+    ],
     requires_approval: true, tasks: ['Create time-limited access', 'Confirm access was removed afterwards'] },
   { name: 'Equipment fault', category: 'equipment', description: 'Report a fault with a computer, phone, printer or other equipment.',
     defaults: { type: 'incident', category: 'hardware', title: 'Equipment fault: ', impact: 'individual', urgency: 'medium',
-      description: 'Equipment and asset tag:\nLocation:\nWhat is wrong:\nWhen it started:\nCan work continue:' } },
+      description: 'What is wrong:' },
+    questions: [
+      { key: 'equipment', label: 'Equipment and asset tag', type: 'text', required: true },
+      { key: 'location', label: 'Location', type: 'text', required: true },
+      { key: 'started', label: 'When it started', type: 'date' },
+      { key: 'can_work', label: 'Can work continue?', type: 'yes_no', required: true },
+    ],
+    tasks: ['Diagnose the fault', 'Repair, replace or raise with the vendor', 'Confirm with the requester'] },
 ];
+
+/**
+ * E45-33: gives built-in catalog items (matched by name) the starter questions and tasks they lack.
+ * Only an empty part is filled: questions or tasks an administrator has set are never replaced.
+ */
+export async function fillCatalogStarters(ctx: Pick<ModuleContext, 'db' | 'resources'>): Promise<number> {
+  let filled = 0;
+  for (const item of CATALOG) {
+    const row = await ctx.db.one<{ id: string; questions: unknown; tasks: unknown }>(
+      'select id, questions, tasks from catalog_items where name = $1 and deleted_at is null order by created_at limit 1', [item.name]);
+    if (!row) continue;
+    const patch: Record<string, unknown> = {};
+    if (!row.questions && item.questions) patch.questions = item.questions;
+    if (!row.tasks && item.tasks) patch.tasks = item.tasks;
+    if (!Object.keys(patch).length) continue;
+    await ctx.resources.update('catalog_item', row.id, patch);
+    filled += 1;
+  }
+  return filled;
+}
 
 export async function seedDefaults(ctx: ModuleContext): Promise<void> {
   // The owning permission module lets hand-written pages read the list (see core lookups).

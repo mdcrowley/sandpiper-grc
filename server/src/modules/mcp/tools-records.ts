@@ -1,8 +1,9 @@
 import { z } from 'zod';
 import { qs } from './caller.ts';
+import { normalizeDate, resolveValues, valueHint, type Resolution } from './resolve.ts';
 import {
   defaultColumns, display, fail, plural, presentRow, rowLine,
-  type FieldMeta, type ToolContext, type ToolSpec, type TypeMeta,
+  type FieldMeta, type Meta, type ToolContext, type ToolSpec, type TypeMeta,
 } from './toolkit.ts';
 
 // The generic tools: every record type the person may see, through the generated REST routes.
@@ -52,38 +53,94 @@ export async function named(t: ToolContext, as: unknown): Promise<{ send: unknow
   return { send, name: p.name };
 }
 const behalf = (who: { name: string } | null) => (who ? ` on behalf of ${who.name}` : '');
+/** A comment's time as given, or a date in a common format as YYYY-MM-DD; the route checks it. */
+const commentTime = (v: string) => (Number.isNaN(Date.parse(v)) ? normalizeDate(v) ?? v : v);
 
-/** Checks field names against the type and turns "me" into the caller's id for person fields. */
-function cleanValues(t: ToolContext, type: TypeMeta, values: Record<string, unknown>, what: 'create' | 'update') {
+/**
+ * Checks field names against the type and resolves the values (resolve.ts): a linked record by its
+ * reference or exact title, a person by username, email or name ("me" for the caller), a list value
+ * by its label, a date in a common format. Returns what to send and what was worked out.
+ */
+async function cleanValues(t: ToolContext, type: TypeMeta, values: Record<string, unknown>, what: 'create' | 'update') {
   const fields: Record<string, string> = {};
-  const out: Record<string, unknown> = {};
+  const given: Record<string, unknown> = {};
   const load = loading(t);
   for (const [name, v] of Object.entries(values ?? {})) {
     const f = type.fields[name] ?? (load ? LOAD_STANDARD[name] : undefined);
     if (!f) { fields[name] = `${type.plural} have no field "${name}".`; continue; }
     if (f.readOnly && !load) { fields[name] = `"${f.label}" is worked out by the application and cannot be set.`; continue; }
-    out[name] = f.type === 'user' && v === 'me' ? t.session.user.id : v;
+    given[name] = v;
   }
   if (Object.keys(fields).length) fail(`Some fields cannot be ${what === 'create' ? 'set' : 'changed'}. Use list_record_types with type "${type.type}" for the fields.`, 'validation', fields);
-  if (!Object.keys(out).length) fail(what === 'create' ? 'Give at least the required fields.' : 'Give at least one field to change.');
-  return out;
+  if (!Object.keys(given).length) fail(what === 'create' ? 'Give at least the required fields.' : 'Give at least one field to change.');
+  const r = await resolveValues(t, given, (name) => type.fields[name] ?? LOAD_STANDARD[name]);
+  if (Object.keys(r.errors).length) fail('Some values could not be matched. Nothing was saved.', 'validation', r.errors);
+  return { data: r.out, resolved: r.resolved };
 }
+
+/** "Assignee "sam@x" → Sam Rivera" lines for the answer. */
+const resolvedText = (type: TypeMeta, resolved: Resolution[]) => (resolved.length
+  ? ` Matched: ${resolved.map((r) => `${type.fields[r.field]?.label ?? r.field} "${Array.isArray(r.given) ? r.given.join(', ') : String(r.given)}" → ${r.label ?? (Array.isArray(r.value) ? r.value.join(', ') : String(r.value))}`).join('; ')}.`
+  : '');
+
+/** Every type with a field pointing at `type` (its child and dependent records), among those the caller may see. */
+export function relatedTypes(meta: Meta, type: string) {
+  const out: { type: string; plural: string; field: string; field_label: string; required: boolean }[] = [];
+  for (const r of Object.values(meta.resources)) {
+    for (const [name, f] of Object.entries(r.fields)) {
+      if (f.type === 'ref' && f.to === type && !f.readOnly) out.push({ type: r.type, plural: r.plural, field: name, field_label: f.label, required: !!f.required });
+    }
+  }
+  return out.sort((a, b) => a.plural.localeCompare(b.plural));
+}
+
+const RELATED_COUNTED = 12;
+const isEmpty = (v: unknown) => v === null || v === undefined || v === '' || (Array.isArray(v) && !v.length);
+
+/**
+ * What a save left out (E45-49): the optional fields still empty, and the related types with no records
+ * pointing at this one yet, so the assistant sees what else its sources might fill.
+ */
+async function completeness(t: ToolContext, type: TypeMeta, row: Record<string, any>) {
+  const meta = await t.meta();
+  const unfilled = Object.entries(type.fields)
+    .filter(([name, f]) => !f.readOnly && !f.required && name !== type.titleField && name !== type.refField && isEmpty(row[name]))
+    .map(([name, f]) => ({ field: name, label: f.label }));
+  const related = relatedTypes(meta, type.type).filter((r) => r.type !== type.type).slice(0, RELATED_COUNTED);
+  const counts = await Promise.all(related.map(async (r) => {
+    const res = await t.api.tryGet<{ total: number }>(`${meta.resources[r.type].path}${qs({ [`f.${r.field}`]: row.id, pageSize: 1 })}`).catch(() => undefined);
+    return res ? res.total : -1;
+  }));
+  const relatedEmpty = related.filter((_, i) => counts[i] === 0).map((r) => ({ type: r.type, plural: r.plural, field: r.field }));
+  const text = [
+    unfilled.length ? ` Still empty: ${unfilled.slice(0, 20).map((u) => u.label).join(', ')}${unfilled.length > 20 ? ', …' : ''}.` : '',
+    relatedEmpty.length ? ` No related records yet: ${relatedEmpty.map((r) => `${r.plural} (${r.type}.${r.field})`).join(', ')}.` : '',
+    unfilled.length || relatedEmpty.length ? ' Fill what your sources give, create related records, attach the source files (attach_file, attach_link) and add history as comments.' : '',
+  ].join('');
+  return { unfilled, relatedEmpty, text };
+}
+
+const LINKS_TEXT = 'Besides these, link_records links a record to any other record you can see (relation in words, e.g. "related", "affects", "depends on", "caused by", "mitigates"), '
+  + 'attach_file and attach_link put the source files and links on it, and add_comment keeps its history.';
 
 const listRecordTypes: ToolSpec = {
   name: 'list_record_types', title: 'List record types', group: 'Records', idempotent: true,
-  description: 'Lists the kinds of record you can see in Sandpiper GRC (systems, assets, actions, ...). '
-    + 'With "type", describes that type\'s fields: label, kind of value, whether it is required or read-only, and the allowed choices for list fields. '
-    + 'Use it before list_records, create_record or update_record to learn the field names.',
+  description: 'Lists the kinds of record you can see in Sandpiper GRC (systems, assets, actions, ...) with each type\'s required fields. '
+    + 'With "type", describes that type\'s fields (label, kind of value, required or read-only, help text, how to give the value, the allowed choices of list fields, custom fields included) '
+    + 'and its related types: the types whose records point at it (child records that belong to it) and how to link, attach files and add history. '
+    + 'Use it before create_record or update_record, for the type and for its related types, to plan a complete record.',
   input: { type: typeArg.optional() },
   async run(args, t) {
     const meta = await t.meta();
     if (!args.type) {
       const types = Object.values(meta.resources).sort((a, b) => a.plural.localeCompare(b.plural)).map((r) => ({
         type: r.type, label: r.label, plural: r.plural, restricted: r.restricted, has_reference: !!r.refField, fields: Object.keys(r.fields),
+        required: Object.entries(r.fields).filter(([, f]) => f.required && !f.readOnly).map(([n]) => n),
       }));
       const dl = t.session.dataLoad;
       return {
-        text: `${plural(types.length, 'record type')} you can see:\n${types.map((r) => `- ${r.type}: ${r.plural}${r.restricted ? ' (restricted)' : ''}`).join('\n')}`
+        text: `${plural(types.length, 'record type')} you can see (required fields in brackets):\n${types.map((r) => `- ${r.type}: ${r.plural}${r.restricted ? ' (restricted)' : ''}${r.required.length ? ` [${r.required.join(', ')}]` : ''}`).join('\n')}`
+          + '\nAsk with a type for its fields and its related types.'
           + (loading(t) ? `\n\nData load mode is on until ${dl!.until}: create_record and update_record may also set read-only fields, any status, created_at, created_by, updated_at and the reference. Ask with a type for its extra fields.` : ''),
         data: { types, data_load: dl ? { on: dl.on, until: dl.until, your_saves_are_loads: dl.allowed } : { on: false } },
       };
@@ -93,17 +150,29 @@ const listRecordTypes: ToolSpec = {
     const fields = Object.entries(type.fields).map(([name, f]) => ({
       name, label: f.label, kind: f.type, required: !!f.required, read_only: !!f.readOnly,
       ...(load && f.readOnly ? { settable_in_data_load: true } : {}),
+      ...(f.custom ? { custom: true } : {}),
+      ...(f.multiple ? { multiple: true } : {}),
       ...(f.to ? { refers_to: f.to } : {}),
+      ...(f.help ? { help: f.help } : {}),
+      ...(valueHint(f, meta) ? { how: valueHint(f, meta) } : {}),
       ...(f.list ? { choices: (meta.lookups[f.list] ?? []).map((v) => ({ value: v.value, label: v.label })) } : {}),
     }));
-    const lines = fields.map((f) => `- ${f.name} (${f.kind}${f.required ? ', required' : ''}${f.read_only ? (load ? ', read-only, settable in data load mode' : ', read-only') : ''}): ${f.label}`
-      + ('choices' in f && f.choices?.length ? ` [${f.choices.map((c) => c.value).join(', ')}]` : ''));
+    const choiceText = (c: { value: string; label: string }) => (c.label && c.label.toLowerCase() !== c.value.toLowerCase() ? `${c.value} (${c.label})` : c.value);
+    const lines = fields.map((f) => `- ${f.name} (${f.kind}${f.multiple ? ', several' : ''}${f.required ? ', required' : ''}${f.read_only ? (load ? ', read-only, settable in data load mode' : ', read-only') : ''}${f.custom ? ', custom' : ''}${f.refers_to ? `, a ${f.refers_to}` : ''}): ${f.label}`
+      + (f.help ? ` — ${f.help}` : '')
+      + ('choices' in f && f.choices?.length ? ` [${f.choices.map(choiceText).join(', ')}]` : ''));
+    const related = relatedTypes(meta, type.type);
+    const relatedLines = related.map((r) => `- ${r.type} (${r.plural}): its ${r.field} ("${r.field_label}"${r.required ? ', required' : ''}) points at the ${type.label.toLowerCase()}`);
     const extra = load ? [...fields.filter((f) => f.read_only).map((f) => f.name), ...Object.keys(LOAD_STANDARD)] : [];
     return {
       text: `${type.plural} (${type.type})${type.restricted ? ', restricted records' : ''}. Title field: ${type.titleField}.${type.refField ? ` Reference field: ${type.refField}.` : ''}\nFields:\n${lines.join('\n')}`
+        + '\nValues: a linked record by its id, reference or exact title; a person by username, email, exact name or "me"; a list field by value or label; dates as YYYY-MM-DD (other common formats are converted). Fill every field your source supports rather than writing facts into a description or notes.'
+        + (relatedLines.length ? `\nRelated types (create them with create_record, setting the field to this ${type.label.toLowerCase()}'s reference or id):\n${relatedLines.join('\n')}` : '\nNo other type points at this one.')
+        + `\n${LINKS_TEXT}`
         + (load ? `\nData load mode is on until ${t.session.dataLoad!.until}: you may also set ${extra.join(', ')} (dates and times as ISO 8601; created_by, updated_by and person fields take a user id, username or email). Give "as" on create_record and update_record to name the person who did it. Any status is allowed. A reference you give must be unique; values you give win over what the application would work out, and what you leave out is worked out from the dates you give. Nothing is sent to anyone.` : ''),
       data: {
-        type: type.type, label: type.label, plural: type.plural, title_field: type.titleField, reference_field: type.refField ?? null, restricted: type.restricted, fields, url: t.link(type.route),
+        type: type.type, label: type.label, plural: type.plural, title_field: type.titleField, reference_field: type.refField ?? null, restricted: type.restricted, fields,
+        related_types: related, links: LINKS_TEXT, url: t.link(type.route),
         ...(load ? { data_load: { on: true, until: t.session.dataLoad!.until, extra_fields: extra } } : {}),
       },
     };
@@ -255,7 +324,8 @@ const getHistory: ToolSpec = {
 
 const addComment: ToolSpec = {
   name: 'add_comment', title: 'Add a comment', group: 'Changes', write: true,
-  description: 'Adds a comment to a record you may see. Comments are internal notes unless "internal" is false (a public comment, which the person who raised the record can see where the application shows it to them).',
+  description: 'Adds a comment to a record you may see. Comments are internal notes unless "internal" is false (a public comment, which the person who raised the record can see where the application shows it to them). '
+    + 'Use one comment per entry of a record\'s history (work notes, emails, meeting notes from the source), oldest first, rather than one long description.',
   input: {
     type: typeArg, id: idArg,
     body: z.string().min(1).max(20000).describe('The comment text.'),
@@ -263,7 +333,7 @@ const addComment: ToolSpec = {
   },
   dataLoadInput: {
     ...AS_INPUT,
-    created_at: z.string().optional().describe('Data load mode only: when the comment was written (ISO 8601).'),
+    created_at: z.string().optional().describe('Data load mode only: when the comment was written (ISO 8601, or a date).'),
   },
   dataLoadNote: 'Data load mode is on: give "as" for the person who wrote the comment and created_at for when; nobody is told about it.',
   async run(args, t) {
@@ -272,7 +342,7 @@ const addComment: ToolSpec = {
     const who = await named(t, args.as);
     const made = await t.api.post<any>('/api/comments', {
       record_type: type.type, record_id: row.id, body: args.body, internal: args.internal !== false,
-      ...(who ? { on_behalf_of: who.send } : {}), ...(loading(t) && args.created_at ? { created_at: args.created_at } : {}),
+      ...(who ? { on_behalf_of: who.send } : {}), ...(loading(t) && args.created_at ? { created_at: commentTime(args.created_at) } : {}),
     });
     const name = `${type.label.toLowerCase()} ${row[type.refField ?? ''] ?? row[type.titleField]}`;
     return {
@@ -286,27 +356,38 @@ const addComment: ToolSpec = {
   },
 };
 
+const VALUES_HELP = 'Linked records (ref fields) take an id, a reference (e.g. "SYS-00012") or the exact title of a record you can see; person fields a user id, username, email, exact display name or "me"; '
+  + 'list fields a value or its label; dates YYYY-MM-DD or another common format (MM/DD/YYYY is read month first). The answer says what each value was matched to, '
+  + 'which optional fields are still empty (unfilled) and which related types have no records for it yet (related_empty).';
+
 const createRecord: ToolSpec = {
   name: 'create_record', title: 'Create a record', group: 'Changes', write: true,
   description: 'Creates a record of one type, with the same validation, numbering and notifications as the application. '
-    + 'Use list_record_types first for the field names, required fields and choices. Person fields take a user id or "me". '
-    + 'If something is not valid, the answer names each field and what is wrong.',
+    + 'Use list_record_types first for the field names, required fields, choices and related types, and fill every field your source supports '
+    + '(people, linked records, dates, categories) instead of writing those facts into the description or notes. ' + VALUES_HELP
+    + ' If something is not valid or cannot be matched, the answer names each field and what is wrong, and nothing is saved.',
   input: {
     type: typeArg,
-    fields: z.record(z.string(), z.unknown()).describe('Field values by field name, e.g. {"title": "...", "priority": "high"}.'),
+    fields: z.record(z.string(), z.unknown()).describe('Field values by field name, e.g. {"title": "...", "priority": "High", "system_id": "SYS-00012", "assignee_id": "sam@example.org"}.'),
   },
-  dataLoadNote: 'Data load mode is on: you may also set read-only fields (such as opened_at, resolved_at, closed_at, due times and breach flags), any status, created_at, created_by, updated_at, updated_by and the reference; give "as" for the person who created it (its author in the history). The record is marked as loaded and can be deleted with delete_record. Nothing is sent to anyone.',
+  dataLoadNote: 'Data load mode is on: you may also set read-only fields (such as opened_at, resolved_at, closed_at, due times and breach flags), any status, created_at, created_by, updated_at, updated_by and the reference; give "as" for the person who created it (its author in the history). Person fields may name disabled accounts. The record is marked as loaded and can be deleted with delete_record. Nothing is sent to anyone.',
   dataLoadInput: AS_INPUT,
   async run(args, t) {
     const type = await t.typeOf(args.type);
-    const data = cleanValues(t, type, args.fields, 'create');
+    const { data, resolved } = await cleanValues(t, type, args.fields, 'create');
     const who = await named(t, args.as);
     const row = await t.api.post<any>(type.path, who ? { ...data, on_behalf_of: who.send } : data);
     const ref = type.refField ? row[type.refField] : null;
     const load = loading(t);
+    const gaps = await completeness(t, type, row);
     return {
-      text: `${load ? 'Loaded' : 'Created'} ${type.label.toLowerCase()} ${ref ?? ''} "${row[type.titleField] ?? ''}"${load ? ' (data load mode)' : ''}${behalf(who)}. Open: ${t.link(type.route, row.id)}`.replace(/\s+/g, ' '),
-      data: { type: type.type, id: row.id, ref, title: row[type.titleField] ?? null, url: t.link(type.route, row.id), ...(load ? { data_load: true, created_at: row.created_at, ...(who ? { on_behalf_of: who.name } : {}) } : {}) },
+      text: `${load ? 'Loaded' : 'Created'} ${type.label.toLowerCase()} ${ref ?? ''} "${row[type.titleField] ?? ''}"${load ? ' (data load mode)' : ''}${behalf(who)}. Open: ${t.link(type.route, row.id)}`.replace(/\s+/g, ' ')
+        + resolvedText(type, resolved) + gaps.text,
+      data: {
+        type: type.type, id: row.id, ref, title: row[type.titleField] ?? null, url: t.link(type.route, row.id),
+        resolved, unfilled: gaps.unfilled, related_empty: gaps.relatedEmpty,
+        ...(load ? { data_load: true, created_at: row.created_at, ...(who ? { on_behalf_of: who.name } : {}) } : {}),
+      },
       audit: { recordType: type.type, recordId: row.id, summary: `${type.label} ${ref ?? `"${row[type.titleField] ?? ''}"`} ${load ? 'loaded (data load mode)' : 'created'}`, onBehalf: who?.name },
     };
   },
@@ -315,7 +396,7 @@ const createRecord: ToolSpec = {
 const updateRecord: ToolSpec = {
   name: 'update_record', title: 'Update a record', group: 'Changes', write: true, idempotent: true,
   description: 'Changes some fields of one record you may edit; fields you leave out are kept. Read-only fields are refused. '
-    + 'The application\'s own rules apply (for example status changes that need other fields); problems come back per field.',
+    + 'The application\'s own rules apply (for example status changes that need other fields); problems come back per field. ' + VALUES_HELP,
   input: {
     type: typeArg, id: idArg,
     changes: z.record(z.string(), z.unknown()).describe('New values by field name; null clears a field.'),
@@ -325,7 +406,7 @@ const updateRecord: ToolSpec = {
   async run(args, t) {
     const type = await t.typeOf(args.type);
     const row = await t.record(type, args.id);
-    const patch = cleanValues(t, type, args.changes, 'update');
+    const { data: patch, resolved } = await cleanValues(t, type, args.changes, 'update');
     const who = await named(t, args.as);
     const saved = await t.api.patch<any>(`${type.path}/${row.id}`, who ? { ...patch, on_behalf_of: who.send } : patch);
     const changed = Object.keys(patch).map((k) => type.fields[k]?.label ?? k);
@@ -333,10 +414,12 @@ const updateRecord: ToolSpec = {
     // A status move that waits for an approval workflow (E14-37): the record keeps its status for now.
     const held = saved?._pending_move as { field: string; to: string } | undefined;
     const heldText = held ? ` The ${(type.fields[held.field]?.label ?? held.field).toLowerCase()} stays as it is until an approval workflow approves the move to "${held.to}".` : '';
+    const gaps = await completeness(t, type, saved ?? row);
     return {
-      text: `Updated ${name}${behalf(who)}: ${changed.join(', ')}.${heldText}`,
+      text: `Updated ${name}${behalf(who)}: ${changed.join(', ')}.${heldText}${resolvedText(type, resolved)}${gaps.text}`,
       data: {
         type: type.type, id: row.id, changed: Object.keys(patch), now: Object.fromEntries(Object.keys(patch).map((k) => [k, display(saved, k, type.fields[k])])), url: t.link(type.route, row.id),
+        resolved, unfilled: gaps.unfilled, related_empty: gaps.relatedEmpty,
         ...(held ? { waiting_for_approval: { field: held.field, to: held.to } } : {}),
       },
       audit: { recordType: type.type, recordId: row.id, summary: `Updated ${name} (${changed.join(', ')})`, onBehalf: who?.name },

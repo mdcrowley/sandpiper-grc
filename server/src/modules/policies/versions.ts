@@ -3,7 +3,7 @@
 // (approval body and reference), file versions (the original PDF is the text), minor versions, the
 // dates a version stopped being in force, and data load of whole version histories.
 import type { FastifyRequest } from 'fastify';
-import { actorOf, asDataLoad, dataLoadFor } from '../../core/dataload.ts';
+import { actorOf, asDataLoad, dataLoadFor, onBehalfOf } from '../../core/dataload.ts';
 import { featureState, rolesShown } from '../../core/features.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { readableSql, tablesFor, type AccessTables } from './access.ts';
@@ -394,14 +394,15 @@ export function registerVersionRoutes(ctx: ModuleContext, tables: AccessTables =
     if (effectiveOn !== null && !isDate(effectiveOn)) fields.effective_on = 'Effective date must be a date (YYYY-MM-DD).';
     if (version.content_kind === 'file' && !version.source_attachment_id) fields.attachment_id = 'Attach the file that is this version first.';
     if (Object.keys(fields).length) ctx.fail(400, 'validation', 'Check the highlighted fields.', fields);
-    const approver = text(b.approved_by_name) ?? text(policy.approver_name) ?? req.user!.displayName;
+    // E18-94: in a load that names a person, they are the approver (unless a name is given).
+    const approver = text(b.approved_by_name) ?? onBehalfOf(req)?.name ?? text(policy.approver_name) ?? actorOf(req).name ?? req.user!.displayName;
     const approvalBody = b.approval_body !== undefined ? text(b.approval_body, 200) : version.approval_body ?? null;
     const approvalRef = b.approval_reference !== undefined ? text(b.approval_reference, 200) : version.approval_reference ?? null;
     const versionLabel = b.version_label !== undefined ? text(b.version_label, 60) : version.version_label ?? null;
     const row = (await db.one<Row>(
       `update policy_versions set status = 'approved', approved_by = $2, approved_by_name = $3, approved_on = $4, effective_on = $5,
          approval_body = $6, approval_reference = $7, version_label = $8, body_sha256 = $9, updated_at = now(), updated_by = $2 where id = $1 returning *`,
-      [version.id, req.user!.id, approver, approvedOn, effectiveOn, approvalBody, approvalRef, versionLabel, bodyHash(version.body)],
+      [version.id, actorOf(req).id, approver, approvedOn, effectiveOn, approvalBody, approvalRef, versionLabel, bodyHash(version.body)],
     ))!;
     await syncPolicyStatus(ctx, policy.id, req.user!.id);
     await ctx.audit(req, {

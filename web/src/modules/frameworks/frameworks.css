@@ -368,3 +368,6 @@
 .fw-views-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .fw-views-owner { font-size: var(--fs-sm); color: var(--text-muted); }
 .fw-settings-field { max-width: 420px; }
+
+/* E45-41: the summary in "Send outcomes that need work to their owners". */
+.fw-send-summary { margin: 0; padding-left: var(--s-5); display: grid; gap: var(--s-1); }

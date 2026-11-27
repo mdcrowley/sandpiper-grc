@@ -3,6 +3,7 @@
 // result and score and raises a finding for each item not met.
 import type { FastifyRequest } from 'fastify';
 import { UUID_RE } from '../../core/errors.ts';
+import { actorOf } from '../../core/dataload.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { dayInZone } from '../../core/timezone.ts';
 import { addDays } from './dates.ts';
@@ -11,6 +12,13 @@ import {
 } from '../../../../shared/inspection-rules.ts';
 
 export const ANSWERS = CHECKLIST_ANSWERS;
+/**
+ * The shared evidence library's record type (module `evidence`, E45-06). Evidence records are linked to a
+ * workpaper step through the library's own links (`evidence_links`, part `step:<item id>` of the
+ * audit, registered in workpapers.ts) and to a finding before its verification; while the library is
+ * not installed or switched off, steps and verifications use files only.
+ */
+export const EVIDENCE_TYPE = 'evidence_record';
 /** Inspection statuses that end it without a result: answers and completion are refused (a missed one may still be done late). */
 export const CANCELED_STATUSES = ['canceled', 'cancelled'];
 const MAX_ITEMS = 300;
@@ -63,7 +71,9 @@ export function registerChecklists(ctx: ModuleContext) {
 
   async function answersFor(type: Parent, id: string): Promise<Map<string, Row>> {
     const rows = await db.query<Row>(
-      `select r.item_id, r.answer, r.note, r.attachment_ids, r.answered_at, u.display_name as answered_by_name
+      `select r.item_id, r.answer, r.note, r.attachment_ids, r.answered_at, u.display_name as answered_by_name,
+              r.procedure, r.sample, r.result, r.prepared_by, r.prepared_by_name, r.prepared_at,
+              r.reviewed_by, r.reviewed_by_name, r.reviewed_at
        from checklist_responses r left join users u on u.id = r.answered_by
        where r.parent_type = $1 and r.parent_id = $2`, [type, id]);
     return new Map(rows.map((r) => [r.item_id, r]));
@@ -77,11 +87,50 @@ export function registerChecklists(ctx: ModuleContext) {
     const answers = await answersFor(type, parent.id);
     const responses: Record<string, Row> = {};
     for (const [k, v] of answers) responses[k] = v;
-    const answered = items.filter((i) => answers.get(i.id)?.answer).length;
+    const answered = items.filter((i) => answers.get(i.id)?.answer || answers.get(i.id)?.result).length;
+    const base = { template, items, responses, answered, total: items.length, can_answer: ctx.can(req.user, 'audits.edit') };
+    if (type !== 'audit_engagement') return base;
+    // Workpapers (E45-15): review notes and the evidence items linked, per step.
+    const notes = await db.query<Row>(
+      `select id, item_id, note, raised_by_name, raised_at, addressed_to, addressed_to_name, response, cleared_by_name, cleared_at
+       from workpaper_review_notes where parent_type = $1 and parent_id = $2 order by raised_at`, [type, parent.id]);
+    const evidence = await stepEvidence(parent.id, req);
+    for (const r of Object.values(responses)) {
+      r.notes = notes.filter((n) => n.item_id === r.item_id);
+      r.evidence = evidence.rows.filter((e) => e.item_id === r.item_id);
+      r.evidence_hidden = evidence.hidden.get(String(r.item_id)) ?? 0;
+      r.locked = Boolean(r.reviewed_at);
+    }
+    const prepared = items.filter((i) => answers.get(i.id)?.prepared_at).length;
+    const reviewed = items.filter((i) => answers.get(i.id)?.reviewed_at).length;
     return {
-      template, items, responses, answered, total: items.length,
-      can_answer: ctx.can(req.user, 'audits.edit'),
+      ...base, prepared, reviewed, open_notes: notes.filter((n) => !n.cleared_at).length,
+      evidence_available: Boolean(ctx.resources.get(EVIDENCE_TYPE)),
+      can_review: ctx.can(req.user, 'audits.edit'), me: actorOf(req).id,
     };
+  }
+
+  /**
+   * Evidence records linked to the audit's steps (the library's links, part `step:<item id>`): those the
+   * reader may see, and per step how many they may not (restriction hides detail, never counts).
+   */
+  async function stepEvidence(auditId: string, req: FastifyRequest): Promise<{ rows: Row[]; hidden: Map<string, number> }> {
+    const def = ctx.resources.get(EVIDENCE_TYPE);
+    const hidden = new Map<string, number>();
+    if (!def) return { rows: [], hidden };
+    const links = await db.query<Row>(
+      `select l.id as link_id, l.evidence_id, substring(l.part from 6) as item_id, l.relation from evidence_links l
+       where l.record_type = 'audit_engagement' and l.record_id = $1 and l.part like 'step:%' order by l.created_at`, [auditId]);
+    const rows: Row[] = [];
+    for (const l of links) {
+      const found = ctx.can(req.user, `${def.module}.view`) ? await ctx.resources.find(EVIDENCE_TYPE, String(l.evidence_id), req.user) : undefined;
+      if (!found) { hidden.set(l.item_id, (hidden.get(l.item_id) ?? 0) + 1); continue; }
+      rows.push({
+        link_id: l.link_id, item_id: l.item_id, id: l.evidence_id, relation: l.relation, ref: found.ref ?? null,
+        label: String(found[def.titleField] ?? def.label), route: def.route ? `${def.route}/${l.evidence_id}` : null,
+      });
+    }
+    return { rows, hidden };
   }
 
   /** Saves answers given one or several at a time. Attachments named must already be on the parent record. */
@@ -90,13 +139,33 @@ export function registerChecklists(ctx: ModuleContext) {
     if (!list.length) invalid({ responses: 'Give at least one answer.' });
     if (list.length > MAX_ITEMS) invalid({ responses: `At most ${MAX_ITEMS} answers at a time.` });
     const items = new Map((await itemsFor(templateId)).map((i) => [i.id, i]));
+    const workpaper = type === 'audit_engagement';
+    const existing = workpaper ? await answersFor(type, parent.id) : new Map<string, Row>();
+    const results = workpaper ? await ctx.lookups.values('workpaper_result') : [];
     const clean: Row[] = [];
     for (const [n, r] of list.entries()) {
       const key = `responses.${n}`;
       const itemId = String(r?.item_id ?? '');
       if (!items.has(itemId)) invalid({ [key]: 'That checklist item is not on this checklist.' });
-      const answer = r.answer === null || r.answer === '' || r.answer === undefined ? null : String(r.answer);
+      // A reviewed workpaper step is locked (E45-15).
+      if (workpaper && existing.get(itemId)?.reviewed_at) ctx.fail(409, 'step_reviewed', `"${items.get(itemId)!.prompt.slice(0, 80)}" has been reviewed, so it is locked.`);
+      let answer = r.answer === null || r.answer === '' || r.answer === undefined ? null : String(r.answer);
       if (answer !== null && !(ANSWERS as readonly string[]).includes(answer)) invalid({ [key]: 'Answer yes, no or not applicable.' });
+      const wp: Row = {};
+      if (workpaper) {
+        for (const f of ['procedure', 'sample'] as const) if (r[f] !== undefined) wp[f] = text(r[f], 8000) || null;
+        if (r.result !== undefined) {
+          const result = r.result === null || r.result === '' ? null : String(r.result);
+          const v = result ? results.find((x) => x.value === result) : null;
+          if (result && !v) invalid({ [key]: 'Choose a result from the list.' });
+          wp.result = result;
+          // The result gives the answer counted in the report (met, not met, not applicable) unless one is given.
+          if (r.answer === undefined) answer = v && typeof v.meta?.answer === 'string' && (ANSWERS as readonly string[]).includes(v.meta.answer) ? v.meta.answer : null;
+        } else if (r.answer !== undefined) {
+          wp.result = answer ? results.find((x) => x.meta?.answer === answer && x.meta?.default === true)?.value ?? results.find((x) => x.meta?.answer === answer)?.value ?? null : null;
+        }
+      }
+      if (r.answer === undefined && r.result === undefined && workpaper) answer = existing.get(itemId)?.answer ?? null;
       let ids: string[] | undefined;
       if (r.attachment_ids !== undefined) {
         if (!Array.isArray(r.attachment_ids) || r.attachment_ids.length > 20 || r.attachment_ids.some((x: unknown) => typeof x !== 'string' || !UUID_RE.test(x))) {
@@ -111,8 +180,9 @@ export function registerChecklists(ctx: ModuleContext) {
           if (found.length !== ids.length) invalid({ [key]: `Attach the photo to this ${type === 'inspection' ? 'inspection' : 'audit'} first.` });
         }
       }
-      clean.push({ item_id: itemId, answer, note: r.note === undefined ? undefined : text(r.note, 4000) || null, attachment_ids: ids });
+      clean.push({ item_id: itemId, answer, note: r.note === undefined ? undefined : text(r.note, 4000) || null, attachment_ids: ids, wp });
     }
+    const by = actorOf(req);
     await db.tx(async (tx) => {
       for (const r of clean) {
         await tx.query(
@@ -122,8 +192,19 @@ export function registerChecklists(ctx: ModuleContext) {
              note = case when $8 then excluded.note else checklist_responses.note end,
              attachment_ids = case when $6::jsonb is null then checklist_responses.attachment_ids else excluded.attachment_ids end,
              answered_by = excluded.answered_by, answered_at = now()`,
-          [type, parent.id, r.item_id, r.answer, r.note ?? null, r.attachment_ids ? JSON.stringify(r.attachment_ids) : null, req.user!.id, r.note !== undefined],
+          [type, parent.id, r.item_id, r.answer, r.note ?? null, r.attachment_ids ? JSON.stringify(r.attachment_ids) : null, by.id, r.note !== undefined],
         );
+        if (!workpaper) continue;
+        const w = r.wp as Row;
+        // Any change to a prepared step withdraws the preparer's sign-off: they sign again once it is right.
+        await tx.query(
+          `update checklist_responses set
+             procedure = case when $4 then $5 else procedure end,
+             sample = case when $6 then $7 else sample end,
+             result = case when $8 then $9 else result end,
+             prepared_by = null, prepared_by_name = null, prepared_at = null
+           where parent_type = $1 and parent_id = $2 and item_id = $3`,
+          [type, parent.id, r.item_id, 'procedure' in w, w.procedure ?? null, 'sample' in w, w.sample ?? null, 'result' in w, w.result ?? null]);
       }
     });
     await ctx.audit(req, {
@@ -229,9 +310,10 @@ export function registerChecklists(ctx: ModuleContext) {
   });
   ctx.describeRoute({
     method: 'PUT', path: '/api/audits/:id/checklist', tag: 'Audits', permission: 'audits.edit',
-    summary: 'Save answers on the audit\'s checklist (one or several items; yes, no or not applicable, with a note and photos)',
-    body: '{ responses: [{ item_id, answer: "yes" | "no" | "na" | null, note?, attachment_ids? }] } or one { item_id, answer, note?, attachment_ids? }',
-    response: '{ saved, template, items, responses, answered, total, can_answer }',
+    summary: 'Save workpaper steps on the audit\'s checklist (one or several items): procedure, sample, result, what was found, files and evidence items',
+    description: 'A `result` (workpaper_result list) sets the answer counted in the report through its `meta.answer`; an `answer` alone (yes, no, na) still works. Any change withdraws the step\'s preparer sign-off; a reviewed step is locked (409 `step_reviewed`). Evidence library records are linked to a step with POST /api/evidence-links (part `step:<item_id>`) and listed here per step. Steps are signed with the routes under /api/audits/:id/steps.',
+    body: '{ responses: [{ item_id, answer?: "yes" | "no" | "na" | null, result?, procedure?, sample?, note?, attachment_ids? }] } or one such object',
+    response: '{ saved, template, items, responses: { [item_id]: { answer, result, procedure, sample, note, attachment_ids, evidence: [{ link_id, id, ref, label, route }], evidence_hidden, prepared_by_name, prepared_at, reviewed_by_name, reviewed_at, locked, notes } }, answered, prepared, reviewed, open_notes, total, can_answer, can_review }',
   });
 
   // ---------- an inspection's checklist ----------
@@ -325,5 +407,5 @@ export function registerChecklists(ctx: ModuleContext) {
     body: '{ raise_findings?: boolean (default true), notes?: string, signed_by_name?: string, signature_attachment_id?: string }', response: '{ inspection, findings: [{ id, ref, title, rating }] }',
   });
 
-  return { itemsFor, answersFor };
+  return { itemsFor, answersFor, checklistView };
 }

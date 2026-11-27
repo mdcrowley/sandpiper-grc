@@ -29,7 +29,7 @@ export function registerCoverage(ctx: ModuleContext) {
       `select count(distinct r.id)::int as n from audit_areas r join audits a on a.area_id = r.id and a.deleted_at is null and a.status = 'closed'
        where r.deleted_at is null and r.active and ${YEAR} between $1 and $2`, [years[0], thisYear]))?.n ?? 0);
     const areas = await db.query<Row>(
-      `select a.id, a.name, a.category, a.cycle_months, a.last_audited_on, a.next_due_on, a.risk_level, u.display_name as owner_name
+      `select a.id, a.name, a.category, a.cycle_months, a.last_audited_on, a.next_due_on, a.risk_level, a.risk_score, u.display_name as owner_name
        from audit_areas a left join users u on u.id = a.owner_id
        where a.deleted_at is null and a.active order by a.name, a.id limit $1 offset $2`, [pageSize, offset]);
     const audits = await db.query<Row>(
@@ -63,7 +63,7 @@ export function registerCoverage(ctx: ModuleContext) {
     summary: 'Coverage of the audit universe: each active area with its cycle, last and next audit, and its audits in each of the last years and next year',
     description: 'Restricted audits the caller may not see appear as "Restricted audit" with their status only.',
     query: { years: 'Years back, including this one (1 to 10, default 3)', page: 'Page of areas (default 1)', pageSize: 'Areas per page (default 200, at most 500)' },
-    response: '{ today, years: number[], areas: [{ id, name, category, cycle_months, last_audited_on, next_due_on, risk_level, owner_name, state: "overdue" | "due_soon" | "ok" | "never", audited_in_period, by_year: { [year]: [{ id, ref, title, status, restricted }] } }], unassigned: { [year]: [...] }, covered, total, page, pageSize }',
+    response: '{ today, years: number[], areas: [{ id, name, category, cycle_months, last_audited_on, next_due_on, risk_level, risk_score, owner_name, state: "overdue" | "due_soon" | "ok" | "never", audited_in_period, by_year: { [year]: [{ id, ref, title, status, restricted }] } }], unassigned: { [year]: [...] }, covered, total, page, pageSize }',
   });
 
   app.get('/api/audits/summary', view, async (req) => {
@@ -124,6 +124,13 @@ export function registerCoverage(ctx: ModuleContext) {
         overdue: await one(
           `select count(*)::int as n from audit_findings where deleted_at is null and not (coalesce(status, '') = any($1::text[]))
              and response_due < $2::date and responded_on is null`, [closed, today]),
+        // E45-16: fixes waiting for the auditor's verification, those past its date, and findings closed
+        // before verification was required (or by system work) that have none.
+        awaiting_verification: await one(`select count(*)::int as n from audit_findings where deleted_at is null and status = 'awaiting_verification'`),
+        verification_overdue: await one(
+          `select count(*)::int as n from audit_findings where deleted_at is null and verified_on is null
+             and not (coalesce(status, '') = any($1::text[])) and verification_due < $2::date`, [closed, today]),
+        closed_unverified: await one(`select count(*)::int as n from audit_findings where deleted_at is null and verified_on is null and coalesce(status, '') = any($1::text[])`, [closed]),
         by_rating: await group('finding_rating',
           `select rating as k, count(*)::int as n from audit_findings where deleted_at is null and not (coalesce(status, '') = any($1::text[])) group by rating`, [closed]),
       },

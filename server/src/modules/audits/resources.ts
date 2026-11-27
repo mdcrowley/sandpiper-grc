@@ -3,8 +3,21 @@ import type { FastifyRequest } from 'fastify';
 import { UUID_RE } from '../../core/errors.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { dayInZone, displayDate } from '../../core/timezone.ts';
-import { addMonths } from './dates.ts';
+import { addDays, addMonths } from './dates.ts';
 import { closingProblems, reportGate } from './report.ts';
+import { scoreArea } from './plan.ts';
+import { isDataLoad } from '../../core/dataload.ts';
+
+/** Setting: days after a finding is ready for verification that the auditor's verification is due. */
+export const VERIFICATION_DAYS_SETTING = 'audits.verification_days';
+export const DEFAULT_VERIFICATION_DAYS = 30;
+/** The finding status meaning the fix is done and waits for the auditor's verification. */
+export const AWAITING_VERIFICATION = 'awaiting_verification';
+
+export async function verificationDays(ctx: ModuleContext): Promise<number> {
+  const n = Math.round(Number(await ctx.settings.get<unknown>(VERIFICATION_DAYS_SETTING, DEFAULT_VERIFICATION_DAYS)));
+  return Number.isFinite(n) && n >= 0 && n <= 365 ? n : DEFAULT_VERIFICATION_DAYS;
+}
 
 /** Record types an inspection or schedule may be about, and the permission module of each. */
 export const TARGET_TYPES = ['site', 'vehicle', 'asset', 'system'] as const;
@@ -41,13 +54,18 @@ function wholeNumber(ctx: ModuleContext, merged: Row, field: string, min: number
 }
 
 export function registerResources(ctx: ModuleContext) {
+  /** Keeps an area's stored risk score current after a change to it (the plan works scores out afresh). */
+  async function storeScore(id: string) {
+    const score = await scoreArea(ctx, id);
+    if (score !== null) await ctx.db.query('update audit_areas set risk_score = $2, risk_scored_at = now() where id = $1', [id, score]);
+  }
 
   // ---------- the audit universe ----------
   ctx.defineResource({
     type: 'audit_area', table: 'audit_areas', module: 'audits', label: 'Audit area', plural: 'Audit areas',
     path: '/api/audit-areas', route: '/audits/areas', titleField: 'name',
     searchable: ['name', 'description'],
-    defaultSort: { field: 'next_due_on', dir: 'asc' },
+    defaultSort: { field: 'risk_score', dir: 'desc' }, // E45-13: highest risk first
     fields: {
       name: { label: 'Name', type: 'text', required: true },
       category: { label: 'Category', type: 'lookup', list: 'audit_area_category' },
@@ -57,6 +75,10 @@ export function registerResources(ctx: ModuleContext) {
       next_due_on: { label: 'Next audit due', type: 'date' },
       owner_id: { label: 'Owner', type: 'user' },
       risk_level: { label: 'Risk level', type: 'lookup', list: 'audit_risk_level' },
+      // Risk factors of the risk-ranked plan (E45-13); the score is worked out (plan.ts).
+      significance: { label: 'Significance', type: 'lookup', list: 'audit_significance' },
+      change_level: { label: 'Change since the last audit', type: 'lookup', list: 'audit_change_level' },
+      risk_score: { label: 'Risk score', type: 'number', readOnly: true },
       active: { label: 'In the audit plan', type: 'boolean', default: true },
     },
     hooks: {
@@ -64,6 +86,8 @@ export function registerResources(ctx: ModuleContext) {
         wholeNumber(ctx, data, 'cycle_months', 1, 120, 'Give a whole number of months from 1 to 120.');
         return data;
       },
+      afterCreate: async (_req, row) => { await storeScore(row.id); },
+      afterUpdate: async (_req, _before, after) => { await storeScore(after.id); },
       beforeUpdate: (_req, existing, patch) => {
         const merged = { ...existing, ...patch };
         wholeNumber(ctx, merged, 'cycle_months', 1, 120, 'Give a whole number of months from 1 to 120.');
@@ -107,7 +131,7 @@ export function registerResources(ctx: ModuleContext) {
         // People close an audit only with a report summary, a response or plan on every finding and,
         // where an Audit report approval workflow is set up, its approval. The approval itself closes
         // the audit as system work (req null), after the same checks were made when it was asked for.
-        if (req && existing) {
+        if (req && existing && !isDataLoad(req)) {
           const problems = await closingProblems(ctx, { ...merged, id: existing.id });
           if (problems.length) ctx.fail(400, 'validation', problems.join(' '), { status: problems[0] });
           const gate = await reportGate(ctx, existing.id);
@@ -308,6 +332,28 @@ export function registerResources(ctx: ModuleContext) {
       patch.responded_on = dayInZone();
       if ((merged.status ?? 'open') === 'open') patch.status = 'responded';
     }
+    // Verification before closing (E45-16): a person closes a finding only once an auditor has recorded
+    // the verification (POST /api/audit-findings/:id/verify does both). System work and data loads
+    // follow their own data.
+    const from = existing?.status ?? null;
+    const to = 'status' in patch ? patch.status : from;
+    if (req && !isDataLoad(req) && to !== from) {
+      const closed = (await ctx.lookups.values('finding_status')).filter((v) => v.meta?.closed === true).map((v) => v.value);
+      if ((closed.length ? closed : ['closed']).includes(String(to)) && !merged.verified_on) {
+        invalid(ctx, { status: 'An auditor records the verification (date, note and evidence) before the finding is closed: use Verify and close.' });
+      }
+    }
+    if (to === AWAITING_VERIFICATION && to !== from) {
+      if (!merged.verification_due && !(isDataLoad(req) && 'verification_due' in patch)) patch.verification_due = addDays(dayInZone(), await verificationDays(ctx));
+    }
+    // The auditor who verifies: the audit's lead auditor unless they own the response.
+    if (!merged.verifier_id && (!existing || to === AWAITING_VERIFICATION) && merged.source_type === 'audit_engagement' && merged.source_id) {
+      const lead = (await ctx.db.one<Row>('select lead_auditor_id from audits where id = $1', [merged.source_id]))?.lead_auditor_id;
+      if (lead && lead !== merged.response_owner_id) patch.verifier_id = lead;
+    }
+    if ('verifier_id' in patch && patch.verifier_id && patch.verifier_id === merged.response_owner_id && req && !isDataLoad(req)) {
+      invalid(ctx, { verifier_id: 'The auditor who verifies the fix cannot be the person who owns the response.' });
+    }
     return patch;
   }
 
@@ -337,6 +383,15 @@ export function registerResources(ctx: ModuleContext) {
       status: { label: 'Status', type: 'lookup', list: 'finding_status', default: 'open' },
       cap_id: { label: 'Corrective action plan', type: 'ref', to: 'cap', readOnly: true },
       hazard_id: { label: 'Hazard', type: 'ref', to: 'hazard', readOnly: true },
+      // The auditor's verification of the fix (E45-16): recorded with POST /api/audit-findings/:id/verify.
+      verifier_id: { label: 'Auditor to verify', type: 'user' },
+      verification_due: { label: 'Verification due', type: 'date' },
+      verified_on: { label: 'Verified on', type: 'date', readOnly: true },
+      verified_by: { label: 'Verification recorded by', type: 'user', readOnly: true },
+      verified_by_name: { label: 'Verified by', type: 'text', readOnly: true, personal: true },
+      verification_note: { label: 'Verification', type: 'longtext', readOnly: true },
+      verification_attachment_ids: { label: 'Verification files', type: 'json', readOnly: true, personal: false },
+      verification_evidence_ids: { label: 'Verification evidence items', type: 'json', readOnly: true, personal: false },
       restricted: { label: 'Restricted', type: 'boolean', readOnly: true },
     },
     hooks: {

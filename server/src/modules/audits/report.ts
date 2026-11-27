@@ -13,6 +13,7 @@ import type { ModuleContext, Row } from '../../core/module.ts';
 import { printBranding } from '../../core/organization.ts';
 import { notePermission } from '../../core/permission-use.ts';
 import { dayInZone, displayDate } from '../../core/timezone.ts';
+import { workpaperStatus } from './workpapers.ts';
 
 export const REPORT_KIND = 'audit_report';
 
@@ -34,6 +35,18 @@ export async function closingProblems(ctx: ModuleContext, audit: Row): Promise<s
   if (open.length) {
     const refs = open.slice(0, 5).map((f) => f.ref).join(', ') + (open.length > 5 ? ` and ${open.length - 5} more` : '');
     problems.push(`Every finding needs a management response or a corrective action plan first (${refs}).`);
+  }
+  // Workpapers (E45-15): every step worked is prepared and reviewed, with no review note open, and every
+  // control test recorded as part of the audit is reviewed.
+  const s = await workpaperStatus(ctx, audit);
+  if (s.steps.worked > s.steps.reviewed) {
+    const left = s.steps.worked - s.steps.reviewed;
+    problems.push(`${left} workpaper ${left === 1 ? 'step still needs' : 'steps still need'} the preparer's and reviewer's sign-off.`);
+  }
+  if (s.open_notes) problems.push(`${s.open_notes} review ${s.open_notes === 1 ? 'note is' : 'notes are'} still open on the workpapers.`);
+  if (s.control_tests?.unreviewed) {
+    const n = s.control_tests.unreviewed;
+    problems.push(`${n} control ${n === 1 ? 'test' : 'tests'} recorded for this audit ${n === 1 ? 'is' : 'are'} not reviewed yet.`);
   }
   return problems;
 }
@@ -145,6 +158,7 @@ export function registerReport(ctx: ModuleContext) {
     const statuses = await ctx.lookups.values('finding_status');
     const requests = await db.query<Row>(
       `select status, count(*)::int as n from audit_requests where deleted_at is null and audit_id = $1 group by status`, [audit.id]);
+    const wp = await workpaperStatus(ctx, audit);
     const answers = await db.query<Row>(
       `select answer, count(*)::int as n from checklist_responses where parent_type = 'audit_engagement' and parent_id = $1 group by answer`, [audit.id]);
     const caps = new Map<string, string>();
@@ -187,6 +201,7 @@ export function registerReport(ctx: ModuleContext) {
       { label: 'Major nonconformities', value: String(findings.filter((f) => f.rating === 'major_nonconformity').length) },
       { label: 'Checklist items met', value: `${n(answers, 'answer', 'yes')} of ${n(answers, 'answer', 'yes') + n(answers, 'answer', 'no')}` },
       { label: 'Evidence requests', value: String(requests.reduce((t, r) => t + r.n, 0)) },
+      { label: 'Workpaper steps reviewed', value: `${wp.steps.reviewed} of ${wp.steps.worked}` },
     ]);
     pdf.heading('Findings', 2);
     if (!findings.length) pdf.note('No findings were raised.');
@@ -204,6 +219,7 @@ export function registerReport(ctx: ModuleContext) {
         { label: 'Response owner', value: await name(f.response_owner_id) },
         { label: 'Response due', value: f.response_due ? displayDate(String(f.response_due)) : '' },
         { label: 'Corrective action plan', value: caps.get(f.id) ?? '' },
+        { label: 'Verified', value: f.verified_on ? `${displayDate(String(f.verified_on).slice(0, 10))} by ${f.verified_by_name ?? 'an auditor'}: ${f.verification_note ?? ''}` : '' },
       ].filter((r) => r.value));
     }
     const file = await pdf.finish();

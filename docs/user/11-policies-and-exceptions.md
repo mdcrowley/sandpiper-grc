@@ -327,6 +327,8 @@ After a briefing, staff often sign a paper sheet. To record it (you need **Edit*
 
 Everyone listed is recorded against the version in force, including people on the roster who were not asked. People who had already acknowledged are skipped, and employee numbers not on the roster are named in the message so you can check them.
 
+In [data load mode](09-administration.md#data-load-mode), an administrator can record past acknowledgments: a reader's (by user name or email, disabled accounts too) with the date or time they acknowledged, and roster people's on the sign-in sheet form for an earlier version, with the time and the person who recorded them. The person must be one of the document's readers; one already recorded is left as it was. An AI assistant does the same with `record_acknowledgment` (see [AI assistants and MCP](21-ai-assistants-and-mcp.md)).
+
 ### The acknowledgment kiosk
 
 The kiosk lets staff acknowledge for themselves on a supervisor's device, for example a tablet in a depot's crew room. It runs only while someone with **Edit** on **Documents (policies)** is signed in on that device; there is no page that works without signing in.

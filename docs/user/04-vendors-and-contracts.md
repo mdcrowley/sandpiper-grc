@@ -11,7 +11,9 @@ Open **Vendors > Vendors**. Its tabs are **Vendors**, **Reassessments due**, **I
 - **Security terms**: a small bar for the vendor's contracts, green for clauses present, amber for partial, red for absent and gray for not assessed, with the number present out of the number of clauses. Point at it to read the counts. "No contract" means nothing is recorded yet.
 - **Next notice date**: the nearest notice date still to come (or the latest one that has passed), colored as on the contract list.
 
-These two columns appear only if you may view contracts. **Security terms matrix** opens the matrix; **Assessment questions** opens the questions used in vendor assessments (only people who administer vendors can change them).
+- **Annual spend**: the sum of the **Annual value** of the vendor's active contracts (see [Annual value](#annual-value)); empty when it has none with a value. Sort by it to see where the money goes.
+
+These three columns appear only if you may view contracts. Under the list, **Annual spend with all vendors** gives the total for the year over every vendor, with how many have spend. It is a figure, so it is the same for everyone and does not change with the list's search or filters. **Security terms matrix** opens the matrix; **Assessment questions** opens the questions used in vendor assessments (only people who administer vendors can change them).
 
 ### Add a vendor
 
@@ -72,6 +74,8 @@ To change a contact, select the pencil button on its row, then **Save changes**.
 
 Open **Vendors > Contracts**; its tabs are **Contracts**, **Renewals** and **Performance**. The list is sorted by notice date, soonest first, and the **Notice date** column is a colored chip: red when the date has passed or is within 30 days, amber within 120 days, green beyond that, and gray ("No notice date") when there is none. An ended contract (expired or terminated) needs no notice: its notice date is shown as plain gray text and never in red.
 
+The list also shows **End date** and **Annual value**; **Total value** is in the column chooser. Under the list, **Annual value of all active contracts** gives the total for the year, how many contracts are active and how many of them have no value recorded. It counts every active contract, whoever is looking and whatever the list is filtered to.
+
 When open contracts are missing an end date or notice period, the list shows a **Complete the dates** button with how many there are; see [Complete the dates](#complete-the-dates).
 
 ### Add a contract
@@ -117,6 +121,16 @@ The tabs are **Security terms**, **Evidence**, **Performance** (measures with ta
 4. Select **Save years**. If the total differs, **Save and set total value to …** saves the years and makes their total the contract's total value.
 
 Each year can appear once. Saved figures are shown as a small table with a bar per year.
+
+### Annual value
+
+The **Annual value** of a contract is worked out by the application, never typed:
+
+1. this year's line of **Value by year**, when there is one;
+2. otherwise the average of the years given;
+3. otherwise the **Total value** spread over the term from **Start date** to **End date**, counted in whole months and at least one year (a three-year contract worth 90,000 has an annual value of 30,000), or the whole total value when the dates are missing.
+
+It is worked out again whenever the contract is saved, and every few hours, so a new year moves it to that year's line. Only active contracts count toward a vendor's **Annual spend**.
 
 ### The computed notice date
 

@@ -39,3 +39,11 @@
 /* ---------- duplicate findings (E10-16) ---------- */
 .vuln-dup-title { overflow-wrap: anywhere; }
 .vuln-dup-key { margin: 0; padding: var(--s-2) var(--s-3); overflow-wrap: anywhere; }
+
+/* ---------- findings by identifier and the known-exploited catalog (E45-36, E45-39) ---------- */
+.vuln-group-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--s-3) var(--s-5); }
+.vuln-group-filters > .rc-field:first-child { flex: 1 1 260px; max-width: 420px; }
+.vuln-group-filters .rc-field-check { padding-bottom: var(--s-2); }
+.vuln-pager { justify-content: center; gap: var(--s-3); }
+.vuln-bulk { flex-wrap: wrap; gap: var(--s-2); justify-content: flex-end; }
+.vuln-pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }

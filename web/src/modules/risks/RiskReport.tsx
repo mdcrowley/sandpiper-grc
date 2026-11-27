@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Badge, Button, Card, EmptyState, ErrorState, formatDate, Icon, Loading, PageHeader, Stat, TableWrap, useAuth, useFetch } from '../../core';
 import type { ColorName } from '../../core';
-import type { AppetiteData } from './Appetite';
+import { approvalLine, type AppetiteData } from './Appetite';
 import { RiskTabs } from './RiskTabs';
 import { RatedChip } from './scales';
 
@@ -27,6 +27,13 @@ interface ReportRisk {
   previous_color: string;
   previous_on: string | null;
   actions: { open: number; overdue: number } | null;
+  /** E45-03: the target risk and whether the risk is still above it. */
+  target_label?: string | null;
+  target_color?: string;
+  target_on?: string | null;
+  above_target?: boolean | null;
+  /** E45-01: a restricted risk the viewer may not see: counted, no reference, title or owner. */
+  masked?: boolean;
 }
 
 interface Report {
@@ -38,6 +45,8 @@ interface Report {
   no_residual?: number;
   accepted: number;
   reviews_overdue: number;
+  with_target?: number;
+  above_target?: number;
   levels: { value: string; label: string; color: string; count: number }[];
   top: ReportRisk[];
   increased: ReportRisk[];
@@ -45,18 +54,24 @@ interface Report {
   unchanged: number;
   not_reviewed: number;
   acceptances: {
-    id: string; risk_id: string; ref: string; title: string; rating_label: string | null; color: string;
+    id: string; risk_id: string; ref: string | null; title: string; rating_label: string | null; color: string; masked?: boolean;
     approver_name: string; approver_title: string | null; expires_on: string; days_left: number; expired: boolean;
   }[];
 }
 
 const days = (n: number) => `${n} ${n === 1 ? 'day' : 'days'}`;
 
+/** A risk named with a link; a restricted risk the viewer may not see (E45-01) as plain "Restricted risk". */
+function RiskName({ id, risk }: { id: string; risk: { ref: string | null; title: string; masked?: boolean } }) {
+  if (risk.masked) return <span className="muted">{risk.title}</span>;
+  return <Link to={`/risks/${id}`}><span className="ref">{risk.ref}</span> {risk.title}</Link>;
+}
+
 interface Rollup {
-  id: string; ref: string; title: string; owner_name: string | null;
+  id: string; ref: string | null; title: string; owner_name: string | null; masked?: boolean;
   rating: { key: string; label: string; color: string } | null; appetite_breach: boolean | null;
   children: number; open_children: number; breaches: number;
-  worst: { id: string; ref: string; title: string; rating: { label: string; color: string } | null } | null;
+  worst: { id: string; ref: string | null; title: string; masked?: boolean; rating: { label: string; color: string } | null } | null;
 }
 
 /** E30-06: each category's appetite against its open risks, and how many are above it. */
@@ -67,7 +82,7 @@ function AppetiteSection() {
   const set = data.categories.filter((c) => c.statement || c.max_rating || c.max_score !== null);
   return (
     <Card title="Risk appetite" flush={set.length > 0}>
-      {set.length === 0 ? <p className="muted">No risk appetite has been set. An administrator sets it under Administration, Risk appetite.</p> : (
+      {set.length === 0 ? <p className="muted">No risk appetite has been set. It is recorded on the Appetite tab of the risk register by someone who administers risks.</p> : (
         <TableWrap label="Risk appetite">
           <table className="table rk-report-table">
             <thead><tr><th scope="col">Category</th><th scope="col">Appetite</th><th scope="col">Highest acceptable</th><th scope="col" className="num">Open</th><th scope="col" className="num">Above appetite</th></tr></thead>
@@ -77,7 +92,7 @@ function AppetiteSection() {
                 return (
                   <tr key={c.category}>
                     <td>{c.label}</td>
-                    <td>{c.statement ?? <span className="muted">No statement</span>}{c.approved_by_name && <span className="muted rk-action-sub">Approved by {c.approved_by_name}{c.approved_on ? `, ${formatDate(c.approved_on)}` : ''}</span>}</td>
+                    <td>{c.statement ?? <span className="muted">No statement</span>}{c.approved_by_name && <span className="muted rk-action-sub">{approvalLine(c)}</span>}</td>
                     <td>{max ? <RatedChip label={max.label} color={max.color} /> : <span className="muted">No limit</span>}{c.max_score !== null && <span className="muted"> score {c.max_score}</span>}</td>
                     <td className="num">{c.open}</td>
                     <td className="num">{c.breaches > 0 ? <Link className="is-overdue" to={`/risks?f.category=${encodeURIComponent(c.category)}&f.appetite_breach=true`}>{c.breaches}</Link> : 0}</td>
@@ -106,10 +121,10 @@ function RollupSection() {
           <tbody>
             {data.map((p) => (
               <tr key={p.id}>
-                <td><Link to={`/risks/${p.id}`}><span className="ref">{p.ref}</span> {p.title}</Link>{p.appetite_breach && <> <Badge color="red">Above appetite</Badge></>}</td>
+                <td><RiskName id={p.id} risk={p} />{p.appetite_breach && <> <Badge color="red">Above appetite</Badge></>}</td>
                 <td><RatedChip label={p.rating?.label ?? null} color={p.rating?.color ?? 'gray'} /></td>
                 <td className="num">{p.open_children} <span className="muted">of {p.children}</span></td>
-                <td>{p.worst ? <span className="rk-two-line"><Link to={`/risks/${p.worst.id}`}><span className="ref">{p.worst.ref}</span> {p.worst.title}</Link><RatedChip label={p.worst.rating?.label ?? null} color={p.worst.rating?.color ?? 'gray'} /></span> : <span className="muted">None scored</span>}</td>
+                <td>{p.worst ? <span className="rk-two-line"><RiskName id={p.worst.id} risk={p.worst} /><RatedChip label={p.worst.rating?.label ?? null} color={p.worst.rating?.color ?? 'gray'} /></span> : <span className="muted">None scored</span>}</td>
                 <td className="num">{p.breaches}</td>
               </tr>
             ))}
@@ -136,7 +151,7 @@ function MoveList({ title, rows, empty }: { title: string; rows: ReportRisk[]; e
         <ul className="rk-move-list">
           {rows.map((r) => (
             <li key={r.id}>
-              <Link to={`/risks/${r.id}`}><span className="ref">{r.ref}</span> {r.title}</Link>
+              <RiskName id={r.id} risk={r} />
               <span className="rk-move-chips">
                 <RatedChip label={r.previous_label} color={r.previous_color} />
                 <span className="risk-arrow" aria-hidden="true">→</span>
@@ -168,7 +183,7 @@ export function RiskReport() {
     <div className="stack rk-report">
       <PageHeader
         title="Risk report"
-        subtitle={`${appName} · Open risks as at ${formatDate(data.generated_on)}. Restricted: for people with access to security records.`}
+        subtitle={`${appName} · Open risks as at ${formatDate(data.generated_on)}.`}
         breadcrumbs={[{ label: 'Risk register', to: '/risks' }, { label: 'Risk report' }]}
         actions={<Button variant="primary" icon="download" onClick={() => window.print()}>Print or save as PDF</Button>}
       />
@@ -180,6 +195,7 @@ export function RiskReport() {
             <Stat label="Open risks" value={data.total} color="blue" hint={data.unscored > 0 ? `${data.unscored} not yet scored` : (data.no_residual ?? 0) > 0 ? `All have an inherent score; ${data.no_residual} ${data.no_residual === 1 ? 'has' : 'have'} no residual score` : 'All scored'} />
             <Stat label={worst ? `Rated ${worst.label}` : 'Rated'} value={worst?.count ?? 0} color={(worst?.color ?? 'gray') as ColorName} hint="Highest common level in use" />
             <Stat label="Increased" value={data.increased.length} color={data.increased.length > 0 ? 'red' : 'green'} hint="Since the last review" />
+            <Stat label="Above target" value={data.above_target ?? 0} color={(data.above_target ?? 0) > 0 ? 'amber' : 'green'} hint={`${data.with_target ?? 0} of ${data.total} have a target rating`} />
             <Stat label="Accepted" value={data.accepted} color="purple" hint={`${data.acceptances.length} to renew within ${data.window_days} days`} />
             <Stat label="Reviews overdue" value={data.reviews_overdue} color={data.reviews_overdue > 0 ? 'amber' : 'green'} hint="Review date has passed" />
           </div>
@@ -215,7 +231,7 @@ export function RiskReport() {
                 <thead>
                   <tr>
                     <th scope="col" className="num">#</th><th scope="col">Risk</th><th scope="col">Owner</th><th scope="col">Inherent</th>
-                    <th scope="col">Residual</th><th scope="col">Since last review</th><th scope="col">Treatment</th><th scope="col">Open actions</th>
+                    <th scope="col">Residual</th><th scope="col">Target</th><th scope="col">Since last review</th><th scope="col">Treatment</th><th scope="col">Open actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -223,12 +239,13 @@ export function RiskReport() {
                     <tr key={r.id}>
                       <td className="num">{i + 1}</td>
                       <td>
-                        <Link to={`/risks/${r.id}`}><span className="ref">{r.ref}</span> {r.title}</Link>
+                        <RiskName id={r.id} risk={r} />
                         <span className="rk-action-sub"><span className="muted">{r.category_label}</span><Badge color={r.status_color as ColorName}>{r.status_label}</Badge></span>
                       </td>
-                      <td>{r.owner_name ?? <span className="muted">No owner</span>}</td>
+                      <td>{r.masked ? <span className="muted">—</span> : r.owner_name ?? <span className="muted">No owner</span>}</td>
                       <td><RatedChip label={r.inherent_label} color={r.inherent_color} /></td>
                       <td><RatedChip label={r.residual_label} color={r.residual_color} /></td>
+                      <td>{r.target_label ? <span className="rk-two-line"><RatedChip label={r.target_label} color={r.target_color} />{r.above_target === true ? <span className="muted">Not yet reached{r.target_on ? `, by ${formatDate(r.target_on)}` : ''}</span> : r.above_target === false ? <span className="muted">Reached</span> : null}</span> : <span className="muted">No target</span>}</td>
                       <td><Movement r={r} /></td>
                       <td>{r.treatment_label ?? '—'}</td>
                       <td>{r.actions === null ? '—' : r.actions.open === 0 ? <span className="muted">None</span> : (
@@ -263,7 +280,7 @@ export function RiskReport() {
                   <tbody>
                     {data.acceptances.map((a) => (
                       <tr key={a.id}>
-                        <td><Link to={`/risks/${a.risk_id}`}><span className="ref">{a.ref}</span> {a.title}</Link></td>
+                        <td><RiskName id={a.risk_id} risk={a} /></td>
                         <td><RatedChip label={a.rating_label} color={a.color} /></td>
                         <td>{[a.approver_name, a.approver_title].filter(Boolean).join(', ')}</td>
                         <td>{formatDate(a.expires_on)}</td>

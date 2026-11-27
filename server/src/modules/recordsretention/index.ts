@@ -17,6 +17,7 @@ import { defineCalendarSource } from '../../core/calendar.ts';
 import { UUID_RE } from '../../core/errors.ts';
 import { assertNotHeld, holdsOn } from '../../core/holds.ts';
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
+import { actorOf } from '../../core/dataload.ts';
 import { notePermission } from '../../core/permission-use.ts';
 import { dayInZone } from '../../core/timezone.ts';
 import { seedRetention } from './seed.ts';
@@ -328,7 +329,7 @@ async function register(ctx: ModuleContext) {
     const note = String(((req.body ?? {}) as Row).note ?? '').trim().slice(0, 2000) || null;
     const eng = approvalEngine(app);
     if (eng && await eng.running(DESTRUCTION_KIND, row.id)) ctx.fail(409, 'already_requested', 'This destruction is already waiting for approval.');
-    await setState(row.id, { status: 'pending_approval', requested_by: req.user!.id, decision_note: null }, 'a submission');
+    await setState(row.id, { status: 'pending_approval', requested_by: actorOf(req).id, decision_note: null }, 'a submission');
     const started = eng ? await eng.start(DESTRUCTION_KIND, { ...row, status: 'pending_approval' }, { requester: req.user!.id, req, note }) : null;
     if (started) {
       await ctx.audit(req, { action: 'records_destruction.submit', recordType: DESTRUCTION, recordId: row.id, summary: `Destruction ${row.ref} submitted for approval (${started.name})` });
@@ -340,7 +341,7 @@ async function register(ctx: ModuleContext) {
       await setState(row.id, { status: row.status }, 'a submission');
       ctx.fail(409, 'no_workflow', 'No Records destruction workflow applies, so only someone who may approve records work can approve it.');
     }
-    await approve(row, req.user!.displayName, note, req);
+    await approve(row, actorOf(req).name ?? req.user!.displayName, note, req);
     return { status: 'approved' };
   });
   ctx.describeRoute({

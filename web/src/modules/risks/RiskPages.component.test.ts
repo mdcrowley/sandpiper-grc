@@ -87,7 +87,7 @@ describe('the risk assessment (scoring panel)', () => {
     expect(textOf(ui.container.querySelector('.rk-assess-controls'))).toContain('Two-person sign-off on depot keys');
     const figure = ui.container.querySelector('.rk-mini');
     expect(figure?.getAttribute('aria-label')).toBe(
-      'Position on the Three by three matrix: inherent risk Likely by Severe, rated High; residual risk Possible by Minor, rated Low.',
+      'Position on the Three by three matrix: inherent risk Likely by Severe, rated High; residual risk Possible by Minor, rated Low; target risk not scored.',
     );
     // The inherent and residual cells are marked on the small matrix.
     const marked = [...ui.container.querySelectorAll('.rk-mini-cell.is-marked')].map((c) => textOf(c));
@@ -99,7 +99,7 @@ describe('the risk assessment (scoring panel)', () => {
     ui = await render(h(ScoringPanel, { rec, scale: SCALE }), { meta: META });
     await waitFor(() => expect(byText(ui!.container, 'button', 'Change scores')).not.toBeNull());
     await click(byText(ui.container, 'button', 'Change scores'));
-    await waitFor(() => expect(pickers('Likelihood').length).toBe(2));
+    await waitFor(() => expect(pickers('Likelihood').length).toBe(3));
     const save = () => byText(ui!.container, 'button', 'Save scores') as HTMLButtonElement;
     expect(save().disabled).toBe(true);
 
@@ -118,12 +118,30 @@ describe('the risk assessment (scoring panel)', () => {
     ui = await render(h(ScoringPanel, { rec, scale: SCALE }), { meta: META });
     await waitFor(() => expect(textOf(ui!.container.querySelector('.rk-assess-residual'))).toContain('Not scored'));
     await click(byText(ui.container, 'button', 'Change scores'));
-    await waitFor(() => expect(pickers('Likelihood').length).toBe(2));
+    await waitFor(() => expect(pickers('Likelihood').length).toBe(3));
     await choose(pickers('Likelihood')[1], 'Rare');
     await click(byText(ui.container, 'button', 'Save scores'));
     await waitFor(() => expect(textOf(ui!.container)).toContain('Give both likelihood and impact, or neither.'));
     expect(pickers('Impact')[1].getAttribute('aria-invalid')).toBe('true');
     expect(rec.save).not.toHaveBeenCalled();
+  });
+
+  it('shows the target risk (E45-03) after the residual risk, marked T on the matrix, and saves its scores', async () => {
+    const rec = context({ inherent_likelihood: 3, inherent_impact: 3, residual_likelihood: 2, residual_impact: 2, target_likelihood: 1, target_impact: 1, target_on: '2027-03-31' });
+    ui = await render(h(ScoringPanel, { rec, scale: SCALE }), { meta: META });
+    await waitFor(() => expect(byText(ui!.container, '.rk-assess-target', 'Low')).not.toBeNull());
+    expect(textOf(ui.container.querySelector('.rk-assess-target'))).toContain('Rare');
+    expect(textOf(ui.container.querySelector('.rk-assess-target'))).toContain('Where the treatment plan should bring it');
+    expect(ui.container.querySelector('.rk-mini')?.getAttribute('aria-label')).toContain('target risk Rare by Minor, rated Low');
+    expect([...ui.container.querySelectorAll('.rk-mini-cell.is-marked')].map((c) => textOf(c)).sort()).toEqual(['I', 'R', 'T']);
+
+    await click(byText(ui.container, 'button', 'Change scores'));
+    await waitFor(() => expect(pickers('Likelihood').length).toBe(3));
+    await choose(pickers('Impact')[2], 'Moderate');
+    await waitFor(() => expect(textOf(ui!.container.querySelector('.rk-assess-target .rk-assess-rating'))).toBe('Low'));
+    await click(byText(ui.container, 'button', 'Save scores'));
+    await waitFor(() => expect(rec.save).toHaveBeenCalledTimes(1));
+    expect(rec.save).toHaveBeenCalledWith({ target_impact: 2 });
   });
 
   it('says so when the scale the risk was scored on no longer exists', async () => {
@@ -242,7 +260,7 @@ describe('the heat map', () => {
     expect(textOf(cell('Likely by Severe'))).toBe('2 High risks: Likely by Severe, 2 above their appetite');
     expect(textOf(cell('Rare by Moderate'))).toBe('1 Low risk: Rare by Moderate');
     expect(cell('Possible by Minor').getAttribute('aria-disabled')).toBe('true');
-    expect(textOf(ui.container.querySelector('.rk-legend'))).toContain('Not yet scored 1');
+    expect(textOf(ui.container.querySelector('.rk-legend'))).toContain('No residual score 1');
     expect(textOf(ui.container.querySelector('.rk-legend'))).toContain("Holds a risk above its category's appetite");
 
     await click(cell('Possible by Minor'));

@@ -66,7 +66,7 @@ afterAll(async () => {
 describe('offering the tools', () => {
   it('offers the read tools to readers, the write tools only with write access, and the loading prompt', async () => {
     const admin = await tools(await connect(adminToken));
-    for (const x of DOCUMENT_TOOLS) expect(admin).toContain(x.name);
+    for (const x of DOCUMENT_TOOLS.filter((d) => !d.dataLoadOnly)) expect(admin).toContain(x.name);
     const reader = await tools(await connect(agentToken));
     expect(reader).toEqual(expect.arrayContaining(['find_documents', 'read_document', 'document_register_summary', 'check_document']));
     for (const w of DOCUMENT_TOOLS.filter((x) => x.write)) expect(reader).not.toContain(w.name);

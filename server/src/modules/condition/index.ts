@@ -1,5 +1,6 @@
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
+import { actorOf } from '../../core/dataload.ts';
 import { dayInZone } from '../../core/timezone.ts';
 import { registerFigures } from './dashboard.ts';
 import { registerReminders } from './reminders.ts';
@@ -73,7 +74,7 @@ async function checkAssessment(ctx: ModuleContext, req: FastifyRequest | null, d
   data.target_label = (await ctx.resources.labelFor(type, data.target_id)) ?? null;
   data.class_id = target!.asset_class_id ?? null;
   if (data.assessed_on && String(data.assessed_on).slice(0, 10) > dayInZone()) invalid(ctx, { assessed_on: 'An assessment cannot be dated in the future.' });
-  if (req && !data.assessor_id && !data.assessor_name) data.assessor_id = req.user!.id;
+  if (req && !data.assessor_id && !data.assessor_name) { const by = actorOf(req); if (by.id) data.assessor_id = by.id; else data.assessor_name = by.name; }
   return data;
 }
 

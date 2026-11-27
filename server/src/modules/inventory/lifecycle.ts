@@ -1,5 +1,6 @@
 import type { FastifyRequest } from 'fastify';
 import { approvalEngine } from '../../core/approval-kinds.ts';
+import { actorOf, dataLoadFor } from '../../core/dataload.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { featureState, optionOn } from '../../core/features.ts';
 import { dayInZone } from '../../core/timezone.ts';
@@ -66,6 +67,9 @@ export async function funderRuleOn(ctx: Pick<ModuleContext, 'db'>): Promise<bool
 export function registerLifecycle(ctx: ModuleContext) {
   const { app, db } = ctx;
   const text = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null);
+  /** The time a data load gives for the act (E18-94); null (now) otherwise. */
+  const loadedTime = async (req: FastifyRequest, v: unknown): Promise<string | null> =>
+    typeof v === 'string' && !Number.isNaN(Date.parse(v)) && await dataLoadFor(db, req) ? new Date(v).toISOString() : null;
 
   async function assetFor(req: FastifyRequest): Promise<Row> {
     const id = (req.params as { id: string }).id;
@@ -137,10 +141,10 @@ export function registerLifecycle(ctx: ModuleContext) {
     const updated = await ctx.resources.update('asset', asset.id, patch, req);
 
     const row = await db.one<Row>(
-      `insert into asset_assignments (asset_id, user_id, assignee_name, department, site_id, location, due_back_on, notes, checked_out_by)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9) returning *`,
+      `insert into asset_assignments (asset_id, user_id, assignee_name, department, site_id, location, due_back_on, notes, checked_out_by, checked_out_at)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,coalesce($10::timestamptz, now())) returning *`,
       [asset.id, userId, userId ? null : name, updated.department ?? null, siteId ?? asset.site_id,
-        text(body.location) ?? asset.location, due, text(body.notes), req.user!.id],
+        text(body.location) ?? asset.location, due, text(body.notes), actorOf(req).id, await loadedTime(req, body.checked_out_at)],
     );
     await ctx.audit(req, {
       action: 'asset.check_out', recordType: 'asset', recordId: asset.id,
@@ -163,8 +167,8 @@ export function registerLifecycle(ctx: ModuleContext) {
     }
 
     const row = await db.one<Row>(
-      `update asset_assignments set checked_in_at = now(), checked_in_by = $2, check_in_notes = $3 where id = $1 returning *`,
-      [open.id, req.user!.id, text(body.notes)],
+      `update asset_assignments set checked_in_at = coalesce($4::timestamptz, now()), checked_in_by = $2, check_in_notes = $3 where id = $1 returning *`,
+      [open.id, actorOf(req).id, text(body.notes), await loadedTime(req, body.checked_in_at)],
     );
     // The resource update validates the status against the lookup list.
     await ctx.resources.update('asset', asset.id, { user_id: null, assigned_to_name: null, status }, req);
@@ -208,7 +212,7 @@ export function registerLifecycle(ctx: ModuleContext) {
     if (open) {
       await db.query(
         `update asset_assignments set checked_in_at = now(), checked_in_by = $2, check_in_notes = 'Checked in on disposal' where id = $1`,
-        [open.id, req.user!.id],
+        [open.id, actorOf(req).id],
       );
       patch.user_id = null;
       patch.assigned_to_name = null;

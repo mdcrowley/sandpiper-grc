@@ -157,6 +157,16 @@ export const REMINDER_SETTINGS: ReminderSettingDef[] = [
     description: 'The person who monitors a sub-recipient is reminded once for each due date, this many days before it.',
   },
   {
+    key: 'evidence.reminder_days', group: 'Evidence library', requires: 'evidence_record', kind: 'steps', unit: 'days', min: 0, max: 365, default: [30, 7, 0],
+    label: 'Remind evidence owners before evidence lapses',
+    description: 'An evidence record’s owner is reminded this many days before its “valid until” date (and on the day), once for each step.',
+  },
+  {
+    key: 'audits.verification_days', group: 'Audits', requires: 'audit_finding', kind: 'number', unit: 'days', min: 1, max: 365, default: 30,
+    label: 'Days the auditor has to verify a finding',
+    description: 'Once a finding is ready for verification, its verification is due this many days later; the auditor is reminded when it is overdue.',
+  },
+  {
     key: 'attachments.link_check_days', group: 'Files', kind: 'number', unit: 'days', min: 1, max: 3650, default: 90,
     label: 'Remind record owners to check linked documents',
     description: 'A link to a document kept elsewhere is due for a check this many days after it was last checked; the record’s owner is told once when it becomes due.',

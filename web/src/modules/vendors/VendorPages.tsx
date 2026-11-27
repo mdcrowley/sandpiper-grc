@@ -9,6 +9,7 @@ import type { IconName, ListResult, Row } from '../../core';
 import { AssessmentTab, ScoreRing, scoreColor, scoreWord } from './Assessment';
 import { Checklist } from './Checklist';
 import { Contacts } from './Contacts';
+import { VendorSpendTotal } from './SpendTotal';
 import { IntakeTab, RiskTierChip } from './Intake';
 import { LifecycleTab } from './Lifecycle';
 import { AddEvidence } from './EvidenceForm';
@@ -24,47 +25,51 @@ export function VendorList() {
   const seesContracts = can('contracts.view');
   const facts = (row: Row) => overview.data?.vendors[row.id];
   return (
-    <ResourceList
-      type="vendor"
-      title="Vendors"
-      columns={[
-        'ref', 'name', 'criticality', 'risk_tier', 'status',
-        ...(seesContracts ? [
-          {
-            field: 'security_terms', label: 'Security terms',
-            render: (row: Row) => {
-              const f = facts(row);
-              return f && f.contracts > 0 ? <CoverageMeter terms={f.terms} compact /> : <span className="muted">No contract</span>;
+    <div className="stack">
+      <ResourceList
+        type="vendor"
+        title="Vendors"
+        columns={[
+          'ref', 'name', 'criticality', 'risk_tier', 'status',
+          ...(seesContracts ? [
+            {
+              field: 'security_terms', label: 'Security terms',
+              render: (row: Row) => {
+                const f = facts(row);
+                return f && f.contracts > 0 ? <CoverageMeter terms={f.terms} compact /> : <span className="muted">No contract</span>;
+              },
             },
-          },
-          {
-            field: 'next_notice', label: 'Next notice date',
-            render: (row: Row) => {
-              const f = facts(row);
-              return f?.notice_date ? <NoticeChip date={f.notice_date} /> : <span className="muted">—</span>;
+            {
+              field: 'next_notice', label: 'Next notice date',
+              render: (row: Row) => {
+                const f = facts(row);
+                return f?.notice_date ? <NoticeChip date={f.notice_date} /> : <span className="muted">—</span>;
+              },
             },
-          },
-        ] : []),
-        'services',
-        { field: 'owner_id', hidden: true }, { field: 'next_assessment_due', hidden: true }, { field: 'last_exclusion_check_on', hidden: true },
-        { field: 'remote_access_method', hidden: true }, { field: 'incident_contact_name', hidden: true },
-        { field: 'incident_contact_phone', hidden: true }, { field: 'updated_at', hidden: true },
-      ]}
-      filters={['criticality', 'risk_tier', 'status', 'owner_id', 'next_assessment_due']}
-      bulkFields={['criticality', 'status', 'owner_id']}
-      createFields={[
-        'name', 'services', 'criticality', 'status', 'owner_id', 'remote_access_method',
-        'incident_contact_name', 'incident_contact_phone', 'incident_contact_email', 'notes',
-      ]}
-      actions={(
-        <>
-          {/* Everyone who views vendors may read the questions; changing them needs administer (Questions.tsx). */}
-          {can('vendors.view') && <Link className="btn btn-secondary" to="/vendors/questions">Assessment questions</Link>}
-          {can('vendors.view') && <Link className="btn btn-secondary" to="/vendors/intake">Intake questions</Link>}
-          {seesContracts && <Link className="btn btn-secondary" to="/vendors/terms">Security terms matrix</Link>}
-        </>
-      )}
-    />
+            { field: 'annual_spend', label: 'Annual spend', sortable: true, priority: 1 as const },
+          ] : []),
+          'services',
+          { field: 'owner_id', hidden: true }, { field: 'next_assessment_due', hidden: true }, { field: 'last_exclusion_check_on', hidden: true },
+          { field: 'remote_access_method', hidden: true }, { field: 'incident_contact_name', hidden: true },
+          { field: 'incident_contact_phone', hidden: true }, { field: 'updated_at', hidden: true },
+        ]}
+        filters={['criticality', 'risk_tier', 'status', 'owner_id', 'next_assessment_due']}
+        bulkFields={['criticality', 'status', 'owner_id']}
+        createFields={[
+          'name', 'services', 'criticality', 'status', 'owner_id', 'remote_access_method',
+          'incident_contact_name', 'incident_contact_phone', 'incident_contact_email', 'notes',
+        ]}
+        actions={(
+          <>
+            {/* Everyone who views vendors may read the questions; changing them needs administer (Questions.tsx). */}
+            {can('vendors.view') && <Link className="btn btn-secondary" to="/vendors/questions">Assessment questions</Link>}
+            {can('vendors.view') && <Link className="btn btn-secondary" to="/vendors/intake">Intake questions</Link>}
+            {seesContracts && <Link className="btn btn-secondary" to="/vendors/terms">Security terms matrix</Link>}
+          </>
+        )}
+      />
+      {seesContracts && <VendorSpendTotal />}
+    </div>
   );
 }
 
@@ -255,7 +260,7 @@ function ContractsTab({ vendorId }: { vendorId: string }) {
       columns={[
         'ref', 'title', 'status',
         { field: 'notice_date', label: 'Notice date', sortable: true, render: (row) => <NoticeChip date={row.notice_date} status={row.status} /> },
-        'end_date', 'renewal_mechanism', 'total_value', { field: 'owner_id', hidden: true },
+        'end_date', 'annual_value', 'renewal_mechanism', 'total_value', { field: 'owner_id', hidden: true },
       ]}
       filters={['status', 'renewal_mechanism']}
       bulkFields={['status', 'owner_id']}

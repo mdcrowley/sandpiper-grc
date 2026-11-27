@@ -326,15 +326,23 @@ without `security.view`. See [Security](security.md#audit-log).
   then be edited. Some ship switched off; a switched-off role grants nothing. Only the
   Administrator role may hold `*`, and the application refuses changes that would leave
   no active administrator or remove the acting administrator's own access.
-- **`security.view` and restricted records.** Risks, security incidents, notification
-  tasks and vulnerability findings are restricted types: holding `risks.view` alone is not
-  enough. Without `security.view` they do not appear in lists, single reads, search,
-  pickers, links, exports or the audit search. Some types restrict row by row instead
-  (`restricted: 'flag'`): actions take the restriction of the record they arose from, and
-  safety events flagged as holding personal information are restricted.
+- **`security.view` and restricted records.** Security incidents, notification tasks and
+  vulnerability findings are restricted types. Without `security.view` they do not appear in
+  lists, single reads, search, pickers, links, exports or the audit search. Some types restrict
+  row by row instead (`restricted: 'flag'`): actions take the restriction of the record they
+  arose from, safety events flagged as holding personal information are restricted, and since
+  wave 25 risks are restricted per risk (cybersecurity risks by default, from the category), so
+  enterprise risk work needs `risks.view` only.
 - **Figures are the same for everyone.** Counts, charts, report and dashboard figures
   include restricted records whoever looks; restriction hides the records, not the numbers
-  ([Security](security.md#figures-are-the-same-for-everyone)).
+  ([Security](security.md#figures-are-the-same-for-everyone)). A figure that lists records by
+  name masks the ones the viewer may not open ("Restricted risk").
+- **Shared registries between modules.** Modules offer each other hook points without
+  importing each other's tables: metrics, calendar sources, taggable types, clause sets, and
+  since wave 25 evidence parts (`defineEvidencePart` in `modules/evidence/parts.ts`), through
+  which audits, funding and obligations let the evidence library link to parts of their records.
+  The shared record page adds the **Evidence** tab to every linkable record type while the
+  evidence area is on. See [the developer guide](development.md#evidence-parts-shared-registry).
 - **Feature switches.** An administrator can switch optional parts of the application off
   (`server/src/core/features.ts`). `can()` then answers false for that part's permissions
   whoever holds them, its record types leave the resource registry, its routes answer 404

@@ -1,4 +1,5 @@
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { actorOf, isDataLoad } from '../../core/dataload.ts';
 import { departmentPrepare } from '../../core/scope.ts';
 import { takeForced, type ProjectService } from './service.ts';
 
@@ -65,7 +66,7 @@ export function defineProject(ctx: ModuleContext, svc: ProjectService): void {
       prepare: departmentPrepare(ctx.db),
       async beforeCreate(req, data) {
         data.stage ??= 'idea'; // intake: a new request starts as an idea
-        if (req?.user) data.requested_by = req.user.id;
+        if (req?.user) data.requested_by = isDataLoad(req) && data.requested_by ? data.requested_by : actorOf(req).id;
         return { ...data, ...(await svc.derive(req, data)) };
       },
       async beforeUpdate(req, existing, patch) {

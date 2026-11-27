@@ -8,7 +8,7 @@ import { testApp } from '../../test/helpers.ts';
 let t: Awaited<ReturnType<typeof testApp>>;
 let lead: Awaited<ReturnType<typeof t.as>>;
 let agent: Awaited<ReturnType<typeof t.as>>;
-let reader: Awaited<ReturnType<typeof t.as>>; // risks.* without security.view
+let reader: Awaited<ReturnType<typeof t.as>>; // risks.* without security.view: sees risks, not restricted (cyber) ones
 
 beforeAll(async () => {
   t = await testApp();
@@ -43,7 +43,11 @@ describe('heat map extras', () => {
     expect(all.risks[0]).toMatchObject({ id: closed.id, closed: true });
     expect(all.cells.find((c: any) => c.likelihood === 5 && c.impact === 4).count).toBe(1);
     expect((await agent.get('/api/risks/heatmap?include_closed=true')).status).toBe(403);
-    expect((await reader.get('/api/risks/heatmap?include_closed=true')).status).toBe(403);
+    // E45-01: risks.view alone opens the heat map; restricted (cybersecurity) risks are counted but masked.
+    const masked = (await reader.get('/api/risks/heatmap?scale=cyber_5x5&include_closed=true')).body;
+    expect(masked.total).toBe(3);
+    expect(masked.risks.map((r: any) => r.title)).toEqual(['Restricted risk', 'Restricted risk', 'Restricted risk']);
+    expect(masked.risks[0]).toMatchObject({ ref: null, owner_name: null, masked: true, residual: { rating: all.risks[0].residual.rating } });
     for (const r of [moved, still, closed]) await t.api.del(`/api/risks/${r.id}`);
   });
 });
@@ -66,8 +70,8 @@ describe('scale preview', () => {
     expect(bad.body.error.fields.acceptance_threshold).toBeDefined();
     expect((await t.api.post('/api/risks/scales/nope/preview', {})).status).toBe(404);
 
-    // Counts of risks are restricted: an administrator of scales without security.view gets none.
-    expect((await reader.post('/api/risks/scales/cyber_5x5/preview', { matrix })).body).toEqual({ total: null, rerated: null, level_in_use: null });
+    // E45-01: counts are figures: an administrator of scales without security.view gets them too.
+    expect((await reader.post('/api/risks/scales/cyber_5x5/preview', { matrix })).body).toEqual({ total: 1, rerated: 1, level_in_use: false });
     expect((await agent.post('/api/risks/scales/cyber_5x5/preview', { matrix })).status).toBe(403);
     await t.api.del(`/api/risks/${risk.id}`);
   });
@@ -81,7 +85,7 @@ describe('revoking and expiry of acceptances', () => {
     const url = `/api/risks/${risk.id}/acceptances/${acc.id}/revoke`;
 
     expect((await agent.post(url, { reason: 'x' })).status).toBe(403);
-    expect((await reader.post(url, { reason: 'x' })).status).toBe(403); // risks.approve without security.view
+    expect((await reader.post(url, { reason: 'x' })).status).toBe(404); // risks.approve without security.view: a cyber risk is restricted
     expect((await (await t.as('auditor')).post(url, { reason: 'x' })).status).toBe(403);
     expect((await lead.post(url, {})).body.error.fields.reason).toBeDefined();
     expect((await lead.post(url, { reason: 'x', revoked_on: plus(3) })).body.error.fields.revoked_on).toMatch(/future/);
@@ -119,7 +123,6 @@ describe('revoking and expiry of acceptances', () => {
     await lead.post(`/api/risks/${soon.id}/acceptances`, { expires_on: plus(10), rationale: 'Invented reason' });
 
     expect((await agent.post('/api/risks/checks/run')).status).toBe(403);
-    expect((await reader.post('/api/risks/checks/run')).status).toBe(403);
     const quiet = (await t.api.post('/api/risks/checks/run')).body;
     expect(quiet.expired).toBe(0);
     expect(quiet.expiring).toBe(hasNotify() ? 1 : 0);
@@ -173,10 +176,10 @@ describe('reviews and the board report', () => {
     expect(due.map((r: any) => r.id)).toEqual([risk.id]);
     expect(due[0]).toMatchObject({ overdue: true, days_left: -3, rating_label: 'Medium' });
     expect((await agent.get('/api/risks/reviews-due')).status).toBe(403);
-    expect((await reader.get('/api/risks/reviews-due')).status).toBe(403);
+    expect((await reader.get('/api/risks/reviews-due')).body.some((r: any) => r.id === risk.id)).toBe(false); // restricted: left out
     expect((await agent.get(`/api/risks/${risk.id}/reviews`)).status).toBe(403);
     expect((await agent.post(`/api/risks/${risk.id}/reviews`, { next_review_on: plus(90) })).status).toBe(403);
-    expect((await reader.post(`/api/risks/${risk.id}/reviews`, { next_review_on: plus(90) })).status).toBe(403);
+    expect((await reader.post(`/api/risks/${risk.id}/reviews`, { next_review_on: plus(90) })).status).toBe(404);
 
     const run = (await t.api.post('/api/risks/checks/run')).body;
     expect(run.reviews).toBe(hasNotify() ? 1 : 0);
@@ -217,7 +220,7 @@ describe('reviews and the board report', () => {
     expect(again.acceptances.map((a: any) => [a.risk_id, a.days_left])).toEqual([[far.id, 30]]);
 
     expect((await agent.get('/api/risks/report')).status).toBe(403);
-    expect((await reader.get('/api/risks/report')).status).toBe(403);
+    expect((await reader.get('/api/risks/report')).status).toBe(200); // E45-01: figures, restricted risks masked
     for (const r of [risk, far]) await lead.del(`/api/risks/${r.id}`);
   });
 });

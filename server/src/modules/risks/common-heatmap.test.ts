@@ -28,7 +28,7 @@ describe('the common heat map', () => {
     const map = (await t.api.get('/api/risks/heatmap/common')).body;
     expect(map.scale.key).toBe('_common');
     expect(map.scale.ratings.map((r: any) => r.key)).toEqual(['low', 'medium', 'high', 'critical']);
-    expect(map.scales.map((s: any) => s.key)).toEqual(['cyber_5x5', 'hazard_4x5']);
+    expect(map.scales.map((s: any) => s.key)).toEqual(['enterprise_5x5', 'cyber_5x5', 'hazard_4x5']);
     expect(map.cells).toHaveLength(25);
     const at = (l: number, i: number) => map.cells.find((c: any) => c.likelihood === l && c.impact === i);
     // Residual: the cyber risk at (2, 3) medium; the hazard's severity 4 of 4 is step 5, rated Serious, which is High.
@@ -48,7 +48,7 @@ describe('the common heat map', () => {
     expect(inherent.totals.find((x: any) => x.rating === 'critical').count).toBe(2);
   });
 
-  it('needs the risks permission and security access, like the other heat map', async () => {
+  it('needs the risks permission, like the other heat map', async () => {
     expect((await (await t.as('agent')).get('/api/risks/heatmap/common')).status).toBe(403);
   });
 });

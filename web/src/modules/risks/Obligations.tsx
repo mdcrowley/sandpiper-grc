@@ -335,7 +335,7 @@ export function ObligationDetail() {
           </div>
         ) },
         ...(AttachmentsPanel ? [{
-          key: 'attachments', label: 'Evidence',
+          key: 'attachments', label: 'Evidence files',
           content: ({ row }: RecordContext) => (
             <Card title="Evidence files">
               <p className="muted" style={{ margin: 0 }}>Attach the proof that this obligation is met: a signed form, a report, a certificate. Say where else evidence is kept in the Evidence field.</p>

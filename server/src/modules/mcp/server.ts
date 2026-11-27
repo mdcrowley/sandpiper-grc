@@ -38,18 +38,33 @@ interface ToolExtra {
 
 export interface CallLog { (tool: string, ok: boolean, error: string | null, ms: number): Promise<void> }
 
+/**
+ * How to build records completely when creating them from sources (E45-50, wave 25): the product owner
+ * found assistants putting structured facts into descriptions and leaving files and links out.
+ */
+export const COMPLETENESS = 'When you create or update records from sources (files, spreadsheets, emails, another system), build each record as completely as the source allows: '
+  + 'call list_record_types for the type first, then fill every field the source supports (people, dates, categories, statuses, linked records, custom fields) instead of writing those facts into the description or notes; '
+  + 'set reference and person fields directly (a linked record by its reference or exact title, a person by username, email or name; the answer says what each was matched to); '
+  + 'create the child records list_record_types names as related types (contacts, line items, tasks and so on) and link related records with link_records; '
+  + 'attach the source files (start_upload, upload_part, finish_upload, then attach_file) or links (attach_link); '
+  + 'add the record\'s history as comments (add_comment), one per entry; '
+  + 'read "unfilled" and "related_empty" in each create_record and update_record answer, and finish by reporting what you could not place and why. The prompt load_records_from_sources walks through this.';
+
 const INSTRUCTIONS = 'Sandpiper GRC: governance, risk and compliance for a transit organization (service desk, inventory, changes, vendors and contracts, '
   + 'cybersecurity frameworks, risks, security incidents, policies, vulnerabilities, projects, safety and reports). '
   + 'Every call acts as the person who owns the access token, with no more rights than they have; records they may not see do not exist for you. '
   + 'Start with list_record_types or search; use my_work for "what should I do". Cite references (e.g. TKT-00012) and the url of each record you mention. '
+  + `${COMPLETENESS} `
   + 'Nothing can be deleted through this connection.';
 
 /** What the assistant is told while its saves are data loads (E18-70). */
 export const DATA_LOAD_INSTRUCTIONS = 'Data load mode is on for you: create_record and update_record may also set read-only fields (opened, resolved and closed times, due times, breach flags and so on), '
   + 'any status without the usual step rules, created_at, created_by, updated_at and the reference (unique; numbering moves past it). Nothing is sent (no notifications, email, webhooks or approvals). '
-  + 'To write in the name of the real people (history must show who wrote or did each thing), give "as" on create_record, update_record, add_comment, link_records and decide_approval: '
+  + 'To write in the name of the real people (history must show who wrote or did each thing), give "as" on create_record, update_record, add_comment, link_records, attach_file, attach_link and decide_approval: '
   + 'a user id, username or email (disabled accounts too), a roster person ("person:<id, reference or email>"), or "name:<their name>" for someone with neither. '
   + 'An unknown person is an error, never you. The audit log still records you and your token, adding "on behalf of" the person. '
+  + 'Load each record whole: its original dates and statuses, its people (disabled accounts may be named in person fields), its child and linked records, its files, '
+  + 'and its history as comments in order, each with created_at (when it was written) and "as" (who wrote it). '
   + 'delete_record deletes a record created in data load mode. Other records cannot be deleted.';
 
 function errorResult(err: unknown) {

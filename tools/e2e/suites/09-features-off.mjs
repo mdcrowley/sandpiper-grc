@@ -38,6 +38,8 @@ const TERMS = {
   // Not "funding" or "funder" alone: a project's or asset's funding source and the inventory's funder
   // interest option are not the funding area.
   funding: [/\bgrant (compliance|awards?)\b/i, /\bfunding (awards?|certifications?)\b/i, /\bfunder compliance reviews?\b/i, /\bsub-?recipients?\b/i],
+  // Wave 25 (E45-06). Not "evidence" alone: evidence files on records (attachments) stay on.
+  evidence: [/\bevidence library\b/i, /\bevidence to renew\b/i, /\bEVD-\d/],
 };
 
 /**

@@ -15,6 +15,7 @@
 // Certification tab count every requirement for everyone; restricted ones show no detail.
 import type { FastifyRequest } from 'fastify';
 import { defineCalendarSource, whoFor } from '../../core/calendar.ts';
+import { actorOf, isDataLoad } from '../../core/dataload.ts';
 import { UUID_RE } from '../../core/errors.ts';
 import { PDF_TYPE, PdfBuilder } from '../../core/export/pdf.ts';
 import type { ModuleContext, Row, SessionUser } from '../../core/module.ts';
@@ -217,8 +218,9 @@ export function registerCertification(ctx: ModuleContext, svc: ProjectService): 
     const wasClosed = existing ? CLOSED.includes(existing.status) : false;
     const nowClosed = CLOSED.includes(status);
     if (nowClosed && (!existing || existing.status !== status)) {
-      out.verified_by = req?.user?.id ?? null;
-      out.verified_on = todayInZone();
+      out.verified_by = actorOf(req).id;
+      // E18-94: a load keeps the verification date it gives.
+      out.verified_on = isDataLoad(req) && merged.verified_on ? merged.verified_on : todayInZone();
     } else if (!nowClosed && wasClosed) {
       out.verified_by = null;
       out.verified_on = null;
@@ -430,7 +432,7 @@ export function registerCertification(ctx: ModuleContext, svc: ProjectService): 
       const row = (await db.one<Row>(
         `insert into project_certificates (project_id, status, scope, conditions, issued_by, issued_by_name, issued_by_role, issued_on, items, open_items)
          values ($1, 'issued', $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb) returning *`,
-        [project.id, scopeText, conditions, req.user!.id, req.user!.displayName, role, issuedOn,
+        [project.id, scopeText, conditions, actorOf(req).id, actorOf(req).name, role, issuedOn,
           JSON.stringify(snapshot), JSON.stringify(snapshot.filter((i) => i.status === 'open'))]))!;
       await ctx.audit(req, {
         action: 'project.certificate_issue', recordType: 'project', recordId: project.id,

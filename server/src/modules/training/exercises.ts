@@ -1,5 +1,6 @@
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { actorOf } from '../../core/dataload.ts';
 import { isDate, localDate, text, UUID } from './dates.ts';
 
 const SEVERITY_PRIORITY: Record<string, string> = { high: 'high', medium: 'medium', low: 'low' };
@@ -145,7 +146,7 @@ export function registerExercises(ctx: ModuleContext) {
       made.push((await db.one<Row>(
         `insert into exercise_participants (exercise_id, name, role, attended, created_by, updated_by)
          values ($1,$2,$3,$4,$5,$5) returning id, name, role, attended`,
-        [ex.id, data.name, data.role ?? null, data.attended ?? true, req.user!.id],
+        [ex.id, data.name, data.role ?? null, data.attended ?? true, actorOf(req).id],
       ))!);
     }
     await ctx.audit(req, {
@@ -164,7 +165,7 @@ export function registerExercises(ctx: ModuleContext) {
     return row ?? ctx.fail(404, 'not_found', `${what} not found.`);
   };
 
-  async function patchChild(table: string, before: Row, data: Row, userId: string) {
+  async function patchChild(table: string, before: Row, data: Row, userId: string | null) {
     const keys = Object.keys(data).filter((k) => (data[k] ?? null) !== (before[k] ?? null));
     if (!keys.length) return { row: before, was: {}, now: {} };
     const row = (await db.one<Row>(
@@ -177,7 +178,7 @@ export function registerExercises(ctx: ModuleContext) {
   app.patch('/api/exercises/:id/participants/:childId', edit, async (req) => {
     const ex = await needExercise(req);
     const before = await needChild('exercise_participants', 'Participant', req, ex);
-    const { row, was, now } = await patchChild('exercise_participants', before, participantInput((req.body ?? {}) as Row, 'update'), req.user!.id);
+    const { row, was, now } = await patchChild('exercise_participants', before, participantInput((req.body ?? {}) as Row, 'update'), actorOf(req).id);
     if (Object.keys(now).length) {
       await ctx.audit(req, {
         action: 'exercise_participant.update', recordType: 'exercise', recordId: ex.id,
@@ -190,7 +191,7 @@ export function registerExercises(ctx: ModuleContext) {
   app.delete('/api/exercises/:id/participants/:childId', edit, async (req) => {
     const ex = await needExercise(req);
     const before = await needChild('exercise_participants', 'Participant', req, ex);
-    await db.query('update exercise_participants set deleted_at = now(), updated_by = $2 where id = $1', [before.id, req.user!.id]);
+    await db.query('update exercise_participants set deleted_at = now(), updated_by = $2 where id = $1', [before.id, actorOf(req).id]);
     await ctx.audit(req, {
       action: 'exercise_participant.delete', recordType: 'exercise', recordId: ex.id,
       summary: `Participant removed from ${name(ex)}: ${before.name}`, before: { name: before.name, role: before.role, attended: before.attended },
@@ -245,7 +246,7 @@ export function registerExercises(ctx: ModuleContext) {
     const row = (await db.one<Row>(
       `insert into exercise_findings (exercise_id, finding, severity, recommendation, created_by, updated_by)
        values ($1,$2,$3,$4,$5,$5) returning id, finding, severity, recommendation, action_id`,
-      [ex.id, data.finding, data.severity ?? null, data.recommendation ?? null, req.user!.id],
+      [ex.id, data.finding, data.severity ?? null, data.recommendation ?? null, actorOf(req).id],
     ))!;
     await ctx.audit(req, {
       action: 'exercise_finding.create', recordType: 'exercise', recordId: ex.id,
@@ -259,7 +260,7 @@ export function registerExercises(ctx: ModuleContext) {
   app.patch('/api/exercises/:id/findings/:childId', edit, async (req) => {
     const ex = await needExercise(req);
     const before = await needChild('exercise_findings', 'Finding', req, ex);
-    const { row, was, now } = await patchChild('exercise_findings', before, await findingInput((req.body ?? {}) as Row, 'update'), req.user!.id);
+    const { row, was, now } = await patchChild('exercise_findings', before, await findingInput((req.body ?? {}) as Row, 'update'), actorOf(req).id);
     if (Object.keys(now).length) {
       await ctx.audit(req, {
         action: 'exercise_finding.update', recordType: 'exercise', recordId: ex.id,
@@ -272,7 +273,7 @@ export function registerExercises(ctx: ModuleContext) {
   app.delete('/api/exercises/:id/findings/:childId', edit, async (req) => {
     const ex = await needExercise(req);
     const before = await needChild('exercise_findings', 'Finding', req, ex);
-    await db.query('update exercise_findings set deleted_at = now(), updated_by = $2 where id = $1', [before.id, req.user!.id]);
+    await db.query('update exercise_findings set deleted_at = now(), updated_by = $2 where id = $1', [before.id, actorOf(req).id]);
     await ctx.audit(req, {
       action: 'exercise_finding.delete', recordType: 'exercise', recordId: ex.id,
       summary: `Finding removed from ${name(ex)}: ${String(before.finding).slice(0, 120)}`,
@@ -301,7 +302,7 @@ export function registerExercises(ctx: ModuleContext) {
     const action = await createFindingAction(ctx, ex, finding, {
       title: text(body.title), owner_id: text(body.owner_id) ?? ex.owner_id ?? null, due_on: due, priority: text(body.priority),
     }, req);
-    await db.query('update exercise_findings set action_id = $2, updated_at = now(), updated_by = $3 where id = $1', [finding.id, action.id, req.user!.id]);
+    await db.query('update exercise_findings set action_id = $2, updated_at = now(), updated_by = $3 where id = $1', [finding.id, action.id, actorOf(req).id]);
     await ctx.audit(req, {
       action: 'exercise_finding.action', recordType: 'exercise', recordId: ex.id,
       summary: `Follow-up action ${action.ref ?? ''} raised from a finding on ${name(ex)}`.replace('  ', ' '),

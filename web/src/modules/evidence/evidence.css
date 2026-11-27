@@ -1,0 +1,18 @@
+/* Evidence library. Tokens only, so both themes work. */
+
+.ev-pad { padding: var(--s-3) var(--s-4); }
+.ev-small { font-size: var(--fs-sm); }
+.ev-block { display: block; }
+.ev-actions { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.ev-row-actions { text-align: right; white-space: nowrap; }
+.ev-error { color: var(--danger-text); margin: 0; }
+
+/* The file chooser: a button-like label over an invisible input. */
+.ev-file { position: relative; display: inline-flex; align-items: center; max-width: 100%; }
+.ev-file > span {
+  display: inline-flex; align-items: center; min-height: var(--control-height); padding: 0 var(--s-4); border-radius: var(--radius-sm);
+  border: 1px solid var(--border-control); background: var(--surface); color: var(--text); font-weight: 600; cursor: pointer; overflow-wrap: anywhere;
+}
+.ev-file > input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+.ev-file:focus-within > span { outline: 2px solid var(--focus); outline-offset: 2px; }
+.ev-file:hover > span { background: var(--surface-hover); }

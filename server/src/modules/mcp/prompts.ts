@@ -96,4 +96,27 @@ export const PROMPTS: PromptSpec[] = [
       'Only use what the tools return. Never invent a number, date, owner or reader; ask me instead. Do not delete anything.',
     ].join('\n'),
   },
+  // E45-50 (wave 25): building records completely from source files, not just their descriptions.
+  {
+    name: 'load_records_from_sources',
+    title: 'Load records from source files',
+    description: 'Walks through creating complete records of one type from source files (spreadsheets, exports, reports, emails): every field the source supports, linked records and people, child records, links, the source files attached, history as comments, and a check of what is still empty.',
+    args: {
+      record_type: 'The kind of record to create, e.g. "vendor", "asset", "ticket" or "contract".',
+      sources: 'The source files or system, as you can see them, e.g. "the vendor list spreadsheet and the contracts folder".',
+    },
+    text: (a) => [
+      `Help me load ${a.record_type ? `${a.record_type} records` : 'records'} into Sandpiper GRC from ${a.sources || 'the sources I give you'}, as completely as the sources allow.`,
+      `1. Call list_record_types with type "${a.record_type || '<the type>'}" for its fields (labels, help, choices, custom fields) and its related types, and list_record_types for each related type you will need (for example contacts, line items, tasks). Check what already exists with search or list_records so nothing is created twice.`,
+      '2. Map the sources to fields: a table of each source column or section and the field it goes to (with the related type for child data). Facts with a field of their own (people, dates, amounts, categories, statuses, linked systems, vendors, sites) go in that field, never into the description or notes. Mark anything with no field to go into, and ask me before going on if the mapping needs a decision.',
+      '3. If the history must keep its original dates and authors (opened and closed times, who did what), check that data load mode is on (list_record_types says so); if it is off and I need that, tell me to switch it on under Administration > Settings > Data load mode.',
+      '4. For each record: create_record for the parent with every mapped field. Give linked records by reference or exact title and people by username, email or name; read what the answer says each value was matched to, and fix any field it could not match rather than dropping it.',
+      '5. Create its child records with create_record, setting their field that points at the parent to its reference, then link_records for the other related records the source names (relation in words, e.g. "depends on", "affects").',
+      '6. Attach the source files for that record (start_upload, upload_part, finish_upload, attach_file; mark certificates, signed agreements and audit proofs as evidence with their dates) or attach_link for documents kept elsewhere. Check list_attachments first so nothing is attached twice.',
+      '7. Add its history as comments with add_comment, one per entry, oldest first (in data load mode with created_at and "as" for the person who wrote it).',
+      '8. Read "unfilled" and "related_empty" in each answer, fill what the sources give with update_record, and check one record in five with get_record.',
+      '9. Report: records created with their references and links, values matched (names to records and people), fields and related types left empty and why, source content that had no place, and files not attached.',
+      'Only use what the sources and tools give. Never invent a value, person or date; ask me instead. Do not delete anything.',
+    ].join('\n'),
+  },
 ];

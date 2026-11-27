@@ -384,8 +384,15 @@ describe('problems, knowledge and catalog', () => {
       'Access request', 'Equipment fault', 'Hardware', 'Leaver', 'New starter', 'Software', 'Vendor access',
     ]);
     const fault = items.find((i: any) => i.name === 'Equipment fault');
-    const made = await t.api.post('/api/tickets', { ...fault.defaults, title: `${fault.defaults.title}router`, catalog_item_id: fault.id });
+    // The built-in items ask their starter questions (E45-33); the required ones must be answered.
+    const unanswered = await t.api.post('/api/tickets', { ...fault.defaults, title: `${fault.defaults.title}router`, catalog_item_id: fault.id });
+    expect(unanswered.status).toBe(400);
+    const made = await t.api.post('/api/tickets', {
+      ...fault.defaults, title: `${fault.defaults.title}router`, catalog_item_id: fault.id,
+      catalog_answers: { equipment: 'Router R-7', location: 'Depot B', can_work: false },
+    });
     expect(made.status).toBe(201);
+    expect(made.body.fulfilment_tasks.map((x: any) => x.title)).toContain('Diagnose the fault');
     expect(made.body.type).toBe('incident');
     expect(made.body._display.catalog_item_id).toBe('Equipment fault');
     expect((await t.api.post('/api/catalog-items', { name: 'Bad', defaults: '[1,2]' })).status).toBe(400);

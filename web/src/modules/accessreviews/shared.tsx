@@ -146,3 +146,49 @@ export function ImportDialog({ open, onClose, onDone, systemId: fixed }: { open:
     </Modal>
   );
 }
+
+/**
+ * E45-35: what to do first when no account has been loaded yet. A review needs each system's accounts,
+ * and they come from the system's own account file, so the import is the first step, not typing
+ * accounts in by hand. `onManual` shows the list for someone who must add one account by hand.
+ */
+export function GetStarted({ onManual, onImported, systemId }: { onManual?: () => void; onImported?: () => void; systemId?: string }) {
+  const { can } = useAuth();
+  const navigate = useNavigate();
+  const [importing, setImporting] = useState(false);
+  const canImport = can('systems.edit');
+  return (
+    <section className="ar-start" aria-labelledby="ar-start-title">
+      <h2 id="ar-start-title">{systemId ? "Start with this system's account file" : "Start with each system's account file"}</h2>
+      <p className="muted">No accounts have been loaded {systemId ? "for this system " : ""}yet. An access review asks each system's owner to keep or remove every account on the system, so the accounts come first.</p>
+      <ol className="ar-start-steps">
+        <li>
+          <strong>Import each system's account file.</strong>
+          <span>Export the list of accounts from the system (CSV or Excel), then import it here. Holders are matched to the staff roster by employee number, email or name.</span>
+        </li>
+        <li>
+          <strong>Check the matches.</strong>
+          <span>Accounts of people who have left, are on leave or are not on the roster are flagged on the Accounts on systems tab.</span>
+        </li>
+        <li>
+          <strong>Start a review campaign.</strong>
+          <span>Add the systems whose accounts are loaded, name a reviewer for each, and start it.</span>
+        </li>
+      </ol>
+      <div className="row">
+        {canImport
+          ? <Button variant="primary" icon="upload" onClick={() => setImporting(true)}>Import a system's file</Button>
+          : <Notice tone="info">Someone who may edit systems imports the account files.</Notice>}
+        {onManual && can('systems.create') && <Button variant="ghost" onClick={onManual}>Add one account by hand</Button>}
+      </div>
+      <ImportDialog open={importing} onClose={() => setImporting(false)} systemId={systemId}
+        onDone={() => { onImported?.(); if (!systemId) navigate('/access-reviews/accounts'); }} />
+    </section>
+  );
+}
+
+/** How many accounts are loaded (undefined while it is not known), whether the answer (or an error) has come, and a way to count again. */
+export function useAccountCount(systemId?: string): { count: number | undefined; settled: boolean; recount: () => void } {
+  const { data, error, reload } = useFetch<{ total: number }>(`/api/system-accounts?pageSize=1${systemId ? `&f.system_id=${systemId}` : ''}`);
+  return { count: data?.total, settled: data !== undefined || Boolean(error), recount: reload };
+}

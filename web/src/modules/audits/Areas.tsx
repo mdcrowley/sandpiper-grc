@@ -5,14 +5,14 @@ import { AuditTabs } from './shared';
 export function AreaList() {
   return (
     <div className="stack">
-      <PageHeader title="Audit universe" subtitle="Everything that needs auditing, how often, when each was last audited and when the next audit is due." />
+      <PageHeader title="Audit universe" subtitle="Everything that needs auditing, its risk score, how often, when each was last audited and when the next audit is due. Link an area to the risks it covers from its Related tab." />
       <AuditTabs active="areas" />
       <ResourceList
         type="audit_area"
         urlState
-        columns={['name', 'category', 'risk_level', 'cycle_months', 'last_audited_on', 'next_due_on', 'owner_id', { field: 'active', hidden: true }]}
-        filters={['category', 'risk_level', 'owner_id', 'active', 'next_due_on']}
-        createFields={['name', 'category', 'description', 'cycle_months', 'next_due_on', 'risk_level', 'owner_id']}
+        columns={['name', 'category', { field: 'risk_score', priority: 1 }, 'risk_level', 'cycle_months', 'last_audited_on', 'next_due_on', 'owner_id', { field: 'significance', hidden: true }, { field: 'change_level', hidden: true }, { field: 'active', hidden: true }]}
+        filters={['category', 'risk_level', 'significance', 'change_level', 'owner_id', 'active', 'next_due_on']}
+        createFields={['name', 'category', 'description', 'cycle_months', 'next_due_on', 'risk_level', 'significance', 'change_level', 'owner_id']}
       />
     </div>
   );
@@ -22,7 +22,7 @@ export function AreaDetail() {
   return (
     <RecordPage
       type="audit_area"
-      summaryFields={['name', 'category', 'description', 'risk_level', 'cycle_months', 'last_audited_on', 'next_due_on', 'owner_id', 'active']}
+      summaryFields={['name', 'category', 'description', 'risk_level', 'significance', 'change_level', 'risk_score', 'cycle_months', 'last_audited_on', 'next_due_on', 'owner_id', 'active']}
       tabs={[{
         key: 'audits', label: 'Audits',
         content: ({ row }) => (

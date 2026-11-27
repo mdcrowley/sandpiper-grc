@@ -1,5 +1,6 @@
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { actorOf } from '../../core/dataload.ts';
 import { pageOf } from '../../core/api/conventions.ts';
 import { isRetired, todayIso } from './shared.ts';
 import { assess, requirementsFor } from '../models/equipment.ts';
@@ -122,7 +123,7 @@ export function registerEquipment(ctx: ModuleContext) {
     const notes = typeof body.install_notes === 'string' && body.install_notes.trim() ? body.install_notes.trim() : null;
     const row = (await db.one<Row>(
       `insert into vehicle_equipment (vehicle_id, asset_id, installed_on, install_notes, created_by) values ($1,$2,$3,$4,$5) returning id`,
-      [vehicle.id, asset.id, on, notes, req.user!.id]))!;
+      [vehicle.id, asset.id, on, notes, actorOf(req).id]))!;
     const label = `${asset.tag ? `${asset.tag} ` : ''}${asset.name}`;
     await ctx.audit(req, {
       action: 'vehicle.equipment_install', recordType: 'vehicle', recordId: vehicle.id,
@@ -155,7 +156,7 @@ export function registerEquipment(ctx: ModuleContext) {
     const reason = typeof body.removal_reason === 'string' && body.removal_reason.trim() ? body.removal_reason.trim() : null;
     await db.query(
       `update vehicle_equipment set removed_on = $2, removal_reason = $3, removed_at = now(), removed_by = $4 where id = $1`,
-      [row!.id, off, reason, req.user!.id]);
+      [row!.id, off, reason, actorOf(req).id]);
     const label = (await ctx.resources.labelFor('asset', row!.asset_id)) ?? 'equipment';
     await ctx.audit(req, {
       action: 'vehicle.equipment_remove', recordType: 'vehicle', recordId: vehicle.id,

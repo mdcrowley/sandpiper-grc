@@ -1,12 +1,14 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { actorOf } from '../../core/dataload.ts';
 import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { displayDate } from '../../core/timezone.ts';
 import type { Scales } from './scales.ts';
+import { riskMasker } from './masking.ts';
 
 // What happens to a risk over time: an acceptance is revoked or expires, a review falls due and
-// is completed, and the board asks for a report. Every route here needs security.view as well as
-// the risks permission, because risks are restricted records.
+// is completed, and the board asks for a report. Every route here needs the risks permission; a
+// restricted risk is left out of lists, and masked in the report, for people without security.view.
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const validDate = (v: string) => DATE.test(v) && !Number.isNaN(Date.parse(v));
@@ -150,7 +152,7 @@ export function makeLifecycle(ctx: ModuleContext, deps: LifecycleDeps) {
 
       const row = (await db.one<Row>(
         `update risk_acceptances set revoked_on = $2, revoked_by = $3, revoked_reason = $4 where id = $1 returning *`,
-        [acceptance.id, revokedOn, req.user!.id, text(b, 'reason')]))!;
+        [acceptance.id, revokedOn, actorOf(req).id, text(b, 'reason')]))!;
       await ctx.audit(req, {
         action: 'risk.acceptance_revoke', recordType: 'risk', recordId: risk.id,
         summary: `Risk acceptance revoked for ${risk.ref}: ${text(b, 'reason').slice(0, 160)}`,
@@ -181,7 +183,7 @@ export function makeLifecycle(ctx: ModuleContext, deps: LifecycleDeps) {
                 (r.review_on - current_date)::int as days_left, r.review_on < current_date as overdue,
                 coalesce(r.residual_rating, r.inherent_rating) as rating
          from risks r left join users u on u.id = r.owner_id
-         where r.deleted_at is null and not (coalesce(r.status, '') = any($1::text[])) and r.review_on <= current_date + $2::int
+         where r.deleted_at is null and ${ctx.resources.visibleWhere('risk', req.user, 'r')} and not (coalesce(r.status, '') = any($1::text[])) and r.review_on <= current_date + $2::int
          order by r.review_on, r.ref`, [closed, days]);
       return rows.map((r) => ({ ...r, rating_label: rate(r.scale_key, r.rating).label, color: rate(r.scale_key, r.rating).color }));
     });
@@ -218,7 +220,7 @@ export function makeLifecycle(ctx: ModuleContext, deps: LifecycleDeps) {
         `insert into risk_reviews (risk_id, reviewed_on, note, next_review_on, inherent_rating, inherent_score, residual_rating, residual_score, summary_level, status, created_by)
          values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) returning *`,
         [risk.id, reviewedOn, text(b, 'note') || null, next, risk.inherent_rating, risk.inherent_score, risk.residual_rating,
-          risk.residual_score, risk.summary_level, risk.status, req.user!.id]))!;
+          risk.residual_score, risk.summary_level, risk.status, actorOf(req).id]))!;
       await db.query('update risks set last_reviewed_on = $2 where id = $1', [risk.id, reviewedOn]);
       await ctx.audit(req, {
         action: 'risk.review', recordType: 'risk', recordId: risk.id,
@@ -244,7 +246,7 @@ export function makeLifecycle(ctx: ModuleContext, deps: LifecycleDeps) {
 
       const risks = await db.query<Row>(
         `select r.id, r.ref, r.title, r.scale_key, r.category, r.status, r.treatment, r.summary_level, r.owner_id, u.display_name as owner_name,
-                r.inherent_rating, r.inherent_score, r.residual_rating, r.residual_score,
+                r.inherent_rating, r.inherent_score, r.residual_rating, r.residual_score, r.target_rating, r.target_score, r.target_on::text as target_on, r.restricted,
                 coalesce(r.residual_score, r.inherent_score) as score, coalesce(r.residual_rating, r.inherent_rating) as rating,
                 r.review_on::text as review_on, r.last_reviewed_on::text as last_reviewed_on, r.review_on < current_date as review_overdue
          from risks r left join users u on u.id = r.owner_id
@@ -254,7 +256,7 @@ export function makeLifecycle(ctx: ModuleContext, deps: LifecycleDeps) {
         `select risk_id, reviewed_on::text as reviewed_on, coalesce(residual_score, inherent_score) as score, coalesce(residual_rating, inherent_rating) as rating
          from risk_reviews order by reviewed_on desc, created_at desc`);
 
-      // Follow-up work per risk, for people who may see actions (the caller holds security.view, so restricted ones count).
+      // Follow-up work per risk, for people who may see actions (counts: restricted actions count for everyone).
       const actionCounts = new Map<string, { open: number; overdue: number }>();
       if (ctx.can(req.user, 'actions.view')) {
         const closedActions = await statusesWith('action_status', 'closed');
@@ -265,6 +267,7 @@ export function makeLifecycle(ctx: ModuleContext, deps: LifecycleDeps) {
         }
       }
 
+      const mask = riskMasker(ctx, req.user);
       const shaped = risks.map((r) => {
         // Movement: the rating now against the rating recorded at the last review; when nothing
         // has changed since that review, against the review before it.
@@ -272,23 +275,26 @@ export function makeLifecycle(ctx: ModuleContext, deps: LifecycleDeps) {
         const baseline = mine.find((v, i) => i > 0 || v.score !== r.score) ?? null;
         const direction = !baseline || baseline.score === null || r.score === null ? 'none'
           : r.score > baseline.score ? 'up' : r.score < baseline.score ? 'down' : 'same';
-        return {
-          id: r.id, ref: r.ref, title: r.title, score: r.score, status: r.status, status_label: statuses.get(r.status)?.label ?? r.status,
+        return mask({
+          id: r.id, ref: r.ref, title: r.title, owner_name: r.owner_name, restricted: r.restricted, score: r.score, status: r.status, status_label: statuses.get(r.status)?.label ?? r.status,
           status_color: statuses.get(r.status)?.color ?? 'gray',
           category_label: categories.get(r.category)?.label ?? r.category, treatment_label: treatments.get(r.treatment)?.label ?? r.treatment,
-          owner_name: r.owner_name, summary_level: r.summary_level,
+          summary_level: r.summary_level,
           inherent_label: rate(r.scale_key, r.inherent_rating).label, inherent_color: rate(r.scale_key, r.inherent_rating).color,
           residual_label: rate(r.scale_key, r.residual_rating).label, residual_color: rate(r.scale_key, r.residual_rating).color,
+          // E45-03: the target risk, and whether the risk is still above it.
+          target_label: r.target_rating ? rate(r.scale_key, r.target_rating).label : null, target_color: rate(r.scale_key, r.target_rating).color, target_on: r.target_on,
+          above_target: r.target_score === null || r.score === null ? null : Number(r.score) > Number(r.target_score),
           rating_label: rate(r.scale_key, r.rating).label, color: rate(r.scale_key, r.rating).color,
           review_on: r.review_on, last_reviewed_on: r.last_reviewed_on, review_overdue: r.review_overdue === true,
           movement: direction, previous_label: baseline ? rate(r.scale_key, baseline.rating).label : null,
           previous_color: baseline ? rate(r.scale_key, baseline.rating).color : 'gray', previous_on: baseline?.reviewed_on ?? null,
           actions: actionCounts.get(r.id) ?? (ctx.can(req.user, 'actions.view') ? { open: 0, overdue: 0 } : null),
-        };
+        });
       });
 
       const acceptances = await db.query<Row>(
-        `select a.id, a.risk_id, r.ref, r.title, r.status, r.scale_key, coalesce(r.residual_rating, r.inherent_rating) as rating,
+        `select a.id, a.risk_id, r.ref, r.title, r.status, r.scale_key, r.restricted, coalesce(r.residual_rating, r.inherent_rating) as rating,
                 a.approver_name, a.approver_title, a.approved_on::text as approved_on, a.expires_on::text as expires_on,
                 (a.expires_on - current_date)::int as days_left, a.expires_on < current_date as expired
          from risks r
@@ -311,7 +317,10 @@ export function makeLifecycle(ctx: ModuleContext, deps: LifecycleDeps) {
         decreased: shaped.filter((r) => r.movement === 'down'),
         unchanged: shaped.filter((r) => r.movement === 'same').length,
         not_reviewed: shaped.filter((r) => r.movement === 'none').length,
-        acceptances: acceptances.map((a) => ({ ...a, rating_label: rate(a.scale_key, a.rating).label, color: rate(a.scale_key, a.rating).color })),
+        acceptances: acceptances.map((a) => mask({ ...a, rating_label: rate(a.scale_key, a.rating).label, color: rate(a.scale_key, a.rating).color })),
+        // E45-03: open risks with a target, and those still above it.
+        with_target: shaped.filter((r) => r.above_target !== null).length,
+        above_target: shaped.filter((r) => r.above_target === true).length,
       };
     });
   }

@@ -6,7 +6,7 @@ import { q, route } from './helpers.ts';
 const R = 'Risks';
 const A = 'Actions';
 const S = 'Risk scales';
-const RESTRICTED = 'Risks are restricted records: the caller also needs `security.view`.';
+const RESTRICTED = 'A restricted risk (`restricted` true; cybersecurity risks by default) is seen only by callers who also hold `security.view`: lists leave it out, and figures count it and show it as "Restricted risk" without its reference, title or owner (`masked` true).';
 const ONE_RISK = `${RESTRICTED} 404 \`not_found\` when the risk does not exist or the caller may not see it.`;
 
 const LEVEL = '{ value: integer, label: string, description?: string }';
@@ -54,7 +54,7 @@ export const DOCS: RouteDoc[] = [
   }),
   route('POST', '/api/risks/scales/:key/preview', 'What changing a risk scale would do, without saving it', {
     tag: S, permission: 'risks.administer',
-    description: `Runs the same validation as saving (${SCALE_ERRORS.replace(/\.$/, '')}). The counts are given only to callers holding \`security.view\`; for others they are null.`,
+    description: `Runs the same validation as saving (${SCALE_ERRORS.replace(/\.$/, '')}). The counts cover every risk on the scale.`,
     body: SCALE_INPUT,
     response: '{ total: integer | null "Risks on the scale", rerated: integer | null "Risks whose rating would change", level_in_use: boolean | null "A removed level is still scored on" }',
   }),
@@ -64,10 +64,10 @@ export const DOCS: RouteDoc[] = [
     tag: R, permission: 'risks.view', description: `${RESTRICTED} 404 \`not_found\` for an unknown scale.`,
     query: {
       scale: 'Scale key (default `cyber_5x5`).',
-      basis: q("'inherent' | 'residual'", 'Which scores to place (default residual).'),
+      basis: q("'inherent' | 'residual' | 'target'", 'Which scores to place (default residual); on target, movements go from the residual (else inherent) cell to the target cell.'),
       include_closed: q('boolean', 'Include closed risks (default false).'),
     },
-    response: `{ scale: ${SCALE}, basis: 'inherent' | 'residual',
+    response: `{ scale: ${SCALE}, basis: 'inherent' | 'residual' | 'target', inherent_only: integer "On the residual basis, risks with an inherent score only",
       cells: [{ likelihood: integer, impact: integer, rating: string | null, color: string, count: integer, risk_ids: [uuid] }],
       totals: [{ rating: string, label: string, color: string, count: integer }],
       total: integer, unscored: integer, include_closed: boolean,
@@ -75,7 +75,8 @@ export const DOCS: RouteDoc[] = [
       risks: [{ id: uuid, ref: string, title: string, status: string, closed: boolean, owner_name: string | null,
         likelihood: integer | null, impact: integer | null, score: number | null,
         inherent: { likelihood: integer, impact: integer, rating: string | null } | null,
-        residual: { likelihood: integer, impact: integer, rating: string | null } | null }] }`,
+        residual: { likelihood: integer, impact: integer, rating: string | null } | null,
+        target: { likelihood: integer, impact: integer, rating: string | null, on: date | null } | null, restricted: boolean, masked: boolean }] }`,
   }),
   route('GET', '/api/risks/summary', 'Open risks by summary level, the watch counts and the ten highest', {
     tag: R, permission: 'risks.view',
@@ -85,6 +86,7 @@ export const DOCS: RouteDoc[] = [
       reviews_due: integer "Open risks whose review date is today or earlier",
       acceptances_expiring: integer "Accepted risks whose current acceptance expires within 60 days",
       acceptances_expired: integer "Accepted or needs-review risks whose current acceptance has expired",
+      above_appetite: integer, with_target: integer "Open risks with a target rating", above_target: integer "Open risks still rated above their target",
       scales: [{ key: string, name: string }],
       levels: [{ value: string "Summary level key (low, medium, high, critical)", label: string, color: string, count: integer,
         by_scale: { [scaleKey]: integer } "Count on each scale, keyed by scale key" }] "In the order of the risk summary level list",
@@ -103,13 +105,15 @@ export const DOCS: RouteDoc[] = [
       days: q('integer', 'Window for acceptances falling due, in days (default 90).'),
     },
     response: `{ generated_on: date, window_days: integer, total: integer, unscored: integer, accepted: integer, reviews_overdue: integer,
+      with_target: integer, above_target: integer,
       levels: [{ value: string, label: string, color: string, count: integer }],
       top: [{ id: uuid, ref: string, title: string, score: number | null, status: string, status_label: string, status_color: string,
         category_label: string | null, treatment_label: string | null, owner_name: string | null, summary_level: string | null,
         inherent_label: string | null, inherent_color: string, residual_label: string | null, residual_color: string,
         rating_label: string | null, color: string, review_on: date | null, last_reviewed_on: date | null, review_overdue: boolean,
         movement: 'up' | 'down' | 'same' | 'none', previous_label: string | null, previous_color: string, previous_on: date | null,
-        actions: { open: integer, overdue: integer } | null }],
+        actions: { open: integer, overdue: integer } | null, target_label: string | null, target_color: string, target_on: date | null,
+        above_target: boolean | null "Null when the risk has no target or no score", restricted: boolean, masked: boolean }],
       increased: [object] "Risks whose rating went up, shaped as in top", decreased: [object] "Risks whose rating went down",
       unchanged: integer, not_reviewed: integer,
       acceptances: [{ id: uuid, risk_id: uuid, ref: string, title: string, status: string, rating: string | null, approver_name: string,

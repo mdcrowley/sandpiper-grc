@@ -119,7 +119,7 @@ export function RequirementDialog({ itemId, requirement, verify, sources, open, 
   const [notes, setNotes] = useState('');
   const s = useSubmit(onSaved, onClose);
   // Only the kinds of record this person may open and that are switched on here.
-  const mayPick = sources.filter((t) => (t === 'hazard' ? can('safety.view') : can('risks.view') && can('security.view')));
+  const mayPick = sources.filter((t) => (t === 'hazard' ? can('safety.view') : can('risks.view')));
 
   const initial = () => ({
     title: requirement?.title ?? '', text: requirement?.requirement ?? '', sourceType: requirement?.source?.type ?? '',

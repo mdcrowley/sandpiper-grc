@@ -7,7 +7,7 @@ import {
 import type { ColorName, Row } from '../../core';
 import { cellKey, HeatMap, type HeatCell, type HeatMapData } from './HeatMap';
 import { RiskTabs } from './RiskTabs';
-import { AppetiteBadge, RatingChip, useScales } from './scales';
+import { AppetiteBadge, RatingChip, RiskPath, useScales } from './scales';
 
 interface Summary {
   total: number;
@@ -15,6 +15,8 @@ interface Summary {
   needs_review: number;
   reviews_due: number;
   above_appetite?: number;
+  with_target?: number;
+  above_target?: number;
   acceptances_expiring: number;
   acceptances_expired: number;
   levels: { value: string; label: string; color: string; count: number }[];
@@ -42,7 +44,7 @@ export function RiskRegister() {
   const choices = useMemo(() => (offered && offered.length > 1 ? [...offered, { key: COMMON, name: 'All scales (common levels)' }] : offered), [offered]);
   const scaleKey = choices?.find((s) => s.key === params.get('scale'))?.key ?? offered?.[0]?.key ?? '';
   const common = scaleKey === COMMON;
-  const basis = params.get('basis') === 'inherent' ? 'inherent' : 'residual';
+  const basis = params.get('basis') === 'inherent' ? 'inherent' : params.get('basis') === 'target' ? 'target' : 'residual';
   const movement = params.get('movement') === '1';
   const closed = params.get('closed') === '1';
   const cell = params.get('cell');
@@ -68,7 +70,7 @@ export function RiskRegister() {
     <>
       <PageHeader
         title="Risk register"
-        subtitle="Restricted: visible only to people with access to security records."
+        subtitle="Every risk the organization tracks, each scored on its category's scale. Restricted risks (cybersecurity risks by default) are shown in full only to people with access to restricted records."
         actions={(
           <>
             {/* New risk: the list below puts its New button in this header (E18-63). */}
@@ -102,7 +104,7 @@ export function RiskRegister() {
         <div className="grid-stats rk-strip" aria-busy={!s}>
           <Stat
             label="Open risks" value={s?.total ?? '–'} color="blue" icon="alert"
-            hint={[s && s.unscored > 0 ? `${s.unscored} not yet scored` : 'All scales', s && (s.above_appetite ?? 0) > 0 ? `${s.above_appetite} above appetite` : null].filter(Boolean).join(' · ')}
+            hint={[s && s.unscored > 0 ? `${s.unscored} not yet scored` : 'All scales', s && (s.above_appetite ?? 0) > 0 ? `${s.above_appetite} above appetite` : null, s && (s.above_target ?? 0) > 0 ? `${s.above_target} above target` : null].filter(Boolean).join(' · ')}
           />
           <Stat label={level('critical')?.label ?? 'Critical'} value={level('critical')?.count ?? '–'} color={(level('critical')?.color ?? 'red') as ColorName} to="/risks?f.summary_level=critical" hint={levelHint('critical')} />
           <Stat label={level('high')?.label ?? 'High'} value={level('high')?.count ?? '–'} color={(level('high')?.color ?? 'orange') as ColorName} to="/risks?f.summary_level=high" hint={levelHint('high')} />
@@ -131,8 +133,8 @@ export function RiskRegister() {
             )}
             <SegmentedControl
               size="xs" aria-label="Show" value={basis}
-              data={[{ value: 'residual', label: 'Residual' }, { value: 'inherent', label: 'Inherent' }]}
-              onChange={(v) => set({ basis: v === 'inherent' ? 'inherent' : null, cell: null })}
+              data={[{ value: 'inherent', label: 'Inherent' }, { value: 'residual', label: 'Residual' }, { value: 'target', label: 'Target' }]}
+              onChange={(v) => set({ basis: v === 'inherent' || v === 'target' ? v : null, cell: null })}
             />
             <Switch label="Show movement" checked={movement} onChange={(on) => set({ movement: on ? '1' : null })} />
             <Switch label="Include closed risks" checked={closed} onChange={(on) => set({ closed: on ? '1' : null, cell: null })} />
@@ -145,9 +147,9 @@ export function RiskRegister() {
             <div className="rk-heat-layout">
               <div>
                 <p className="rk-heat-lede">
-                  <strong>{basis === 'residual' ? 'Residual risk' : 'Inherent risk'}</strong>{' '}
+                  <strong>{basis === 'residual' ? 'Residual risk' : basis === 'target' ? 'Target risk' : 'Inherent risk'}</strong>{' '}
                   <span className="muted">
-                    {basis === 'residual' ? 'with existing controls in place' : 'before existing controls'} · {scale.name}
+                    {basis === 'residual' ? 'with existing controls in place' : basis === 'target' ? 'where the treatment plans should bring each risk' : 'before existing controls'} · {scale.name}
                     {closed ? ' · closed risks included' : ''}
                   </span>
                   {scale.description && <span className="rk-heat-desc muted">{scale.description}</span>}
@@ -156,7 +158,7 @@ export function RiskRegister() {
               </div>
               <div className="rk-ranked">
                 <div className="rk-ranked-head">
-                  <h3>{chosen ? chosenName : `Highest ${basis} risks`}</h3>
+                  <h3>{chosen ? chosenName : basis === 'target' ? 'Highest targets' : `Highest ${basis} risks`}</h3>
                   {chosen
                     ? <Button size="sm" variant="ghost" icon="x" onClick={() => set({ cell: null })}>Show all risks</Button>
                     : <span className="muted">{heat.data.total} {common ? 'on every scale' : 'on this scale'}</span>}
@@ -169,14 +171,14 @@ export function RiskRegister() {
                       <li key={r.id}>
                         <span className="rk-rank" aria-hidden="true">{index + 1}</span>
                         <div className="rk-ranked-body">
-                          <Link to={`/risks/${r.id}`} className="rk-ranked-title"><span className="ref">{r.ref}</span> {r.title}</Link>
+                          {/* E45-01: a restricted risk the viewer may not see is counted and ranked, without its words. */}
+                          {r.masked
+                            ? <span className="rk-ranked-title muted">{r.title}</span>
+                            : <Link to={`/risks/${r.id}`} className="rk-ranked-title"><span className="ref">{r.ref}</span> {r.title}</Link>}
                           <div className="rk-ranked-meta">
-                            <RatingChip scale={scale} rating={r.inherent?.rating} />
-                            <span className="risk-arrow" aria-hidden="true">→</span>
-                            <span className="sr-only">inherent, reduced by controls to</span>
-                            <RatingChip scale={scale} rating={r.residual?.rating} />
+                            <RiskPath scale={scale} inherent={r.inherent?.rating} residual={r.residual?.rating} target={r.target?.rating ?? null} />
                             {r.closed && <LookupChip list="risk_status" value={r.status} />}
-                            <span className="muted truncate">{r.owner_name ?? 'No owner'}</span>
+                            {!r.masked && <span className="muted truncate">{r.owner_name ?? 'No owner'}</span>}
                           </div>
                         </div>
                       </li>
@@ -207,15 +209,17 @@ export function RiskRegister() {
             'ref', 'title', 'category',
             { field: 'inherent_score', label: 'Inherent', sortable: true, render: (row) => <RatingChip scale={scaleOf(row)} rating={row.inherent_rating} /> },
             { field: 'residual_score', label: 'Residual', sortable: true, priority: 1, render: (row) => <RatingChip scale={scaleOf(row)} rating={row.residual_rating} /> },
+            { field: 'target_score', label: 'Target', sortable: true, render: (row) => (row.target_rating ? <RatingChip scale={scaleOf(row)} rating={row.target_rating} /> : <span className="muted">—</span>) },
             { field: 'appetite_breach', label: 'Appetite', sortable: true, render: (row) => <AppetiteBadge breach={row.appetite_breach} /> },
             'treatment', 'status', 'owner_id', 'due_on', 'review_on',
             { field: 'parent_id', hidden: true },
             { field: 'last_reviewed_on', hidden: true },
+            { field: 'target_on', hidden: true },
           ]}
           filters={['category', 'summary_level', 'appetite_breach', 'status', 'treatment', 'owner_id', 'parent_id', 'due_on', 'review_on']}
           bulkFields={['owner_id', 'treatment', 'category', 'review_on', 'due_on']}
           baseFilter={baseFilter}
-          createFields={['title', 'category', 'parent_id', 'description', 'cause', 'consequence', 'affected', 'existing_controls', 'treatment', 'owner_id', 'due_on', 'review_on']}
+          createFields={['title', 'category', 'parent_id', 'description', 'cause', 'consequence', 'existing_controls', 'treatment', 'owner_id', 'due_on', 'review_on']}
         />
       </div>
     </div>

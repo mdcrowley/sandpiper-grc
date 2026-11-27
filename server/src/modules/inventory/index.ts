@@ -204,6 +204,9 @@ async function register(ctx: ModuleContext) {
       manual_fallback: { label: 'Manual fallback', type: 'longtext' },
       authentication_method: { label: 'Authentication method', type: 'text' },
       mfa_status: { label: 'Multi-factor', type: 'lookup', list: 'mfa_status', default: 'unknown' },
+      version: { label: 'Version', type: 'text' },
+      support_end: { label: 'End of support', type: 'date' },
+      annual_cost: { label: 'Annual cost', type: 'currency' },
       planned_replacement: { label: 'Planned replacement', type: 'text' },
       status_outlook: { label: 'Status and outlook', type: 'longtext' },
       sensitive_data_held: { label: 'Sensitive data held (as recorded)', type: 'longtext' },
@@ -299,6 +302,7 @@ async function register(ctx: ModuleContext) {
 
 function checkSystem(ctx: ModuleContext, merged: Row, patch: Row): Row {
   const fields: Record<string, string> = {};
+  if (patch.annual_cost !== undefined && patch.annual_cost !== null && Number(patch.annual_cost) < 0) fields.annual_cost = 'Enter zero or more.';
   for (const f of ['rto_hours', 'rpo_hours']) {
     if (patch[f] !== undefined && patch[f] !== null && Number(patch[f]) < 0) fields[f] = 'Enter zero or more hours.';
   }

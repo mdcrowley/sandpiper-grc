@@ -1,4 +1,5 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { actorOf, dataLoadFor } from '../../core/dataload.ts';
 import type { ModuleContext, Row, SessionUser } from '../../core/module.ts';
 import { dayInZone } from '../../core/timezone.ts';
 import { UUID_RE } from '../../core/errors.ts';
@@ -381,11 +382,15 @@ export function registerCampaigns(ctx: ModuleContext) {
     const items = await itemsOf('i.review_id = $1 and i.id = any($2::uuid[])', [review.id, ids]);
     if (items.length !== new Set(ids).size) ctx.fail(404, 'not_found', 'Account not found in this review.');
     const systems = new Map((await db.query<Row>('select * from access_review_systems where review_id = $1', [review.id])).map((s) => [s.id, s]));
+    // E18-94: a data load records the decision of the reviewer it names, under the same rules.
+    const by = actorOf(req);
+    const decider = { ...req.user!, id: by.id ?? '' };
+    const at = typeof body.decided_at === 'string' && await dataLoadFor(db, req) && !Number.isNaN(Date.parse(body.decided_at)) ? new Date(body.decided_at).toISOString() : null;
     for (const i of items) {
       const rs = systems.get(i.review_system_id)!;
       if (rs.signed_off_at) ctx.fail(409, 'signed_off', `${i.system_name ?? 'This system'} has been signed off; its decisions are final.`);
-      if (!mayDecide(req.user!, review, rs, i)) {
-        if (holds(i, req.user!.id)) ctx.fail(403, 'own_account', 'Someone else decides on your own account. The campaign owner decides on a reviewer\'s own account.');
+      if (!mayDecide(decider, review, rs, i)) {
+        if (holds(i, decider.id)) ctx.fail(403, 'own_account', 'Someone else decides on your own account. The campaign owner decides on a reviewer\'s own account.');
         ctx.fail(403, 'forbidden', 'Only the reviewer named for this system may decide on its accounts.');
       }
       if (decision === 'keep' && !comment && !i.comment && (i.attention_now === 'leaver' || i.attention === 'leaver')) {
@@ -394,9 +399,9 @@ export function registerCampaigns(ctx: ModuleContext) {
     }
     const saved = await db.query<{ id: string }>(
       `update access_review_items set decision = $2, decided_by = case when $2::text is null then null else $3::uuid end,
-              decided_at = case when $2::text is null then null else now() end, comment = coalesce(nullif($4, ''), comment)
+              decided_at = case when $2::text is null then null else coalesce($6::timestamptz, now()) end, comment = coalesce(nullif($4, ''), comment)
        where id = any($1::uuid[]) and review_system_id in (select id from access_review_systems where review_id = $5 and signed_off_at is null)
-       returning id`, [ids, decision, req.user!.id, comment, review.id]);
+       returning id`, [ids, decision, by.id, comment, review.id, at]);
     const label = decision === 'keep' ? 'Keep' : decision === 'remove' ? 'Remove' : 'Undecided';
     await ctx.audit(req, {
       action: 'access_review.decide', recordType: 'access_review', recordId: review.id,
@@ -409,19 +414,19 @@ export function registerCampaigns(ctx: ModuleContext) {
     method: 'POST', path: '/api/access-reviews/:id/decisions',
     summary: 'Keeps or removes one or more accounts in a running access review',
     description: 'Only the reviewer named for the accounts\' system may decide (the campaign owner decides on the reviewer\'s own account); nobody decides on their own account. Keeping a leaver\'s account needs a comment. `decision: null` clears a decision before sign-off.',
-    body: '{ items: [item id], decision: "keep" | "remove" | null, comment? }', response: '{ saved }',
+    body: '{ items: [item id], decision: "keep" | "remove" | null, comment?, decided_at? (data load mode: when it was decided; on_behalf_of names the reviewer) }', response: '{ saved }',
   });
 
   app.post('/api/access-reviews/:id/systems/:systemId/sign-off', async (req) => {
     const review = await campaignFor(req, { reviewer: true });
     needStatus(review, 'in_progress');
     const rs = await reviewSystem(review.id, idOf(req, 'systemId'));
-    if (rs.reviewer_id !== req.user!.id) ctx.fail(403, 'forbidden', 'Only the reviewer named for this system signs it off.');
+    if (rs.reviewer_id !== actorOf(req).id) ctx.fail(403, 'forbidden', 'Only the reviewer named for this system signs it off.');
     if (rs.signed_off_at) ctx.fail(409, 'signed_off', 'This system has already been signed off.');
     const open = await db.one<{ n: number }>('select count(*)::int as n from access_review_items where review_system_id = $1 and decision is null', [rs.id]);
     if (open && open.n > 0) ctx.fail(409, 'undecided', `${open.n} account${open.n === 1 ? ' is' : 's are'} still to be decided.`);
     const claimed = await db.one<{ id: string }>(
-      'update access_review_systems set signed_off_by = $2, signed_off_at = now() where id = $1 and signed_off_at is null returning id', [rs.id, req.user!.id]);
+      'update access_review_systems set signed_off_by = $2, signed_off_at = now() where id = $1 and signed_off_at is null returning id', [rs.id, actorOf(req).id]);
     if (!claimed) ctx.fail(409, 'signed_off', 'This system has already been signed off.');
     const system = await db.one<Row>('select id, name, technical_owner_id, business_owner_id from systems where id = $1', [rs.system_id]);
     const removals = await db.query<Row>(`select * from access_review_items where review_system_id = $1 and decision = 'remove'`, [rs.id]);
@@ -512,7 +517,7 @@ export function registerCampaigns(ctx: ModuleContext) {
     if (item!.removal_status !== 'pending') ctx.fail(409, 'not_pending', item!.removal_status === 'done' ? 'This removal is already recorded as done.' : 'This account is not waiting to be removed.');
     const body = (req.body ?? {}) as Row;
     const note = typeof body.note === 'string' ? body.note.trim().slice(0, 1000) : '';
-    await finishRemovals([item!], req.user!.id, note, req);
+    await finishRemovals([item!], actorOf(req).id, note, req);
     return { done: true };
   });
   ctx.describeRoute({

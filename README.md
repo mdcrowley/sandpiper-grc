@@ -13,16 +13,19 @@ regulator, and nothing in it is specific to one organization.
 ## Features
 
 - **Service desk**: incidents and requests with service-level clocks, problems, a knowledge
-  base, a service catalog, email to ticket and a self-service portal for staff
+  base, a service catalog with starter questions and tasks, email to ticket and a self-service
+  portal for staff; raise a security incident, a change or a problem from a ticket, and mark
+  duplicates
 - **Inventory, fleet and services**: systems, assets, sites and data categories with a
   relationship map; vehicles and on-vehicle equipment; "what is affected" when a system fails;
   asset condition and state of good repair (useful life, condition assessments, yearly targets);
-  OT and rail-systems security zones and conduits
+  OT and rail-systems security zones and conduits; system version, end of support and annual cost
 - **Change enablement**: risk-scored changes, approvals, a change calendar with blackout periods
 - **Vendors and contracts**: security-terms checklist, evidence with expiry, assessments, renewals,
   reassessment on a cadence, exclusion-list checks, vendor issues and offboarding; vendor intake
   questionnaires that set a risk tier and the checks needed before a contract becomes active;
-  contractor performance measures with targets, periodic scores and trends
+  contractor performance measures with targets, periodic scores and trends; annual value and
+  annual spend with totals
 - **Business continuity**: business processes, impact analyses, continuity and emergency plans
   with call trees, a recovery gap report and emergency activations; call-tree messages by email and
   text message, acknowledged through each person's own link
@@ -30,10 +33,22 @@ regulator, and nothing in it is specific to one organization.
   everywhere, records and personal-data requests against a deadline, privacy impact assessments, a
   records retention schedule and destruction log; search inside attached files, with previews of
   images and PDFs
-- **Risk, safety and compliance**: risk register and heat map, a safety hazard log and safety
+- **Risk, safety and compliance**: an enterprise risk register open to risk staff without
+  security access (cybersecurity risks restricted), inherent, residual and target risk, heat map
+  and a versioned risk appetite; a safety hazard log and safety
   events (reported confidentially if the reporter asks), NIST CSF 2.0 outcomes, obligations,
   policies, training and vulnerabilities; written test steps per control and coverage imported from
-  a spreadsheet; safety and security certification of capital projects
+  a spreadsheet; safety and security certification of capital projects; vulnerabilities grouped by
+  finding and ordered by urgency, with a known-exploited catalog loaded from a file
+- **Evidence library**: evidence filed once and linked to many controls, obligations, audits,
+  corrective actions and funder reviews, with expiry reminders to its owner
+- **Audits**: a risk-ranked annual audit plan with approval, workpapers with preparer and
+  reviewer sign-off and review notes, and findings that close only after an auditor verifies the fix
+- **Committees and meetings**: agendas with papers and closed sessions, a board book PDF,
+  motions with votes and resolution numbers, minutes approved at the next meeting and published,
+  and a reading view for committee members
+- **Funding and grants**: funders as records, funder compliance reviews connected to awards,
+  controls and evidence, and carried forward to the next review
 - **User access reviews**: the accounts on each system matched to the staff roster, and owner
   review campaigns with removals tracked to done
 - **My work and the compliance calendar**: a compliance calendar and one "My work" list of
@@ -65,7 +80,8 @@ regulator, and nothing in it is specific to one organization.
   user provisioning over SCIM 2.0, audit-log forwarding, personal calendar feeds, a two-way
   bridge to an outside work-tracking tool, evidence links to documents kept elsewhere, and AI
   assistant access over MCP (Claude Desktop, Claude Code and other MCP clients, by token or
-  OAuth), all off until switched on
+  OAuth; assistants fill linked records and people by name and attach source files to any
+  record), all off until switched on
 - **Loading history**: a time-limited data load mode for administrators to load past records
   (for example old service desk tickets) with their original dates through the API or an AI
   assistant, with nothing sent and every load undoable

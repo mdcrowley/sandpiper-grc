@@ -44,6 +44,7 @@ invented.
 - [Routes added in wave 20](#routes-added-in-wave-20)
 - [Routes added in waves 21 and 22](#routes-added-in-waves-21-and-22)
 - [Changes in wave 23 (security review)](#changes-in-wave-23-security-review)
+- [Routes added in wave 25](#routes-added-in-wave-25)
 - [Data load mode](#data-load-mode)
 - [Examples of common integrations](#examples-of-common-integrations)
 
@@ -75,7 +76,7 @@ account is disabled. Typical scopes:
 | Raise tickets from monitoring | `tickets.view`, `tickets.create` |
 | Sync assets from an endpoint-management tool | `assets.view`, `assets.create`, `assets.edit` |
 | Push vulnerability findings | `vulnerabilities.view`, `vulnerabilities.create`, `vulnerabilities.edit`, `security.view` |
-| Read risk summaries | `risks.view` (and `security.view`, as risks are restricted records) |
+| Read risk summaries | `risks.view` (restricted risks, cybersecurity by default, also need `security.view`; figures list them as "Restricted risk") |
 
 **Scope families.** Most scopes are permissions, and you may only give a token permissions you
 hold. A few scopes are *capabilities* rather than permissions; no role grants them, and each
@@ -488,8 +489,8 @@ saturated: retry after that many seconds.
 
 ## Restricted records
 
-Security incidents, risks, vulnerabilities, and records an editor marks restricted (and actions
-raised on them) are visible only to people who hold `security.view`, and so only to tokens of
+Security incidents, vulnerabilities, restricted risks (cybersecurity risks by default), and records
+an editor marks restricted (and actions raised on them) are visible only to people who hold `security.view`, and so only to tokens of
 such people that include that scope. Without it, they are absent from lists, counts, stats,
 search, links and exports, and answer `404` by id. An integration that must see them needs a
 token with `security.view` from someone who holds it; keep such tokens especially well.
@@ -644,8 +645,9 @@ cell, and `/api/vehicles/:id/equipment` adds `count`, `source`, `installed`, `wo
   (`governance.edit`; 409 `mail_off`, `not_invited`, `meeting_past`, `minutes_approved`, `nobody`;
   429 `rate_limited` after 10 sends per meeting in an hour);
   `GET /api/meetings/:id/invitation.ics` (`governance.view`).
-- `GET /api/risks/heatmap/common?basis=&include_closed=` (`risks.view` and `security.view`; the same
-  shape as `/api/risks/heatmap`, scale key `_common`).
+- `GET /api/risks/heatmap/common?basis=&include_closed=` (`risks.view`; `basis` is `residual`,
+  `inherent` or `target`; restricted risks are counted but masked for people without
+  `security.view`; the same shape as `/api/risks/heatmap`, scale key `_common`).
 - `GET /api/audit/archive` now also returns `ownerCommand`.
 
 ### Version and the update check
@@ -751,6 +753,94 @@ cell, and `/api/vehicles/:id/equipment` adds `count`, `source`, `installed`, `wo
 - `POST /api/departments/:id/merge`: 403 for people whose roles are scoped, unless they hold
   `admin.administer`.
 
+## Routes added in wave 25
+
+Every route below is also in the OpenAPI document (Help > API reference). A route of a switched-off
+area answers 404 `switched_off`.
+
+### Evidence library
+
+Record type `evidence_record` (reference `EVD-`) at `/api/evidence-library` (permission module
+`evidence`; area **Evidence library**). Restricted records and department scope apply as usual;
+`GET /api/evidence-library/summary` gives figures over every record, the same for everyone.
+
+- `GET /api/evidence-library/link-types`: the record types and parts evidence can be linked to.
+- `GET /api/evidence-links?record_type=&record_id=&part=`, `POST /api/evidence-links { evidence_id,
+  record_type, record_id, part?, relation? }`, `DELETE /api/evidence-links/:id`: linking needs
+  `evidence.view` and the right to change the record (or the part's own rule); a part may refuse
+  changes on link and unlink (a reviewed workpaper step). Answers give the visible links and a
+  count of hidden ones.
+- `GET /api/evidence-library/:id/used-by`: the records an evidence record is linked to.
+- `POST /api/evidence-library/upload`: a finished chunked upload becomes a new evidence record,
+  optionally linked to a record, in one step.
+
+### Funders and connected funder reviews
+
+- Record type `funder` (`FDR-`) at `/api/funders`; `GET /api/funders/:id/summary`. Awards,
+  certifications and reviews take `funder_id` (a `funder_name` alone finds or files the funder).
+- `GET`/`PUT /api/compliance-reviews/:id/awards`, `GET /api/funding-awards/:id/reviews`.
+- `POST /api/compliance-reviews/:id/areas/:code/links` (a control, obligation or document),
+  `DELETE .../links/:lid`, `GET .../areas/:code/suggested-evidence`.
+- `POST /api/compliance-reviews/:id/requests/:rid/files` (the request's assignee or `funding.edit`):
+  files a finished upload into the evidence library and links it to the request.
+- `POST /api/compliance-reviews/:id/carry-forward`, `POST /api/compliance-reviews/:id/next`,
+  `GET /api/compliance-reviews/:id/previous`.
+
+### Audits
+
+- `GET`/`PUT /api/audits/plan/settings` (`audits.administer` to change), `GET /api/audits/plan` (the
+  ranked audit universe), `POST /api/audits/plans`, `GET /api/audits/plans/:id`,
+  `POST /api/audits/plans/:id/approve` (`audits.approve`, not the preparer),
+  `POST /api/audits/plans/:id/create-audits`.
+- `POST /api/audits/:id/steps/:itemId/prepare | review | notes`,
+  `POST /api/audits/:id/steps/:itemId/notes/:noteId/clear`, `GET /api/audits/:id/workpaper-status`.
+  A reviewed step is locked (409 `step_reviewed`).
+- `POST /api/audit-findings/:id/ready-for-verification`, `POST /api/audit-findings/:id/verify`
+  (date, note and evidence; not by a person who owns the fix). A person closes a finding only once
+  it is verified; a corrective action plan raised from a finding closes only once that finding is
+  verified.
+- Control tests take `audit_id` and `reviewer_name`.
+
+### Committees and meetings
+
+- `GET`/`POST /api/meetings/:id/agenda`, `PATCH`/`DELETE /api/meetings/:id/agenda/:itemId`,
+  `PUT /api/meetings/:id/agenda/order`, `POST /api/meetings/:id/agenda/:itemId/papers`,
+  `DELETE /api/meetings/:id/agenda/:itemId/papers/:paperId`.
+- `POST /api/meetings/:id/motions`, `PATCH /api/meetings/:id/motions/:decisionId`,
+  `POST /api/meeting-decisions/:id/resolution-number`.
+- `GET /api/meetings/:id/minutes/approvals`, `POST /api/meetings/:id/minutes/approve`,
+  `POST /api/meetings/:id/minutes/publish`, `GET /api/meetings/:id/minutes/pdf?version=public|members`,
+  `GET /api/meetings/:id/book?version=public|members&text=1` (the board book PDF).
+- Member reading view (session only, no permission; answers only for the committee's members):
+  `GET /api/governance/my-meetings`, `/my-meetings/:id`, `/my-meetings/:id/book`,
+  `/my-meetings/:id/minutes`, `/my-meetings/:id/papers/:paperId`.
+
+### Service desk, security incidents, vulnerabilities and IT figures
+
+- `POST /api/tickets/:id/security-incident`, `POST /api/tickets/:id/change`,
+  `POST /api/tickets/:id/problem`, `POST /api/tickets/:id/duplicate`, `POST /api/problems/:id/tickets`,
+  `DELETE /api/problems/:id/tickets/:ticketId`.
+- `GET /api/security-incidents/:id/next-step`, `POST /api/security-incidents/:id/advance`.
+- `GET /api/vulnerabilities/groups`, `GET /api/vulnerabilities/group`, `POST /api/vulnerabilities/bulk`,
+  `POST /api/vulnerabilities/raise-change`, `GET`/`POST /api/vulnerabilities/known-exploited` (the
+  catalog loaded from a JSON or CSV file; no outbound request).
+- `POST /api/frameworks/:id/send-to-owners { due_on, snapshot_id?, priority_only?, dry_run? }`
+  (`frameworks.edit` and `actions.create`).
+- `GET /api/contracts/spend-summary`, `GET /api/vendors/spend-summary` (totals over every record).
+- `GET /api/changes/success-rate?from=&to=` (default the last 90 days).
+- The inventory reminders run also answers `systems` (end-of-support reminders).
+
+### Risks, documents and AI assistants
+
+- `GET /api/risks/appetite/versions`; `PUT /api/risks/appetite` records a version (see
+  [Read risk summaries](#read-risk-summaries)); risks take `target_likelihood`, `target_impact`
+  and `target_on`, and `restricted` (set only by people holding `security.view`).
+- `POST /api/policies/:id/versions/:vid/acknowledgments { user, acknowledged_at, language? }`
+  (`policies.edit`; data load mode only, 409 `not_loading` otherwise): a reader's past
+  acknowledgment of a version.
+- `GET /api/mcp/people?q=` (AI assistant tokens only): an account by exact username, email or
+  display name.
+
 ## Data load mode
 
 For loading historical records with their original dates (E18-70; see
@@ -777,6 +867,15 @@ anyone else, read-only fields are ignored as before.
 | `DELETE /api/data-load/records/:type/:id` | Deletes one record created in data load mode while the mode is on (a token may call it when its owner is an administrator); 409 `data_load_off`, 404 when the record was not loaded, 409 `on_hold` |
 
 **On behalf of someone (E18-71).** `on_behalf_of` (any JSON body of a change request) or the `X-On-Behalf-Of` header (requests without a JSON body, such as uploads; percent-encoded when needed) names the person the change is written for, in data load mode only: a user id, username or email (disabled accounts too), a roster person (`person:<id|reference|email|employee number>`), or `name:<display name>`; or an object with one of `user`, `person`, `name`. 400 `on_behalf_not_allowed` outside data load mode; 400 `validation` with a field error when nobody matches. Records (`created_by`, `updated_by`), comments (`author_id`, `author_name`; `created_at` may be given), links, files, document versions and approval decisions (the named approver, who needs an account) carry the person; audit events keep the real actor and add `on_behalf_id`, `on_behalf_name` and "on behalf of" in the summary (`GET /api/history` returns them; the audit CSV has `on_behalf_name`). `created_by`, `updated_by` and person fields also take a username or email in a load. `POST /api/data-load/person { person }` gives `{ kind, user_id, person_id, name }` to check a name first.
+
+Every module column that records who did something (approvals, decisions, sign-offs, log
+entries, figures entered, check-outs, verifications) carries the person named (E18-94), and a route
+that stamps the time of the act takes the time the body gives in a load (for example
+`decided_at`, `applied_at`, `checked_out_at`, `verified_on`). A file attached in a load (upload,
+chunked upload, MCP `attach_file`) records the person named as "added by", may carry
+`created_at` (a date or ISO time) as its added date, and is listed under the load (record type
+`attachment`, shown as Files), so undoing the load removes it. A reader's past acknowledgment of a
+document version is recorded with `POST /api/policies/:id/versions/:vid/acknowledgments`.
 
 `GET /api/auth/state` carries `dataLoad: { on, until }` for administrators while the mode is on.
 
@@ -882,5 +981,9 @@ $s.top | Select-Object ref, title, rating_label, score
 
 `GET /api/v1/risks/heatmap` gives the matrix behind the heat map and `GET /api/v1/risks/report`
 the board report (ratings, movement since the last review, acceptances falling due).
-`GET /api/v1/risks/stats?group=status` counts risks by any field. Risks are restricted records:
-the token needs `risks.view` and `security.view`.
+`GET /api/v1/risks/stats?group=status` counts risks by any field. The token needs `risks.view`;
+restricted risks (cybersecurity by default) also need `security.view`, and figures show them as
+"Restricted risk". `GET /api/v1/risks/heatmap?basis=target` places risks by their target rating;
+`GET /api/v1/risks/appetite/versions` lists earlier versions of the risk appetite, and
+`PUT /api/v1/risks/appetite` (`risks.administer`) needs, for each changed category, `approved_on`,
+`approved_by_name` and `approval_body`, plus a `reason`.

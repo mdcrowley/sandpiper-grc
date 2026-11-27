@@ -1,5 +1,6 @@
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row, SessionUser } from '../../core/module.ts';
+import { actorOf } from '../../core/dataload.ts';
 import { dayInZone, TIME_ZONE } from '../../core/timezone.ts';
 import { metricsAvailable } from '../../core/metrics.ts';
 import { hazardScale } from './hazards.ts';
@@ -138,7 +139,7 @@ export function registerIndicators(ctx: ModuleContext) {
        on conflict (period, mode) do update set vehicle_miles = excluded.vehicle_miles, vehicle_hours = excluded.vehicle_hours,
          boardings = excluded.boardings, revenue_miles = excluded.revenue_miles, major_failures = excluded.major_failures,
          updated_at = now(), updated_by = excluded.updated_by`,
-      [`${period}-01`, mode, values.vehicle_miles, values.vehicle_hours, values.boardings, values.revenue_miles, values.major_failures, req.user!.id]);
+      [`${period}-01`, mode, values.vehicle_miles, values.vehicle_hours, values.boardings, values.revenue_miles, values.major_failures, actorOf(req).id]);
     await ctx.audit(req, {
       action: 'safety.exposure', recordType: 'safety_exposure', recordId: `${period}:${mode || 'all'}`,
       summary: `Exposure for ${period}${mode ? ` (${mode})` : ''} recorded`, before: before ?? undefined, after: values,

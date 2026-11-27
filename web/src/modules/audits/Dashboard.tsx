@@ -23,7 +23,7 @@ interface Summary {
   today: string; year: number;
   audits: { planned_this_year: number; open: number; closed_this_year: number; by_status: Group[] };
   areas: { total: number; overdue: number; due_soon: number; never: number };
-  findings: { open: number; overdue: number; by_rating: Group[] };
+  findings: { open: number; overdue: number; by_rating: Group[]; awaiting_verification?: number; verification_overdue?: number; closed_unverified?: number };
   inspections: { due_next_30: number; overdue: number; last_90: { complete: number; missed: number; failed: number; on_time_pct: number | null };
     by_month: { period: string; complete: number; on_time: number; missed: number; failed: number; due: number }[]; missed_after_days: number };
   requests: { open: number; overdue: number };
@@ -131,6 +131,7 @@ export function AuditsDashboard() {
       <PageHeader title="Audits" subtitle="The audit plan and its coverage over the years, open findings, evidence requests and how inspections are going."
         actions={<>
           <Button icon="refresh" loading={loading && !!s} onClick={reload}>Refresh</Button>
+          <Link className="btn btn-secondary" to="/audits/plan">Audit plan</Link>
           {can('audits.create') && <Link className="btn btn-primary" to="/audits/engagements?new=1">Plan an audit</Link>}
         </>} />
       <AuditTabs active="dashboard" />
@@ -148,7 +149,9 @@ export function AuditsDashboard() {
         <Stat label="Areas overdue for audit" value={s.areas.overdue} icon="alert" color={s.areas.overdue ? 'red' : undefined}
           hint={`${s.areas.due_soon} due in 90 days, ${s.areas.never} never audited`} to={`/audits/areas?f.next_due_on.lt=${s.today}`} />
         <Stat label="Open findings" value={s.findings.open} icon="alert-circle" color={s.findings.overdue ? 'orange' : undefined}
-          hint={s.findings.overdue ? `${s.findings.overdue} past the response date` : 'None past the response date'} to="/audit-findings?f.status=open,responded,cap_raised" />
+          hint={s.findings.overdue ? `${s.findings.overdue} past the response date` : 'None past the response date'} to="/audit-findings?f.status=open,responded,cap_raised,awaiting_verification" />
+        <Stat label="Findings awaiting verification" value={s.findings.awaiting_verification ?? 0} icon="check-square" color={s.findings.verification_overdue ? 'red' : undefined}
+          hint={s.findings.verification_overdue ? `${s.findings.verification_overdue} past the verification date` : 'None past the verification date'} to="/audit-findings?f.status=awaiting_verification" />
         <Stat label="Inspections due in 30 days" value={i.due_next_30} icon="check-square" color={i.overdue ? 'red' : undefined}
           hint={i.overdue ? `${i.overdue} overdue` : 'None overdue'} to="/inspections?f.status=scheduled,in_progress" />
         <Stat label="Inspections on time" value={i.last_90.on_time_pct === null ? '—' : `${i.last_90.on_time_pct}%`} icon="clock"
@@ -172,7 +175,7 @@ export function AuditsDashboard() {
         </Card>
         <Card title="Open findings by rating">
           <Chart label="Open audit and inspection findings by rating" option={charts.findings} height={260} empty={s.findings.open === 0}
-            emptyMessage="No open findings" onSegmentClick={(seg) => navigate(`/audit-findings?f.rating=${(seg.data as { key: string }).key}&f.status=open,responded,cap_raised`)} />
+            emptyMessage="No open findings" onSegmentClick={(seg) => navigate(`/audit-findings?f.rating=${(seg.data as { key: string }).key}&f.status=open,responded,cap_raised,awaiting_verification`)} />
         </Card>
       </div>
 

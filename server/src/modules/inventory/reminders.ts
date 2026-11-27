@@ -15,7 +15,7 @@ const LOAN_STEPS = [3, 0];
 /** A date that passed while the server was off is still announced for this many days. */
 const GRACE_DAYS = 7;
 
-export interface ReminderResult { available: boolean; warranty: number; support: number; loans: number }
+export interface ReminderResult { available: boolean; warranty: number; support: number; loans: number; systems: number }
 
 /** "in 20 days (Dec 11, 2026)": the date as people read it (BW-08). */
 export function when(days: number, iso: string): string {
@@ -33,7 +33,7 @@ export function stepFor(days: number, steps: number[]): number | null {
 }
 
 export async function runReminders(ctx: ModuleContext): Promise<ReminderResult> {
-  const result: ReminderResult = { available: ctx.app.hasDecorator('notify'), warranty: 0, support: 0, loans: 0 };
+  const result: ReminderResult = { available: ctx.app.hasDecorator('notify'), warranty: 0, support: 0, loans: 0, systems: 0 };
   if (!result.available) return result;
   const { db } = ctx;
   const configured = await ctx.settings.get<number[]>('inventory.reminder_days', DEFAULT_STEPS);
@@ -43,7 +43,7 @@ export async function runReminders(ctx: ModuleContext): Promise<ReminderResult> 
 
   /** Sends one reminder unless this step (or a tighter one) has already gone out for this date. */
   // `key` is the asset, or the assignment for a loan (so a second loan of one asset is announced again).
-  async function once(key: string, assetId: string, kind: string, dueOn: string, step: number, input: Record<string, unknown>): Promise<boolean> {
+  async function once(key: string, assetId: string, kind: string, dueOn: string, step: number, input: Record<string, unknown>, recordType = 'asset'): Promise<boolean> {
     const done = await db.one(
       'select 1 from asset_reminders where asset_id = $1 and kind = $2 and due_on = $3 and threshold <= $4', [key, kind, dueOn, step],
     );
@@ -54,7 +54,7 @@ export async function runReminders(ctx: ModuleContext): Promise<ReminderResult> 
       'insert into asset_reminders (asset_id, kind, due_on, threshold) values ($1,$2,$3,$4) on conflict do nothing returning 1 as ok', [key, kind, dueOn, step],
     );
     if (!claimed) return false;
-    const sent = await notify(ctx, { ...input, recordType: 'asset', recordId: assetId });
+    const sent = await notify(ctx, { ...input, recordType, recordId: assetId });
     if (!sent) {
       await db.query('delete from asset_reminders where asset_id = $1 and kind = $2 and due_on = $3 and threshold = $4', [key, kind, dueOn, step]);
       return false;
@@ -83,6 +83,29 @@ export async function runReminders(ctx: ModuleContext): Promise<ReminderResult> 
         body: kind === 'warranty' ? 'Check whether to renew the cover or plan a replacement.' : 'Out-of-support equipment no longer receives fixes. Plan its replacement.',
       })) result[kind] += 1;
     }
+  }
+
+  // E45-42: a system's end of vendor support, to its technical owner (then its business owner, then
+  // everyone who looks after systems). Same steps; the reminder rows share the table, keyed by the system.
+  const systems = await db.query<Row>(
+    `select id, ref, name, technical_owner_id, business_owner_id, support_end::text as due_on, (support_end - current_date)::int as days
+     from systems
+     where deleted_at is null and coalesce(status, '') <> 'retired'
+       and support_end between current_date - $1::int and current_date + $2::int
+     order by support_end`,
+    [GRACE_DAYS, horizon],
+  );
+  let systemEditors: string[] | null = null;
+  for (const s of systems) {
+    const step = stepFor(s.days, steps);
+    if (step === null) continue;
+    const owner = s.technical_owner_id ?? s.business_owner_id;
+    const userIds = owner ? [owner] : (systemEditors ??= await usersWith(ctx, 'systems.edit'));
+    const label = [s.ref, s.name].filter(Boolean).join(' ');
+    if (await once(s.id, s.id, 'system_support_end', s.due_on, step, {
+      userIds, kind: 'reminder', title: `Vendor support for ${label} ${s.days < 0 ? 'ended' : 'ends'} ${when(s.days, s.due_on)}`,
+      body: 'A system out of vendor support no longer receives fixes. Plan an upgrade or its replacement.',
+    }, 'system')) result.systems += 1;
   }
 
   const loans = await db.query<Row>(

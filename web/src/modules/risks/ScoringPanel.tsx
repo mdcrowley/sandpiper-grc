@@ -1,19 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
-import { ApiError, Button, Card, errorMessage, Select, useToast } from '../../core';
+import { ApiError, Button, Card, DateField, errorMessage, formatDate, Select, useToast } from '../../core';
 import type { RecordContext } from '../../core';
-import { MiniMatrix, RatingChip, ratingFor, type Position, type Scale, type ScaleLevel } from './scales';
+import { DueChip, MiniMatrix, RatingChip, ratingFor, type Position, type Scale, type ScaleLevel } from './scales';
 
-type Scores = Record<'inherent_likelihood' | 'inherent_impact' | 'residual_likelihood' | 'residual_impact', number | null>;
-const FIELDS = ['inherent_likelihood', 'inherent_impact', 'residual_likelihood', 'residual_impact'] as const;
+type Basis = 'inherent' | 'residual' | 'target';
+type ScoreField = `${Basis}_likelihood` | `${Basis}_impact`;
+type Scores = Record<ScoreField, number | null> & { target_on: string | null };
+const FIELDS: ScoreField[] = ['inherent_likelihood', 'inherent_impact', 'residual_likelihood', 'residual_impact', 'target_likelihood', 'target_impact'];
+const ALL = [...FIELDS, 'target_on'] as const;
 
-const read = (row: Record<string, unknown>): Scores =>
-  Object.fromEntries(FIELDS.map((f) => [f, row[f] === null || row[f] === undefined ? null : Number(row[f])])) as Scores;
+const read = (row: Record<string, unknown>): Scores => ({
+  ...Object.fromEntries(FIELDS.map((f) => [f, row[f] === null || row[f] === undefined ? null : Number(row[f])])),
+  target_on: row.target_on ? String(row.target_on).slice(0, 10) : null,
+}) as Scores;
 
 const options = (levels: ScaleLevel[]) =>
   [...levels].sort((a, b) => b.value - a.value).map((l) => ({ value: String(l.value), label: l.description ? `${l.label} (${l.description})` : l.label }));
 
 const levelName = (levels: ScaleLevel[], v: number | null) => levels.find((l) => l.value === v)?.label ?? null;
-const position = (s: Scores, basis: 'inherent' | 'residual'): Position | null => {
+const position = (s: Scores, basis: Basis): Position | null => {
   const likelihood = s[`${basis}_likelihood`];
   const impact = s[`${basis}_impact`];
   return likelihood === null || impact === null ? null : { likelihood, impact };
@@ -21,8 +26,9 @@ const position = (s: Scores, basis: 'inherent' | 'residual'): Position | null =>
 
 /**
  * The assessment, read left to right: the inherent risk, the controls that reduce it, the residual
- * risk that is left, and a small matrix showing where the risk sits. "Change scores" turns the two
- * ends into pickers; the rating and the matrix follow each choice before anything is saved.
+ * risk that is left, the target the treatment plan aims for (E45-03), and a small matrix showing where
+ * the risk sits. "Change scores" turns the scores into pickers; the ratings and the matrix follow each
+ * choice before anything is saved.
  */
 export function ScoringPanel({ rec, scale }: { rec: RecordContext; scale: Scale | undefined }) {
   const toast = useToast();
@@ -45,13 +51,13 @@ export function ScoringPanel({ rec, scale }: { rec: RecordContext; scale: Scale 
   if (!scale) return <Card title="Assessment"><p className="muted">The scale this risk was scored on ({String(rec.row.scale_key)}) no longer exists.</p></Card>;
 
   const saved = read(rec.row);
-  const dirty = FIELDS.some((f) => scores[f] !== saved[f]);
-  const set = (field: keyof Scores, v: string) => setScores((s) => ({ ...s, [field]: v === '' ? null : Number(v) }));
+  const dirty = ALL.some((f) => scores[f] !== saved[f]);
+  const set = (field: ScoreField, v: string) => setScores((s) => ({ ...s, [field]: v === '' ? null : Number(v) }));
   const cancel = () => { setScores(saved); setErrors({}); setEditing(false); };
 
   const save = async () => {
     const found: Record<string, string> = {};
-    for (const basis of ['inherent', 'residual'] as const) {
+    for (const basis of ['inherent', 'residual', 'target'] as const) {
       const l = scores[`${basis}_likelihood`];
       const i = scores[`${basis}_impact`];
       if ((l === null) !== (i === null)) {
@@ -59,6 +65,7 @@ export function ScoringPanel({ rec, scale }: { rec: RecordContext; scale: Scale 
           `Give both ${scale.likelihood_label.toLowerCase()} and ${scale.impact_label.toLowerCase()}, or neither.`;
       }
     }
+    if (scores.target_on && scores.target_likelihood === null && !found.target_impact) found.target_on = 'Give the target scores as well as the date, or clear the date.';
     setErrors(found);
     if (Object.keys(found).length) {
       // The message is beside the picker: take the focus there, so a screen reader reads it (E16-15).
@@ -67,7 +74,7 @@ export function ScoringPanel({ rec, scale }: { rec: RecordContext; scale: Scale 
     }
     setSaving(true);
     try {
-      await rec.save(Object.fromEntries(FIELDS.filter((f) => scores[f] !== saved[f]).map((f) => [f, scores[f]])));
+      await rec.save(Object.fromEntries(ALL.filter((f) => scores[f] !== saved[f]).map((f) => [f, scores[f]])));
       toast.success('Scores saved.');
       setEditing(false);
     } catch (err) {
@@ -78,13 +85,13 @@ export function ScoringPanel({ rec, scale }: { rec: RecordContext; scale: Scale 
     }
   };
 
-  const describe = (basis: 'inherent' | 'residual') => {
+  const describe = (basis: Basis) => {
     const p = position(scores, basis);
     if (!p) return `${basis} risk not scored`;
     return `${basis} risk ${levelName(scale.likelihood_levels, p.likelihood)} by ${levelName(scale.impact_levels, p.impact)}, rated ${ratingFor(scale, p.likelihood, p.impact)?.label ?? 'nothing'}`;
   };
 
-  const block = (basis: 'inherent' | 'residual', title: string, hint: string) => {
+  const block = (basis: Basis, title: string, hint: string, extra?: React.ReactNode) => {
     const l = scores[`${basis}_likelihood`];
     const i = scores[`${basis}_impact`];
     return (
@@ -112,10 +119,18 @@ export function ScoringPanel({ rec, scale }: { rec: RecordContext; scale: Scale 
             <div><dt>{scale.impact_label}</dt><dd>{levelName(scale.impact_levels, i)}</dd></div>
           </dl>
         ) : null}
+        {extra}
         <p className="muted rk-step-hint">{hint}</p>
       </div>
     );
   };
+
+  const targetDate = editing ? (
+    <DateField label="Target date" size="xs" value={scores.target_on ?? ''} error={errors.target_on}
+      onChange={(v) => setScores((s) => ({ ...s, target_on: v || null }))} />
+  ) : saved.target_on ? (
+    <span className="row rk-target-date"><span className="muted">By {formatDate(saved.target_on)}</span><DueChip date={saved.target_on} done={rec.row.status === 'closed'} /></span>
+  ) : null;
 
   return (
     <Card
@@ -124,7 +139,7 @@ export function ScoringPanel({ rec, scale }: { rec: RecordContext; scale: Scale 
       actions={rec.canEdit && !editing && <Button size="sm" icon="edit" onClick={() => setEditing(true)}>Change scores</Button>}
     >
       <div className="rk-assess">
-        <div className="rk-assess-flow">
+        <div className="rk-assess-flow has-target">
           {block('inherent', 'Inherent risk', 'Before existing controls')}
           <span className="rk-flow-arrow" aria-hidden="true">→</span>
           <div className="rk-assess-step rk-assess-controls">
@@ -135,13 +150,15 @@ export function ScoringPanel({ rec, scale }: { rec: RecordContext; scale: Scale 
           </div>
           <span className="rk-flow-arrow" aria-hidden="true">→</span>
           {block('residual', 'Residual risk', 'With existing controls in place')}
+          <span className="rk-flow-arrow" aria-hidden="true">→</span>
+          {block('target', 'Target risk', 'Where the treatment plan should bring it', targetDate)}
         </div>
         <div className="rk-assess-matrix">
           <MiniMatrix
-            scale={scale} inherent={position(scores, 'inherent')} residual={position(scores, 'residual')}
-            label={`Position on the ${scale.name} matrix: ${describe('inherent')}; ${describe('residual')}.`}
+            scale={scale} inherent={position(scores, 'inherent')} residual={position(scores, 'residual')} target={position(scores, 'target')}
+            label={`Position on the ${scale.name} matrix: ${describe('inherent')}; ${describe('residual')}; ${describe('target')}.`}
           />
-          <p className="muted rk-step-hint">I = inherent, R = residual · {scale.name}</p>
+          <p className="muted rk-step-hint">I = inherent, R = residual, T = target · {scale.name}</p>
         </div>
       </div>
       {editing && (

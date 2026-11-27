@@ -35,6 +35,8 @@ export const MODULE_AREA: Record<string, string> = {
   accessreviews: 'accessreviews',
   // Wave 22: the records retention schedule and destruction log (E41-15).
   recordsretention: 'recordsretention',
+  // Wave 25: the evidence library (E45-06).
+  evidence: 'evidence',
 };
 
 /** Whether a web module's area is on (always true for a module that is not part of an area). */

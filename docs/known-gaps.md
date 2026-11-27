@@ -218,11 +218,37 @@ content, which belongs in a document tool (E25-13, E29-11, E32-06, E34-09).
   `list_record_types` lists every read-only field as settable in a load, including the few the
   database works out (refused with a field error on save). A load is undone per record type and day,
   not per assistant conversation.
-- **On behalf of someone in a load (E18-71):** module-specific actor columns (policy
-  acknowledgments, change approvals, incident log entries and others listed in E18-94) still name the
-  loader in their own column; their audit events do say "on behalf of". A loaded comment is not listed
-  on the Data loads page and is not removed by undoing a load (it disappears from view with its record
-  when that record was loaded). Approval decisions keep the time they are recorded.
+- **On behalf of someone in a load (E18-71, E18-94):** module actor columns name the person named,
+  with a few left: an inspection's inspector and a finding's response owner default to the loader
+  (E45-53); evidence rows copied into the evidence library and framework evidence record the loader as
+  creator (E45-54); ticks on checklists (a ticket's fulfillment tasks, an incident's checklist, control
+  test steps, a change's review after implementation) keep the time they are recorded, not a time
+  from the load (E45-55). A loaded comment is not listed on the Data loads page and is not removed by
+  undoing a load (it disappears from view with its record when that record was loaded). Approval
+  decisions keep the time they are recorded.
+- **Enterprise risk (wave 25)**: a change to the risk appetite is recorded after the fact with who
+  approved it, not routed through an approval workflow or a committee decision (E45-56); which
+  categories are restricted, and the fields each shows, are set by editing the category list's meta,
+  with no form of their own; proximity, velocity and strategic objective are not recorded (E45-57).
+- **Evidence library (wave 25)**: outside reviewers do not see library evidence linked to their
+  review (E45-59); an uploaded file is not checked against existing evidence for duplicates (no
+  content hash); AI assistants cannot link evidence to records (E45-65). A funder review has no
+  readiness view or package export yet (E45-58).
+- **Audits (wave 25)**: the audit plan's factor columns show only on wide screens (no column chooser
+  on that table); control tests of a restricted audit are not themselves restricted; a workpaper
+  step's files are chosen from the audit's attachments, not uploaded from the step; workpapers have
+  no reference numbering and no time budget against actual hours (E45-63); the annual plan is
+  approved by a person with `audits.approve`, not linked to a committee decision (E45-64).
+- **Committees and meetings (wave 25)**: PDF papers appended to the board book are not described for
+  screen readers (a text-only version of the book is offered instead), and a tagged PDF paper, or one
+  without embedded fonts, makes the merged book fall short of PDF/UA (E45-61); no "recused" vote or
+  conflict-of-interest declarations (E45-60); no electronic approval of minutes by members; no agenda
+  posting deadline per committee or annual work plan (E45-62); no personal notes in the member view;
+  no rich text in minutes. Members without `governance.view` do not get their meetings in calendar
+  feeds (E45-67).
+- **IT figures (wave 25)**: the change success rate does not count changes that caused an incident
+  (there is no change-to-incident link yet, E45-66). The IT leadership overview's new chart and gauges are not added to
+  that dashboard on an existing installation (standard dashboards are added once, never updated).
 - **Search inside files (E41-16)** covers PDF, .docx and plain text only; scanned PDFs (no
   OCR), .doc, spreadsheets and presentations are found by name only. File previews cover images and
   PDFs (first 30 pages).

@@ -8,6 +8,7 @@ import { defineCalendarSource, whoFor } from '../../core/calendar.ts';
 import { UUID_RE } from '../../core/errors.ts';
 import { defineMetric } from '../../core/metrics.ts';
 import type { LookupValue, ModuleContext, Row } from '../../core/module.ts';
+import { actorOf } from '../../core/dataload.ts';
 import { notePermission } from '../../core/permission-use.ts';
 import { addDays, daysBetween, localDate } from './dates.ts';
 import { vendorsWithChecksOutstanding } from './intake.ts';
@@ -266,7 +267,7 @@ export function registerLifecycle(ctx: ModuleContext): void {
     const row = (await db.one<Row>(
       `insert into vendor_exclusion_checks (vendor_id, checked_on, list_key, result, reference, checked_by, note, attachment_id, created_by, updated_by)
        values ($1,$2,$3,$4,$5,$6,$7,$8,$6,$6) returning *, checked_on::text as checked_on`,
-      [vendor.id, checkedOn, b.list_key, b.result, reference, req.user!.id, note, attachmentId],
+      [vendor.id, checkedOn, b.list_key, b.result, reference, actorOf(req).id, note, attachmentId],
     ))!;
     const last = (await db.one<Row>(
       'select max(checked_on)::text as d from vendor_exclusion_checks where vendor_id = $1 and deleted_at is null', [vendor.id]))!.d;
@@ -286,7 +287,7 @@ export function registerLifecycle(ctx: ModuleContext): void {
       });
     }
     reply.code(201);
-    return checkView({ ...row, checked_by_name: req.user!.displayName }, lists);
+    return checkView({ ...row, checked_by_name: actorOf(req).name }, lists);
   });
   ctx.describeRoute({
     method: 'POST', path: '/api/vendors/:id/exclusion-checks', tag: 'Vendors', permission: 'vendors.edit',

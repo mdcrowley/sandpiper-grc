@@ -9,6 +9,8 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { requireRecentAuth } from '../../core/auth.ts';
 import { UUID_RE } from '../../core/errors.ts';
 import { assertNotHeld } from '../../core/holds.ts';
+import { actorOf } from '../../core/dataload.ts';
+import { fileLoad, noteLoadedFile } from './loaded.ts';
 import { attachmentGuards } from '../../core/attachment-guards.ts';
 import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleDef, ResourceDef, Row } from '../../core/module.ts';
@@ -240,6 +242,7 @@ const mod: ModuleDef = {
         };
         if (!prepared.ok) return refuse(prepared.refusal);
         const meta = validateDescriptive(ctx, q);
+        const load = await fileLoad(ctx, req, q.created_at);
 
         // Receive straight to storage, then check the content and scan it (intake.ts).
         const received = await receiveFile(ctx, prepared.file, body!, Number(req.headers['content-length']));
@@ -253,10 +256,10 @@ const mod: ModuleDef = {
         }
 
         // Accept.
-        const row = await insertAttachment(db, file, {
+        const row = await noteLoadedFile(ctx, req, await insertAttachment(db, file, {
           recordType: parent.def.type, recordId: parent.row.id, kind: meta.kind, description: meta.description,
-          collectedOn: meta.collected_on, expiresOn: meta.expires_on, uploadedByName: req.user!.displayName, userId: req.user!.id,
-        });
+          collectedOn: meta.collected_on, expiresOn: meta.expires_on, uploadedByName: actorOf(req).name, userId: actorOf(req).id,
+        }), load);
         await ctx.audit(req, {
           action: 'attachment.upload', recordType: parent.def.type, recordId: parent.row.id,
           summary: `${meta.kind === 'evidence' ? 'Evidence file' : 'File'} attached: ${fileName} (${formatBytes(file.size)})`,

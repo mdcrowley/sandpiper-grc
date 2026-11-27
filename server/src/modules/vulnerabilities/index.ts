@@ -1,5 +1,7 @@
 import type { ModuleContext, ModuleDef } from '../../core/module.ts';
 import { registerDuplicates } from './duplicates.ts';
+import { registerGroups } from './groups.ts';
+import { registerKnownExploited } from './known-exploited.ts';
 import { registerImport } from './importer.ts';
 import { registerSweep } from './notify.ts';
 import { registerPolicy } from './policy.ts';
@@ -33,6 +35,12 @@ async function seedDefaults(ctx: ModuleContext) {
     { value: 'risk_accepted', label: 'Risk accepted', color: 'purple', sort: 40, meta: { closed: true, acceptance: true } },
     { value: 'false_positive', label: 'False positive', color: 'gray', sort: 50, meta: { closed: true, reason: true } },
   ]);
+  // E45-38: how reachable the affected host is; part of the urgency score (migration 003 holds the weights).
+  await ctx.lookups.ensure('vulnerability_exposure', [
+    { value: 'internet', label: 'Internet-facing', color: 'red', sort: 10 },
+    { value: 'internal', label: 'Internal network', color: 'amber', sort: 20 },
+    { value: 'isolated', label: 'Isolated', color: 'green', sort: 30 },
+  ]);
 }
 
 async function register(ctx: ModuleContext) {
@@ -43,7 +51,7 @@ async function register(ctx: ModuleContext) {
     ref: { field: 'ref', prefix: 'VUL-' },
     restricted: true,
     searchable: ['title', 'host_name', 'host_ip', 'plugin_id', 'cves', 'description'],
-    defaultSort: { field: 'first_seen', dir: 'desc' },
+    defaultSort: { field: 'urgency', dir: 'desc' },
     fields: {
       ref: { label: 'Reference', type: 'text', readOnly: true },
       title: { label: 'Title', type: 'text', required: true },
@@ -58,6 +66,8 @@ async function register(ctx: ModuleContext) {
       severity: { label: 'Severity', type: 'lookup', list: 'vulnerability_severity', required: true },
       cvss: { label: 'CVSS score', type: 'number' },
       known_exploited: { label: 'Known exploited', type: 'boolean', default: false },
+      exposure: { label: 'Exposure', type: 'lookup', list: 'vulnerability_exposure' },
+      urgency: { label: 'Urgency', type: 'number', readOnly: true },
       first_seen: { label: 'First seen', type: 'date' },
       last_seen: { label: 'Last seen', type: 'date' },
       age_days: { label: 'Age (days)', type: 'number', readOnly: true },
@@ -88,6 +98,8 @@ async function register(ctx: ModuleContext) {
 
   registerPolicy(ctx);
   registerDuplicates(ctx);
+  registerGroups(ctx);
+  registerKnownExploited(ctx);
   await registerSummary(ctx);
   registerImport(ctx);
   await registerSweep(ctx);

@@ -38,6 +38,8 @@ Below is the list of incidents, with search, filters, saved views, column choice
 
 Select **Declare incident** on the list, or **Create > Security incident** from any page. Declaring takes three short steps. Beside the steps, the card **Notifications this will require** shows, as you answer, who must be told and by when. Nothing is saved until you confirm.
 
+A report that reached the service desk first can become an incident from the ticket: **More actions > Raise a security incident** on the ticket (see [Service desk](02-service-desk.md#take-a-ticket-further)). The incident is recorded as **Reported** with the ticket's description, requester and affected system, discovered when the ticket was opened, and linked to the ticket; declare it from the incident page.
+
 ### Step 1: What happened
 
 1. Enter a **Title**: a short plain description, such as "Dispatch screens frozen at the control center".
@@ -87,13 +89,13 @@ The **Notifications this will require** card lists each notification your answer
 
 ### Declaring an incident that was saved as reported
 
-Open the incident and select **Declare incident** at the top of the page, or select the next step in the status bar and confirm with **Declare incident**. The clocks start, and their deadlines are still counted from the discovery time, not from the moment you declare.
+Open the incident and select **Declare incident** at the top of the page (see [The next stage](#the-next-stage)), or select the next step in the status bar and confirm with **Declare incident**. The clocks start, and their deadlines are still counted from the discovery time, not from the moment you declare.
 
 ## The incident workspace
 
 The workspace is laid out so that the things that matter most under pressure are always in view:
 
-- At the top, the title, reference, severity and status, with **Edit details**, **Incident report** and a **More** menu (links to **All notifications**, **Offline incident kit** and **Rules and checklists**).
+- At the top, the title, reference, severity and status, with the next-stage button (such as **Mark contained**), **Edit details**, **Incident report** and a **More** menu (links to **All notifications**, **Offline incident kit** and **Rules and checklists**).
 - The **status bar**, with the key times beneath it: **Discovered** (and how long ago), **Declared**, **Contained**, **Closed**, **Incident lead** and **Scenario**, then the summary.
 - On a wide screen, the **Notification clocks** and the **Team** down the right-hand side, staying in view as you scroll; on a narrow screen the clocks come first, above the tabs.
 - The tabs: **Log**, **Checklists**, **Roles**, **Evidence**, **Affected**, **Ransom**, **Lessons**, **Attachments** and **History**.
@@ -103,6 +105,18 @@ The workspace is laid out so that the things that matter most under pressure are
 The status bar shows the incident statuses in order. To begin with these are **Reported**, **Declared**, **Contained**, **Recovering** and **Closed**. To change status, select a step and confirm. Each change is time-stamped and added to the log. The application fills in the **Declared**, **Contained** and **Closed** times the first time the incident reaches those stages. Closing the incident also sets the date the post-incident review is due.
 
 An administrator can rename, add and retire statuses on the **Incident statuses** tab of **Rules and checklists**; see below.
+
+### The next stage
+
+The first button at the top of the workspace is always the next step: **Declare incident**, **Mark contained**, **Mark recovering**, then **Close incident** (it follows the statuses in order, with their own names, so an added status gets its own button). Select it to see the checks that step needs, each marked **Done**, **Not yet (you can still go ahead)** or **Needed before this step**, with **Open** taking you to the tab where it is put right:
+
+| Step | Checks |
+|---|---|
+| Declare | The **Affected** questions are answered, and an incident lead is named. Neither stops you: declare first if you must, then answer the questions at once, since no notification clock can start without them |
+| Contained (and recovering) | An incident lead is named, and the containment checklist is done. Neither stops you |
+| Close | Needed before closing: the **Affected** questions answered, every required notification recorded as done or not required, and no ransom payment still **Under consideration**. A warning only: checklist steps still open |
+
+Confirm with the button in the dialog. It stays unavailable while a needed check fails, or when the lifecycle rules do not allow the move (hover over it to see why). The status bar still lets you choose any status the lifecycle rules allow, for example to step back; the checks apply to the button.
 
 ### Edit details
 

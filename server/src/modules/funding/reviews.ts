@@ -5,6 +5,8 @@ import type { FastifyRequest } from 'fastify';
 import { UUID_RE } from '../../core/errors.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { todayInZone } from '../../core/timezone.ts';
+import { applyFunder } from './funders.ts';
+import { areaExtras, requestExtras } from './review-links.ts';
 import { activeUser, cleanText, flagged, idParam, validDate } from './shared.ts';
 
 /**
@@ -210,16 +212,19 @@ export function registerReviews(ctx: ModuleContext) {
     fields: {
       ref: { label: 'Reference', type: 'text', readOnly: true },
       title: { label: 'Review', type: 'text', required: true },
-      funder_name: { label: 'Funder', type: 'text', personal: false },
+      funder_id: { label: 'Funder', type: 'ref', to: 'funder' },
+      funder_name: { label: 'Funder name', type: 'text', personal: false },
       period: { label: 'Period reviewed', type: 'text' },
       site_visit_on: { label: 'Site visit', type: 'date' },
       lead_id: { label: 'Review lead', type: 'user' },
       status: { label: 'Status', type: 'lookup', list: 'compliance_review_status', default: 'preparing' },
       closed_on: { label: 'Closed on', type: 'date', readOnly: true },
+      previous_review_id: { label: 'Carried forward from', type: 'ref', to: 'compliance_review', readOnly: true },
       notes: { label: 'Notes', type: 'longtext', personal: false },
     },
     hooks: {
-      beforeUpdate: async (_req, existing, patch) => {
+      beforeCreate: (req, data) => applyFunder(ctx, req, data),
+      beforeUpdate: async (req, existing, patch) => {
         if ('status' in patch && patch.status !== existing.status) {
           const closed = await closedReview();
           if (closed.includes(patch.status)) {
@@ -230,7 +235,7 @@ export function registerReviews(ctx: ModuleContext) {
             patch.closed_on = null;
           }
         }
-        return patch;
+        return applyFunder(ctx, req, patch);
       },
     },
   });
@@ -269,12 +274,13 @@ export function registerReviews(ctx: ModuleContext) {
        from compliance_review_areas a left join users u on u.id = a.owner_id
        where a.review_id = $1 order by a.sort, a.area_code`, [review.id]);
     const set = review.set_id ? await db.one<Row>('select id, name, version from review_area_sets where id = $1', [review.set_id]) : null;
-    return { set: set ?? null, areas };
+    return { set: set ?? null, areas: await areaExtras(ctx, req, review, areas) };
   });
   ctx.describeRoute({
     method: 'GET', path: '/api/compliance-reviews/:id/areas', tag: 'Funding', permission: 'funding.view',
-    summary: 'A review\'s areas with their self-assessment, answers, owner and number of deficiencies',
-    response: '{ set: { id, name, version } | null, areas: [{ id, area_code, title, description, questions, self_assessment, answers, owner_id, owner_name, notes, deficiencies }] }',
+    summary: 'A review\'s areas with their self-assessment, answers, owner, number of deficiencies, the controls, obligations and documents each relies on, and how much evidence each has',
+    description: '`links` lists the related records the caller may see (a control with its latest ratings); `links_hidden` counts the others. `evidence` counts the evidence records linked to the area for everyone (0 when the evidence library is not part of this installation).',
+    response: '{ set: { id, name, version } | null, areas: [{ id, area_code, title, description, questions, self_assessment, answers, owner_id, owner_name, notes, deficiencies, links: [{ id, record_type, type_label, record_id, ref, title, route, operating_rating, design_rating, last_tested_on, status }], links_hidden, evidence }] }',
   });
 
   app.put('/api/compliance-reviews/:id/areas/:code', { preHandler: edit }, async (req) => {
@@ -356,13 +362,15 @@ export function registerReviews(ctx: ModuleContext) {
 
   app.get('/api/compliance-reviews/:id/requests', { preHandler: view }, async (req) => {
     const review = await needReview(req);
-    return db.query<Row>(
+    const rows = await db.query<Row>(
       `select q.*, q.due_on::text as due_on, u.display_name as owner_name from compliance_review_requests q left join users u on u.id = q.owner_id
        where q.review_id = $1 order by q.due_on nulls last, q.created_at`, [review.id]);
+    return requestExtras(ctx, review, rows);
   });
   ctx.describeRoute({
     method: 'GET', path: '/api/compliance-reviews/:id/requests', tag: 'Funding', permission: 'funding.view',
-    summary: 'The documents and information the funder asked for in a review', response: '[{ id, area_code, request, owner_id, owner_name, due_on, status, response_note }]',
+    summary: 'The documents and information the funder asked for in a review, with how many evidence records answer each (counted for everyone)',
+    response: '[{ id, area_code, request, owner_id, owner_name, due_on, status, response_note, evidence }]',
   });
 
   app.post('/api/compliance-reviews/:id/requests', { preHandler: edit }, async (req, reply) => {

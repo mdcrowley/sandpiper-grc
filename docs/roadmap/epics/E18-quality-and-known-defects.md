@@ -1,6 +1,6 @@
 # E18 Quality and known defects
 
-**Status:** in progress (93 of 94 issues done)
+**Status:** done (94 of 94 issues done)
 
 ## Goal
 
@@ -114,7 +114,7 @@ has never been checked, so nobody relies on something untested.
 | E18-91 | Expiring evidence date tiles missing the month | done | P2 |
 | E18-92 | British wording in sample data | done | P2 |
 | E18-93 | User guide contradictions | done | P2 |
-| E18-94 | Module actor columns follow the named person in a load | open | P2 |
+| E18-94 | Module actor columns follow the named person in a load | done | P2 |
 
 ---
 
@@ -1706,6 +1706,17 @@ The fleet guide no longer says inspections are unavailable; the committees and c
 
 ### E18-94 Module actor columns follow the named person in a load
 
-**Status:** open · **Priority:** P2 · **Type:** feature
+**Status:** done · **Priority:** P2 · **Type:** feature
 
 Policy acknowledgments (users and roster people), change approvals, access review decisions, incident log entries, status reports, figure entries and similar module columns use `actorOf(req)` during a load, and a load can record a user's acknowledgment of a document.
+
+- [x] Actor columns across modules use `actorOf` (approvals, decisions, sign-offs, log entries, figures, check-outs, verifications, completions)
+- [x] Times of the act taken from the load (`decided_at`, `applied_at`, `checked_out_at`/`checked_in_at`, notification time, verification and confirmation dates, `acknowledged_at`)
+- [x] Rules checked against the named person (reviewer, chair or secretary, approval requester, self-approval)
+- [x] Loaded acknowledgments of a document version (route and MCP `record_acknowledgment`), inside the distribution
+- [x] `as` on `link_document` and `record_document_review`
+- [x] Tests in every module touched
+
+**Implemented in:** `modules/policies/ackRoutes.ts`, `personAcks.ts`, `versions.ts`, `exceptions.ts`, `modules/mcp/tools-documents.ts`, `modules/workflows/service.ts` (requester), and one-line swaps in changes, accessreviews, secincidents, projects, risks, safety, vendors, governance, inventory, controls, training, continuity, funding, recordsretention, condition, tags, records, tickets, holds, fleet, attachments; tests `*/actors-load.test.ts`, `mcp/record-acknowledgment.test.ts`.
+
+Deliberately left as the caller: configuration and administration, print and export footers, upload sessions, file imports and approval-workflow decisions (already named through `decide_approval`/`on_behalf_of`, E18-71). Follow-ups: [E45-53, E45-54 and E45-55](E45-product-gaps-wave-24-review.md).

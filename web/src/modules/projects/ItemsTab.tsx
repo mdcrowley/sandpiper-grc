@@ -104,7 +104,7 @@ export function ItemsTab({ projectId, onChanged }: { projectId: string; onChange
                         {item.escalated_risk_id && (
                           <div className="muted">
                             <Icon name="arrow-up" size={13} /> Escalated to the risk register{item.escalated_at ? ` on ${formatDate(item.escalated_at)}` : ''}
-                            {can('risks.view') && can('security.view') && <> · <Link to={`/risks/${item.escalated_risk_id}`}>Open the risk</Link></>}
+                            {can('risks.view') && <> · <Link to={`/risks/${item.escalated_risk_id}`}>Open the risk</Link></>}
                           </div>
                         )}
                       </td>

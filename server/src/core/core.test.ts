@@ -383,7 +383,8 @@ describe('list metadata (E01-23)', () => {
     const viewer = await t.as('executive_viewer'); // no tickets permission at all
     const theirs = await lists(viewer);
     expect(theirs).toContain('everyone_list');
-    for (const l of ['widget_status', 'widget_color', 'secret_scenario', 'risk_only', 'orphan_list']) expect(theirs).not.toContain(l);
+    for (const l of ['widget_status', 'widget_color', 'secret_scenario', 'orphan_list']) expect(theirs).not.toContain(l);
+    expect(theirs).toContain('risk_only'); // E45-01: the executive viewer reads the risk register (risks.view)
 
     const all = await lists(t.api);
     for (const l of ['widget_status', 'widget_color', 'everyone_list', 'secret_scenario', 'risk_only', 'orphan_list']) expect(all).toContain(l);

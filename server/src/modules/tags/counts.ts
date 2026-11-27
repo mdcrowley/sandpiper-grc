@@ -1,6 +1,7 @@
 import type { FastifyRequest } from 'fastify';
 import { taggable, taggables, type TaggableDef } from '../../core/asset-tags.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { actorOf } from '../../core/dataload.ts';
 import { onAnonymize } from '../../core/retention.ts';
 import { dayInZone } from '../../core/timezone.ts';
 import type {
@@ -210,12 +211,12 @@ async function markFound(ctx: ModuleContext, req: FastifyRequest, count: Row, ty
        on conflict (count_id, record_type, record_id) do update
           set state = 'found', found_at = now(), found_by = excluded.found_by, found_value = excluded.found_value, found_source = excluded.found_source
         where inventory_count_items.state <> 'found'
-       returning *`, [count.id, type, id, req.user!.id, value, source]);
+       returning *`, [count.id, type, id, actorOf(req).id, value, source]);
     if (row) {
       await tx.query(
         `insert into tag_verifications (record_type, record_id, verified_at, site_id, count_id, verified_by) values ($1, $2, now(), $3, $4, $5)
          on conflict (record_type, record_id) do update set verified_at = excluded.verified_at, site_id = excluded.site_id,
-           count_id = excluded.count_id, verified_by = excluded.verified_by`, [type, id, count.site_id, count.id, req.user!.id]);
+           count_id = excluded.count_id, verified_by = excluded.verified_by`, [type, id, count.site_id, count.id, actorOf(req).id]);
     }
     const item = row ?? (await tx.one<Row>(`select * from inventory_count_items where count_id = $1 and record_type = $2 and record_id = $3`, [count.id, type, id]));
     return { closed: false as const, fresh: Boolean(row), item: item! };
@@ -370,7 +371,7 @@ export async function registerCounts(ctx: ModuleContext): Promise<void> {
         if (!data.title) data.title = `${site!.name}${data.area ? `, ${data.area}` : ''}: ${dayInZone()}`;
         data.status = 'open';
         data.started_at = new Date().toISOString();
-        data.started_by = req?.user?.id ?? data.started_by ?? null;
+        data.started_by = (req ? actorOf(req).id : null) ?? data.started_by ?? null;
         data.finished_at = null;
         data.finished_by = null;
         data.summary = null;

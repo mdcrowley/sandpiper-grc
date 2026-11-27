@@ -36,4 +36,20 @@ export function registerMetrics(ctx: ModuleContext) {
       return Number(r?.n ?? 0);
     },
   });
+
+  defineMetric(ctx.app, {
+    key: 'audits.verifications_overdue', label: 'Finding verifications overdue', unit: 'count', recordType: 'audit_finding',
+    description: 'Findings whose fix waits for the auditor\'s verification past its due date, at the end of the month (today for the month still running). Current state only: a verification recorded later is not taken back.',
+    async compute(c, monthStart) {
+      const today = dayInZone();
+      if (monthStart > today) return null;
+      const end = addDays(nextMonthStart(monthStart), -1);
+      const at = end < today ? end : today;
+      const r = await c.db.one<Row>(
+        `select count(*)::int as n from audit_findings
+         where deleted_at is null and verification_due < $1::date and (verified_on is null or verified_on > $1::date)
+           and (coalesce(status, '') <> 'closed' or verified_on > $1::date)`, [at]);
+      return Number(r?.n ?? 0);
+    },
+  });
 }

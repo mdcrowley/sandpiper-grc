@@ -3,6 +3,7 @@
 // completed assessment can be saved as an evidence item.
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { actorOf } from '../../core/dataload.ts';
 import { displayDate, localDate } from './dates.ts';
 import { registerEvidenceExpiry } from './evidenceExpiry.ts';
 import { recomputeVendor } from './lifecycle.ts';
@@ -317,7 +318,7 @@ export async function registerAssessments(ctx: ModuleContext) {
     await db.query(
       `update vendor_assessments set status = 'completed', assessed_on = $2, score = $3, evidence_item_id = $4,
          completed_at = now(), completed_by = $5, updated_at = now(), updated_by = $5 where id = $1`,
-      [a.id, assessedOn, score, evidenceId, req.user!.id],
+      [a.id, assessedOn, score, evidenceId, actorOf(req).id],
     );
     // The next assessment date follows from this one and the vendor's criticality (E35-01).
     await recomputeVendor(ctx, vendor.id);

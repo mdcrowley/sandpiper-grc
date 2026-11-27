@@ -1,6 +1,7 @@
 import type { preHandlerHookHandler } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
-import type { Scale, ScaleLevel, Scales } from './scales.ts';
+import { heatBasis, type Scale, type ScaleLevel, type Scales } from './scales.ts';
+import { riskMasker } from './masking.ts';
 
 // One heat map for every risk scale at the common level (E41-17). Scales differ in size (five by
 // five, four severities by five likelihoods, or whatever an administrator built), so each scale's
@@ -10,7 +11,7 @@ import type { Scale, ScaleLevel, Scales } from './scales.ts';
 // severe common level of the risks in it, or, while empty, by the most severe common level any
 // offered scale gives that part of its matrix. The legend counts every risk at its own common level,
 // so its totals match the register's "Critical" and "High" tiles. Figures are the same for everyone
-// who may see risks (risks are restricted: risks.view and security.view).
+// who may see risks (risks.view); a restricted risk the caller may not see is listed masked (masking.ts).
 
 export const COMMON_KEY = '_common';
 export const COMMON_STEPS = 5;
@@ -42,7 +43,8 @@ interface Deps {
 export function registerCommonHeatmap(ctx: ModuleContext, deps: Deps): void {
   ctx.app.get('/api/risks/heatmap/common', { preHandler: deps.riskPre('view') }, async (req) => {
     const q = req.query as Record<string, string>;
-    const basis = q.basis === 'inherent' ? 'inherent' : 'residual';
+    const basis = heatBasis(q.basis);
+    const mask = riskMasker(ctx, req.user);
     const levels = (await ctx.lookups.values('risk_summary_level')).sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0));
     const rank = new Map(levels.map((l, i) => [l.value, i]));
     const all: Scale[] = [];
@@ -65,8 +67,9 @@ export function registerCommonHeatmap(ctx: ModuleContext, deps: Deps): void {
     const closed = q.include_closed === 'true' ? [] : await deps.statusesWith('risk_status', 'closed');
     const allClosed = await deps.statusesWith('risk_status', 'closed');
     const rows = await ctx.db.query<Row>(
-      `select r.id, r.ref, r.title, r.status, r.scale_key, u.display_name as owner_name,
+      `select r.id, r.ref, r.title, r.status, r.scale_key, r.restricted, u.display_name as owner_name,
               r.inherent_likelihood as il, r.inherent_impact as ii, r.residual_likelihood as rl, r.residual_impact as ri,
+              r.target_likelihood as tl, r.target_impact as ti, r.target_rating, r.target_on::text as target_on,
               r.inherent_rating, r.residual_rating, r.${basis}_score as score
        from risks r left join users u on u.id = r.owner_id
        where r.deleted_at is null and r.scale_key = any($1::text[]) and not (coalesce(r.status, '') = any($2::text[]))
@@ -82,14 +85,16 @@ export function registerCommonHeatmap(ctx: ModuleContext, deps: Deps): void {
       };
       const inherent = place(r.il, r.ii);
       const residual = place(r.rl, r.ri);
+      const target = place(r.tl, r.ti);
       return {
-        id: r.id as string, ref: r.ref, title: r.title, status: r.status, closed: allClosed.includes(r.status), owner_name: r.owner_name,
+        id: r.id as string, ref: r.ref, title: r.title, status: r.status, closed: allClosed.includes(r.status), owner_name: r.owner_name, restricted: r.restricted,
         scale_key: r.scale_key, scale_name: s.name,
         score: r.score,
         inherent: inherent && { ...inherent, rating: levelOf(s, r.inherent_rating) },
         residual: residual && { ...residual, rating: levelOf(s, r.residual_rating) },
-        at: basis === 'residual' ? residual : inherent,
-        level: levelOf(s, basis === 'residual' ? r.residual_rating : r.inherent_rating),
+        target: target && { ...target, rating: levelOf(s, r.target_rating), on: r.target_on },
+        at: basis === 'residual' ? residual : basis === 'target' ? target : inherent,
+        level: levelOf(s, basis === 'residual' ? r.residual_rating : basis === 'target' ? r.target_rating : r.inherent_rating),
       };
     });
 
@@ -105,9 +110,10 @@ export function registerCommonHeatmap(ctx: ModuleContext, deps: Deps): void {
 
     const moves = new Map<string, { from: { likelihood: number; impact: number }; to: { likelihood: number; impact: number }; count: number; risk_ids: string[] }>();
     for (const r of risks) {
-      if (!r.inherent || !r.residual || (r.inherent.likelihood === r.residual.likelihood && r.inherent.impact === r.residual.impact)) continue;
-      const key = `${r.inherent.likelihood}.${r.inherent.impact}.${r.residual.likelihood}.${r.residual.impact}`;
-      const m = moves.get(key) ?? { from: { likelihood: r.inherent.likelihood, impact: r.inherent.impact }, to: { likelihood: r.residual.likelihood, impact: r.residual.impact }, count: 0, risk_ids: [] as string[] };
+      const [from, to] = basis === 'target' ? [r.residual ?? r.inherent, r.target] : [r.inherent, r.residual];
+      if (!from || !to || (from.likelihood === to.likelihood && from.impact === to.impact)) continue;
+      const key = `${from.likelihood}.${from.impact}.${to.likelihood}.${to.impact}`;
+      const m = moves.get(key) ?? { from: { likelihood: from.likelihood, impact: from.impact }, to: { likelihood: to.likelihood, impact: to.impact }, count: 0, risk_ids: [] as string[] };
       m.count += 1;
       m.risk_ids.push(r.id);
       moves.set(key, m);
@@ -134,13 +140,14 @@ export function registerCommonHeatmap(ctx: ModuleContext, deps: Deps): void {
       include_closed: q.include_closed === 'true',
       movements: [...moves.values()],
       scales: all.map((s) => ({ key: s.key, name: s.name, count: risks.filter((r) => r.scale_key === s.key).length })),
-      risks: risks.map(({ at, level: _level, ...r }) => ({ ...r, likelihood: at?.likelihood ?? null, impact: at?.impact ?? null })),
+      inherent_only: basis === 'residual' ? risks.filter((r) => !r.residual && r.inherent).length : 0,
+      risks: risks.map(({ at, level: _level, ...r }) => mask({ ...r, likelihood: at?.likelihood ?? null, impact: at?.impact ?? null })),
     };
   });
   ctx.describeRoute({
     method: 'GET', path: '/api/risks/heatmap/common', permission: 'risks.view', tag: 'Risks',
     summary: 'One heat map of every offered risk scale at the common level: each scale\'s levels placed on a five-step grid, colored by common level',
-    description: 'Needs security.view as well (risks are restricted). Same shape as /api/risks/heatmap, with a scale whose key is "_common" and whose ratings are the common levels.',
-    query: { basis: 'residual (default) | inherent', include_closed: 'true to include closed risks' },
+    description: 'Restricted risks the caller may not see are counted and listed as "Restricted risk" without their details. Same shape as /api/risks/heatmap, with a scale whose key is "_common" and whose ratings are the common levels.',
+    query: { basis: 'residual (default) | inherent | target', include_closed: 'true to include closed risks' },
   });
 }

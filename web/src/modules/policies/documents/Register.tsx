@@ -87,7 +87,7 @@ export function Register() {
         filters={['document_type', 'status', 'owning_department_id', 'owner_id', 'access', 'category', 'review_date']}
         bulkFields={['document_type', 'category', 'owner_id', 'owning_department_id', 'review_date']}
       />
-      {creating && <NewDocumentDialog onClose={() => setCreating(false)} />}
+      <NewDocumentDialog open={creating} onClose={() => setCreating(false)} />
     </div>
   );
 }
@@ -121,7 +121,7 @@ export function ExternalDocuments() {
         ]}
         filters={['status', 'owner_id', 'owning_department_id']}
       />
-      {creating && <NewDocumentDialog initialType="external" onClose={() => setCreating(false)} />}
+      <NewDocumentDialog open={creating} initialType="external" onClose={() => setCreating(false)} />
     </div>
   );
 }

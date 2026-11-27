@@ -1,4 +1,5 @@
 import type { FastifyRequest } from 'fastify';
+import { actorOf, isDataLoad } from '../../core/dataload.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { dayInZone } from '../../core/timezone.ts';
 import { rollUp } from './controls.ts';
@@ -95,6 +96,9 @@ export function registerTests(ctx: ModuleContext) {
       review_note: { label: 'Review note', type: 'longtext', readOnly: true },
       cap_id: { label: 'Corrective action plan', type: 'ref', to: 'cap', readOnly: true },
       flagged_on: { label: 'Covered records flagged on', type: 'date', readOnly: true },
+      // E45-17: a test recorded as part of an audit engagement (audits module); hidden while audits are off.
+      audit_id: { label: 'Part of audit', type: 'ref', to: 'audit_engagement' },
+      reviewer_name: { label: 'Reviewer', type: 'text', readOnly: true, personal: true },
     },
     hooks: {
       beforeCreate: (req, data) => check(req, null, data),
@@ -122,22 +126,38 @@ export function registerTests(ctx: ModuleContext) {
     const m = await meanings(ctx);
     if (m.final.includes(test.status)) ctx.fail(409, 'reviewed', 'This test has already been reviewed.');
     if (!m.done.includes(test.status)) ctx.fail(409, 'not_finished', 'Only a test whose testing is finished (awaiting review) can be reviewed.');
+    // The reviewer is the person a data load names, otherwise the signed-in person (E45-17, actorOf).
+    const by = actorOf(req);
     const tester = test.tester_id ?? test.created_by;
-    if (tester && tester === req.user!.id) {
+    if (tester && by.id && tester === by.id) {
       ctx.fail(403, 'not_independent', 'A test is reviewed by someone other than its tester.');
+    }
+    if (tester && !by.id && by.name) {
+      const testerName = (await db.one<Row>('select display_name from users where id = $1', [tester]))?.display_name;
+      if (testerName && testerName.trim().toLowerCase() === by.name.trim().toLowerCase()) ctx.fail(403, 'not_independent', 'A test is reviewed by someone other than its tester.');
+    }
+    // E45-17: a test that is part of an audit is reviewed by someone who also works on audits.
+    if (test.audit_id && !ctx.can(req.user, 'audits.edit')) {
+      ctx.fail(403, 'forbidden', 'This test is part of an audit: its reviewer also needs permission to work on audits.');
     }
     const body = (req.body ?? {}) as Row;
     const note = typeof body.note === 'string' ? body.note.trim().slice(0, 4000) : '';
     if ((m.failed.includes(test.result) || m.partial.includes(test.result)) && !String(test.conclusion ?? '').trim()) {
       invalid({ conclusion: 'A test that was not effective needs a conclusion before it is reviewed.' });
     }
+    let on = dayInZone();
+    if (typeof body.reviewed_on === 'string' && body.reviewed_on) {
+      if (!isDataLoad(req)) invalid({ reviewed_on: 'The review date is today; another date can be given only in data load mode.' });
+      if (!DATE_RE.test(body.reviewed_on) || body.reviewed_on > on) invalid({ reviewed_on: 'Give a date, not in the future.' });
+      on = body.reviewed_on;
+    }
     const reviewed = await ctx.resources.update('control_test', test.id, {
-      status: m.reviewed, reviewer_id: req.user!.id, reviewed_on: dayInZone(), review_note: note || null,
+      status: m.reviewed, reviewer_id: by.id, reviewer_name: by.name, reviewed_on: on, review_note: note || null,
     }, null);
     const result = (await ctx.lookups.values('control_test_result')).find((v) => v.value === test.result)?.label ?? test.result;
     await ctx.audit(req, {
       action: 'control_test.review', recordType: 'control_test', recordId: test.id,
-      summary: `Test reviewed and signed off: ${result}`, after: { reviewer_id: req.user!.id, reviewed_on: reviewed.reviewed_on, note: note || null },
+      summary: `Test reviewed and signed off by ${by.name ?? 'a reviewer'}: ${result}`, after: { reviewer_id: by.id, reviewer_name: by.name, reviewed_on: reviewed.reviewed_on, note: note || null },
     });
     const control = await rollUp(ctx, test.control_id);
     let flagged = 0;
@@ -211,7 +231,7 @@ export function registerTests(ctx: ModuleContext) {
     const sort = (await db.one<Row>('select coalesce(max(sort), 0) + 10 as s from control_test_samples where test_id = $1', [test.id]))!.s;
     const row = (await db.one<Row>(
       `insert into control_test_samples (test_id, item, result, note, sort, created_by, updated_by) values ($1,$2,$3,$4,$5,$6,$6) returning ${SAMPLE_COLUMNS}`,
-      [test.id, data.item, data.result ?? null, data.note ?? null, sort, req.user!.id],
+      [test.id, data.item, data.result ?? null, data.note ?? null, sort, actorOf(req).id],
     ))!;
     const counts = await countSamples(test);
     await ctx.audit(req, { action: 'control_test.sample_add', recordType: 'control_test', recordId: test.id, summary: `Sample item added: ${row.item}`, after: { item: row.item, result: row.result } });
@@ -229,7 +249,7 @@ export function registerTests(ctx: ModuleContext) {
       ? (await db.one<Row>(
         `update control_test_samples set item = coalesce($2, item), result = case when $5 then $3 else result end,
            note = case when $6 then $4 else note end, updated_at = now(), updated_by = $7 where id = $1 returning ${SAMPLE_COLUMNS}`,
-        [before.id, data.item ?? null, data.result ?? null, data.note ?? null, 'result' in data, 'note' in data, req.user!.id],
+        [before.id, data.item ?? null, data.result ?? null, data.note ?? null, 'result' in data, 'note' in data, actorOf(req).id],
       ))!
       : before;
     const counts = await countSamples(test);

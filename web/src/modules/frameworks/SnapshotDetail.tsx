@@ -8,6 +8,7 @@ import {
 } from '../../core';
 import type { Row } from '../../core';
 import { StatusBar, StatusLegend, TargetRing } from './StatusBar';
+import { SendToOwnersDialog } from './SendToOwners';
 import type { SnapshotDetail, SnapshotExtra } from './types';
 import { statusColor, statusLabel } from './types';
 
@@ -23,6 +24,7 @@ export function SnapshotPage() {
   const [priorityOnly, setPriorityOnly] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [sending, setSending] = useState(false);
   // The administrator's custom fields (E18-34) come with the record itself, read only when there are any.
   const resource = useResource('assessment_snapshot');
   const hasCustom = customFieldNames(resource).length > 0;
@@ -100,6 +102,7 @@ export function SnapshotPage() {
         breadcrumbs={[{ label: 'Assessments', to: '/assessments' }, { label: data.name }]}
         actions={
           <div className="row">
+            {can('frameworks.edit') && can('actions.create') && <Button variant="primary" icon="check-square" onClick={() => setSending(true)}>Send to owners</Button>}
             <Button icon="file-text" onClick={() => navigate(`/assessments/${data.id}/report`)}>Printable report</Button>
             <Button icon="scale" onClick={() => navigate(`/assessments?from=${data.previous?.id ?? data.id}&to=${data.previous ? data.id : 'now'}`)}>Compare with another</Button>
             {can('frameworks.delete') && <Button variant="danger" icon="trash" onClick={() => setConfirming(true)}>Delete</Button>}
@@ -157,6 +160,7 @@ export function SnapshotPage() {
         confirmLabel="Delete" danger busy={busy}
         onConfirm={remove} onCancel={() => setConfirming(false)}
       />
+      {sending && <SendToOwnersDialog open onClose={() => setSending(false)} frameworkId={data.framework_id} snapshotId={data.id} />}
     </div>
   );
 }
