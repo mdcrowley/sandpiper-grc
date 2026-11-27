@@ -18,7 +18,7 @@ describe('core services', () => {
 
   it('runs webhook deliveries and the retention sweep as job-queue schedules', async () => {
     const names = (await t.db.query<{ name: string }>(`select name from job_schedules where name like 'core.%' order by name`)).map((r) => r.name);
-    expect(names).toEqual(['core.audit_archive', 'core.ops_watch', 'core.request_counts', 'core.retention_sweep', 'core.session_cleanup', 'core.webhook_deliveries']);
+    expect(names).toEqual(['core.audit_archive', 'core.data_load_expiry', 'core.ops_watch', 'core.request_counts', 'core.retention_sweep', 'core.session_cleanup', 'core.webhook_deliveries']);
     expect((await t.api.post('/api/admin/jobs/schedules/core.retention_sweep/run')).body).toMatchObject({ status: 'done' });
     expect((await t.api.post('/api/admin/jobs/schedules/core.webhook_deliveries/run')).body).toMatchObject({ status: 'done' });
     expect((await t.api.post('/api/admin/jobs/schedules/core.request_counts/run')).body).toMatchObject({ status: 'done' });

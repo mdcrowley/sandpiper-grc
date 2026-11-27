@@ -1,6 +1,6 @@
 # E18 Quality and known defects
 
-**Status:** done (69 of 69 issues done)
+**Status:** done (70 of 70 issues done)
 
 ## Goal
 
@@ -90,6 +90,7 @@ has never been checked, so nobody relies on something untested.
 | E18-67 | Wave 19 security review: provisioning, sign-in address and CSV | done | P1 |
 | E18-68 | Wave 23 security review: access, platform, files and the Windows installer | done | P1 |
 | E18-69 | The pilot seed profile added invented sample records | done | P1 |
+| E18-70 | Data load mode: load historical records with their original dates, and undo a load | done | P1 |
 
 ---
 
@@ -1459,3 +1460,32 @@ The `pilot` seed profile, the one a real installation uses, loaded the organizat
 - [x] The module seed tests expect no samples in the pilot; the installation guide, developer guide and user guide say what each profile loads
 
 **Implemented in:** `server/src/modules/changes/index.ts`, `inventory/seed.ts`, `policies/seed.ts`, `projects/index.ts`, `risks/seed.ts`, `secincidents/index.ts`, `tickets/index.ts`, `training/seed.ts`, `vulnerabilities/seed.ts`; the test `server/src/modules/inventory/seed-pilot-clean.test.ts`.
+
+### E18-70 Data load mode: load historical records with their original dates, and undo a load
+
+**Status:** done · **Priority:** P1 · **Type:** defect
+
+Loading an organization's past records (first 639 historical service desk tickets, then other types)
+through the AI assistant connection gave every record today's dates: `create_record` refused the
+opened, resolved and closed times because they are read-only fields the application manages, the
+ticket hooks set `opened_at` to now and worked due times and breaches out from it, and nothing could
+be deleted through MCP, so a wrong load could not be undone. Data load mode, off by default and
+switched on by an administrator for at most 30 days, lets administrators (and their API and assistant
+tokens) set every field, any status, the created and updated times and author, and the reference.
+Values given win over what hooks work out, and what is missing is worked out from the dates given.
+Nothing is sent. Every record created is listed so that a load can be deleted from Administration >
+Data loads or, one record at a time, with the MCP tool `delete_record`.
+
+**Acceptance criteria**
+
+- [x] Off by default; an administrator switches it on from Administration > Settings with a recent password confirmation (never with a token), until a time at most 30 days ahead (default 7); it switches itself off at the end; switching on, changing the end, switching off and the end are audited; administrators see a banner while it is on
+- [x] While on, a save by a holder of `admin.administer`, or with a token whose owner holds it (an assistant token also needs AI assistant write access), may set read-only fields, any status without lifecycle or step rules, `created_at`, `created_by`, `updated_at` and a unique reference, with the counter moved past it; everyone else is unchanged
+- [x] The resource engine gives hooks `req.dataLoad` / `isDataLoad(req)` and puts supplied read-only fields and status back over the hooks' result; tickets, risks, actions, corrective action plans, changes, security incidents, vulnerabilities and policy exceptions work out missing values from the dates given and skip their own step rules
+- [x] Type checks, list values, visible references, required fields, `If-Match`, restricted records and legal holds still apply; a column the database works out is refused with a field error
+- [x] A load sends no notification, email, text, push, webhook, work-tracker send or approval; search indexing is unchanged
+- [x] Every record a load creates is listed; Administration > Data loads lists loads by day and type and deletes everything one load created after a fresh password confirmation, keeping records under a legal hold; the MCP tool `delete_record`, offered only while the mode is on, deletes a loaded record and nothing else
+- [x] `list_record_types`, `create_record` and `update_record` tell the assistant that the mode is on and which extra fields it may set; field errors unchanged
+- [x] Audit events of a load carry "(data load)"; a loaded record's history reads "loaded (data load mode)"
+- [x] Tests (also on UTC): historical tickets through MCP with original dates and due and breach values given or worked out, service desk figures from those dates, non-administrators refused, refusal while off, the end time, delete and undo, legal holds, no notifications or webhooks; per-module load tests
+
+**Implemented in:** `server/src/core/dataload.ts`, `server/src/core/resource.ts` (`loadScope`, `suppliedByLoad`, `checkLoadedRef`, `remove`), `server/src/core/migrations/032_data_load.sql`, `server/src/core/tokens.ts` (`tokenOwnerPermissions`), `server/src/core/services.ts` (audit marker), `server/src/core/webhooks.ts`, `server/src/core/auth.ts` (`dataLoad` in the state), `server/src/app.ts` (`quietSenders`, `core.data_load_expiry`), `server/src/modules/admin/dataload.ts` (`GET/POST /api/admin/data-load`, `POST /api/admin/data-load/undo`, `DELETE /api/data-load/records/:type/:id`), `server/src/modules/mcp/` (`delete_record`, session `dataLoad`, tool notes), `server/src/modules/tickets/index.ts` and `catalog.ts`, the risks, changes, secincidents, vulnerabilities and policies hooks, `workflows/index.ts`, `feeds/tracker.ts`; `web/src/modules/admin/DataLoad.tsx` (Settings card and Data loads page), the banner in `web/src/core/Shell.tsx`; tests `server/src/modules/mcp/dataload.test.ts` and `dataload.test.ts` in risks, changes, secincidents, vulnerabilities and policies.

@@ -22,6 +22,7 @@ import { makeOpenApi } from './core/openapi.ts';
 import { canonicalRequestUrl } from './core/api/versioning.ts';
 import { registerPreferences } from './core/preferences.ts';
 import { makeResources } from './core/resource.ts';
+import { quietSenders, readDataLoad } from './core/dataload.ts';
 import { registerRetention } from './core/retention.ts';
 import { registerCoreRoutes } from './core/routes.ts';
 import { registerTagsAndWatchers } from './core/tags.ts';
@@ -193,6 +194,7 @@ export async function buildApp(opts: BuildOptions) {
   registerReadiness(app, db); // GET /api/ready: asks the database (OP-13); /api/health stays liveness only
   registerBranding(app, db); // the public look before sign-in (Administration > Organization)
   const custom = makeCustomFields(db);
+  if (!app.hasRequestDecorator('dataLoad')) app.decorateRequest('dataLoad', false); // E18-70, core/dataload.ts
   const res = makeResources({ app, db, audit, lookups, custom });
   gate.attach(res.registry);
   const recentAuth = (req: FastifyRequest, what: string) => requireRecentAuth({ db, audit, settings }, req, what);
@@ -253,6 +255,10 @@ export async function buildApp(opts: BuildOptions) {
   await jobs.schedule('core.retention_sweep', { type: 'core.retention_sweep', every: 24 * 3_600_000, firstRunInMs: 60_000 });
   for (const m of modules) await m.seedDefaults?.(ctx);
   for (const m of modules) await gate.during(m.key, () => m.register?.(ctx));
+  // Data load mode (E18-70): the senders stay quiet during a load, and the mode ends at its end time.
+  quietSenders(app);
+  jobs.register('core.data_load_expiry', async () => ({ on: (await readDataLoad(db, audit)).on }), { maxAttempts: 2 });
+  await jobs.schedule('core.data_load_expiry', { type: 'core.data_load_expiry', every: 60_000, firstRunInMs: 60_000 });
 
   const webDir = process.env.GRC_WEB_DIST ? resolve(process.env.GRC_WEB_DIST) : join(repoRoot, 'dist/web');
   const serveWeb = (opts.serveWeb ?? true) && existsSync(join(webDir, 'index.html'));

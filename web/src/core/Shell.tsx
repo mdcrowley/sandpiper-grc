@@ -12,7 +12,7 @@ import { Logo, Wordmark } from './Logo';
 import { moduleOn, modules, navAllowed, NAV_GROUPS, preloadRoute, type CreateItem, type NavGroup, type NavItem } from './module';
 import { FilterMenu } from './overlay';
 import { createEntries } from './createMenu';
-import { formatDate } from './format';
+import { formatDate, formatDateTime } from './format';
 import { ShortcutsDialog } from './Shortcuts';
 import { useRouteFocus } from './routeFocus';
 import { useTheme } from './theme';
@@ -189,7 +189,7 @@ function initials(name: string): string {
 }
 
 export function Shell({ children }: { children: ReactNode }) {
-  const { user, appName, pilot, mfaEnrollmentRequired, mfaGraceEndsAt, can, areaOn, logout } = useAuth();
+  const { user, appName, pilot, dataLoadUntil, mfaEnrollmentRequired, mfaGraceEndsAt, can, areaOn, logout } = useAuth();
   const feeds = useFetch<{ enabled: boolean }>(hasFeeds && user ? '/api/me/calendar-feeds/enabled' : null);
   const navigate = useNavigate();
   const { theme, toggle } = useTheme();
@@ -306,7 +306,7 @@ export function Shell({ children }: { children: ReactNode }) {
       layout="alt"
       padding={0}
       withBorder={false}
-      header={{ height: mfaEnrollmentRequired ? 92 : 56 }}
+      header={{ height: 56 + (mfaEnrollmentRequired ? 36 : 0) + (dataLoadUntil ? 36 : 0) }}
       navbar={{ width: rail ? 64 : 256, breakpoint: 'sm', collapsed: { mobile: true, desktop: false } }}
     >
       <a
@@ -408,6 +408,15 @@ export function Shell({ children }: { children: ReactNode }) {
           </div>
         </div>
 
+        {dataLoadUntil && (
+          <p className="notice notice-warn-soft shell-notice" role="note">
+            <Icon name="upload" size={16} />
+            <span>
+              Data load mode is on until {formatDateTime(dataLoadUntil)}.{' '}
+              <Link to="/admin/data-loads">Data loads</Link>
+            </span>
+          </p>
+        )}
         {mfaEnrollmentRequired && (
           <p className="notice notice-warn-soft shell-notice" role="note">
             <Icon name="shield" size={16} />

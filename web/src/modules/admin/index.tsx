@@ -5,6 +5,7 @@ import { AdminTokensPage } from './ApiTokens';
 import { AboutPage } from './About';
 import { AuditLogPage } from './AuditLog';
 import { CustomFieldsPage } from './CustomFields';
+import { DataLoadsPage } from './DataLoad';
 import { FeaturesPage } from './Features';
 import { ListsPage } from './Lists';
 import { OrganizationPage } from './Organization';
@@ -32,6 +33,7 @@ const mod: ModuleDef = {
     { group: 'Administration', label: 'Features', path: '/admin/features', icon: 'check-square', permission: ADMIN, order: 41 },
     { group: 'Administration', label: 'Custom fields', path: '/admin/custom-fields', icon: 'edit', permission: ADMIN, order: 42 },
     { group: 'Administration', label: 'Retention', path: '/admin/retention', icon: 'clock', permission: ADMIN, order: 55 },
+    { group: 'Administration', label: 'Data loads', path: '/admin/data-loads', icon: 'upload', permission: ADMIN, order: 58 },
     { group: 'Administration', label: 'API tokens', path: '/admin/tokens', icon: 'key', permission: ADMIN, order: 49 },
     { group: 'Administration', label: 'Webhooks', path: '/admin/webhooks', icon: 'link', permission: ADMIN, order: 51 },
     { group: 'Administration', label: 'Audit log', path: '/admin/audit', icon: 'history', permission: 'audit.view', order: 57 },
@@ -49,6 +51,7 @@ const mod: ModuleDef = {
     { path: '/admin/features', element: <FeaturesPage />, permission: ADMIN },
     { path: '/admin/custom-fields', element: <CustomFieldsPage />, permission: ADMIN },
     { path: '/admin/retention', element: <RetentionPage />, permission: ADMIN },
+    { path: '/admin/data-loads', element: <DataLoadsPage />, permission: ADMIN },
     { path: '/admin/tokens', element: <AdminTokensPage />, permission: ADMIN },
     { path: '/admin/webhooks', element: <WebhooksPage />, permission: ADMIN },
     { path: '/admin/audit', element: <AuditLogPage />, permission: 'audit.view' },

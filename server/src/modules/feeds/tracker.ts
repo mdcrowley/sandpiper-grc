@@ -24,6 +24,7 @@
 //   sent it (a move that would wait for approval, or that they may no longer make, is not made).
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import type { FastifyRequest } from 'fastify';
+import { isDataLoad } from '../../core/dataload.ts';
 import { loadUser, secretBox } from '../../core/auth.ts';
 import { UUID_RE } from '../../core/errors.ts';
 import { featureState, typeOff } from '../../core/features.ts';
@@ -314,6 +315,8 @@ export async function registerTracker(ctx: ModuleContext) {
 
   // Automatic sending on create, for connections that ask for it.
   ctx.resources.onChange?.(async ({ action, def, row, req }) => {
+    // Records loaded in data load mode (E18-70) are history: they are not sent to outside trackers.
+    if (isDataLoad(req)) return;
     if (action !== 'create' || !(TRACKER_TYPES as readonly string[]).includes(def.type) || !(await kindOn(def.type))) return;
     for (const c of await connectorsFor(def.type)) {
       if (c.push_on_create) await request(c, def, row, req?.user?.id ?? null);

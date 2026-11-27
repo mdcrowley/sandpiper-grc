@@ -244,6 +244,11 @@ export interface ResourceRegistry {
   /** Validated partial update with hooks and audit. */
   update(type: string, id: string, patch: Row, req?: FastifyRequest | null, opts?: UpdateOptions): Promise<Row>;
   /**
+   * Soft delete through the engine (locks the row, If-Match, legal holds, audit, listeners); the
+   * caller checks the permission. `opts.summary` is added to the audit line ("deleted <summary>: ...").
+   */
+  remove?(type: string, id: string, req: FastifyRequest, opts?: { summary?: string }): Promise<Row>;
+  /**
    * SQL condition (no parameters) that is true for the rows of `type` that `user` may see under the
    * restricted-record rules. Hand-written queries over a resource table must include it:
    * `where deleted_at is null and ${ctx.resources.visibleWhere('action', req.user)}`.

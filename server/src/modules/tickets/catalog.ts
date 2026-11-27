@@ -3,6 +3,7 @@
 // (kind `ticket_approval` on the shared approval workflows).
 import type { FastifyRequest } from 'fastify';
 import { approvalEngine, defineApprovalKind } from '../../core/approval-kinds.ts';
+import { isDataLoad } from '../../core/dataload.ts';
 import { UUID_RE } from '../../core/errors.ts';
 import type { ModuleContext, Row, SessionUser } from '../../core/module.ts';
 import type { TicketNotify } from './notify.ts';
@@ -126,7 +127,7 @@ export function makeCatalog(ctx: ModuleContext, notify: TicketNotify) {
    * its first statuses, wait on someone, or be canceled, and nothing else.
    */
   async function checkApprovalGate(req: FastifyRequest | null, existing: Row, status: unknown): Promise<void> {
-    if (!req || status === existing.status) return;
+    if (!req || status === existing.status || isDataLoad(req)) return; // a data load sets any status (E18-70)
     if (existing.approval_status !== 'pending' && existing.approval_status !== 'rejected') return;
     const meta = (await ctx.lookups.values('ticket_status')).find((s) => s.value === status)?.meta;
     const cat = categoryOf(meta);
@@ -185,13 +186,21 @@ export function makeCatalog(ctx: ModuleContext, notify: TicketNotify) {
 
   /** On a new ticket raised from an item: store the answers, copy the tasks, ask for approval. */
   async function applyToNewTicket(req: FastifyRequest | null, data: Row): Promise<void> {
+    // A data load (E18-70) keeps the answers and tasks it gives, asks for no missing answer and starts no approval.
+    const loading = isDataLoad(req);
     const given = data.catalog_answers;
+    const givenTasks = data.fulfilment_tasks;
     delete data.catalog_answers;
     delete data.fulfilment_tasks;
     const item = data.catalog_item_id
       ? await db.one<Row>('select * from catalog_items where id = $1 and deleted_at is null', [data.catalog_item_id])
       : undefined;
     if (data.catalog_item_id && !item) bad('catalog_item_id', 'Catalog item was not found.');
+    if (loading && (!item || given !== undefined)) {
+      if (given !== undefined) data.catalog_answers = given;
+      if (givenTasks !== undefined) data.fulfilment_tasks = givenTasks;
+      if (!item || givenTasks !== undefined) return;
+    }
     if (!item) return;
     const questions = (item.questions ?? []) as Question[];
     const byKey: Record<string, unknown> = Array.isArray(given)
@@ -203,18 +212,18 @@ export function makeCatalog(ctx: ModuleContext, notify: TicketNotify) {
       const raw = byKey[q.key];
       const value = raw === true ? 'Yes' : raw === false ? 'No' : String(raw ?? '').trim();
       if (!value) {
-        if (q.required && req) missing[`catalog_answers.${q.key}`] = `${q.label} is required.`;
+        if (q.required && req && !loading) missing[`catalog_answers.${q.key}`] = `${q.label} is required.`;
         continue;
       }
       if (q.type === 'choice' && req && !(q.options ?? []).includes(value)) missing[`catalog_answers.${q.key}`] = `${q.label}: choose one of the listed answers.`;
       answers.push({ key: q.key, label: q.label, value: value.slice(0, 4000) });
     }
     if (Object.keys(missing).length) ctx.fail(400, 'validation', 'Answer the questions for this request.', missing);
-    data.catalog_answers = answers.length ? answers : null;
+    if (!loading || given === undefined) data.catalog_answers = answers.length ? answers : null;
     const tasks = (item.tasks ?? []) as string[];
-    data.fulfilment_tasks = tasks.length ? tasks.map((title) => ({ title, done: false })) : null;
+    if (!loading || givenTasks === undefined) data.fulfilment_tasks = tasks.length ? tasks.map((title) => ({ title, done: false })) : null;
     // E03-22: who decides, and how many, is the item's approval workflow, started once the ticket exists (afterCreate).
-    if (needsApproval(item, answers)) data.approval_status = 'pending';
+    if (needsApproval(item, answers) && !loading) data.approval_status = 'pending';
   }
 
   /** E03-21: an item that needs approval may need it only for some answers to one of its questions. */
@@ -259,14 +268,14 @@ export function makeCatalog(ctx: ModuleContext, notify: TicketNotify) {
   }
 
   async function afterCreate(req: FastifyRequest | null, row: Row): Promise<void> {
-    if (row.approval_status !== 'pending') return;
+    if (row.approval_status !== 'pending' || isDataLoad(req)) return; // a loaded ticket asks nobody (E18-70)
     // Never fails the new ticket: a problem is kept in its approval note.
     try { await askForApproval(req, row); } catch (err) { console.error('[tickets] asking for approval:', err); }
   }
 
   /** A ticket canceled or closed while it waits for approval stops its workflow. */
   async function afterUpdate(req: FastifyRequest | null, before: Row, after: Row): Promise<void> {
-    if (after.approval_status !== 'pending' || before.status === after.status) return;
+    if (after.approval_status !== 'pending' || before.status === after.status || isDataLoad(req)) return;
     const meta = (await ctx.lookups.values('ticket_status')).find((s) => s.value === after.status)?.meta;
     if (categoryOf(meta) !== 'closed') return;
     await engine()?.cancel(KIND, after.id, 'The request was closed or canceled.', req);

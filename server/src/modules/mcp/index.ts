@@ -16,6 +16,7 @@ import { featureState, ownedOff } from '../../core/features.ts';
 import { UUID_RE } from '../../core/errors.ts';
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
 import { checkSources, issueToken, scopeCovered, tokenScopes } from '../../core/tokens.ts';
+import { dataLoadFor, readDataLoad } from '../../core/dataload.ts';
 import { registerEndpoint } from './http.ts';
 import { oauthBase, registerOAuth, secureBase } from './oauth.ts';
 import { chosenTools, hasMcpScope, KEYS, MCP_SCOPE, mayConnect, readSettings, type McpSettings } from './settings.ts';
@@ -94,6 +95,11 @@ const mod: ModuleDef = {
         user: { id: u.id, username: u.username, displayName: u.displayName, email: u.email, roles: u.roles },
         permissions: u.permissions, token: req.apiToken, scopes, kind,
         tools: chosenTools(settings, u.roles, await tokenTools(req.apiToken!.id)),
+        // Data load mode (E18-70): on, and whether this token's saves are loads.
+        dataLoad: await (async () => {
+          const s = await readDataLoad(db, ctx.audit);
+          return { on: s.on, until: s.until, allowed: s.on && await dataLoadFor(db, req, ctx.audit) };
+        })(),
         settings,
       };
     });

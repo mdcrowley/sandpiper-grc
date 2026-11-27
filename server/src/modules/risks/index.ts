@@ -1,6 +1,7 @@
 import type { FastifyRequest } from 'fastify';
 import { featureState, ownedOff, SWITCHED_OFF } from '../../core/features.ts';
 import { scheduleWork } from '../../core/jobs/index.ts';
+import { isDataLoad } from '../../core/dataload.ts';
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
 import { registerAcceptanceWorkflow } from './acceptance.ts';
 import { makeActionExtras } from './actions.ts';
@@ -156,7 +157,8 @@ const mod: ModuleDef = {
             `Give both ${scale.likelihood_label.toLowerCase()} and ${scale.impact_label.toLowerCase()}, or neither.`;
         }
       }
-      if (req && data.status === 'accepted' && existing?.status !== 'accepted') {
+      // Data load mode (E18-70): a historical risk may be loaded as accepted without an acceptance record.
+      if (req && !isDataLoad(req) && data.status === 'accepted' && existing?.status !== 'accepted') {
         const current = existing && await ctx.db.one(
           'select 1 from risk_acceptances where risk_id = $1 and revoked_on is null and expires_on >= current_date', [existing.id]);
         if (!current) errors.status = 'Record an acceptance (approver, expiry and rationale) before marking a risk accepted.';

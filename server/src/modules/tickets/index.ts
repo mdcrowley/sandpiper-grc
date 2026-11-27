@@ -1,5 +1,6 @@
 import type { FastifyRequest } from 'fastify';
 import { scheduleWork } from '../../core/jobs/index.ts';
+import { isDataLoad } from '../../core/dataload.ts';
 import { setWorkingCalendarSource, toWorkingCalendar, WORKING_CALENDAR_KEY } from '../../core/working-days.ts';
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
 import { registerAssist } from './assist.ts';
@@ -158,7 +159,7 @@ const mod: ModuleDef = {
     }
 
     const needsCode = (req: FastifyRequest | null, cat: StatusCategory, code: unknown) => {
-      if (req && cat === 'resolved' && !code) {
+      if (req && cat === 'resolved' && !code && !isDataLoad(req)) {
         ctx.fail(400, 'validation', 'Check the highlighted fields.', { resolution_code: 'Choose a resolution code to resolve the ticket.' });
       }
     };
@@ -168,7 +169,7 @@ const mod: ModuleDef = {
      * resolving it (the built-in "cancelled", or any status with meta.resolution_code = false) is exempt.
      */
     const needsCodeToClose = async (req: FastifyRequest | null, status: unknown, code: unknown) => {
-      if (!req || code) return;
+      if (!req || code || isDataLoad(req)) return; // historical tickets may have no resolution code (E18-70)
       const meta = (await ctx.lookups.values('ticket_status')).find((s) => s.value === status)?.meta;
       if (categoryOf(meta) !== 'closed' || status === 'cancelled' || meta?.resolution_code === false) return;
       ctx.fail(400, 'validation', 'Check the highlighted fields.', { resolution_code: 'Choose a resolution code to close the ticket.' });
@@ -177,7 +178,10 @@ const mod: ModuleDef = {
     async function beforeCreate(req: FastifyRequest | null, data: Row): Promise<Row> {
       checkCommon(data);
       await catalog.applyToNewTicket(req, data);
-      const opened =(!req && toDate(data.opened_at)) || clock.now();
+      // E18-70: a data load gives the original times; due times and breaches it leaves out are worked
+      // out from them (not from now), and the values it gives are kept.
+      const loading = isDataLoad(req);
+      const opened = ((!req || loading) && toDate(data.opened_at)) || clock.now();
       const at = opened.toISOString();
       data.opened_at = at;
       data.status ??= 'new';
@@ -191,8 +195,8 @@ const mod: ModuleDef = {
       await needsCodeToClose(req, data.status, data.resolution_code);
       const t = await sla.target(data.priority);
       const paused = Number(data.paused_minutes ?? 0);
-      const respDue = t ? addWorkingMinutes(t.cal, opened, t.respond_minutes) : null;
-      const resDue = t ? addWorkingMinutes(t.cal, opened, t.resolve_minutes + paused) : null;
+      const respDue = (loading && toDate(data.response_due_at)) || (t ? addWorkingMinutes(t.cal, opened, t.respond_minutes) : null);
+      const resDue = (loading && toDate(data.resolve_due_at)) || (t ? addWorkingMinutes(t.cal, opened, t.resolve_minutes + paused) : null);
       data.response_due_at = iso(respDue);
       data.resolve_due_at = iso(resDue);
 
@@ -203,19 +207,35 @@ const mod: ModuleDef = {
       if (cat === 'closed') data.closed_at ??= iso(toDate(data.resolved_at)); else data.closed_at = null;
       const responded = toDate(data.first_responded_at);
       const resolved = toDate(data.resolved_at);
-      data.response_breached = !!(responded && respDue && responded > respDue);
-      data.resolve_breached = !!(resolved && resDue && resolved > resDue);
+      const givenRespBreach = loading && typeof data.response_breached === 'boolean';
+      const givenResBreach = loading && typeof data.resolve_breached === 'boolean';
+      if (!givenRespBreach) data.response_breached = !!(responded && respDue && responded > respDue);
+      if (!givenResBreach) data.resolve_breached = !!(resolved && resDue && resolved > resDue);
+      if (loading) {
+        // A loaded ticket still open with a target already past is recorded as missed (and warned) now,
+        // so the service-level check sends no alert or warning about history (E18-70).
+        const today = clock.now();
+        const respPast = !responded && respDue && respDue < today;
+        const resPast = !resolved && resDue && resDue < today;
+        if (respPast && !givenRespBreach) data.response_breached = true;
+        if (resPast && !givenResBreach) data.resolve_breached = true;
+        if (respPast && typeof data.response_warned !== 'boolean') data.response_warned = true;
+        if (resPast && typeof data.resolve_warned !== 'boolean') data.resolve_warned = true;
+      }
       if (data.with_vendor && !data.vendor_raised_at) data.vendor_raised_at = at;
       return data;
     }
 
     async function beforeUpdate(req: FastifyRequest | null, existing: Row, patch: Row): Promise<Row> {
-      const now = clock.now();
+      // E18-70: in a data load the times given stand in for "now" (a resolution given is when it
+      // happened), and what is given is kept over what would be worked out.
+      const loading = isDataLoad(req);
+      const now = (loading && (toDate(patch.closed_at) ?? toDate(patch.resolved_at) ?? toDate(patch.first_responded_at))) || clock.now();
       const at = now.toISOString();
       const m: Row = { ...existing, ...patch };
       checkCommon(patch, existing.id);
       // E15-07: the requester's own satisfaction answer is theirs; nobody changes it afterwards.
-      if (req && existing.satisfaction_by_requester) {
+      if (req && existing.satisfaction_by_requester && !loading) {
         for (const f of ['satisfaction_score', 'satisfaction_comment']) {
           if (f in patch && (patch[f] ?? null) !== (existing[f] ?? null)) {
             ctx.fail(400, 'validation', 'Check the highlighted fields.', { [f]: 'The requester gave this answer in the portal. It cannot be changed.' });
@@ -245,17 +265,24 @@ const mod: ModuleDef = {
       if (cat === 'closed' && (m.status !== existing.status || 'resolution_code' in patch)) await needsCodeToClose(req, m.status, m.resolution_code);
 
       const t = await sla.target(m.priority);
-      const opened = toDate(existing.opened_at) ?? now;
+      const opened = (loading && toDate(patch.opened_at)) || toDate(existing.opened_at) || now;
       let pausedMinutes = Number(existing.paused_minutes ?? 0);
       let respDue = toDate(existing.response_due_at);
       let resDue = toDate(existing.resolve_due_at);
       const responded = toDate(existing.first_responded_at);
       const pausedAt = toDate(existing.paused_at);
 
-      if (m.priority !== existing.priority) {
+      if (loading && 'opened_at' in patch && t) {
+        // A new opening time moves the due times it is counted from, unless they are given too.
+        resDue = addWorkingMinutes(t.cal, opened, t.resolve_minutes + pausedMinutes);
+        if (!responded) respDue = addWorkingMinutes(t.cal, opened, t.respond_minutes + pausedMinutes);
+      } else if (m.priority !== existing.priority) {
         resDue = t ? addWorkingMinutes(t.cal, opened, t.resolve_minutes + pausedMinutes) : null;
         if (!responded) respDue = t ? addWorkingMinutes(t.cal, opened, t.respond_minutes + pausedMinutes) : null;
       }
+
+      if (loading && patch.response_due_at !== undefined) respDue = toDate(patch.response_due_at);
+      if (loading && patch.resolve_due_at !== undefined) resDue = toDate(patch.resolve_due_at);
 
       // Resume: the time spent paused (working minutes only) is added to the due times.
       if (pausedAt && cat !== 'paused') {
@@ -272,15 +299,15 @@ const mod: ModuleDef = {
 
       // First response: the first assignment, or the first move out of "new".
       if (!responded && (m.status !== 'new' || m.assignee_id)) {
-        patch.first_responded_at = at;
+        patch.first_responded_at = (loading && patch.first_responded_at) || at;
         patch.response_breached = existing.response_breached || !!(respDue && now > respDue);
       }
 
       if (done && !existing.resolved_at) {
-        patch.resolved_at = at;
+        patch.resolved_at = (loading && patch.resolved_at) || at;
         patch.resolve_breached = existing.resolve_breached || !!(resDue && now > resDue);
       }
-      if (cat === 'closed' && !existing.closed_at) patch.closed_at = at;
+      if (cat === 'closed' && !existing.closed_at) patch.closed_at = (loading && patch.closed_at) || at;
       if (cat !== 'closed' && existing.closed_at) patch.closed_at = null;
       if (!done && wasDone) patch.resolved_at = null;
       if (!done && cat !== 'paused' && resDue && now > resDue) patch.resolve_breached = true;

@@ -173,6 +173,9 @@ action is added to this table and to its module's tests in the same change.
 | Administration | Change a sign-in, API-token or outbound-connection setting (keys starting `auth.`, `tokens.`, `integrations.`) | Ask | Sign-in rules and ways out of the application |
 | Administration | Sign-in providers: add, change, remove; a person's sign-in limits, link permits, unlinking, break-glass designation | Ask | Who can sign in, and how |
 | Administration | Switch parts of the application on or off (Features) | Ask | Changes what everyone can use |
+| Administration | Switch data load mode on or change its end (E18-70) | Ask | Lets administrators set every field, dates and status rules included, and silences notifications |
+| Administration | Delete everything one data load created (Data loads) | Ask, every time | Deletes many records at once |
+| Administration | Switch data load mode off | Don't ask | Only narrows what can be done |
 | Administration | Webhooks: add, change the address or switch on "include restricted records", replace the secret, show the current address | Ask | Sends data out; a secret |
 | Administration | User provisioning: switch it on, choose the linked provider, make a token, change a token's addresses, map a group to roles | Ask | Lets another system create accounts and give roles |
 | Administration | Log forwarding: add a forwarder, change where it sends (kind, host, port, address, secret, certificate authority) or switch it on | Ask | Sends the audit log out |
@@ -951,6 +954,35 @@ separate, tamper-evident copy.
     password first), just-in-time accounts, role mapping, break-glass and per-person limits are
     the shared rules.
 
+### Data load mode
+
+`server/src/core/dataload.ts`, `server/src/modules/admin/dataload.ts` (E18-70); for loading historical
+records with their original dates.
+
+- **Off by default, and time-limited.** Only an administrator (`admin.administer`) switches it on,
+  from a signed-in session with a recent password confirmation (never with a token), until a time at
+  most 30 days ahead (default 7). It switches itself off at that time: the state is checked on every
+  save and a one-minute job (`core.data_load_expiry`) records the end. Switching on, changing the end,
+  switching off and the end are audited (`data_load.start`, `.extend`, `.stop`, `.end`).
+  Administrators see a banner while it is on.
+- **Who it applies to.** A save is a load only when the person, or the owner of the API or assistant
+  token used, holds `admin.administer` (the owner's own grants, not the token's scopes, decide; the
+  token still needs the create or edit scope for the record type). An assistant token also needs
+  `mcp.write_enabled`. Everyone else's saves are unchanged.
+- **What it relaxes.** Read-only fields (except columns the database works out), any status without
+  lifecycle or module step rules, `created_at`, `created_by` (an existing person), `updated_at` and the
+  reference (unique; the counter moves past it). Type checks, list values, references (must exist and
+  be visible), required fields, `If-Match`, restricted records and legal holds are unchanged.
+- **Quiet.** Inside a load (`asDataLoad`, an async-local scope) notifications, email, text
+  messages, push, webhooks (record changes and events), work-tracker sends and approval workflows do
+  nothing. The search index is kept.
+- **Traceable and reversible.** Every record a load creates is listed in `data_load_records`; each
+  audit event of a load is marked "(data load)", and a loaded record's history starts "loaded (data
+  load mode)". Administration > Data loads deletes everything one load created (one type, one day)
+  after a fresh password confirmation, as soft deletes through the resource engine; records under a
+  legal hold are kept. `DELETE /api/data-load/records/:type/:id` (the MCP tool `delete_record`) deletes
+  one loaded record while the mode is on and nothing else.
+
 ### AI assistant access (MCP)
 
 `server/src/modules/mcp/`; details in [AI assistant access](mcp.md)
@@ -969,7 +1001,9 @@ separate, tamper-evident copy.
   in-process with the same token, so permissions, restricted records, validation and audit
   are exactly the REST API's. Tools that change records are offered only when
   `mcp.write_enabled` is on and the token's permissions include a `.create` or `.edit`.
-  **Nothing can be deleted** through MCP. `mcp.allowed_tools` narrows the tools offered.
+  **Nothing can be deleted** through MCP, except that while data load mode is on (below) an
+  administrator's write connection is offered `delete_record` for records a load created.
+  `mcp.allowed_tools` narrows the tools offered.
 - **Rate-limited** per token (`mcp.rate_per_minute`, default 120), on top of the general
   token limit.
 - **Who may connect.** `mcp.allowed_roles` limits assistant tokens, OAuth consent and every

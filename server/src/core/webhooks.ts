@@ -6,6 +6,7 @@ import { BlockList, isIP } from 'node:net';
 import { rootCertificates } from 'node:tls';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { afterCommit, inTrial, type Db } from './db.ts';
+import { inDataLoad } from './dataload.ts';
 import { fail, UUID_RE } from './errors.ts';
 import { featureState } from './features.ts';
 import type { ResourceDef, Row, SessionUser } from './module.ts';
@@ -444,7 +445,7 @@ declare module 'fastify' {
  * nothing when the event's area is switched off.
  */
 export async function emitWebhookEvent(app: FastifyInstance, input: WebhookEventInput): Promise<number> {
-  if (typeof app.webhookEvent !== 'function') return 0;
+  if (typeof app.webhookEvent !== 'function' || inDataLoad()) return 0; // a data load sends nothing (E18-70)
   try {
     return await app.webhookEvent(input);
   } catch (err) {
@@ -508,7 +509,8 @@ export function registerWebhooks({ app, db, audit, settings, res, box, loadUser,
   const isRestricted = (def: ResourceDef, row: Row) => def.restricted === true || (def.restricted === 'flag' && row.restricted === true);
 
   res.onChange(async (change: RecordChange) => {
-    if (change.action === 'purge' || !(await enabled())) return;
+    // A data load (E18-70) tells no outside system about historical records, nor about undoing them.
+    if (change.action === 'purge' || change.req?.dataLoad || inDataLoad() || !(await enabled())) return;
     const { def, row, action } = change;
     const hooks = await db.query<Row>('select * from webhooks where active and deleted_at is null');
     let queued = 0;

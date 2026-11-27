@@ -3,6 +3,7 @@ import { featureState, ownedOff } from '../../core/features.ts';
 import { scheduleWork } from '../../core/jobs/index.ts';
 import { metricsAvailable, monthStartOf } from '../../core/metrics.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { isDataLoad } from '../../core/dataload.ts';
 import { dayInZone } from '../../core/timezone.ts';
 import type { Scale, Scales } from './scales.ts';
 
@@ -363,7 +364,9 @@ async function registerKris(ctx: ModuleContext, riskPre: Deps['riskPre'], daily:
     hooks: {
       beforeCreate: (_req, data) => prepareKri(null, data),
       beforeUpdate: (_req, existing, patch) => prepareKri(existing, patch),
-      afterUpdate: async (_req, before, after) => {
+      afterUpdate: async (req, before, after) => {
+        // A load (E18-70) does not bring a risk's review forward to today.
+        if (isDataLoad(req)) return;
         if (['amber', 'red', 'direction'].some((k) => String(before[k] ?? '') !== String(after[k] ?? ''))) await refresh(after.id);
       },
     },

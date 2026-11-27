@@ -79,7 +79,9 @@ export function makeAutomation(ctx: ModuleContext, targetFor: TargetFor, notify:
          from tickets t
          where t.deleted_at is null and t.resolved_at is null and t.paused_at is null and ${cond.where}
            and ${cond.since} <= $2::timestamptz
-           and not exists (select 1 from ticket_escalations e where e.ticket_id = t.id and e.rule_id = $1)`,
+           and not exists (select 1 from ticket_escalations e where e.ticket_id = t.id and e.rule_id = $1)
+           -- A ticket loaded as history in data load mode is never escalated (E18-70).
+           and not exists (select 1 from data_load_records l where l.record_type = 'ticket' and l.record_id = t.id and l.deleted_at is null)`,
         [rule.id, cutoff]);
       for (const r of rows) {
         const t = await target(r.priority);

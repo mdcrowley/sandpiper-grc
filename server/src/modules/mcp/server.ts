@@ -44,6 +44,11 @@ const INSTRUCTIONS = 'Sandpiper GRC: governance, risk and compliance for a trans
   + 'Start with list_record_types or search; use my_work for "what should I do". Cite references (e.g. TKT-00012) and the url of each record you mention. '
   + 'Nothing can be deleted through this connection.';
 
+/** What the assistant is told while its saves are data loads (E18-70). */
+export const DATA_LOAD_INSTRUCTIONS = 'Data load mode is on for you: create_record and update_record may also set read-only fields (opened, resolved and closed times, due times, breach flags and so on), '
+  + 'any status without the usual step rules, created_at, created_by, updated_at and the reference (unique; numbering moves past it). Nothing is sent (no notifications, email, webhooks or approvals). '
+  + 'delete_record deletes a record created in data load mode. Other records cannot be deleted.';
+
 function errorResult(err: unknown) {
   if (err instanceof ToolError) {
     const fields = err.fields && Object.keys(err.fields).length ? `\n${Object.entries(err.fields).map(([k, v]) => `- ${k}: ${v}`).join('\n')}` : '';
@@ -59,7 +64,11 @@ function errorResult(err: unknown) {
 
 /** One MCP server for one HTTP request (stateless): only the tools this caller is offered are registered. */
 export function buildServer(ctx: ModuleContext, settings: McpSettings, t: ToolContext, req: FastifyRequest, log: CallLog): McpServer {
-  const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION, title: 'Sandpiper GRC' }, { instructions: INSTRUCTIONS });
+  const loading = t.session.dataLoad?.allowed === true;
+  const instructions = loading
+    ? INSTRUCTIONS.replace('Nothing can be deleted through this connection.', `${DATA_LOAD_INSTRUCTIONS} It ends ${t.session.dataLoad!.until}.`)
+    : INSTRUCTIONS;
+  const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION, title: 'Sandpiper GRC' }, { instructions });
 
   const run = async (tool: ToolSpec, args: unknown, extra?: ToolExtra) => {
     const started = Date.now();
@@ -94,12 +103,12 @@ export function buildServer(ctx: ModuleContext, settings: McpSettings, t: ToolCo
   for (const tool of offeredTools(ctx, settings, t.session)) {
     server.registerTool(tool.name, {
       title: tool.title,
-      description: tool.description,
+      description: loading && tool.dataLoadNote ? `${tool.description} ${tool.dataLoadNote}` : tool.description,
       inputSchema: tool.input,
       annotations: {
         title: tool.title,
         readOnlyHint: !tool.write,
-        destructiveHint: false,
+        destructiveHint: tool.name === 'delete_record',
         idempotentHint: !!tool.idempotent,
         openWorldHint: false,
       },

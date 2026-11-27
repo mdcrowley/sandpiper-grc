@@ -37,6 +37,7 @@ This page is for administrators. It explains how to add people and give them acc
 | **Calendar and work trackers** | Calendar feeds and connections to an outside work-tracking tool | [Calendar feeds, work trackers and evidence links](36-calendar-feeds-work-trackers-and-evidence-links.md#set-up-a-connection) |
 | **Background jobs** | Work the application does by itself | [Background jobs](14-attachments-and-notifications.md#background-jobs) |
 | **Retention** | How long records are kept | [Retention](#retention) |
+| **Data loads** | What data load mode created, by day and record type, and undoing a load | [Data load mode](#data-load-mode) |
 | **Legal holds** | Keep records for a matter so they cannot be deleted or anonymized | [Legal holds](33-legal-holds.md) |
 | **Audit log** | Who did what, and when | [The audit log](#the-audit-log) |
 | **About** | The version installed, and whether a newer release exists | [About and updates](#about-and-updates) |
@@ -712,6 +713,51 @@ The **Departments** group holds the list used to group people. Departments are a
 
 Department changes save immediately; they do not wait for **Save settings**.
 
+### Data load mode (settings)
+
+The **Data load mode** group switches [data load mode](#data-load-mode) on and off. It saves with its own buttons, not with **Save settings**.
+
+## Data load mode
+
+Data load mode is for loading historical records with their original dates and values: for example the service desk's past tickets, with the times each was opened, first answered, resolved and closed, so that the service desk figures cover the past correctly. It is **off** unless you switch it on, and it switches itself off at the end you choose.
+
+### Switching it on
+
+1. Open **Administration > Settings** and go to the **Data load mode** group.
+2. Choose how many days it stays on: 7 unless you change it, at most 30.
+3. Select **Switch data load mode on**, and confirm your password.
+
+While it is on, every administrator sees a banner at the top of each page: "Data load mode is on until ...". Select **Change the end** to give it a new end (counted from now), or **Switch off now** when the load is done. Switching on, changing the end, switching off and the end itself are recorded in the audit log.
+
+### What it allows
+
+While it is on, a record saved by someone holding the administration permission (**admin.administer**) is a *load*. This applies to their API tokens and to their AI assistant connections too, when the token's owner is an administrator; an assistant also needs write access switched on under **AI assistant access** (see [AI assistants and MCP](21-ai-assistants-and-mcp.md#loading-historical-records)). For everyone else nothing changes.
+
+A load may set:
+
+- **every field**, including the ones the application normally works out and shows as read-only: for a ticket the opened, first response, resolved and closed times, the respond-by and resolve-by times, the "target missed" and "close to target" flags, the paused minutes and the satisfaction answer;
+- **any status**, without the allowed moves on the **Lifecycles** page and without the steps a status normally needs (for example a resolution code to close a ticket, an approval, or a review);
+- the record's **created** and **updated** times and who **created** it (a person in the application);
+- the **reference** (for example `TKT-00412`). A reference that is already used is refused. When you leave it out the record is numbered as usual, and numbering always continues after the highest reference loaded.
+
+The values you give are kept. What you leave out is worked out as usual, from the dates you give rather than from today: a ticket loaded with only its opened and resolved times gets its respond-by and resolve-by times from its priority's targets counted from when it was opened, and "target missed" from when it was resolved. Values that are calculated by the database itself (such as a ticket's "any target missed") cannot be set. A loaded ticket that is still open with a target already past is recorded as missed (and warned) when it is loaded, so the service-level check sends no alert, warning or escalation about it.
+
+The usual checks still apply: each value must be of the right kind, a list value must be in the list, a linked record must exist and be one you can see, required fields must be given, restricted records stay restricted, and records under a legal hold cannot be deleted.
+
+**Nothing is sent** for a load: no notifications, email, text messages or push messages, no webhooks, no records sent to work trackers, no approvals started and no service-level alerts. Search finds loaded records as usual.
+
+Each save is recorded in the audit log as usual, marked "(data load)", and a loaded record's **History** starts with "loaded (data load mode)".
+
+Records you save on screen while the mode is on are loads too (they send no notifications), so switch it off as soon as the load is done.
+
+### Undoing a load
+
+Every record created in data load mode is listed on **Administration > Data loads**, grouped by the day it was loaded and its record type, with how many were created, how many are still there and who loaded them.
+
+To undo a load, select **Delete this load** on its row (it deletes everything that load created), then **Delete them**, and give your password again. Each record is deleted as if it were deleted from its own page (it is kept in the database as deleted, and the deletion is in the audit log). Records under a legal hold are kept, and the message says how many. This works whether data load mode is on or off.
+
+An AI assistant can also delete single records it loaded, while data load mode is on (see [AI assistants and MCP](21-ai-assistants-and-mcp.md#loading-historical-records)). Records not created in data load mode can never be deleted this way.
+
 ## Features
 
 Not every organization uses every part of the application. Open **Administration > Features** to switch off the parts you do not use, for example **Fleet and services** and **Safety management** when you do not manage vehicles or a safety program here, and to switch them back on later.
@@ -1095,4 +1141,5 @@ The token is shown once. Select **Copy token** and keep it somewhere safe, such 
 - The audit log's filters are not kept in the page address, so a filtered view cannot be bookmarked.
 - Roles cannot be deleted and user accounts cannot be removed; switch off or disable them instead.
 - New lists cannot be created on screen, and the special behavior of supplied values cannot be given to values you add.
+- Data load mode works out missing values from the dates given for tickets, risks, actions, corrective action plans, changes, security incidents, vulnerabilities and policy exceptions. Other record types keep the values given, but what they would work out from today (for example a review date) is still worked out from today; give those values in the load.
 - Anonymizing a record does not change the audit log, which keeps the earlier values of its personal fields; the audit log's own period is recorded, not enforced.

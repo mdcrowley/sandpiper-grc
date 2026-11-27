@@ -1,5 +1,6 @@
 // Policy exceptions: time-limited, approved deviations from a policy or standard.
 import type { FastifyRequest } from 'fastify';
+import { isDataLoad } from '../../core/dataload.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { addDays, daysBetween, localDate } from './dates.ts';
 
@@ -36,6 +37,9 @@ export function registerExceptions(ctx: ModuleContext) {
 
   /** The rules for moving to `to`. A null `req` is the system (seeding, the daily expiry check). */
   function checkStatus(req: FastifyRequest | null, from: string | null, to: string, merged: Row, patch: Row) {
+    // Data load mode (E18-70): a historical exception keeps the status and dates given (an expired
+    // or approved one included); no approval date is made up from today.
+    if (isDataLoad(req)) return;
     const approver = !req || ctx.can(req.user, 'exceptions.approve');
     if (to === 'approved') {
       if (!approver) ctx.fail(403, 'forbidden', NO_PERMISSION);

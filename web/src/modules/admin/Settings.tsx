@@ -5,6 +5,7 @@ import {
   ApiError, Button, Card, Checkbox, ErrorState, errorMessage, Loading, NumberField, PageHeader, TextArea, TextField, useAuth, useFetch, useLookup, useToast,
 } from '../../core';
 import { Notice } from './common';
+import { DataLoadCard } from './DataLoad';
 import { DepartmentsCard } from './Departments';
 import { adminApi } from './reauth';
 import { Switch } from './Switch';
@@ -70,6 +71,7 @@ const GROUPS: { id: string; title: string; needs?: keyof Values }[] = [
   { id: 'actions', title: 'Actions', needs: 'actions.closure_evidence_sources' },
   { id: 'features', title: 'Features' },
   { id: 'files', title: 'Files' },
+  { id: 'dataload', title: 'Data load mode' },
   { id: 'departments', title: 'Departments' },
 ];
 
@@ -379,6 +381,10 @@ export function SettingsPage() {
 
           <Group id="files" title="Files" text="Limits for files attached to records. They apply to new uploads and are saved with their own button.">
             <FilesCard />
+          </Group>
+
+          <Group id="dataload" title="Data load mode" text="For loading historical records with their original dates. Off by default; it saves with its own button and switches itself off at its end time.">
+            <DataLoadCard />
           </Group>
 
           <Group id="departments" title="Departments" text="The list used to group people. Changes here save at once.">

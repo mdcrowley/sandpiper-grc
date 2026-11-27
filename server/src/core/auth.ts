@@ -7,6 +7,8 @@ import { CURRENCY, DEFAULT_APP_NAME, TIME_ZONE } from './config.ts';
 import type { Db, Queryable } from './db.ts';
 import { fail, UUID_RE } from './errors.ts';
 import { featureState } from './features.ts';
+import { readDataLoad } from './dataload.ts';
+import { can } from './services.ts';
 import { SCOPED_MODULES_SQL } from './scope.ts';
 import { isApiRequest } from './api/versioning.ts';
 import { addSignInPolicy, afterSignIn, checkSignIn, sessionSecondFactor, signOutRedirect } from './identity/hooks.ts';
@@ -591,6 +593,11 @@ export function registerAuth(app: FastifyInstance, deps: Deps) {
     features: (await featureState(db)).on,
     areasOff: [...(await featureState(db)).offPermissions],
     pilot: await settings.get('pilot_mode', true),
+    // Data load mode (E18-70): administrators see a banner while it is on.
+    dataLoad: req.user && can(req.user, 'admin.administer') ? await (async () => {
+      const s = await readDataLoad(db, deps.audit);
+      return s.on ? { on: true, until: s.until } : null;
+    })() : null,
     // `mfaEnrollmentRequired`: show the reminder. `mfaEnrollmentBlocked`: nothing but enrollment works
     // until the person enrolls (setting auth.mfa_enforcement = required; see docs/security.md).
     mfaEnrollmentRequired: mfa.required,

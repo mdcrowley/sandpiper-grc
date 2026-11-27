@@ -4,6 +4,7 @@
 // (core/approval-kinds.ts; docs/development.md, "Approval workflows"), and approvers name
 // stand-ins for a period (E14-32).
 import type { FastifyRequest } from 'fastify';
+import { isDataLoad } from '../../core/dataload.ts';
 import { setApprovalEngine } from '../../core/approval-kinds.ts';
 import { ensureJobs, scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleContext, ModuleDef, ResourceDef, Row } from '../../core/module.ts';
@@ -33,10 +34,13 @@ function follow(ctx: ModuleContext, svc: Service) {
         ...own,
         afterCreate: async (req: FastifyRequest | null, row: Row) => {
           await afterCreate?.(req, row);
+          // A record loaded in data load mode (E18-70) starts no approval.
+          if (isDataLoad(req)) return;
           await safely(`${def.type} created`, () => svc.recordCreated(def, row, req));
         },
         afterUpdate: async (req: FastifyRequest | null, before: Row, after: Row) => {
           await afterUpdate?.(req, before, after);
+          if (isDataLoad(req)) return;
           await safely(`${def.type} changed`, () => svc.recordUpdated(def, before, after, req));
         },
       };

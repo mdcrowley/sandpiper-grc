@@ -3,6 +3,7 @@ import { approvalEngine, defineApprovalKind } from '../../core/approval-kinds.ts
 import { scheduleWork } from '../../core/jobs/index.ts';
 import { defineMetric } from '../../core/metrics.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
+import { isDataLoad } from '../../core/dataload.ts';
 import { MASKED_LABEL } from '../../core/resource.ts';
 import { dayInZone, displayDate } from '../../core/timezone.ts';
 import { PENDING_VERIFICATION, verifiedNow } from './actions-resource.ts';
@@ -71,14 +72,15 @@ async function actionCounts(ctx: ModuleContext, capId: string) {
  * rest wait for verification, in progress once work has started (or again after a reopen). Plans
  * not yet approved are left alone. System work, audited by the resource engine.
  */
-export async function syncCap(ctx: ModuleContext, capId: string): Promise<void> {
+export async function syncCap(ctx: ModuleContext, capId: string, opts: { countsOnly?: boolean } = {}): Promise<void> {
   if (!ctx.resources.get('cap')) return;
   const cap = await ctx.db.one<Row>('select id, status, closed_on from caps where id = $1 and deleted_at is null', [capId]);
   if (!cap) return;
   const c = await actionCounts(ctx, capId);
   // Computed counts for list filters ("awaiting verification"): not a change anyone made, so not audited.
   await ctx.db.query('update caps set actions_total = $2, actions_done = $3, actions_awaiting = $4 where id = $1', [capId, c.live, c.done, c.pending]);
-  if (BEFORE_APPROVAL.includes(String(cap.status ?? 'draft'))) return;
+  // In data load mode (E18-70) the plan keeps the status it was loaded with.
+  if (opts.countsOnly || BEFORE_APPROVAL.includes(String(cap.status ?? 'draft'))) return;
   let next: string = cap.status;
   if (c.live > 0 && c.done === c.live) next = 'closed';
   else if (c.pending > 0 && c.pending + c.done === c.live) next = 'verifying';
@@ -188,6 +190,8 @@ export async function registerCaps(ctx: ModuleContext): Promise<void> {
     if (Object.keys(errors).length) ctx.fail(400, 'validation', 'Check the highlighted fields.', errors);
     if (data.status !== undefined && data.status !== (existing?.status ?? null)) {
       const closed = (await statusesWith(ctx, 'cap_status', 'closed')).includes(data.status);
+      // Data load mode (E18-70): any status, and no closing date made up from today.
+      if (isDataLoad(req)) return data;
       if (req) {
         // People move a plan only after approval, and close it only once every action is done.
         if (!existing && data.status !== 'draft') ctx.fail(400, 'validation', 'Check the highlighted fields.', { status: 'A new plan starts as a draft.' });

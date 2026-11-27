@@ -101,10 +101,20 @@ With a **read and write** connection, and while your administrator allows write 
 
 Assistants also offer ready-made requests: **Weekly risk and action review**, **Prepare a board summary**, **Triage open tickets** and **Incident status update**.
 
+## Loading historical records
+
+To load past records from source documents (for example a service desk's old tickets), an administrator switches on [data load mode](09-administration.md#data-load-mode) under **Administration > Settings**, for a few days. Then, for an administrator's **read and write** connection, while write access for assistants is on:
+
+- **list_record_types** says that data load mode is on and until when, and for one type lists the extra fields it may set;
+- **create_record** and **update_record** may also set the read-only fields (for a ticket `opened_at`, `first_responded_at`, `resolved_at`, `closed_at`, `response_due_at`, `resolve_due_at`, `response_breached`, `resolve_breached`, `paused_minutes`, the satisfaction answer and so on), any status, `created_at`, `created_by`, `updated_at` and the reference `ref`. Dates and times are given as ISO 8601, for example `2024-03-04T14:00:00Z`. Values given are kept; what is left out is worked out from the dates given. Field errors come back as usual, field by field;
+- **delete_record** deletes a record that was created in data load mode, for example to correct a wrong load. It is offered only while data load mode is on, never deletes any other record, and is refused for a record under a legal hold.
+
+Nothing is sent for loaded records: no notifications, email, webhooks or approvals. Every record loaded is listed under **Administration > Data loads**, where an administrator can delete everything one load created. For anyone who is not an administrator, and once data load mode ends, the assistant works as before.
+
 ## What an assistant cannot do
 
 - See anything you cannot see. Restricted records (security incidents, risks, vulnerabilities and anything marked restricted) stay invisible unless you have the permission to see restricted records.
-- Delete anything, change settings, manage users, roles or tokens, or confirm your password.
+- Delete anything (except, while data load mode is on, records an administrator's connection loaded), change settings, manage users, roles or tokens, or confirm your password.
 - Act as anyone else.
 
 ## Keeping it safe

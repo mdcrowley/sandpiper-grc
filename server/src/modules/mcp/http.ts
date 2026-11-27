@@ -88,6 +88,8 @@ export function registerEndpoint(ctx: ModuleContext, oauth: OAuth, log: (session
     // The request now acts as the token's owner, for the audit events the tools write.
     req.user = { ...session.user, permissions: session.permissions };
     req.apiToken = session.token;
+    // The tool call audit events of a load carry the "data load" marker too (E18-70).
+    req.dataLoad = session.dataLoad?.allowed === true;
     const api = makeCaller(ctx.app, authorization, ip, internal);
     const t = makeToolContext(ctx, api, session, await baseUrl(ctx, req));
     const server = buildServer(ctx, settings, t, req, (tool, ok, error, ms) => log(session, tool, ok, error, ms, req.requestId));

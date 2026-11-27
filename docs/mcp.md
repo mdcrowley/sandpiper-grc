@@ -142,6 +142,14 @@ nothing (all reads, `update_record`, `link_records`).
 `type` accepts a record type key, label or plural (`ticket`, `Tickets`); `id` accepts an id or a
 reference (`TKT-00012`).
 
+**Data load mode** (E18-70, [Security](security.md#data-load-mode)). `GET /api/mcp/session` carries
+`dataLoad: { on, until, allowed }`; `allowed` is true while the mode is on, the token's owner holds
+`admin.administer` and write access is on. Then the server instructions say so, `list_record_types`
+reports `data_load` (with a type: `extra_fields`, and `settable_in_data_load` on read-only fields),
+`create_record` and `update_record` accept read-only fields and `created_at`, `created_by`,
+`updated_at` (their descriptions say so), and `delete_record` is offered. Field errors come back as
+usual.
+
 ### Records
 
 | Tool | Input | Output |
@@ -156,6 +164,7 @@ reference (`TKT-00012`).
 | `create_record` | `type`, `fields` | Write. Unknown and read-only fields refused before sending; `POST {path}` |
 | `update_record` | `type`, `id`, `changes` | Write. `PATCH {path}/:id` |
 | `link_records` | `from_type`, `from_id`, `to_type`, `to_id`, `relation?` | Write. `POST /api/links` |
+| `delete_record` | `type`, `id` | Write, `destructiveHint: true`. Offered only while data load mode is on and the token's saves are loads; deletes a record created in data load mode (`DELETE /api/data-load/records/:type/:id`); refused under a legal hold |
 | `decide_approval` | `step_id` (from `my_approvals`), `decision` (`approve` or `reject`), `comment?` (required to reject) | Write. `POST /api/workflows/steps/:id/decision`; refuses a step not waiting for you, including your own request |
 
 ### Work and insight

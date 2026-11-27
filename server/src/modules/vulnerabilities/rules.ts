@@ -1,3 +1,4 @@
+import { isDataLoad } from '../../core/dataload.ts';
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { computeDue, criticalityOf, hasSystems, loadPolicy, today } from './policy.ts';
@@ -177,7 +178,10 @@ async function applyRules(ctx: ModuleContext, req: FastifyRequest | null, existi
   const statuses = await ctx.lookups.values('vulnerability_status');
   const meta = (statuses.find((s) => s.value === merged.status)?.meta ?? {}) as Row;
   const statusChanged = !existing || existing.status !== merged.status;
-  if (meta.acceptance === true) {
+  // Data load mode (E18-70): a historical finding takes any status without the acceptance and
+  // false-positive step rules, and a missing fix date is its last-seen date, not today.
+  const loading = isDataLoad(req);
+  if (meta.acceptance === true && !loading) {
     const acceptanceTouched = statusChanged || ['exception_id', 'acceptance_justification', 'acceptance_approver_id'].some((k) => k in patch);
     // An exception only covers a finding while it is approved and not past its expiry date.
     if (merged.exception_id && acceptanceTouched) {
@@ -207,13 +211,13 @@ async function applyRules(ctx: ModuleContext, req: FastifyRequest | null, existi
       });
     }
   }
-  if (meta.reason === true && !text(merged.false_positive_reason)) {
+  if (meta.reason === true && !loading && !text(merged.false_positive_reason)) {
     ctx.fail(400, 'validation', 'Say why this finding is a false positive.', { false_positive_reason: 'A reason is required.' });
   }
   if (statusChanged) {
     patch.closed = meta.closed === true;
     if (meta.fixed === true) {
-      if (!merged.fixed_on) patch.fixed_on = merged.fixed_on = today();
+      if (!merged.fixed_on) patch.fixed_on = merged.fixed_on = loading ? String(merged.last_seen ?? merged.first_seen ?? today()).slice(0, 10) : today();
     } else if (meta.closed !== true && merged.fixed_on && !('fixed_on' in patch)) {
       patch.fixed_on = merged.fixed_on = null; // reopened
     }

@@ -299,7 +299,8 @@ export function makeAudit(db: Db) {
         ev.action,
         ev.recordType ?? null,
         ev.recordId ?? null,
-        ev.summary ?? null,
+        // A save made in data load mode carries the marker (E18-70, core/dataload.ts).
+        ev.summary && req?.dataLoad && !/data load/i.test(ev.summary) ? `${ev.summary} (data load)` : ev.summary ?? null,
         ev.before === undefined ? null : JSON.stringify(ev.before),
         ev.after === undefined ? null : JSON.stringify(ev.after),
         // Changes made with a personal access token name the token (core/tokens.ts).

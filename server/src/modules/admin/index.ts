@@ -2,6 +2,7 @@ import type { ModuleDef } from '../../core/module.ts';
 import { registerAccount } from './account.ts';
 import { describeAdminRoutes } from './docs.ts';
 import { registerFeatures } from './features.ts';
+import { registerDataLoad } from './dataload.ts';
 import { registerOrganization } from './organization.ts';
 import { registerProviders } from './providers.ts';
 import { registerRoles } from './roles.ts';
@@ -27,6 +28,7 @@ const mod: ModuleDef = {
     registerSettings(ctx);
     registerOrganization(ctx); // Administration > Organization: details, logos, colors (core/organization.ts)
     registerFeatures(ctx); // Administration > Features (core/features.ts)
+    registerDataLoad(ctx); // data load mode and the Data loads page (E18-70, core/dataload.ts)
     // Single sign-on (server/src/core/identity): sign-in providers, linking, break-glass.
     registerSso(ctx);
     registerProviders(ctx);

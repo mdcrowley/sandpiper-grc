@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { qs } from './caller.ts';
 import {
   defaultColumns, display, fail, plural, presentRow, rowLine,
-  type ToolContext, type ToolSpec, type TypeMeta,
+  type FieldMeta, type ToolContext, type ToolSpec, type TypeMeta,
 } from './toolkit.ts';
 
 // The generic tools: every record type the person may see, through the generated REST routes.
@@ -11,14 +11,24 @@ const typeArg = z.string().min(1).describe('Record type: its key (e.g. "ticket",
 const idArg = z.string().min(1).describe('The record id (a UUID) or its reference, e.g. "TKT-00012".');
 const valueArg = z.union([z.string(), z.number(), z.boolean(), z.null(), z.array(z.string())]);
 
+/** The standard fields a data load may set besides the type's own (E18-70). */
+const LOAD_STANDARD: Record<string, FieldMeta> = {
+  created_at: { label: 'Created', type: 'datetime' },
+  created_by: { label: 'Created by', type: 'user' },
+  updated_at: { label: 'Updated', type: 'datetime' },
+};
+/** Whether this caller's saves are data loads (E18-70): read-only fields may be set then. */
+const loading = (t: ToolContext) => t.session.dataLoad?.allowed === true;
+
 /** Checks field names against the type and turns "me" into the caller's id for person fields. */
 function cleanValues(t: ToolContext, type: TypeMeta, values: Record<string, unknown>, what: 'create' | 'update') {
   const fields: Record<string, string> = {};
   const out: Record<string, unknown> = {};
+  const load = loading(t);
   for (const [name, v] of Object.entries(values ?? {})) {
-    const f = type.fields[name];
+    const f = type.fields[name] ?? (load ? LOAD_STANDARD[name] : undefined);
     if (!f) { fields[name] = `${type.plural} have no field "${name}".`; continue; }
-    if (f.readOnly) { fields[name] = `"${f.label}" is worked out by the application and cannot be set.`; continue; }
+    if (f.readOnly && !load) { fields[name] = `"${f.label}" is worked out by the application and cannot be set.`; continue; }
     out[name] = f.type === 'user' && v === 'me' ? t.session.user.id : v;
   }
   if (Object.keys(fields).length) fail(`Some fields cannot be ${what === 'create' ? 'set' : 'changed'}. Use list_record_types with type "${type.type}" for the fields.`, 'validation', fields);
@@ -38,22 +48,31 @@ const listRecordTypes: ToolSpec = {
       const types = Object.values(meta.resources).sort((a, b) => a.plural.localeCompare(b.plural)).map((r) => ({
         type: r.type, label: r.label, plural: r.plural, restricted: r.restricted, has_reference: !!r.refField, fields: Object.keys(r.fields),
       }));
+      const dl = t.session.dataLoad;
       return {
-        text: `${plural(types.length, 'record type')} you can see:\n${types.map((r) => `- ${r.type}: ${r.plural}${r.restricted ? ' (restricted)' : ''}`).join('\n')}`,
-        data: { types },
+        text: `${plural(types.length, 'record type')} you can see:\n${types.map((r) => `- ${r.type}: ${r.plural}${r.restricted ? ' (restricted)' : ''}`).join('\n')}`
+          + (loading(t) ? `\n\nData load mode is on until ${dl!.until}: create_record and update_record may also set read-only fields, any status, created_at, created_by, updated_at and the reference. Ask with a type for its extra fields.` : ''),
+        data: { types, data_load: dl ? { on: dl.on, until: dl.until, your_saves_are_loads: dl.allowed } : { on: false } },
       };
     }
     const type = await t.typeOf(args.type);
+    const load = loading(t);
     const fields = Object.entries(type.fields).map(([name, f]) => ({
       name, label: f.label, kind: f.type, required: !!f.required, read_only: !!f.readOnly,
+      ...(load && f.readOnly ? { settable_in_data_load: true } : {}),
       ...(f.to ? { refers_to: f.to } : {}),
       ...(f.list ? { choices: (meta.lookups[f.list] ?? []).map((v) => ({ value: v.value, label: v.label })) } : {}),
     }));
-    const lines = fields.map((f) => `- ${f.name} (${f.kind}${f.required ? ', required' : ''}${f.read_only ? ', read-only' : ''}): ${f.label}`
+    const lines = fields.map((f) => `- ${f.name} (${f.kind}${f.required ? ', required' : ''}${f.read_only ? (load ? ', read-only, settable in data load mode' : ', read-only') : ''}): ${f.label}`
       + ('choices' in f && f.choices?.length ? ` [${f.choices.map((c) => c.value).join(', ')}]` : ''));
+    const extra = load ? [...fields.filter((f) => f.read_only).map((f) => f.name), ...Object.keys(LOAD_STANDARD)] : [];
     return {
-      text: `${type.plural} (${type.type})${type.restricted ? ', restricted records' : ''}. Title field: ${type.titleField}.${type.refField ? ` Reference field: ${type.refField}.` : ''}\nFields:\n${lines.join('\n')}`,
-      data: { type: type.type, label: type.label, plural: type.plural, title_field: type.titleField, reference_field: type.refField ?? null, restricted: type.restricted, fields, url: t.link(type.route) },
+      text: `${type.plural} (${type.type})${type.restricted ? ', restricted records' : ''}. Title field: ${type.titleField}.${type.refField ? ` Reference field: ${type.refField}.` : ''}\nFields:\n${lines.join('\n')}`
+        + (load ? `\nData load mode is on until ${t.session.dataLoad!.until}: you may also set ${extra.join(', ')} (dates and times as ISO 8601; created_by is a user id). Any status is allowed. A reference you give must be unique; values you give win over what the application would work out, and what you leave out is worked out from the dates you give. Nothing is sent to anyone.` : ''),
+      data: {
+        type: type.type, label: type.label, plural: type.plural, title_field: type.titleField, reference_field: type.refField ?? null, restricted: type.restricted, fields, url: t.link(type.route),
+        ...(load ? { data_load: { on: true, until: t.session.dataLoad!.until, extra_fields: extra } } : {}),
+      },
     };
   },
 };
@@ -231,15 +250,17 @@ const createRecord: ToolSpec = {
     type: typeArg,
     fields: z.record(z.string(), z.unknown()).describe('Field values by field name, e.g. {"title": "...", "priority": "high"}.'),
   },
+  dataLoadNote: 'Data load mode is on: you may also set read-only fields (such as opened_at, resolved_at, closed_at, due times and breach flags), any status, created_at, created_by, updated_at and the reference; the record is marked as loaded and can be deleted with delete_record. Nothing is sent to anyone.',
   async run(args, t) {
     const type = await t.typeOf(args.type);
     const data = cleanValues(t, type, args.fields, 'create');
     const row = await t.api.post<any>(type.path, data);
     const ref = type.refField ? row[type.refField] : null;
+    const load = loading(t);
     return {
-      text: `Created ${type.label.toLowerCase()} ${ref ?? ''} "${row[type.titleField] ?? ''}". Open: ${t.link(type.route, row.id)}`.replace(/\s+/g, ' '),
-      data: { type: type.type, id: row.id, ref, title: row[type.titleField] ?? null, url: t.link(type.route, row.id) },
-      audit: { recordType: type.type, recordId: row.id, summary: `${type.label} ${ref ?? `"${row[type.titleField] ?? ''}"`} created` },
+      text: `${load ? 'Loaded' : 'Created'} ${type.label.toLowerCase()} ${ref ?? ''} "${row[type.titleField] ?? ''}"${load ? ' (data load mode)' : ''}. Open: ${t.link(type.route, row.id)}`.replace(/\s+/g, ' '),
+      data: { type: type.type, id: row.id, ref, title: row[type.titleField] ?? null, url: t.link(type.route, row.id), ...(load ? { data_load: true, created_at: row.created_at } : {}) },
+      audit: { recordType: type.type, recordId: row.id, summary: `${type.label} ${ref ?? `"${row[type.titleField] ?? ''}"`} ${load ? 'loaded (data load mode)' : 'created'}` },
     };
   },
 };
@@ -252,6 +273,7 @@ const updateRecord: ToolSpec = {
     type: typeArg, id: idArg,
     changes: z.record(z.string(), z.unknown()).describe('New values by field name; null clears a field.'),
   },
+  dataLoadNote: 'Data load mode is on: read-only fields, any status, created_at, created_by, updated_at and the reference may be changed too. Nothing is sent to anyone.',
   async run(args, t) {
     const type = await t.typeOf(args.type);
     const row = await t.record(type, args.id);
@@ -296,6 +318,24 @@ const linkRecords: ToolSpec = {
   },
 };
 
+const deleteRecord: ToolSpec = {
+  name: 'delete_record', title: 'Delete a loaded record', group: 'Changes', write: true, dataLoadOnly: true,
+  description: 'Only while data load mode is on: deletes one record that was created in data load mode (for example to undo a wrong load). '
+    + 'Other records cannot be deleted. The record is soft-deleted, as in the application, and the deletion is audited; a record under a legal hold is refused.',
+  input: { type: typeArg, id: idArg },
+  async run(args, t) {
+    const type = await t.typeOf(args.type);
+    const row = await t.record(type, args.id);
+    await t.api.del(`/api/data-load/records/${encodeURIComponent(type.type)}/${row.id}`);
+    const name = `${type.label.toLowerCase()} ${row[type.refField ?? ''] ?? `"${row[type.titleField]}"`}`;
+    return {
+      text: `Deleted ${name} (created in data load mode).`,
+      data: { type: type.type, id: row.id, ref: type.refField ? row[type.refField] ?? null : null, deleted: true },
+      audit: { recordType: type.type, recordId: row.id, summary: `Deleted ${name} (created in data load mode)` },
+    };
+  },
+};
+
 export const RECORD_TOOLS: ToolSpec[] = [
-  listRecordTypes, search, listRecords, getRecord, getRelated, getHistory, addComment, createRecord, updateRecord, linkRecords,
+  listRecordTypes, search, listRecords, getRecord, getRelated, getHistory, addComment, createRecord, updateRecord, linkRecords, deleteRecord,
 ];

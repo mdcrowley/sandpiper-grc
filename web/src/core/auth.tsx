@@ -26,6 +26,8 @@ interface AuthStateResponse {
   /** Permission modules of switched-off areas (Administration > Features): nobody holds them. */
   areasOff?: string[];
   pilot: boolean;
+  /** Data load mode (E18-70), for administrators only: on until a time, or null. */
+  dataLoad?: { on: boolean; until: string } | null;
   mfaEnrollmentRequired?: boolean;
   mfaEnrollmentBlocked?: boolean;
   mfaGraceEndsAt?: string | null;
@@ -39,6 +41,8 @@ export interface Auth {
   setupRequired: boolean;
   features: Record<string, boolean>;
   pilot: boolean;
+  /** Data load mode is on (administrators only, E18-70): until when, or null. */
+  dataLoadUntil: string | null;
   /** The user's role needs a second sign-in factor that is not set up yet. */
   mfaEnrollmentRequired: boolean;
   /**
@@ -121,6 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setupRequired: state.setupRequired,
       features: state.features ?? {},
       pilot: Boolean(state.pilot),
+      dataLoadUntil: state.dataLoad?.on ? state.dataLoad.until : null,
       mfaEnrollmentRequired: Boolean(state.mfaEnrollmentRequired),
       mfaEnrollmentBlocked: Boolean(state.user && state.mfaEnrollmentBlocked),
       mfaGraceEndsAt: state.mfaGraceEndsAt ?? null,

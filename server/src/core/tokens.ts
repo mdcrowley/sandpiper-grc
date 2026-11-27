@@ -267,6 +267,9 @@ declare module 'fastify' {
 const requestScopes = new WeakMap<FastifyRequest, string[]>();
 /** The scopes of the token a request was made with (as stored), or undefined for a session. */
 export const tokenScopes = (req: FastifyRequest): string[] | undefined => requestScopes.get(req);
+const requestOwnerGrants = new WeakMap<FastifyRequest, string[]>();
+/** The token owner's own grants (before the token's scopes narrow them), or undefined for a session (E18-70: data load mode). */
+export const tokenOwnerPermissions = (req: FastifyRequest): string[] | undefined => requestOwnerGrants.get(req);
 const requestConfirmed = new WeakMap<FastifyRequest, number>();
 /** The recent sign-in claim (epoch ms) of the bearer token a request was made with, or null (always null for a session or personal access token). */
 export const tokenConfirmedAt = (req: FastifyRequest): number | null => requestConfirmed.get(req) ?? null;
@@ -359,6 +362,7 @@ export function registerTokens(app: FastifyInstance, deps: Deps) {
     req.sessionHash = null;
     req.apiToken = { id: found!.id, name: found!.name };
     requestScopes.set(req, [...found!.scopes]);
+    requestOwnerGrants.set(req, [...owner!.permissions]);
     // Only a module's resolver can give a recent sign-in claim; a personal access token never has one.
     if (!token.startsWith(TOKEN_PREFIX) && found!.confirmedAt) {
       const at = Date.parse(found!.confirmedAt);

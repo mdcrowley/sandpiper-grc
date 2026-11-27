@@ -66,6 +66,9 @@ regulator, and nothing in it is specific to one organization.
   bridge to an outside work-tracking tool, evidence links to documents kept elsewhere, and AI
   assistant access over MCP (Claude Desktop, Claude Code and other MCP clients, by token or
   OAuth), all off until switched on
+- **Loading history**: a time-limited data load mode for administrators to load past records
+  (for example old service desk tickets) with their original dates through the API or an AI
+  assistant, with nothing sent and every load undoable
 - **Your organization**: name, address, contacts, logo and brand colors (kept readable in
   light and dark) on screens, emails and PDFs
 - **Use only what you need**: switch optional areas (for example fleet or safety) off under

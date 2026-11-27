@@ -14,6 +14,11 @@ export interface Session {
   tools?: string[] | null;
   /** How the token was issued: a personal access token, or an OAuth sign-in by a remote connector. */
   kind?: 'token' | 'oauth';
+  /**
+   * Data load mode (E18-70, core/dataload.ts): whether it is on, until when, and whether this caller's
+   * saves are loads (the owner holds admin.administer and AI assistant write access is on).
+   */
+  dataLoad?: { on: boolean; until: string | null; allowed: boolean };
 }
 
 export interface FieldMeta { label: string; type: string; required?: boolean; readOnly?: boolean; list?: string; to?: string; custom?: boolean }
@@ -66,6 +71,10 @@ export interface ToolSpec {
   description: string;
   /** Creates or changes records: offered only when write access is on and the token can write. */
   write?: boolean;
+  /** Offered only while data load mode is on and this caller's saves are loads (E18-70). */
+  dataLoadOnly?: boolean;
+  /** Added to the description while this caller's saves are loads (E18-70). */
+  dataLoadNote?: string;
   /** Repeating the call with the same input has no further effect. */
   idempotent?: boolean;
   /** Short group name for the administrators' screen. */

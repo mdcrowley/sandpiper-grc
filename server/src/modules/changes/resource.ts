@@ -1,3 +1,4 @@
+import { isDataLoad } from '../../core/dataload.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { takeForced, type Base, type Req } from './base.ts';
 import { computeRisk, FINAL_STATUSES, matchRule, safetyImpactOf } from './rules.ts';
@@ -122,7 +123,8 @@ export function defineChange(ctx: ModuleContext, base: Base): void {
         const system = takeForced(req) ?? {};
         const merged: Row = { ...data, ...system };
         merged.status ??= 'draft';
-        if (merged.change_type === 'standard' && !merged.template_id) {
+        // A historical standard change may be loaded without its template (E18-70).
+        if (merged.change_type === 'standard' && !merged.template_id && !isDataLoad(req)) {
           ctx.fail(400, 'validation', 'Check the highlighted fields.', {
             change_type: 'A standard change is raised from a template. Choose a template, or pick another type.',
           });
@@ -133,7 +135,8 @@ export function defineChange(ctx: ModuleContext, base: Base): void {
       async beforeUpdate(req, existing, patch) {
         const system = takeForced(req);
         const changed = Object.keys(patch).filter((k) => !base.same(existing[k], patch[k]));
-        if (req && changed.length) {
+        // Data load mode (E18-70): a loaded change may be corrected whatever its status.
+        if (req && changed.length && !isDataLoad(req)) {
           if (FINAL_STATUSES.includes(existing.status)) {
             ctx.fail(409, 'closed', 'This change is closed and can no longer be edited.');
           }

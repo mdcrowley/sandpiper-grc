@@ -15,6 +15,8 @@ export interface Caller {
   get<T = any>(url: string): Promise<T>;
   post<T = any>(url: string, body: unknown): Promise<T>;
   patch<T = any>(url: string, body: unknown): Promise<T>;
+  /** DELETE (data load mode's delete_record only, E18-70). */
+  del<T = any>(url: string): Promise<T>;
   /** Like get, but answers undefined for 403 and 404 (a part the person cannot see, or a module not loaded). */
   tryGet<T = any>(url: string): Promise<T | undefined>;
 }
@@ -25,7 +27,7 @@ export interface Caller {
  * those tokens through (they are not accepted on /api from outside, see oauth.ts).
  */
 export function makeCaller(app: FastifyInstance, authorization: string, remoteAddress: string, headers: Record<string, string> = {}): Caller {
-  async function call(method: 'GET' | 'POST' | 'PATCH', url: string, body?: unknown) {
+  async function call(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', url: string, body?: unknown) {
     const res = await app.inject({
       method, url, remoteAddress,
       headers: { ...headers, authorization, ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
@@ -43,6 +45,7 @@ export function makeCaller(app: FastifyInstance, authorization: string, remoteAd
     get: (url) => call('GET', url),
     post: (url, body) => call('POST', url, body),
     patch: (url, body) => call('PATCH', url, body),
+    del: (url) => call('DELETE', url),
     async tryGet(url) {
       try {
         return await call('GET', url);

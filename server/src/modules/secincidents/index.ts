@@ -1,6 +1,7 @@
 import type { FastifyRequest } from 'fastify';
 import { featureState, optionName, optionOn } from '../../core/features.ts';
 import { scheduleWork } from '../../core/jobs/index.ts';
+import { isDataLoad } from '../../core/dataload.ts';
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
 import { TIME_ZONE, todayInZone } from '../../core/timezone.ts';
 import { emitWebhookEvent } from '../../core/webhooks.ts';
@@ -335,12 +336,14 @@ const mod: ModuleDef = {
       hooks: {
         beforeCreate: async (_req, data) => {
           const now = new Date().toISOString();
+          const loading = isDataLoad(_req);
           for (const f of FLAG_FIELDS) if (data[f] === null || data[f] === undefined) data[f] = f === 'is_cyber_incident';
           data.data_kinds = await cleanKinds(data.data_kinds, []);
-          if (!data.discovered_at) data.discovered_at = now;
+          // A loaded incident (E18-70) counts from its own earliest time, never from today.
+          if (!data.discovered_at) data.discovered_at = loading ? (data.declared_at ?? data.contained_at ?? data.closed_at ?? now) : now;
           checkTimes(data, {});
-          await checkRansom(data.ransom_payment_status, data.board_resolution_ref);
-          await stampStatus(data.status, {}, data, now);
+          if (!loading) await checkRansom(data.ransom_payment_status, data.board_resolution_ref);
+          await stampStatus(data.status, {}, data, now, loading);
           await checkReview(_req, {}, data, now);
           return data;
         },
@@ -355,11 +358,18 @@ const mod: ModuleDef = {
           }
           checkTimes(patch, existing);
           const merged = { ...existing, ...patch };
-          await checkRansom(merged.ransom_payment_status, merged.board_resolution_ref);
-          if (patch.status !== undefined && patch.status !== existing.status) await stampStatus(patch.status, existing, patch, now);
+          const loading = isDataLoad(_req); // (E18-70)
+          if (!loading) await checkRansom(merged.ransom_payment_status, merged.board_resolution_ref);
+          if (patch.status !== undefined && patch.status !== existing.status) await stampStatus(patch.status, existing, patch, now, loading);
           return patch;
         },
         afterCreate: async (req, row) => {
+          // A historical incident loaded in data load mode (E18-70) gets no roster, checklist,
+          // notification tasks or clock alerts: those are for live incidents. One log line says so.
+          if (isDataLoad(req)) {
+            await svc.addLog(row.id, req, `Incident loaded (data load mode) with status "${await labelOfLookup('security_incident_status', row.status)}".`);
+            return;
+          }
           await svc.copyRoster(row, req);
           await svc.applyChecklist(row, req);
           await svc.addLog(row.id, req, `Incident recorded with status "${await labelOfLookup('security_incident_status', row.status)}".`);
@@ -371,6 +381,7 @@ const mod: ModuleDef = {
           if (row.ransom_payment_status !== 'not_applicable') await ransomChanged(req, { ransom_payment_status: 'not_applicable' }, row);
         },
         afterUpdate: async (req, before, after) => {
+          if (isDataLoad(req)) return; // (E18-70) no checklists, tasks, clocks or alerts for history
           if (after.scenario && after.scenario !== before.scenario) {
             const n = await svc.applyChecklist(after, req);
             await svc.addLog(after.id, req,
@@ -442,6 +453,21 @@ const mod: ModuleDef = {
       const was = await reviewStageOf(existing.review_status);
       const next = patch.review_status !== undefined ? await reviewStageOf(patch.review_status) : was;
       const fields: Record<string, string> = {};
+      // Data load mode (E18-70): no review step rules; missing times come from the incident's own.
+      if (isDataLoad(req)) {
+        if (next === 'completed' && was !== 'completed' && !patch.review_completed_at) {
+          patch.review_completed_at = merged.review_held_at ?? merged.closed_at ?? now;
+          patch.review_completed_by ??= req?.user?.id ?? null;
+        }
+        const closingLoad = patch.status !== undefined && patch.status !== existing.status && (await stageOf(patch.status)) === 'closed';
+        if (closingLoad && next === 'open' && !merged.review_due_on) {
+          const days = Number(await ctx.settings.get('security.review_due_days', DEFAULT_REVIEW_DUE_DAYS));
+          const n = Number.isFinite(days) && days >= 0 && days <= 365 ? days : DEFAULT_REVIEW_DUE_DAYS;
+          const base = Date.parse(String(merged.closed_at ?? now));
+          patch.review_due_on = todayInZone(new Date((Number.isNaN(base) ? Date.now() : base) + n * 24 * HOUR));
+        }
+        return;
+      }
 
       if (was === 'completed' && next === 'completed') {
         const touched = REVIEW_FINDINGS.filter((f) => patch[f] !== undefined && !sameValue(patch[f], existing[f]));
@@ -539,12 +565,14 @@ const mod: ModuleDef = {
       return (await lifecycle(ctx)).find((s) => s.value === status)?.stage ?? 'reported';
     }
 
-    async function stampStatus(status: string, existing: Row, patch: Row, now: string) {
+    async function stampStatus(status: string, existing: Row, patch: Row, now: string, loading = false) {
       const has = (f: string) => patch[f] ?? existing[f];
       const reached = STAGES.indexOf(await stageOf(status));
-      if (reached >= STAGES.indexOf('declared') && !has('declared_at')) patch.declared_at = now;
-      if (reached >= STAGES.indexOf('contained') && !has('contained_at')) patch.contained_at = now;
-      if (reached >= STAGES.indexOf('closed') && !has('closed_at')) patch.closed_at = now;
+      // In data load mode (E18-70) a missing time is the latest earlier one given, never today.
+      const earlier = (...fields: string[]) => (loading ? fields.map(has).find(Boolean) ?? now : now);
+      if (reached >= STAGES.indexOf('declared') && !has('declared_at')) patch.declared_at = earlier('discovered_at');
+      if (reached >= STAGES.indexOf('contained') && !has('contained_at')) patch.contained_at = earlier('declared_at', 'discovered_at');
+      if (reached >= STAGES.indexOf('closed') && !has('closed_at')) patch.closed_at = earlier('contained_at', 'declared_at', 'discovered_at');
     }
 
     async function ransomChanged(req: Req, before: Row, after: Row) {
@@ -629,6 +657,13 @@ const mod: ModuleDef = {
     function completion(existing: Row, patch: Row, req: Req, stamp = true) {
       const merged = { ...existing, ...patch };
       const fields: Record<string, string> = {};
+      // Data load mode (E18-70): a historical notification may lack who and how; its times are kept.
+      if (isDataLoad(req)) {
+        if (!stamp || (!merged.notified_at && !merged.completed_at)) return;
+        patch.completed_at ??= merged.completed_at ?? merged.notified_at;
+        patch.completed_by ??= req?.user?.id ?? null;
+        return;
+      }
       if (!String(merged.notified_who ?? '').trim()) fields.notified_who = 'Record who was notified.';
       if (!String(merged.notified_how ?? '').trim()) fields.notified_how = 'Record how they were notified (phone, email, web form...).';
       if (merged.notified_at && new Date(merged.notified_at).getTime() > Date.now() + 5 * 60_000) fields.notified_at = 'The notification time cannot be in the future.';

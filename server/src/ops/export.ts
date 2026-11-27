@@ -94,6 +94,7 @@ export const SECRET_COLUMNS: Record<string, Record<string, unknown>> = {
  */
 export const NOT_SECRET_COLUMNS = [
   'audit_events.token_id', 'audit_events.token_name', 'mcp_calls.token_id', 'mcp_calls.token_name', 'mcp_token_tools.token_id',
+  'data_load_records.token_id', 'data_load_records.token_name', // which token made a load (E18-70): an id and a name, never the token
 ];
 
 /** A row with the secret columns of its table replaced. */

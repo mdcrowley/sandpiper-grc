@@ -44,6 +44,7 @@ invented.
 - [Routes added in wave 20](#routes-added-in-wave-20)
 - [Routes added in waves 21 and 22](#routes-added-in-waves-21-and-22)
 - [Changes in wave 23 (security review)](#changes-in-wave-23-security-review)
+- [Data load mode](#data-load-mode)
 - [Examples of common integrations](#examples-of-common-integrations)
 
 ## Authentication: personal access tokens
@@ -749,6 +750,33 @@ cell, and `/api/vehicles/:id/equipment` adds `count`, `source`, `installed`, `wo
   `fields.roles`. `/api/users/options?q=` leaves out outside reviewer accounts.
 - `POST /api/departments/:id/merge`: 403 for people whose roles are scoped, unless they hold
   `admin.administer`.
+
+## Data load mode
+
+For loading historical records with their original dates (E18-70; see
+[Data load mode](user/09-administration.md#data-load-mode) and [Security](security.md#data-load-mode)).
+While an administrator has switched it on, a create or update by a person holding
+`admin.administer`, or with their token (the owner's grants decide; an assistant token also needs
+AI assistant write access), may also set:
+
+- read-only fields (`opened_at`, `resolved_at`, `closed_at`, due times, breach flags and so on);
+  a column the database works out is refused with a field error;
+- any status, without lifecycle or module step rules;
+- `created_at`, `updated_at` (ISO 8601) and `created_by` (a user id);
+- the reference (`ref`): 400 on the field when it is taken; numbering continues after it.
+
+Values given win over what the module would work out; what is missing is worked out from the dates
+given. Nothing is sent (no notifications, email, webhooks or approvals). Outside the mode, or for
+anyone else, read-only fields are ignored as before.
+
+| Route | Purpose |
+|---|---|
+| `GET /api/admin/data-load` | The mode (`on`, `until`, who switched it on) and the loads by day and record type (`admin.administer`) |
+| `POST /api/admin/data-load` | `{ on: true, days? \| until? }` (at most 30 days; session only, recent password confirmation) or `{ on: false }` |
+| `POST /api/admin/data-load/undo` | `{ type, day }`: soft-deletes everything that load created; `{ deleted, held, missing }` (session only, recent password confirmation) |
+| `DELETE /api/data-load/records/:type/:id` | Deletes one record created in data load mode while the mode is on (a token may call it when its owner is an administrator); 409 `data_load_off`, 404 when the record was not loaded, 409 `on_hold` |
+
+`GET /api/auth/state` carries `dataLoad: { on, until }` for administrators while the mode is on.
 
 ## Examples of common integrations
 

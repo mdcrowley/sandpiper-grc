@@ -222,6 +222,7 @@ Read them in code with `ctx.settings.get(key, fallback)`, using the same fallbac
 | `branding.logo_light`, `branding.logo_dark` | none | Logos (PNG, JPEG or WebP by content, at most 512 KB and 2048 pixels; never SVG) with their description, stored as settings so they are in every backup; set only through `POST/DELETE /api/admin/organization/logo/:variant`, never PATCHed. Served publicly at `/api/branding/logo/:variant`. A WebP logo may hold a browser-made PNG copy (`print`, at most 1 MB, same shape) used by PDFs and emails; `POST /api/admin/organization/logo/:variant/print` adds one |
 | `branding.email_logo` | `true` | Emails carry the light-theme logo inline (Content-ID) when it is PNG or JPEG (or a WebP logo's PNG copy) up to 200 KB |
 | `pilot_mode` | `true` | Shows the "sample and test data only" notice |
+| `data_load.mode` | not set (off) | Data load mode (E18-70): `{ until, startedAt, startedBy }` while on; written only by `POST /api/admin/data-load` (Administration > Settings > Data load mode, recent password), removed when it ends |
 | `features` | every area on except `portal` | Feature switches, one boolean per optional area (`core/features.ts`); changed under Administration > Features (needs a recent password confirmation). An area missing from the stored value takes its default |
 | `auth.password_min_length` | `14` | Minimum password length (never below 12) |
 | `auth.password_history` | `5` | Earlier passwords that may not be reused |
@@ -619,6 +620,19 @@ and a `db.tx` inside is a savepoint. Effects outside the database wait for the c
 `afterCommit(fn)` from `core/db.ts` (the job queue does). `inTrial()` is also true while the save's
 transaction is open. Record-change listeners run after the commit. Linking a record (a `ref` field)
 needs view permission on the linked area, except on the portal and mobile sync routes.
+
+**Data load mode** (E18-70, `core/dataload.ts`). While an administrator has it on, a save by someone
+holding `admin.administer` (or with their token) is a load: `create`/`update` accept read-only fields
+that are plain columns, `created_at`, `created_by`, `updated_at` and the reference, skip lifecycle
+checks and approval holds, and put the supplied read-only fields and status back over what
+`beforeCreate`/`beforeUpdate` return. `req.dataLoad` is true for the hooks, and `isDataLoad(req)` from
+`core/dataload.ts` is the check to use: a hook that works out a value from "now" works it out from the
+dates given instead and only when it is missing, and a hook's own status or step rules are skipped.
+Inside a load `inDataLoad()` is true: `notify`, `sendMail`, `sendText` and `pushNotify` are wrapped to
+do nothing (`quietSenders`, after every module registers), and webhooks, work-tracker sends and
+approval workflows skip; a new sender with outside effects checks `inDataLoad()` too. Records created
+are listed in `data_load_records`. `ctx.resources.remove(type, id, req)` is the engine's soft delete
+(the generic `DELETE`, bulk delete and undoing a load).
 
 Field types: `text`, `longtext`, `number`, `currency`, `date`, `datetime`, `boolean`,
 `lookup` (needs `list`), `user`, `ref` (needs `to`), `json`. Field names are column names.

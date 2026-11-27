@@ -152,7 +152,7 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | [E15](epics/E15-self-service-portal.md) | Self-service portal | done | 14 / 14 |
 | [E16](epics/E16-hosting-operations-and-hardening.md) | Hosting, operations and hardening | in progress | 35 / 39 |
 | [E17](epics/E17-documentation.md) | Documentation | done | 14 / 14 |
-| [E18](epics/E18-quality-and-known-defects.md) | Quality and known defects | done | 69 / 69 |
+| [E18](epics/E18-quality-and-known-defects.md) | Quality and known defects | done | 70 / 70 |
 | [E19](epics/E19-fleet-and-services.md) | Fleet and services | done | 14 / 14 |
 | [E20](epics/E20-safety-management.md) | Safety management | done | 15 / 15 |
 | [E21](epics/E21-mcp-server.md) | MCP server (AI assistant access) | done | 25 / 25 |
@@ -177,7 +177,7 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | [E40](epics/E40-production-hardening.md) | Production hardening | done | 14 / 14 |
 | [E41](epics/E41-product-gaps-wave-19.md) | Product gaps found in the wave 19 review | done | 17 / 17 |
 | [E42](epics/E42-windows-installer.md) | Windows installer, in-place updates and the update check | in progress | 7 / 8 |
-| | **Total** | | **784 / 795** |
+| | **Total** | | **785 / 796** |
 
 Of the 11 issues not done, E42-07 (the Windows installer on a real Windows Server, by hand) needs a
 person. Every product gap of the wave 19 review (E41) is built. Wave 20 built E41-01
@@ -221,6 +221,10 @@ message; each person acknowledges through their own link without signing in; the
 who has not acknowledged, with phone acknowledgments and reminders), E41-15 (a retention schedule
 and destruction log for the organization's own records) and E41-16 (search inside attached files,
 with previews of images and PDFs).
+
+Data load mode (E18-70) lets an administrator load historical records, such as past service desk
+tickets, with their original dates through the API or an AI assistant, sends nothing for them, and
+undoes a load from Administration > Data loads.
 
 Wave 23 was an internal security review of waves 20 to 22 (E18-68): file text is read in a separate
 process with memory and time limits, so a hostile PDF cannot exhaust the server; the Windows installer

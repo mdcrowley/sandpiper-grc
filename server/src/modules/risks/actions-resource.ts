@@ -1,6 +1,7 @@
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { MASKED_LABEL, MASKED_SQL, MASKED_VALUE } from '../../core/resource.ts';
+import { isDataLoad } from '../../core/dataload.ts';
 import { departmentPrepare } from '../../core/scope.ts';
 import { dayInZone } from '../../core/timezone.ts';
 import type { makeActionExtras } from './actions.ts';
@@ -72,6 +73,9 @@ export function registerActionResource(ctx: ModuleContext, extras: ActionExtras)
       if (site) data.site_id = site;
     }
     const merged: Row = { ...(existing ?? {}), ...data };
+    // Data load mode (E18-70): historical actions keep the status and dates given; no step rules,
+    // and no completion or verification date is made up from today.
+    if (isDataLoad(req)) return data;
 
     // E23-05: once its plan is approved, an action's due date moves through an extension request;
     // people who may approve actions can still change it directly.
@@ -176,13 +180,15 @@ export function registerActionResource(ctx: ModuleContext, extras: ActionExtras)
       beforeUpdate: (req, existing, patch) => prepareAction(req, existing, patch),
       afterCreate: async (req, row) => {
         await extras.notifyAssigned(req, row);
-        if (row.cap_id) await syncCap(ctx, String(row.cap_id));
+        // A loaded plan keeps its loaded status; only its counts follow (E18-70).
+        if (row.cap_id) await syncCap(ctx, String(row.cap_id), { countsOnly: isDataLoad(req) });
       },
       afterUpdate: async (req, before, after) => {
         if (after.owner_id && after.owner_id !== before.owner_id) await extras.notifyAssigned(req, after);
         // A plan follows its actions: in progress, verifying, closed, or back in progress on a reopen.
-        if (before.cap_id && before.cap_id !== after.cap_id) await syncCap(ctx, String(before.cap_id));
-        if (after.cap_id && (after.status !== before.status || after.cap_id !== before.cap_id)) await syncCap(ctx, String(after.cap_id));
+        const countsOnly = isDataLoad(req); // (E18-70)
+        if (before.cap_id && before.cap_id !== after.cap_id) await syncCap(ctx, String(before.cap_id), { countsOnly });
+        if (after.cap_id && (after.status !== before.status || after.cap_id !== before.cap_id)) await syncCap(ctx, String(after.cap_id), { countsOnly });
       },
     },
   });

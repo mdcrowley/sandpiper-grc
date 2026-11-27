@@ -8,7 +8,10 @@ import { RECORD_TOOLS } from './tools-records.ts';
 import { MODEL_TOOLS } from './tools-models.ts';
 import { WORK_TOOLS } from './tools-work.ts';
 
-/** Every tool the server knows, in the order they are listed. Delete is deliberately not among them. */
+/**
+ * Every tool the server knows, in the order they are listed. The one delete tool, delete_record, is
+ * offered only while data load mode is on, for records a load created (E18-70).
+ */
 export const ALL_TOOLS: ToolSpec[] = [...RECORD_TOOLS, ...MODEL_TOOLS, ...WORK_TOOLS, ...APPROVAL_TOOLS, ...PROGRAM_TOOLS];
 
 export function availability(ctx: ModuleContext, permissions: string[]): Availability {
@@ -30,6 +33,7 @@ export function toolState(tool: ToolSpec, settings: McpSettings, a: Availability
   if (tool.write && !settings.writeEnabled) return { offered: false, reason: 'Write access for AI assistants is off.' };
   if (session && tool.write && !hasWriteScope(session.permissions)) return { offered: false, reason: 'The token has no create or edit permissions.' };
   if (a && tool.available && !tool.available(a)) return { offered: false, reason: 'Needs a part of the application or a permission this caller does not have.' };
+  if (tool.dataLoadOnly && !session?.dataLoad?.allowed) return { offered: false, reason: 'Only while data load mode is on, for administrators (Administration > Settings).' };
   return { offered: true, reason: null };
 }
 

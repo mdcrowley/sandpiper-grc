@@ -212,6 +212,12 @@ content, which belongs in a document tool (E25-13, E29-11, E32-06, E34-09).
 - **Scope in module figures**: the hand-written `figureMask(type, alias)` used by some module figure
   queries ignores department/site scope (restriction is masked; scope details may show in those
   module-specific groupings).
+- **Data load mode (E18-70)** works out missing values from the dates given for tickets, risks,
+  actions, corrective action plans, changes, security incidents, vulnerabilities and policy
+  exceptions; other types keep the values given but still work out anything missing from today.
+  `list_record_types` lists every read-only field as settable in a load, including the few the
+  database works out (refused with a field error on save). A load is undone per record type and day,
+  not per assistant conversation.
 - **Search inside files (E41-16)** covers PDF, .docx and plain text only; scanned PDFs (no
   OCR), .doc, spreadsheets and presentations are found by name only. File previews cover images and
   PDFs (first 30 pages).
