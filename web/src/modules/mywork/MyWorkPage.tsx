@@ -1,12 +1,14 @@
 // My work: one card per list of work waiting for the person, the same lists (and so the same counts)
 // as the Overview's My work section, plus access reviews and the reports delivered to them. A list
-// whose area is switched off, or that the person's role does not include, is left out.
+// whose area is switched off, or that the person's role does not include, is left out. Everyone may
+// report a safety hazard or ask for help here (Report a problem, wave 26), for the areas that are on.
 import { useCallback, useMemo, useState } from 'react';
 import { Icon, PageHeader, formatDateTime, moduleOn, modules, useAuth, useFetch, useMeta } from '../../core';
 import { DueChip, WorkCard, WorkTally, type WorkItem } from '../home/parts';
 import { SourcesProvider } from '../home/sources';
 import type { WidgetCtx } from '../home/types';
 import { MY_WORK_WIDGETS } from '../home/widgetsMyWork';
+import { MyReports, ReportProblem, type ReportOptions } from './ReportProblem';
 import '../home/home.css';
 import './mywork.css';
 
@@ -62,6 +64,11 @@ export function MyWorkPage() {
   const reviews = has('accessreviews') && can('systems.view');
   const delivered = has('reports');
 
+  // What everyone may report here (null kinds are switched off), and a version to re-read My reports after sending.
+  const reportOptions = useFetch<ReportOptions>(has('work') ? '/api/work/report/options' : null);
+  const canReport = Boolean(reportOptions.data?.safety || reportOptions.data?.help);
+  const [sentVersion, setSentVersion] = useState(0);
+
   const [counts, setCounts] = useState<Record<string, number | null>>({});
   const report = useCallback((id: string, count: number | null) => {
     setCounts((prev) => (prev[id] === count || (count === null && !(id in prev)) ? prev : { ...prev, [id]: count }));
@@ -73,7 +80,8 @@ export function MyWorkPage() {
 
   return (
     <div className="stack mywork">
-      <PageHeader title="My work" subtitle="What is waiting for you, in one place. Each tab opens one list in full." />
+      <PageHeader title="My work" subtitle="What is waiting for you, in one place. Each tab opens one list in full."
+        actions={<ReportProblem options={reportOptions.data} onSent={() => setSentVersion((v) => v + 1)} />} />
       <p className="mywork-total" role="status">
         {allCounted
           ? waiting === 0
@@ -91,6 +99,7 @@ export function MyWorkPage() {
           </div>
         </WorkTally.Provider>
       </SourcesProvider>
+      {canReport && <MyReports version={sentVersion} />}
     </div>
   );
 }

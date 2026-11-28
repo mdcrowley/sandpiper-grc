@@ -3,6 +3,7 @@
 // timeline, editing evidence and mappings, and review-date reminders.
 import type { FastifyRequest } from 'fastify';
 import { scheduleWork } from '../../core/jobs/index.ts';
+import { actorOf } from '../../core/dataload.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { sendEvidenceReminders } from './evidence-reminders.ts';
 import { applyReference, exportReference, validateReference } from './importer.ts';
@@ -194,7 +195,7 @@ export async function registerExtras(ctx: ModuleContext, loadScale: (ctx: Module
     if (changed.length) {
       await db.query(
         `update outcome_evidence set title = $2, description = $3, location = $4, collected_on = $5, expires_on = $6, updated_at = now(), updated_by = $7 where id = $1`,
-        [eid, next.title, next.description, next.location, next.collected_on, next.expires_on, req.user!.id]);
+        [eid, next.title, next.description, next.location, next.collected_on, next.expires_on, actorOf(req).id ?? req.user!.id]);
       await ctx.audit(req, {
         action: 'framework_outcome.evidence_edit', recordType: 'framework_outcome', recordId: o.id,
         summary: `Evidence changed on ${o.code}: ${next.title}`,

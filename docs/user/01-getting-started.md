@@ -180,11 +180,22 @@ a box (the inventory count's **Tag number**, for example) the focus stays in tha
 | **Access reviews** | Systems whose accounts you are asked to review |
 | **Delivered reports** | Reports and dashboards delivered to you, and packs you produced |
 
+The **My work** entry in the menu shows a small number: how many items are waiting for you, counted exactly as the **Summary** tab counts them. It is read again when you move to another page (at most once a minute) and every five minutes, and it is not shown while nothing is waiting.
+
+#### Report a problem
+
+Everyone can report a problem from **My work**, whatever their role and whether or not the self-service portal is in use. Select **Report a problem** at the top of the page and choose what you want to report (only the kinds whose part of the application is switched on are offered):
+
+- **A safety hazard, concern or event:** what happened or what the hazard is, when, what kind of event it is, how bad it was as far as you know, where, a description, what was done straight away and how many people were hurt. Tick **It includes personal or medical details** so that only the safety team can read it, or **Keep my name confidential** so that the report is kept without your name: only the people your organization names can see who made it, and each look is recorded. The safety team receives it as a safety event with the status **Reported** (see [Safety management](20-safety-management.md)). If someone is in danger now, call your emergency number or control center first.
+- **Something is broken, or I need help:** what is wrong, details, where, who is affected and how urgent it is. It becomes a ticket for the service desk with you as the requester (see [Service desk](02-service-desk.md)).
+
+**My reports**, below the lists, shows what you reported (from here or from the portal), newest first, with a plain status: **Received**, **Being looked into** or **Closed** for a safety report (with what was done, in the safety team's words, once it is closed), and the request's status for a request for help.
+
 The count on **My approvals** is the same everywhere: on the Overview, on My work and on the **Approvals** page's **Waiting for me** tab. It counts the approval steps where you are a named approver (changes, disposals, risk acceptances and every other approval), plus exception requests and documents in review that your role may decide. Reports delivered to you and records you watch are things to read, so they are not counted as work waiting; neither are notifications.
 
 ### Overview
 
-**Overview** is the home page. Under a greeting with today's date, a line saying how many items are waiting for you, and the line "Governance, risk and compliance for transit organizations", it has two parts: **My work**, which is about you, and **Dashboard**, which is about the organization. Each part is made of boxes called widgets. You only ever see widgets for areas your role can open.
+**Overview** is the start page. Under a greeting with today's date, a line saying how many items are waiting for you, and the line "Governance, risk and compliance for transit organizations", it has two parts: **My work**, which is about you, and **Dashboard**, which is about the organization. Each part is made of boxes called widgets. You only ever see widgets for areas your role can open.
 
 #### My work
 
@@ -219,9 +230,24 @@ The link at the top right of a widget opens the full page for that area. If a wi
 
 The figures are the same for everyone who can see them. To keep the page quick when many people open it at once, the server may answer with figures it worked out a few seconds earlier (ten at most, by default), but never with figures from before a change: as soon as anything is saved, the next visit counts again. (An installation that runs several copies of the server on one database is the exception: a change saved through another copy shows within those few seconds.)
 
+#### Where you land
+
+Each role can send its people somewhere else when they arrive: **My work**, the self-service portal or one dashboard (an administrator chooses this under **Administration > Roles**, see [Administration](09-administration.md#where-people-land)). It applies only on arrival, just after you sign in or when you open the application's address; choosing **Overview** in the menu always shows the Overview. People with no role land on **My work** unless an administrator chooses otherwise.
+
+#### Widgets for safety, the fleet, asset condition, inspections and continuity
+
+People whose role includes these areas also have widgets for them on the Overview, placed first:
+
+- **Active emergency:** a red banner while an emergency activation is active, with a link to it. Nothing is shown otherwise.
+- **Safety:** safety events this month against last month, investigations past due, hazards rated high or serious, hazards past their review date, and the safety indicators that missed their target in the latest month.
+- **Inspections:** inspections overdue, due in the next seven days and missed, with the most overdue listed.
+- **Vehicles by status:** how many vehicles are in service, spare, in maintenance and out of service; select a bar to open those vehicles.
+- **State of good repair:** the share of each asset class past its useful life against its target, and the share in poor condition.
+- **Business continuity:** activations active, plans past their review date or not yet approved, and business processes with a recovery gap.
+
 #### Your home dashboard
 
-A chosen home dashboard (see [Dashboards and reports](15-dashboards-and-reports.md)) is shown in the Overview's **Dashboard** part, with a switch back to the Overview's own figures and an **Open in full** link. The Overview stays the page you land on. People whose role only looks (for example Executive viewer or Auditor) see the figures first, then **Where to look** (links to each area they can open), then **For you**.
+A chosen home dashboard (see [Dashboards and reports](15-dashboards-and-reports.md)) is shown in the Overview's **Dashboard** part, with a switch back to the Overview's own figures and an **Open in full** link. People whose role only looks (for example Executive viewer or Auditor) see the figures first, then **Where to look** (links to each area they can open), then **For you**.
 
 #### Choosing what the overview shows
 

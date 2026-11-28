@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { SegmentedControl } from '@mantine/core';
 import {
@@ -6,7 +6,6 @@ import {
 } from '../../core';
 import { Notice } from './common';
 import { DataLoadCard } from './DataLoad';
-import { DepartmentsCard } from './Departments';
 import { adminApi } from './reauth';
 import { Switch } from './Switch';
 
@@ -70,9 +69,8 @@ const GROUPS: { id: string; title: string; needs?: keyof Values }[] = [
   { id: 'retention', title: 'Retention', needs: 'retention.audit_months' },
   { id: 'actions', title: 'Actions', needs: 'actions.closure_evidence_sources' },
   { id: 'features', title: 'Features' },
-  { id: 'files', title: 'Files' },
   { id: 'dataload', title: 'Data load mode' },
-  { id: 'departments', title: 'Departments' },
+  { id: 'elsewhere', title: 'Elsewhere' },
 ];
 
 /** One setting: what it is on the left, its control on the right, a server or validation message underneath. */
@@ -379,88 +377,23 @@ export function SettingsPage() {
             </Card>
           </Group>
 
-          <Group id="files" title="Files" text="Limits for files attached to records. They apply to new uploads and are saved with their own button.">
-            <FilesCard />
-          </Group>
-
           <Group id="dataload" title="Data load mode" text="For loading historical records with their original dates. Off by default; it saves with its own button and switches itself off at its end time.">
             <DataLoadCard />
           </Group>
 
-          <Group id="departments" title="Departments" text="The list used to group people. Changes here save at once.">
-            <DepartmentsCard />
+          {/* E44-07: sections that have a page of their own are links, not a second copy of the page. */}
+          <Group id="elsewhere" title="Elsewhere" text="Settings that have a page of their own.">
+            <Card>
+              <ul className="adm-plain-list adm-elsewhere">
+                <li><Link to="/admin/attachments">File settings</Link>: the largest file, allowed file types, malware scanning and where files are kept.</li>
+                <li><Link to="/admin/data-loads">Data loads</Link>: what data load mode created, and undoing a load.</li>
+                {auth.can('people.view') && <li><Link to="/people/departments">Departments</Link>: the list used to group people and records.</li>}
+                <li><Link to="/admin/retention">Retention</Link>: how long each kind of record is kept.</li>
+              </ul>
+            </Card>
           </Group>
         </div>
       </div>
     </>
-  );
-}
-
-interface FileConfig { maxBytes: number; allowedExtensions: string[]; scanner?: string }
-
-/** The attachment limits, which belong to the attachments part of the server and save on their own. */
-function FilesCard() {
-  const toast = useToast();
-  const { data, error, reload } = useFetch<FileConfig>('/api/attachments/config');
-  const [maxMb, setMaxMb] = useState<number | null>(null);
-  const [types, setTypes] = useState('');
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [formError, setFormError] = useState('');
-  const [busy, setBusy] = useState(false);
-  const start = data ? { maxMb: Math.round(data.maxBytes / (1024 * 1024)), types: data.allowedExtensions.join(', ') } : null;
-  useEffect(() => {
-    if (!start) return;
-    setMaxMb(start.maxMb);
-    setTypes(start.types);
-  }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  if (error) {
-    return error instanceof ApiError && error.status === 404
-      ? <Card><p className="muted">File attachments are not part of this installation, so there is nothing to set.</p></Card>
-      : <Card><ErrorState error={error} onRetry={reload} /></Card>;
-  }
-  if (!data || !start) return <Card><Loading lines={3} label="Loading file settings" /></Card>;
-  const dirty = maxMb !== start.maxMb || types !== start.types;
-
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    setErrors({});
-    setFormError('');
-    try {
-      // Allowing another file type asks to confirm your identity first (E01-33).
-      await adminApi.patch('/api/attachments/settings', { maxMb, allowedExtensions: types });
-      toast.success('File settings saved.');
-      reload();
-    } catch (err) {
-      const fields = err instanceof ApiError ? err.fields : {};
-      setErrors(fields);
-      if (Object.keys(fields).length === 0) setFormError(errorMessage(err));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <Card>
-      <form onSubmit={submit} noValidate>
-        {formError && <p className="form-error" role="alert">{formError}</p>}
-        <Setting title="Largest file" changed={maxMb !== start.maxMb} text="Each attached file may be up to this size.">
-          <NumberField label="Largest file in megabytes" hideLabel min={1} max={2048} step={1} value={maxMb} onChange={setMaxMb} error={errors.maxMb} hint="Megabytes, from 1 to 2048." />
-        </Setting>
-        <Setting title="Allowed file types" changed={types !== start.types} text="Extensions separated by commas. A file is refused when its content does not match its extension. Programs and scripts can never be allowed.">
-          <TextArea label="Allowed file types" hideLabel rows={3} value={types} onChange={setTypes} error={errors.allowedExtensions} placeholder="pdf, docx, png" />
-        </Setting>
-        <Setting title="Malware scanning" text="Set under Administration > File settings > Malware scanning.">
-          <span className="adm-fixed">
-            {!data.scanner || data.scanner === 'none' ? 'No scanner is installed: files are accepted without a scan and marked “Not scanned”.' : `Every file is checked by “${data.scanner}” before it is accepted.`}
-          </span>
-        </Setting>
-        <div className="form-actions adm-setting-actions">
-          <Button disabled={!dirty} onClick={() => { setMaxMb(start.maxMb); setTypes(start.types); setErrors({}); setFormError(''); }}>Undo changes</Button>
-          <Button type="submit" variant="primary" disabled={!dirty} loading={busy}>Save file settings</Button>
-        </div>
-      </form>
-    </Card>
   );
 }

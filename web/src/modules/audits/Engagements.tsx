@@ -8,6 +8,7 @@ import {
 } from '../../core';
 import type { RecordContext } from '../../core';
 import { AuditWorkpapers } from './Workpapers';
+import { AuditTime } from './Time';
 import { AuditTabs } from './shared';
 
 // Outside reviewers (E41-09) live in their own module; its tab shows only when the module is in the build.
@@ -222,6 +223,7 @@ export function AuditDetail() {
       )}
       tabs={[
         { key: 'checklist', label: 'Workpapers', content: ({ row }) => <AuditWorkpapers auditId={row.id} closed={row.status === 'closed' || row.status === 'canceled'} /> },
+        { key: 'time', label: 'Time', content: ({ row }) => <AuditTime auditId={row.id} closed={row.status === 'closed' || row.status === 'canceled'} /> },
         {
           key: 'requests', label: 'Evidence requests',
           content: ({ row }) => (

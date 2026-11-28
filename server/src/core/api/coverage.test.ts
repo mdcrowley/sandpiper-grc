@@ -43,7 +43,7 @@ const probe: ModuleDef = {
 beforeAll(async () => {
   t = await testApp({ extraModules: [probe] });
   // Every optional part on, the portal and the mobile app included (off by default), so every route is described (E14-34).
-  await t.api.patch('/api/admin/features', { features: { portal: true, mobile: true } });
+  await t.api.patch('/api/admin/features', { features: { portal: true, mobile: true, civilrights: true } });
 });
 afterAll(async () => { await t.close(); });
 

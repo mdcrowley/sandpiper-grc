@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   api, Badge, Button, Card, EmptyState, errorMessage, ErrorState, formatDate, formatDateTime, Loading, LookupChip, NumberField, PageHeader,
-  Select, TableWrap, TextArea, todayInZone, useFetch, useToast, useUnsavedChanges,
+  RecordPicker, Select, TableWrap, TextArea, todayInZone, useFetch, useMeta, useToast, useUnsavedChanges,
 } from '../../core';
 import { AuditTabs } from './shared';
 
@@ -28,7 +28,7 @@ interface Area {
 }
 interface Version {
   id: string; plan_year: number; version: number; status: 'draft' | 'approved' | 'superseded'; note: string | null; included: number;
-  prepared_by_name: string | null; prepared_at: string; approved_by_name: string | null; approved_on: string | null; approval_note: string | null;
+  prepared_by_name: string | null; prepared_at: string; approved_by_name: string | null; approved_on: string | null; approval_note: string | null; approval_reference?: string | null;
   entries: { area_id: string; included: boolean }[];
 }
 interface PlanData {
@@ -89,6 +89,8 @@ function Versions({ data, onChanged }: { data: PlanData; onChanged: () => void }
   const toast = useToast();
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState('');
+  const [decision, setDecision] = useState<string | null>(null);
+  const { resources } = useMeta();
   const newest = data.versions[0];
   const act = async (key: string, fn: () => Promise<unknown>, done: string) => {
     setBusy(key);
@@ -105,6 +107,7 @@ function Versions({ data, onChanged }: { data: PlanData; onChanged: () => void }
                 <div className="muted au-meta">
                   {v.included} areas · prepared by {v.prepared_by_name ?? 'someone'}, {formatDateTime(v.prepared_at)}
                   {v.approved_on ? ` · approved by ${v.approved_by_name ?? 'someone'} on ${formatDate(v.approved_on)}` : ''}
+                  {v.approval_reference ? ` (${v.approval_reference})` : ''}
                 </div>
                 {(v.note || v.approval_note) && <div className="au-meta">{[v.note, v.approval_note].filter(Boolean).join(' · ')}</div>}
               </div>
@@ -120,7 +123,12 @@ function Versions({ data, onChanged }: { data: PlanData; onChanged: () => void }
       {newest?.status === 'draft' && data.can_approve && (
         <div className="au-note">
           <TextArea label="Approval note (optional)" rows={1} value={note} onChange={setNote} hint="Someone other than the person who prepared it approves the plan." />
-          <Button variant="primary" loading={busy === 'approve'} onClick={() => act('approve', () => api.post(`/api/audits/plans/${newest.id}/approve`, { note }), `Version ${newest.version} approved.`)}>Approve version {newest.version}</Button>
+          {/* E45-64: the audit committee's decision as the approval. */}
+          {resources.meeting_decision && (
+            <RecordPicker label="Approved by a committee decision (optional)" type="meeting_decision" value={decision} onChange={(id) => setDecision(id)}
+              hint="A carried decision of a committee meeting: the committee becomes the approver and the meeting's date the approval date." />
+          )}
+          <Button variant="primary" loading={busy === 'approve'} onClick={() => act('approve', () => api.post(`/api/audits/plans/${newest.id}/approve`, { note, ...(decision ? { decision_id: decision } : {}) }), `Version ${newest.version} approved.`)}>Approve version {newest.version}</Button>
         </div>
       )}
     </Card>

@@ -35,9 +35,21 @@ To add a member, select **Add a member** and give any of:
 
 The name of an account or roster person is read from them, so it stays up to date. Then choose the **Side** and the **Role** (**Chair**, **Member** or **Alternate**), whether the member **Votes** (only voting members count toward the quorum), and the term (**Member from** and **Member until**). Someone whose term has ended stays on the list, marked **Not in office**, and no longer counts toward the quorum of later meetings. **Change** edits a member (for example to end their term), and **Remove** takes a member off the committee; past attendance keeps their name.
 
-### Meetings and approvals waiting for the chair
+### Meetings
 
-The **Meetings** tab lists the committee's meetings and plans a new one. The **Waiting for the chair** tab lists the approvals now waiting for the chair's decision (for example a risk acceptance, a corrective action plan or a plan review) on records you may see, so they can be put on an agenda.
+The **Meetings** tab lists the committee's meetings and plans a new one.
+
+### Annual work plan and agenda posting deadline
+
+The **Work plan** tab keeps the standing items the committee takes every year: the budget, the audit plan, the risk register review, a progress report at every meeting. **Add a standing item** gives its title, the **Months** it is due (none: at every meeting), a presenter, open or closed session and notes for the agenda. The table shows, for the year chosen, which meeting took each item.
+
+A meeting's **Agenda** tab lists the standing items due in its month that are not on its agenda yet; **Add them to the agenda** adds them as agenda items, linked to the plan.
+
+A committee may set **Agenda posted at least this many days before the meeting** (for example 3, or what your bylaws or open-meetings rules require). The meeting's **Agenda** tab then says the day the agenda must be posted by (and when that day has passed while the agenda is not published), and the secretary is reminded from two days before that day until the agenda is published.
+
+### Approvals waiting for the chair
+
+The **Waiting for the chair** tab lists the approvals now waiting for the chair's decision (for example a risk acceptance, a corrective action plan or a plan review) on records you may see, so they can be put on an agenda.
 
 ## Meetings
 
@@ -124,12 +136,16 @@ On the **Minutes** tab, **Motion** on an item (or **Motion to adopt** on the con
 
 1. Write the **Motion** as moved, for example "That the board adopt the revised fare policy."
 2. Choose who **Moved by** and **Seconded by**: a member of the committee, or **Someone else (type the name)**. The mover and seconder must be different people.
-3. Record the **Vote**: **Each member's vote** (for, against, abstain or absent for each voting member; present members start as "for" and the others as "absent"), **Counts only**, or **No vote recorded**. The counts are shown as you go.
+3. Record the **Vote**: **Each member's vote** (for, against, abstain, absent or **recused** for each voting member; present members start as "for" and the others as "absent"), **Counts only**, or **No vote recorded**. The counts are shown as you go. A member who declared an interest in the item and took no part (see [Declarations of interest](#declarations-of-interest)) can only be recorded as recused (or absent).
 4. Choose the **Result** (**Approved**, **Rejected**, **Noted** or **Deferred**). Left empty, the motion is approved when more members voted for it than against it. No voting rule of any one jurisdiction is built in: where your committee needs a two-thirds vote or the chair has a casting vote, choose the result yourself.
 5. Give a **Resolution number**, or tick **Give it the committee's next resolution number**. A resolution number is used once in a committee.
 6. If the motion is about a record, choose its type and the record (to approve the minutes of an earlier meeting, choose **Meeting (minutes approval)**).
 
 When no attendance is recorded, or the quorum was not met, the dialog says so. **Change** beside a motion corrects it. Each motion is a decision of the register, with its reference such as `DEC-00001`, linked to its agenda item; its page shows the motion, mover, seconder and vote. An approved decision without a number can be given the next one from its page or with the API (`POST /api/meeting-decisions/:id/resolution-number`).
+
+### Declarations of interest
+
+A member who has an interest in an item (a relative works for a bidder, shares in a supplier, a former employer) declares it. On the meeting's **Agenda** tab, **Record a declaration** names the member, the agenda item (or the whole meeting), the interest and what they did: **Took no part (recused)**, **Left the room**, or **Stayed, with the chair's agreement**. A member who took no part or left the room is recorded as recused in the vote on that item (on every item, for a declaration about the whole meeting). Members declare their own interests from their reading view before the meeting (**Declare an interest**). The minutes list every declaration, and the public version leaves out those about closed-session items. A declaration recorded by mistake can be removed until the minutes are approved; every declaration is in the meeting's history.
 
 ### Decisions
 
@@ -167,7 +183,9 @@ Open **Decisions** for every decision of every committee, with its meeting, outc
 
 A committee's members who have an account (directly, or through their roster person), its chair and its secretary open **My work > Committee meetings**. It lists the meetings of their committees coming up and of the past year, with whether the board book is ready and the minutes are published. No other access is needed, and nobody else sees these meetings there.
 
-A meeting's page shows the agenda once it is published, with presenters, time allotted, closed-session and consent agenda items, and each item's papers: a file paper downloads from there, and a document or record opens in the application when the member may see it. **Board book (PDF)** gives the members' version (closed-session items included) and **Board book, text only** the version with the text of PDF papers. Once the minutes are published, each item shows its minutes and **Minutes (PDF)** downloads them. Every book, minutes and paper a member downloads is recorded in the meeting's history.
+A meeting's page shows the agenda once it is published, with presenters, time allotted, closed-session and consent agenda items, and each item's papers: a file paper downloads from there, and a document or record opens in the application when the member may see it. **Board book (PDF)** gives the members' version (closed-session items included) and **Board book, text only** the version with the text of PDF papers. Once the minutes are published, each item shows its minutes and **Minutes (PDF)** downloads them. Until the meeting is held, **Declare an interest** records the member's own interest in an item or the whole meeting.
+
+Members who subscribe to a calendar feed (see [Calendar feeds](36-calendar-feeds-work-trackers-and-evidence-links.md)) can add **Meetings of committees I sit on** even without access to committees: each meeting links to their reading view. Every book, minutes and paper a member downloads is recorded in the meeting's history.
 
 ## Loading past meetings
 
@@ -185,6 +203,7 @@ Nothing is sent while loading: no notifications or emails reach the members.
 Every hour the application reminds the secretary of a committee (or, when none is named, everyone who may edit committee records):
 
 - **Meeting pack due**: a meeting is coming up within **5 days** with no frozen pack. Each meeting date is announced once.
+- **Agenda to post**: the committee's agenda posting deadline is two days away or has passed and the agenda is not published. Each deadline is announced once before and once after.
 - **Minutes waiting**: a meeting was held more than **7 days** ago and its minutes have not been submitted for approval. Each meeting is announced once.
 
 An administrator can change the lead time for packs (**Remind secretaries before a meeting's pack is due**, setting `governance.pack_days`) under **Administration > Reminders**. People can switch these notifications off under their notification settings (**Committees and meetings**).

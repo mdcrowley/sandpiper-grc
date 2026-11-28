@@ -2,7 +2,8 @@
 import { lazy, Suspense, useState, type ComponentType } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Card, EditableSummary, EmptyState, errorMessage, ErrorState, formatDateTime, Loading, LookupChip, PageHeader, RecordPage, ResourceList, TableWrap, useAuth, useFetch, useToast,
+  Card, EditableSummary, EmptyState, errorMessage, ErrorState, formatDate, formatDateTime, Loading, LookupChip, PageHeader, RecordPage, ResourceList, StatusChip, TableWrap,
+  todayInZone, useAuth, useFetch, useToast,
 } from '../../core';
 import type { RecordContext } from '../../core';
 import { HazardMatrix, RatingChip, SafetyActions, SafetyTabs, useHazardScale } from './shared';
@@ -16,19 +17,36 @@ const ControlsPanel = loadControls ? lazy(() => loadControls().then((m) => ({ de
 export function HazardList() {
   const { scale } = useHazardScale();
   const { can } = useAuth();
+  const today = todayInZone();
+  // Quick views (wave 26): hazards past their review date, and hazards nobody owns.
+  const quick = [
+    { label: 'Past review', to: `/safety/hazards?f.review_date.lt=${today}&sort=review_date&dir=asc` },
+    { label: 'No owner', to: '/safety/hazards?f.owner_id.null=true' },
+    { label: 'All hazards', to: '/safety/hazards' },
+  ];
   return (
     <div className="stack">
-      <PageHeader title="Hazard log" subtitle="Hazards to passengers, staff and the public, scored on the safety hazard matrix."
+      <PageHeader title="Hazard log" subtitle="Hazards to passengers, staff and the public, scored on the safety hazard matrix. Every hazard needs an owner and a review date."
         actions={can('safety.administer') ? <Link className="btn btn-secondary" to="/safety/matrix">Hazard matrix</Link> : undefined} />
       <SafetyTabs active="hazards" />
+      <nav className="sf-quick" aria-label="Quick views of the hazard log">
+        {quick.map((q) => <Link key={q.label} className="btn btn-secondary btn-sm" to={q.to}>{q.label}</Link>)}
+      </nav>
       <ResourceList
         type="hazard"
         urlState
         columns={[
-          'ref', 'title', 'status',
-          { field: 'rating', label: 'Rating', sortable: true, render: (r) => <RatingChip scale={scale} rating={r.rating} /> },
-          { field: 'residual_rating', label: 'After mitigation', render: (r) => <RatingChip scale={scale} rating={r.residual_rating} /> },
-          'owner_id', 'review_date', { field: 'mode', hidden: true }, { field: 'source', hidden: true },
+          'ref', 'title',
+          // The rating matters more than the status, so it stays on narrow screens (wave 26).
+          { field: 'rating', label: 'Rating', sortable: true, priority: 1, render: (r) => <RatingChip scale={scale} rating={r.rating} /> },
+          { field: 'status', priority: 2 },
+          { field: 'residual_rating', label: 'After mitigation', priority: 3, render: (r) => <RatingChip scale={scale} rating={r.residual_rating} /> },
+          { field: 'owner_id', label: 'Owner', priority: 2, render: (r) => (r.owner_id ? (r._display?.owner_id ?? '—') : <StatusChip color="amber" label="No owner" />) },
+          { field: 'review_date', label: 'Next review', priority: 1, render: (r) => {
+            if (!r.review_date) return <StatusChip color="amber" label="No review date" />;
+            return String(r.review_date) < today ? <span className="sf-overdue">{formatDate(r.review_date)} (overdue)</span> : formatDate(r.review_date);
+          } },
+          { field: 'mode', hidden: true }, { field: 'source', hidden: true },
         ]}
         filters={['status', 'source', 'mode', 'owner_id', 'site_id', 'review_date']}
         createFields={['title', 'description', 'source', 'consequence', 'existing_controls', 'mode', 'site_id', 'owner_id', 'review_date']}

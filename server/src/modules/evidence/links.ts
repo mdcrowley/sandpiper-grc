@@ -27,6 +27,8 @@ export const LINK_TYPES = [
   'control', 'control_test', 'obligation', 'audit_engagement', 'audit_request', 'audit_finding', 'compliance_review',
   'review_deficiency', 'funding_award', 'funding_certification', 'cap', 'action', 'framework_outcome', 'policy', 'risk',
   'evidence_item',
+  // Wave 26 (E46): procurement and insurance records.
+  'procurement', 'purchase_order', 'insurance_policy', 'insurance_certificate', 'insurance_condition',
 ];
 
 export interface Target { def: ResourceDef; row: Row; label: string; ref: string | null }

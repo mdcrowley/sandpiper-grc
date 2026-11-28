@@ -21,6 +21,7 @@ import { fileURLToPath } from 'node:url';
 import { ensureJobs, scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { SEARCH_CONFIG } from '../../core/search.ts';
+import { OCR_MAX_MEMORY_MB, OCR_TIME_LIMIT_MS, ocrState, type OcrJob } from './ocr.ts';
 
 export const TEXT_JOB = 'attachments.text_index';
 /** The file types whose text is read. */
@@ -40,14 +41,14 @@ const MAX_UNPACKED = 100 * 1024 * 1024;
 const BATCH = 25;
 const HOUR = 3_600_000;
 
-export type TextResult = { ok: true; text: string } | { ok: false; error: string; unavailable?: boolean; stopped?: boolean };
+export type TextResult = { ok: true; text: string; scanned?: boolean; ocr?: boolean; pictures?: number } | { ok: false; error: string; unavailable?: boolean; stopped?: boolean };
 
 /**
  * Reads the text of one file's bytes in a separate process, killed after the time limit; the
  * process ends itself past `maxMemoryMb`. Whatever the file does to the reader, the server process
  * is not affected. `stopped` says the reader was killed or died, rather than giving up on the file.
  */
-export function extractText(bytes: Buffer, extension: string, opts: { timeoutMs?: number; maxChars?: number; maxMemoryMb?: number } = {}): Promise<TextResult> {
+export function extractText(bytes: Buffer, extension: string, opts: { timeoutMs?: number; maxChars?: number; maxMemoryMb?: number; ocr?: OcrJob } = {}): Promise<TextResult> {
   return new Promise((resolve) => {
     let settled = false;
     let child: ChildProcess | undefined;
@@ -76,7 +77,7 @@ export function extractText(bytes: Buffer, extension: string, opts: { timeoutMs?
     child.send({
       bytes: new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength), extension,
       maxChars: opts.maxChars ?? TEXT_MAX_CHARS, maxPages: TEXT_MAX_PAGES, maxUnpacked: MAX_UNPACKED,
-      maxMemoryMb: opts.maxMemoryMb ?? TEXT_MAX_MEMORY_MB,
+      maxMemoryMb: opts.maxMemoryMb ?? TEXT_MAX_MEMORY_MB, ocr: opts.ocr ?? null,
     }, (err) => { if (err) done({ ok: false, error: `could not start the reader: ${err.message}`.slice(0, 300) }); });
   });
 }
@@ -164,7 +165,20 @@ export async function indexFileTexts(ctx: ModuleContext, limit = BATCH, opts: { 
     if (!bytes) { await store(ctx, att.id, 'skipped', `larger than ${TEXT_MAX_BYTES / 1024 / 1024} MB`, null); sum.skipped += 1; continue; }
     const attempt = await startAttempt(ctx, att.id);
     if (!attempt) continue; // removed meanwhile
-    const r = await extractText(bytes, att.extension, opts);
+    let r = await extractText(bytes, att.extension, opts);
+    // A scanned PDF (no text layer) is read again with OCR, with its own, larger limits (E43-15).
+    let ocrNote: string | null = null;
+    if (r.ok && r.scanned) {
+      const state = ocrState();
+      if (!state.ready) ocrNote = `scanned: no text layer; ${state.reason}`;
+      else {
+        const o = await extractText(bytes, att.extension, {
+          ocr: state.job, timeoutMs: opts.timeoutMs ?? OCR_TIME_LIMIT_MS, maxMemoryMb: Math.max(opts.maxMemoryMb ?? 0, OCR_MAX_MEMORY_MB),
+        });
+        if (o.ok && o.text) { r = o; ocrNote = `read by OCR (${state.job.langs})`; }
+        else ocrNote = o.ok ? 'scanned: OCR found no text' : `scanned: OCR failed (${o.error})`;
+      }
+    }
     if (!r.ok && r.unavailable) {
       // The reader library is missing from this installation: nothing is recorded, so the file is
       // read once it is there, and files of other types go on being read meanwhile.
@@ -182,10 +196,10 @@ export async function indexFileTexts(ctx: ModuleContext, limit = BATCH, opts: { 
       await store(ctx, att.id, 'failed', r.stopped ? `${r.error}; it is not read again` : r.error, null);
       sum.failed += 1;
     } else if (!r.text) {
-      await store(ctx, att.id, 'empty', null, null);
+      await store(ctx, att.id, 'empty', ocrNote, null);
       sum.empty += 1;
     } else {
-      await store(ctx, att.id, 'indexed', null, r.text);
+      await store(ctx, att.id, 'indexed', ocrNote, r.text);
       sum.indexed += 1;
     }
   }

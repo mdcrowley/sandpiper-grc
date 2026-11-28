@@ -59,6 +59,8 @@ function RelatedRisks({ row }: { row: Row }) {
 const DETAIL_FIELDS = [
   'title', 'description', 'category', 'cause', 'consequence', 'affected', 'existing_controls',
   'treatment', 'owner_id', 'due_on', 'review_on', 'status', 'parent_id',
+  // E45-57: when it could happen, how fast it would hit, the objective it threatens.
+  'proximity', 'velocity', 'strategic_objective',
 ];
 
 /**
@@ -134,7 +136,7 @@ function RiskStory({ rec, scale }: { rec: RecordContext; scale: Scale | undefine
           initial={row}
           fields={fields}
           sections={[
-            { title: 'What could happen', fields: ['title', 'description', 'category', 'parent_id', 'cause', 'consequence', ...(shows('affected') ? ['affected'] : [])] },
+            { title: 'What could happen', fields: ['title', 'description', 'category', 'parent_id', 'cause', 'consequence', ...(shows('affected') ? ['affected'] : []), 'proximity', 'velocity', 'strategic_objective'] },
             { title: 'Controls and treatment', fields: ['existing_controls', 'treatment', 'status', 'owner_id', 'due_on', 'review_on', ...(can('security.view') ? ['restricted'] : [])] },
           ]}
           hints={{ status: 'To mark a risk Accepted, record an acceptance instead.', category: 'The category decides which scale the risk is scored on and which fields it has.', parent_id: 'The enterprise risk this one rolls up under, if any.', restricted: 'A restricted risk is seen only by people with access to restricted records; others see it counted as "Restricted risk".' }}

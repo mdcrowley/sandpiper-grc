@@ -9,6 +9,7 @@ import { MyTraining } from './MyTraining';
 import { TrainingOverview } from './Overview';
 import { CertificationDetail, CertificationList, QualificationMatrix } from './Qualifications';
 import { TrainingRecords } from './Records';
+import { TrainingSettings } from './Settings';
 import './training.css';
 
 const mod: ModuleDef = {
@@ -17,6 +18,8 @@ const mod: ModuleDef = {
     { group: 'Home', label: 'My training', path: '/training/mine', icon: 'user', order: 33, menu: false, parent: '/my-work', tab: 'Training' },
     { group: 'People and training', label: 'Training overview', path: '/training', icon: 'graduation', permission: 'training.view', order: 20, tabs: 'Overview' },
     { group: 'People and training', label: 'Courses', path: '/training/courses', icon: 'book', permission: 'training.view', order: 21, menu: false, parent: '/training', tab: 'Courses' },
+    // E44-10: the reminder interval has an address of its own: the last tab of Training and an Administration card.
+    { group: 'People and training', label: 'Training settings', path: '/training/settings', icon: 'settings', permission: 'training.administer', order: 22, menu: false, parent: '/training', tab: 'Settings', hub: 'Area settings', hint: 'When people are reminded of training past its due date.' },
     // Qualifications of the roster (E29) are about people: the matrix needs people.view as well as training.view.
     { group: 'People and training', label: 'Qualifications', path: '/training/qualifications', icon: 'check-square', permission: 'training.view', permissions: ['people.view'], order: 30, tabs: 'Qualifications' },
     { group: 'People and training', label: 'Certifications', path: '/training/certifications', icon: 'star', permission: 'training.view', order: 31, menu: false, parent: '/training/qualifications', tab: 'Certifications' },
@@ -26,6 +29,7 @@ const mod: ModuleDef = {
   routes: [
     { path: '/training', element: <TrainingOverview />, permission: 'training.view' },
     { path: '/training/courses', element: <CourseList />, permission: 'training.view' },
+    { path: '/training/settings', element: <TrainingSettings />, permission: 'training.administer' },
     { path: '/training/courses/:id', element: <CourseDetail />, permission: 'training.view' },
     { path: '/training/records', element: <TrainingRecords />, permission: 'training.view' },
     { path: '/training/import', element: <TrainingImport />, permission: 'training.create' },

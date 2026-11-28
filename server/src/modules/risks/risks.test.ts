@@ -328,7 +328,7 @@ describe('actions', () => {
     expect(overdue.body.rows.map((r: any) => r.title)).toEqual(['Overdue one']);
     expect((await agent.get('/api/actions?f.owner_id=me')).body.total).toBe(2);
 
-    expect((await (await t.as('executive_viewer')).get('/api/actions/summary')).status).toBe(403);
+    expect((await (await t.as('approver')).get('/api/actions/summary')).status).toBe(403);
   });
 
   it('hides an action raised on a restricted record from people without security.view, everywhere', async () => {

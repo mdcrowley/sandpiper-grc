@@ -40,6 +40,12 @@ const TERMS = {
   funding: [/\bgrant (compliance|awards?)\b/i, /\bfunding (awards?|certifications?)\b/i, /\bfunder compliance reviews?\b/i, /\bsub-?recipients?\b/i],
   // Wave 25 (E45-06). Not "evidence" alone: evidence files on records (attachments) stay on.
   evidence: [/\bevidence library\b/i, /\bevidence to renew\b/i, /\bEVD-\d/],
+  // Wave 26 (E46). Not "procurement", "insurance", "purchase order" or "strategic plan" alone: funder
+  // review areas, vendor offboarding steps, risk descriptions and project scoring use them as plain words.
+  procurement: [/\bsolicitations?\b/i, /\bPRC-\d/, /\bBUD-\d/],
+  insurance: [/\binsurance claims?\b/i, /\bIPL-\d/, /\bICL-\d/, /\bCOI-\d/],
+  civilrights: [/\bcivil rights\b/i, /\bparticipation goals?\b/i],
+  strategy: [/\boperating statistics\b/i, /\bstatistical submissions?\b/i, /\bstrategic measures?\b/i, /\bKPI-\d/, /\bOBJ-\d/],
 };
 
 /**

@@ -61,10 +61,10 @@ export function VendorList() {
         ]}
         actions={(
           <>
-            {/* Everyone who views vendors may read the questions; changing them needs administer (Questions.tsx). */}
-            {can('vendors.view') && <Link className="btn btn-secondary" to="/vendors/questions">Assessment questions</Link>}
-            {can('vendors.view') && <Link className="btn btn-secondary" to="/vendors/intake">Intake questions</Link>}
-            {seesContracts && <Link className="btn btn-secondary" to="/vendors/terms">Security terms matrix</Link>}
+            {/* Everyone who views vendors may read the questions; changing them needs administer (Questions.tsx). Administrators
+                have them as tabs (E44-07), so the buttons are for the readers only; the security terms are a tab for everyone. */}
+            {can('vendors.view') && !can('vendors.administer') && <Link className="btn btn-secondary" to="/vendors/questions">Assessment questions</Link>}
+            {can('vendors.view') && !can('vendors.administer') && <Link className="btn btn-secondary" to="/vendors/intake">Intake questions</Link>}
           </>
         )}
       />
@@ -352,7 +352,6 @@ export function VendorDetail() {
         </span>
       )}
       subtitle={(row) => row.services || 'No description of what this vendor supplies yet.'}
-      actions={() => can('contracts.view') && <Link className="btn btn-secondary" to="/vendors/terms">Security terms matrix</Link>}
       banner={({ row }) => <Profile row={row} version={version} />}
       summary={({ row, reload }) => (
         <div className="stack">

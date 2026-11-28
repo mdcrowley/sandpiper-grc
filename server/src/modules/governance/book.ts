@@ -20,6 +20,7 @@ import { agendaFor } from './agenda.ts';
 import { BOOK_MAX_APPENDED_BYTES, appendPdfs, inspectPdfs } from './book-sandbox.ts';
 import { membersOn, quorumOf, seesClosed } from './committees.ts';
 import { votesOf } from './decisions.ts';
+import { declarationsFor } from './declarations.ts';
 import { meetingFor } from './meetings.ts';
 import { currentVersion, DOCUMENT_TYPE, documentLabel, hasTable, seeRecord } from './papers.ts';
 
@@ -348,6 +349,14 @@ export async function makeMinutes(ctx: ModuleContext, user: SessionUser | null, 
   b.paragraph(q.met === null ? `Quorum: ${q.needed} of ${q.voting} voting members needed. No attendance was recorded.`
     : `${q.present} of ${q.voting} voting members present; ${q.needed} needed. Quorum ${q.met ? 'met' : 'not met'}.`);
 
+  // Declarations of interest (E45-60): those about items left out of this version are not listed.
+  const declarations = (await declarationsFor(ctx, user, meeting, !isPublic)).filter((d) => !d.hidden);
+  if (declarations.length) {
+    b.heading('Declarations of interest', 1);
+    b.table([{ header: 'Member', weight: 3 }, { header: 'Item', weight: 3 }, { header: 'Interest', weight: 4 }, { header: 'Action', weight: 2.5 }],
+      declarations.map((d) => [String(d.name), d.item_title ? String(d.item_title) : 'The whole meeting', String(d.interest ?? ''), String(d.action_label)]));
+  }
+
   if (String(meeting.minutes ?? '').trim()) {
     b.heading('General minutes', 1);
     b.markdown(printableMarkdown(String(meeting.minutes)));
@@ -366,7 +375,7 @@ export async function makeMinutes(ctx: ModuleContext, user: SessionUser | null, 
     const list = votes.get(String(d.id)) ?? [];
     if (list.length) {
       b.table([{ header: 'Member', weight: 4 }, { header: 'Vote', weight: 2 }],
-        list.map((v) => [String(v.name), v.vote === 'abstain' ? 'Abstained' : v.vote === 'for' ? 'For' : v.vote === 'against' ? 'Against' : 'Absent']));
+        list.map((v) => [String(v.name), v.vote === 'abstain' ? 'Abstained' : v.vote === 'for' ? 'For' : v.vote === 'against' ? 'Against' : v.vote === 'recused' ? 'Recused (declared an interest)' : 'Absent']));
     }
     if (d.notes) b.markdown(printableMarkdown(String(d.notes)));
   };

@@ -41,23 +41,41 @@ function filler(dataType: string): string {
 
 /** Inserts a bare row of a type (only the columns the table needs), with the given values. */
 async function bareRow(def: ResourceDef, values: Record<string, string | null>, createdBy: string | null = null): Promise<string> {
+  return bareTableRow(def.table, values, createdBy);
+}
+
+/**
+ * Inserts a bare row into a table. A required column that references another table of the same module
+ * (a strategic objective's goal, wave 26) gets a bare row of that table first.
+ */
+async function bareTableRow(table: string, values: Record<string, string | null>, createdBy: string | null = null): Promise<string> {
   const cols = await t.db.query<{ column_name: string; data_type: string }>(
     `select column_name, data_type from information_schema.columns
-     where table_schema = current_schema() and table_name = $1 and is_nullable = 'NO' and column_default is null`, [def.table]);
+     where table_schema = current_schema() and table_name = $1 and is_nullable = 'NO' and column_default is null`, [table]);
+  const refs = new Map((await t.db.query<{ column_name: string; target: string }>(
+    `select kcu.column_name, ccu.table_name as target
+     from information_schema.table_constraints tc
+     join information_schema.key_column_usage kcu on kcu.constraint_name = tc.constraint_name and kcu.table_schema = tc.table_schema
+     join information_schema.constraint_column_usage ccu on ccu.constraint_name = tc.constraint_name and ccu.table_schema = tc.table_schema
+     where tc.constraint_type = 'FOREIGN KEY' and tc.table_schema = current_schema() and tc.table_name = $1`, [table])).map((r) => [r.column_name, r.target]));
   const names: string[] = [];
   const exprs: string[] = [];
   const params: unknown[] = [];
   for (const c of cols) {
     if (c.column_name in values) continue;
     names.push(c.column_name);
-    exprs.push(filler(c.data_type));
+    const target = refs.get(c.column_name);
+    if (target && target !== table) {
+      params.push(await bareTableRow(target, {}));
+      exprs.push(`$${params.length}`);
+    } else exprs.push(filler(c.data_type));
   }
   for (const [k, v] of Object.entries({ ...values, created_by: createdBy })) {
     names.push(k);
     params.push(v);
     exprs.push(`$${params.length}`);
   }
-  const row = await t.db.one<{ id: string }>(`insert into ${def.table} (${names.join(', ')}) values (${exprs.join(', ')}) returning id`, params);
+  const row = await t.db.one<{ id: string }>(`insert into ${table} (${names.join(', ')}) values (${exprs.join(', ')}) returning id`, params);
   return row!.id;
 }
 

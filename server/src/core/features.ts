@@ -254,6 +254,36 @@ export const AREAS: Area[] = [
     permissions: ['evidence'], types: ['evidence_record'], modules: ['evidence'], jobs: ['evidence.'],
     lists: ['evidence_source', 'evidence_relation'],
   },
+  // Wave 26 (E46): the insurance program; its own permission module and module folder.
+  {
+    key: 'insurance', label: 'Insurance', defaultOn: true,
+    description: 'Insurance policies with their limits, conditions, covered records and renewals, certificates of insurance from vendors checked against their contracts, and claims.',
+    permissions: ['insurance'], modules: ['insurance'], jobs: ['insurance.'],
+    owns: { role: ['insurance_coordinator'] },
+  },
+  // Wave 26 (E46): strategy and performance; its own permission module and module folder.
+  {
+    key: 'strategy', label: 'Strategy and performance', defaultOn: true,
+    description: 'The strategic plan register (goals, objectives, measures, initiatives, quarterly updates, the scorecard and a board PDF), operating statistics entered by period, and the log of statistical reports submitted to outside bodies.',
+    permissions: ['strategy'], modules: ['strategy'], jobs: ['strategy.'],
+    lookupValues: { action_source: ['strategy'] }, owns: { role: ['strategy_analyst'] },
+  },
+  // Wave 26 (E46): civil rights programs; its own permission module and module folder. Off by default:
+  // it holds confidential complaints, and an organization chooses to keep them here.
+  {
+    key: 'civilrights', label: 'Civil rights', defaultOn: false,
+    description: 'Civil rights and accessibility programs with their required elements, public notices, language assistance and monitoring reports; complaints with their time limits, confidential by default; and business participation goals with awards and attainment.',
+    permissions: ['civilrights'], modules: ['civilrights'], jobs: ['civilrights.'],
+    lookupValues: { notification_kind: ['civilrights'] }, owns: { role: ['civil_rights_officer'] },
+  },
+  // Wave 26 (E46): procurement and budgets; its own permission module and module folder. Vendors and
+  // contracts stay independent (a solicitation's contract field is hidden while vendors is off).
+  {
+    key: 'procurement', label: 'Procurement and budgets', defaultOn: true,
+    description: 'Solicitations with their offers, evaluation committee, scores, award and protests; purchase orders with approval and receiving; and operating and capital budgets against what is committed and spent.',
+    permissions: ['procurement'], modules: ['procurement'], jobs: ['procurement.'],
+    owns: { role: ['procurement_officer'] },
+  },
 ];
 
 export const AREA_KEYS = AREAS.map((a) => a.key);
@@ -311,7 +341,7 @@ export const OPTIONS: AreaOption[] = [
     key: 'funder_interest', area: null, group: 'Inventory', defaultOn: true,
     label: 'Outside funder interest in equipment',
     description: 'Records that an outside funder (for example a grant program or a public body that paid for part of the equipment) keeps an interest in an asset or vehicle, and refuses to dispose of such an asset until the reference of the funder\'s approval is entered. Switch it off if nobody outside your organization keeps an interest in what you own.',
-    fields: { asset: ['funder_interest', 'funder_interest_pct'], vehicle: ['funder_interest', 'funder_interest_pct'] },
+    fields: { asset: ['funder_interest', 'funder_interest_pct'], vehicle: ['funder_interest', 'funder_interest_pct', 'retirement_funder_ref'] },
     name: {
       default: 'Funder interest', hint: 'For example "Grant interest" or "Lender interest".',
       labels: {
@@ -456,6 +486,15 @@ const ALL_ON = stateFrom(effectiveFeatures({}));
 /** How long one process trusts what it read; a change made in this process applies at once. */
 const TTL_MS = 5_000;
 const cache = new WeakMap<object, { state: FeatureState; at: number; loading?: Promise<FeatureState> }>();
+/** Called with every state read from the database (the feature gate rebuilds the record types' fields from it). */
+const listeners = new WeakMap<object, Set<(state: FeatureState) => void>>();
+
+/** Calls `fn` with each state read for this database from now on. */
+export function onFeatureState(db: object, fn: (state: FeatureState) => void): void {
+  const set = listeners.get(db) ?? new Set();
+  set.add(fn);
+  listeners.set(db, set);
+}
 
 /** The current switches for this database (cached for a few seconds). */
 export async function featureState(db: Queryable): Promise<FeatureState> {
@@ -472,6 +511,7 @@ export async function featureState(db: Queryable): Promise<FeatureState> {
     } catch { /* settings table not created yet (very first start) */ }
     const state = stateFrom(effectiveFeatures(stored), effectiveOptions(storedOptions));
     cache.set(db, { state, at: Date.now() });
+    for (const fn of listeners.get(db) ?? []) fn(state);
     return state;
   })();
   cache.set(db, { state: hit?.state ?? ALL_ON, at: hit?.at ?? 0, loading });
@@ -483,9 +523,22 @@ export function knownFeatureState(db: object): FeatureState {
   return cache.get(db)?.state ?? ALL_ON;
 }
 
-/** Forget the cached state (called when the `features` setting is written). */
+/**
+ * Forget the cached state (called when the `features` setting is written) and read it again at once, so
+ * background work and system saves in this process follow the change without waiting for a request
+ * (wave 26, E46). Until the read is back, the last state is still the one known.
+ */
 export function invalidateFeatures(db: object): void {
-  cache.delete(db);
+  const hit = cache.get(db);
+  if (hit) cache.set(db, { state: hit.state, at: 0 });
+  if (listeners.has(db) && typeof (db as Partial<Queryable>).query === 'function') void featureState(db as Queryable).catch(() => {});
+}
+
+/** Like `invalidateFeatures`, and waits until the new state is read and applied to the record types. */
+export async function refreshFeatures(db: Queryable): Promise<FeatureState> {
+  const hit = cache.get(db);
+  if (hit) cache.set(db, { state: hit.state, at: 0 });
+  return featureState(db);
 }
 
 /** Whether a permission belongs to a switched-off area. */
@@ -620,6 +673,9 @@ export function makeFeatureGate(app: FastifyInstance, db: Queryable) {
         .map(([name, f]) => [name, labels[name] && labels[name] !== f.label ? { ...f, label: labels[name] } : f]));
     }
   }
+
+  // Every state read in this process is applied at once, including the one read right after a change.
+  onFeatureState(db, (s) => applyOptions(s));
 
   app.addHook('preHandler', async (req: FastifyRequest) => {
     // By path or by matched route, so no spelling of the path can step around the switch (wave 9).

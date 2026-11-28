@@ -1,6 +1,6 @@
 # E43 Document control: policies, standards, procedures, SOPs and plans
 
-**Status:** in progress (15 of 19 issues done; the rest are later phases)
+**Status:** done (19 of 19 issues done)
 
 ## Goal
 
@@ -38,11 +38,11 @@ attachments, links, comments, audit, coverage and saved reports keep working; th
 | E43-11 | Importing a document package | done | P2 |
 | E43-12 | The Documents menu and library | done | P1 |
 | E43-13 | Old addresses and the guide | done | P2 |
-| E43-14 | A register of issued paper copies | open | P3 |
-| E43-15 | Reading scanned PDFs (OCR) | open | P3 |
-| E43-16 | A diagonal status mark on printed text versions | open | P3 |
+| E43-14 | A register of issued paper copies | done | P3 |
+| E43-15 | Reading scanned PDFs (OCR) | done | P3 |
+| E43-16 | A diagonal status mark on printed text versions | done | P3 |
 | E43-17 | Originals of released versions are kept, and Word originals are for editors | done | P1 |
-| E43-18 | The Data loads page lists loaded versions | open | P3 |
+| E43-18 | The Data loads page lists loaded versions | done | P3 |
 | E43-19 | The storage check knows uploads in parts | done | P3 |
 
 ### E43-01 Document types and the hierarchy
@@ -160,24 +160,30 @@ import, kiosk and settings are tabs only for the roles that use them.
 
 ### E43-14 A register of issued paper copies
 
-**Status:** open · **Priority:** P3
+**Status:** done · **Priority:** P3 · **Implemented in:** `server/src/modules/policies/copies.ts`, migration `policies/010_document_copies.sql`, `web/src/modules/policies/documents/Copies.tsx` (test `policies/copies.test.ts`).
 
 Record who holds a numbered controlled paper copy and recall it when a new version takes effect.
 
+Done in wave 26: the **Paper copies** tab records numbered copies of the version in force issued to a person or a place, and their recall (date, person, note). Copies of an earlier version are due for recall when a new version takes effect or the document is made obsolete; the owner is told once and has them in My work (calendar source `policies.copy_recalls`). Loaded copies keep their dates and are undone one by one (E43-18).
+
 ### E43-15 Reading scanned PDFs (OCR)
 
-**Status:** open · **Priority:** P3
+**Status:** done · **Priority:** P3 · **Implemented in:** `server/src/modules/attachments/ocr.ts`, `text-worker.mjs`, `text-reader.mjs`, `text.ts`, `attachments/tessdata/`, `policies/convert/index.ts` (test `attachments/ocr.test.ts`); package `tesseract.js` 7.0.0 (Apache-2.0).
 
 Read the text of image-only PDFs with a free OCR engine (for example tesseract.js) in the sandbox, so
 scanned older documents are found by their words, not only their title and number.
 
+Done in wave 26: a PDF with no text layer is read again in the same sandboxed reader process with tesseract.js and the bundled English language data (`eng.traineddata.gz` from tessdata_fast, Apache-2.0): no download and no outside request; limits of 5 minutes, 1 GB and 50 pages. A version read this way is noted "read by OCR". `GRC_OCR=off` stops it; `GRC_OCR_LANGS` and `GRC_OCR_LANG_DIR` choose other languages (E46-56 for choosing them in Administration).
+
 ### E43-16 A diagonal status mark on printed text versions
 
-**Status:** open · **Priority:** P3
+**Status:** done · **Priority:** P3 · **Implemented in:** `server/src/core/export/pdf.ts` (`PdfOptions.mark`), `server/src/modules/policies/print.ts`.
 
 The core PDF builder's diagonal mark says only RESTRICTED; a `mark` option would let a printed Markdown
 version carry SUPERSEDED, OBSOLETE or DRAFT diagonally as stamped PDF originals do. Today the status line
 under the title says it.
+
+Done in wave 26: `PdfOptions.mark` puts a faint diagonal DRAFT, SUPERSEDED or OBSOLETE on every page as an artifact (PDF/UA kept); printed text versions carry it like stamped originals.
 
 ### E43-17 Originals of released versions are kept, and Word originals are for editors
 
@@ -190,10 +196,12 @@ Modules add such rules through `addAttachmentGuard`.
 
 ### E43-18 The Data loads page lists loaded versions
 
-**Status:** open · **Priority:** P3
+**Status:** done · **Priority:** P3 · **Implemented in:** `server/src/modules/policies/loaded-parts.ts`, `versions.ts`, `copies.ts`, `server/src/modules/admin/dataload.ts`, `web/src/modules/admin/DataLoad.tsx`.
 
 `data_load_records` lists the document, not its versions: undoing removes the document (and so hides its
 versions). Listing versions would let one wrong version be undone alone.
+
+Done in wave 26: a module may list its loaded rows one by one through the `loadedParts` decorator; loaded document versions (`policy_version`) and paper copies (`document_copy`) are listed under **Show each**, and **Undo this one** (`POST /api/admin/data-load/undo-one`) removes one loaded version and its loaded acknowledgments, putting the version before it back in force.
 
 ### E43-19 The storage check knows uploads in parts
 

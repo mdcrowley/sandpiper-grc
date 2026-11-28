@@ -6,6 +6,7 @@ import { registerFleetTaggables, VEHICLE_TAG_FIELDS } from './fields-tags.ts';
 import { seedFleet } from './seed.ts';
 import { registerServices } from './services.ts';
 import { isRetired } from './shared.ts';
+import { checkRetirement, registerRetirement, RETIREMENT_METHODS, RETIREMENT_VEHICLE_FIELDS } from './retirement.ts';
 import { dayInZone } from '../../core/timezone.ts';
 
 /**
@@ -53,6 +54,7 @@ async function seedDefaults(ctx: ModuleContext) {
     { value: 'radio', label: 'Radio', sort: 50 },
     { value: 'other', label: 'Other', sort: 90 },
   ], own);
+  await ctx.lookups.ensure('vehicle_disposal_method', RETIREMENT_METHODS, own);
   await ensureFleetConditionLists(ctx);
 }
 
@@ -86,10 +88,11 @@ async function register(ctx: ModuleContext) {
       ...CONDITION_VEHICLE_FIELDS,
       ...VEHICLE_TAG_FIELDS,
       ...VEHICLE_MODEL_FIELDS,
+      ...RETIREMENT_VEHICLE_FIELDS,
     },
     hooks: {
-      beforeCreate: async (_req, data) => { await checkVehicle(ctx, data, data, null); return data; },
-      beforeUpdate: async (_req, existing, patch) => { await checkVehicle(ctx, { ...existing, ...patch }, patch, existing); return patch; },
+      beforeCreate: async (req, data) => { await checkVehicle(ctx, data, data, null); await checkRetirement(ctx, req, null, data, data); return data; },
+      beforeUpdate: async (req, existing, patch) => { await checkVehicle(ctx, { ...existing, ...patch }, patch, existing); await checkRetirement(ctx, req, existing, { ...existing, ...patch }, patch); return patch; },
     },
   });
 
@@ -119,6 +122,7 @@ async function register(ctx: ModuleContext) {
   registerEquipment(ctx);
   registerServices(ctx);
   registerFleetTaggables(ctx);
+  registerRetirement(ctx); // wave 26: retiring a vehicle needs an approval
 }
 
 /** Unique fleet number, a sensible year and percentage, and no retiring a vehicle that still carries equipment. */

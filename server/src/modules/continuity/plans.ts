@@ -9,7 +9,9 @@ import { PDF_TYPE, PdfBuilder } from '../../core/export/pdf.ts';
 import type { ModuleContext, Row, SessionUser } from '../../core/module.ts';
 import { printBranding } from '../../core/organization.ts';
 import { dayInZone, displayDate } from '../../core/timezone.ts';
+import { actorOf } from '../../core/dataload.ts';
 import { addMonths, EXERCISED_BY, invalid, text, ymd } from './shared.ts';
+import { PLAN_TEMPLATES, templateOf } from './templates.ts';
 
 export const PLAN_KIND = 'continuity_plan';
 export const PHASES = ['activate', 'respond', 'recover', 'stand_down'] as const;
@@ -94,6 +96,19 @@ export function registerPlans(ctx: ModuleContext) {
       errors.status = 'A plan is approved through "Submit for approval".';
     }
     if (req && data.policy_id && !(await ctx.resources.find('policy', String(data.policy_id), req.user))) errors.policy_id = 'That policy was not found.';
+    // Wave 26: a plan started from a template takes the template's sections where none are given.
+    if ('template_key' in data && data.template_key !== null && data.template_key !== '') {
+      const t = templateOf(data.template_key);
+      if (existing && data.template_key !== existing.template_key) errors.template_key = 'The template a plan was started from cannot be changed.';
+      else if (!t) errors.template_key = `Choose a template: ${PLAN_TEMPLATES.map((x) => x.key).join(', ')}.`;
+      else if (!existing) {
+        for (const f of ['plan_type', 'scope', 'activation_criteria', 'recovery_strategies', 'body', 'review_months'] as const) {
+          if (data[f] === undefined || data[f] === null || data[f] === '') data[f] = t[f];
+        }
+      }
+    } else if ('template_key' in data && existing?.template_key && data.template_key !== existing.template_key) {
+      errors.template_key = 'The template a plan was started from cannot be changed.';
+    } else if (data.template_key === '') data.template_key = null;
     if (Object.keys(errors).length) invalid(ctx, errors);
     if (existing && 'next_review_on' in data && ymd(data.next_review_on) !== ymd(existing.next_review_on)) data.review_reminded_for = null;
     return data;
@@ -103,7 +118,7 @@ export function registerPlans(ctx: ModuleContext) {
     type: 'continuity_plan', table: 'continuity_plans', module: 'continuity', label: 'Continuity plan', plural: 'Continuity plans',
     path: '/api/continuity-plans', route: '/continuity/plans', titleField: 'title',
     ref: { field: 'ref', prefix: 'CPL-' },
-    searchable: ['title', 'scope', 'activation_criteria', 'recovery_strategies'],
+    searchable: ['title', 'scope', 'activation_criteria', 'recovery_strategies', 'body'],
     defaultSort: { field: 'title', dir: 'asc' },
     fields: {
       ref: { label: 'Reference', type: 'text', readOnly: true },
@@ -114,6 +129,14 @@ export function registerPlans(ctx: ModuleContext) {
       scope: { label: 'Scope', type: 'longtext', personal: false },
       activation_criteria: { label: 'When to activate it', type: 'longtext', personal: false },
       recovery_strategies: { label: 'Recovery strategies', type: 'longtext', personal: false },
+      body: {
+        label: 'Plan sections', type: 'longtext', personal: false,
+        help: 'The rest of the plan as Markdown: roles, communications, recovery objectives, alternate sites, return to normal, maintenance and exercising.',
+      },
+      template_key: {
+        label: 'Started from template', type: 'text', personal: false,
+        help: `Only when creating: a built-in template that fills the empty sections and adds a starter checklist (${PLAN_TEMPLATES.map((t) => `${t.key} = ${t.label}`).join('; ')}).`,
+      },
       policy_id: { label: 'Full text (policy document)', type: 'ref', to: 'policy' },
       review_months: { label: 'Review every (months)', type: 'number', default: 12 },
       next_review_on: { label: 'Next review', type: 'date' },
@@ -123,7 +146,25 @@ export function registerPlans(ctx: ModuleContext) {
     hooks: {
       beforeCreate: (req, data) => check(req, data, null),
       beforeUpdate: (req, existing, patch) => check(req, patch, existing),
+      // The template's starter checklist, unless the plan already has one.
+      afterCreate: async (req, row) => {
+        const t = templateOf(row.template_key);
+        if (!t || await db.one('select 1 from continuity_checklist_items where plan_id = $1 limit 1', [row.id])) return;
+        const by = actorOf(req).id;
+        for (const [i, [phase, item, role]] of t.checklist.entries()) {
+          await db.query('insert into continuity_checklist_items (plan_id, phase, item, role, sort, created_by, updated_by) values ($1,$2,$3,$4,$5,$6,$6)',
+            [row.id, phase, item, role, (i + 1) * 10, by]);
+        }
+      },
     },
+  });
+
+  app.get('/api/continuity/plan-templates', { preHandler: ctx.requirePerm('continuity.view') }, async () =>
+    PLAN_TEMPLATES.map((t) => ({ ...t, checklist: t.checklist.map(([phase, item, role]) => ({ phase, item, role })) })));
+  ctx.describeRoute({
+    method: 'GET', path: '/api/continuity/plan-templates', tag: 'Continuity', permission: 'continuity.view',
+    summary: 'The built-in plan templates; create a plan with `template_key` to start from one (its empty sections and a starter checklist are filled in)',
+    response: '[{ key, label, description, plan_type, review_months, scope, activation_criteria, recovery_strategies, body, checklist: [{ phase, item, role }] }]',
   });
 
   // ---------- approval ----------

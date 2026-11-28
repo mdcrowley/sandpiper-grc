@@ -18,11 +18,13 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_TEXT = 4000;
 /** What a version of a category's appetite says; a change to any of them is a new version. */
-const APPETITE_FIELDS = ['statement', 'max_rating', 'max_score', 'approved_on', 'approved_by_name', 'approval_body', 'reference'] as const;
+const APPETITE_FIELDS = ['statement', 'max_rating', 'max_score', 'approved_on', 'approved_by_name', 'approval_body', 'reference', 'decision_id'] as const;
 
 export interface AppetiteRow {
   category: string; statement: string | null; max_rating: string | null; max_score: number | null;
   approved_on: string | null; approved_by_name: string | null; approval_body?: string | null; reference: string | null;
+  /** The committee decision that approved this version (E45-56), when it was approved at a meeting. */
+  decision_id?: string | null;
   version?: number | null; reason?: string | null; changed_at?: string | null; changed_by_name?: string | null;
 }
 
@@ -69,7 +71,7 @@ export function makeEnterprise(ctx: ModuleContext, scales: Scales) {
   async function appetite(): Promise<Map<string, AppetiteRow>> {
     const rows = await ctx.db.query<AppetiteRow>(
       `select a.category, a.statement, a.max_rating, a.max_score, a.approved_on::text as approved_on, a.approved_by_name, a.approval_body, a.reference,
-              a.version, a.reason, a.updated_at as changed_at, u.display_name as changed_by_name
+              a.decision_id, a.version, a.reason, a.updated_at as changed_at, u.display_name as changed_by_name
        from risk_appetite a left join users u on u.id = a.updated_by`);
     return new Map(rows.map((r) => [r.category, r]));
   }
@@ -142,6 +144,7 @@ interface Deps {
 export async function registerEnterpriseRisk(ctx: ModuleContext, deps: Deps): Promise<void> {
   const { scales, enterprise, riskPre } = deps;
   registerAppetite(ctx, scales, enterprise, riskPre);
+  registerCategoryRestriction(ctx, riskPre);
   registerRollup(ctx, scales, riskPre);
   // The daily check also keeps every risk's breach flag in step (a scale changed elsewhere, a status list edited).
   await registerKris(ctx, riskPre, () => enterprise.refreshBreaches());
@@ -174,7 +177,7 @@ function registerAppetite(ctx: ModuleContext, scales: Scales, enterprise: Enterp
           ratings: (scale?.ratings ?? []).map((r) => ({ key: r.key, label: r.label, color: r.color, sort: r.sort })),
           statement: a?.statement ?? null, max_rating: a?.max_rating ?? null, max_score: a?.max_score ?? null,
           approved_on: a?.approved_on ?? null, approved_by_name: a?.approved_by_name ?? null, approval_body: a?.approval_body ?? null,
-          reference: a?.reference ?? null,
+          reference: a?.reference ?? null, decision_id: a?.decision_id ?? null,
           version: a?.version ?? null, reason: a?.reason ?? null, changed_at: a?.changed_at ?? null, changed_by_name: a?.changed_by_name ?? null,
           versions: versions.find((v) => v.category === c.value)?.versions ?? 0,
           open: n?.open ?? 0, breaches: n?.breaches ?? 0,
@@ -188,7 +191,7 @@ function registerAppetite(ctx: ModuleContext, scales: Scales, enterprise: Enterp
     method: 'GET', path: '/api/risks/appetite', permission: 'risks.view',
     summary: 'The risk appetite in force per category, with open risks and those above it',
     description: 'Counts cover every open risk, restricted ones included. `version` is the number of the appetite version in force; earlier versions are listed by GET /api/risks/appetite/versions.',
-    response: '{ categories: [{ category, label, color, scale_key, scale_name, ratings, statement, max_rating, max_score, approved_on, approved_by_name, approval_body, reference, version, reason, changed_at, changed_by_name, versions, open, breaches }] }',
+    response: '{ categories: [{ category, label, color, scale_key, scale_name, ratings, statement, max_rating, max_score, approved_on, approved_by_name, approval_body, reference, decision_id, version, reason, changed_at, changed_by_name, versions, open, breaches }] }',
   });
 
   // E45-04: every version of the appetite is kept, newest first: what it said, who approved it, when
@@ -197,7 +200,7 @@ function registerAppetite(ctx: ModuleContext, scales: Scales, enterprise: Enterp
     const category = String((req.query as Row).category ?? '').trim();
     const rows = await ctx.db.query<Row>(
       `select v.id, v.category, v.version, v.statement, v.max_rating, v.max_score, v.approved_on::text as approved_on, v.approved_by_name,
-              v.approval_body, v.reference, v.removed, v.reason, v.recorded_at, u.display_name as recorded_by_name
+              v.approval_body, v.reference, v.decision_id, v.removed, v.reason, v.recorded_at, u.display_name as recorded_by_name
        from risk_appetite_versions v left join users u on u.id = v.recorded_by
        where ($1 = '' or v.category = $1) order by v.category, v.version desc`, [category]);
     const labels = new Map((await ctx.lookups.values('risk_category')).map((c) => [c.value, c.label]));
@@ -207,7 +210,7 @@ function registerAppetite(ctx: ModuleContext, scales: Scales, enterprise: Enterp
     method: 'GET', path: '/api/risks/appetite/versions', permission: 'risks.view',
     summary: 'Every version of the risk appetite, newest first per category',
     query: { category: 'A risk category key (default: every category)' },
-    response: '[{ id, category, category_label, version, statement, max_rating, max_score, approved_on, approved_by_name, approval_body, reference, removed, reason, recorded_at, recorded_by_name }]',
+    response: '[{ id, category, category_label, version, statement, max_rating, max_score, approved_on, approved_by_name, approval_body, reference, decision_id, removed, reason, recorded_at, recorded_by_name }]',
   });
 
   ctx.app.put('/api/risks/appetite', { preHandler: riskPre('administer') }, async (req) => {
@@ -231,7 +234,20 @@ function registerAppetite(ctx: ModuleContext, scales: Scales, enterprise: Enterp
         category: c.value, statement: text(raw.statement), max_rating: text(raw.max_rating),
         max_score: raw.max_score === null || raw.max_score === undefined || raw.max_score === '' ? null : Number(raw.max_score),
         approved_on: text(raw.approved_on), approved_by_name: text(raw.approved_by_name), approval_body: text(raw.approval_body), reference: text(raw.reference),
+        decision_id: null,
       };
+      // E45-56: approved by a committee's decision: the committee approved it on the meeting's date, and
+      // the resolution (or decision) is the reference.
+      if (raw.decision_id !== undefined && raw.decision_id !== null && raw.decision_id !== '') {
+        const ask = (ctx.app as unknown as { committeeDecision?: (r: FastifyRequest, id: unknown) => Promise<{ ok: boolean; message?: string; decision?: Row }> }).committeeDecision;
+        const answer = ask ? await ask(req, raw.decision_id) : { ok: false, message: 'Committees and meetings are not available, so a decision cannot approve the appetite.' };
+        if (!answer.ok) { errors[`categories.${i}.decision_id`] = `${c.label}: ${answer.message}`; continue; }
+        const d = answer.decision!;
+        Object.assign(row, { approved_on: d.decided_on, approved_by_name: d.committee_name, approval_body: d.committee_name, reference: d.resolution_number ?? d.ref, decision_id: d.id });
+      } else if (current.get(c.value)?.decision_id && row.approved_on === current.get(c.value)?.approved_on && row.approved_by_name === current.get(c.value)?.approved_by_name) {
+        // The same approval as before, given back unchanged: it stays tied to its decision.
+        row.decision_id = current.get(c.value)!.decision_id ?? null;
+      }
       const empty = !row.statement && !row.max_rating && row.max_score === null;
       const existing = current.get(c.value);
       // Nothing changed, or nothing set and nothing there: no new version.
@@ -260,17 +276,17 @@ function registerAppetite(ctx: ModuleContext, scales: Scales, enterprise: Enterp
     for (const { row: r, removed } of changes) {
       const next = ((await ctx.db.one<{ v: number }>('select coalesce(max(version), 0)::int as v from risk_appetite_versions where category = $1', [r.category]))?.v ?? 0) + 1;
       await ctx.db.query(
-        `insert into risk_appetite_versions (category, version, statement, max_rating, max_score, approved_on, approved_by_name, approval_body, reference, removed, reason, recorded_by)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-        [r.category, next, r.statement, r.max_rating, r.max_score, r.approved_on, r.approved_by_name, r.approval_body, r.reference, removed, reason, actor.id]);
+        `insert into risk_appetite_versions (category, version, statement, max_rating, max_score, approved_on, approved_by_name, approval_body, reference, removed, reason, recorded_by, decision_id)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+        [r.category, next, r.statement, r.max_rating, r.max_score, r.approved_on, r.approved_by_name, r.approval_body, r.reference, removed, reason, actor.id, r.decision_id ?? null]);
       if (removed) { await ctx.db.query('delete from risk_appetite where category = $1', [r.category]); continue; }
       await ctx.db.query(
-        `insert into risk_appetite (category, statement, max_rating, max_score, approved_on, approved_by_name, approval_body, reference, version, reason, updated_at, updated_by)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, now(), $11)
+        `insert into risk_appetite (category, statement, max_rating, max_score, approved_on, approved_by_name, approval_body, reference, version, reason, updated_at, updated_by, decision_id)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, now(), $11, $12)
          on conflict (category) do update set statement = excluded.statement, max_rating = excluded.max_rating, max_score = excluded.max_score,
            approved_on = excluded.approved_on, approved_by_name = excluded.approved_by_name, approval_body = excluded.approval_body, reference = excluded.reference,
-           version = excluded.version, reason = excluded.reason, updated_at = now(), updated_by = excluded.updated_by`,
-        [r.category, r.statement, r.max_rating, r.max_score, r.approved_on, r.approved_by_name, r.approval_body, r.reference, next, reason, actor.id]);
+           version = excluded.version, reason = excluded.reason, updated_at = now(), updated_by = excluded.updated_by, decision_id = excluded.decision_id`,
+        [r.category, r.statement, r.max_rating, r.max_score, r.approved_on, r.approved_by_name, r.approval_body, r.reference, next, reason, actor.id, r.decision_id ?? null]);
     }
     const changed = await enterprise.refreshBreaches();
     const labels = new Map(categories.map((c) => [c.value, c.label]));
@@ -284,9 +300,64 @@ function registerAppetite(ctx: ModuleContext, scales: Scales, enterprise: Enterp
   ctx.describeRoute({
     method: 'PUT', path: '/api/risks/appetite', permission: 'risks.administer',
     summary: 'Records a new version of the risk appetite of the categories that changed, and re-checks every risk against it',
-    description: 'Only categories whose appetite differs from the version in force get a new version; earlier versions are kept. A changed category needs approved_on (not in the future), approved_by_name and approval_body; the change needs a reason. A category given with no statement, rating or score has its appetite removed (recorded as a version too). max_rating is a rating key of the category\'s scale; a risk whose residual (or, unscored, inherent) rating is above it, or whose score is above max_score, is in breach.',
-    body: { type: 'object', required: ['categories'], properties: { reason: { type: 'string' }, categories: { type: 'array', items: { type: 'object', required: ['category'], properties: { category: { type: 'string' }, statement: { type: 'string' }, max_rating: { type: 'string' }, max_score: { type: 'integer' }, approved_on: { type: 'string', format: 'date' }, approved_by_name: { type: 'string' }, approval_body: { type: 'string' }, reference: { type: 'string' } } } } } },
+    description: 'Only categories whose appetite differs from the version in force get a new version; earlier versions are kept. A changed category needs approved_on (not in the future), approved_by_name and approval_body; the change needs a reason. Or give decision_id, a carried decision of a committee meeting (E45-56): the committee is then the approver and the approval body, the date of the meeting the approval date and the resolution the reference. A category given with no statement, rating or score has its appetite removed (recorded as a version too). max_rating is a rating key of the category\'s scale; a risk whose residual (or, unscored, inherent) rating is above it, or whose score is above max_score, is in breach.',
+    body: { type: 'object', required: ['categories'], properties: { reason: { type: 'string' }, categories: { type: 'array', items: { type: 'object', required: ['category'], properties: { category: { type: 'string' }, statement: { type: 'string' }, max_rating: { type: 'string' }, max_score: { type: 'integer' }, approved_on: { type: 'string', format: 'date' }, approved_by_name: { type: 'string' }, approval_body: { type: 'string' }, reference: { type: 'string' }, decision_id: { type: 'string', format: 'uuid' } } } } } },
     response: 'The appetite, as GET returns it',
+  });
+}
+
+// ------------------------------------------------------------------ restriction per category (E45-57)
+
+/**
+ * Which risk categories make their new risks restricted records (the category list's `meta.restricted`,
+ * cybersecurity by default): a form for it, instead of editing the list's meta. Changing it needs
+ * risks.administer and sight of restricted records; `apply_to_existing` also restricts (or opens) the
+ * category's existing risks. Counts are figures: every risk counts.
+ */
+function registerCategoryRestriction(ctx: ModuleContext, riskPre: Deps['riskPre']): void {
+  const view = async () => {
+    const counts = await ctx.db.query<{ category: string; risks: number; restricted: number }>(
+      `select category, count(*)::int as risks, count(*) filter (where restricted)::int as restricted from risks where deleted_at is null group by 1`);
+    return (await ctx.lookups.values('risk_category')).map((c) => ({
+      category: c.value, label: c.label, color: c.color ?? 'gray', restricted: c.meta?.restricted === true,
+      risks: counts.find((x) => x.category === c.value)?.risks ?? 0, restricted_risks: counts.find((x) => x.category === c.value)?.restricted ?? 0,
+    }));
+  };
+  ctx.app.get('/api/risks/categories', { preHandler: riskPre('view') }, async (req) => ({
+    categories: await view(), can_change: ctx.can(req.user, 'risks.administer') && ctx.can(req.user, 'security.view'),
+  }));
+  ctx.describeRoute({
+    method: 'GET', path: '/api/risks/categories', permission: 'risks.view',
+    summary: 'The risk categories, whether each makes its new risks restricted records, and how many risks (and restricted risks) each has',
+    response: '{ categories: [{ category, label, color, restricted, risks, restricted_risks }], can_change }',
+  });
+
+  ctx.app.put('/api/risks/categories/:category/restriction', { preHandler: riskPre('administer') }, async (req) => {
+    if (!ctx.can(req.user, 'security.view')) ctx.fail(403, 'forbidden', 'Only someone with access to restricted records can change which categories are restricted.');
+    const category = String((req.params as Row).category ?? '');
+    const found = (await ctx.lookups.values('risk_category')).find((c) => c.value === category) ?? ctx.fail(404, 'not_found', 'Risk category not found.');
+    const b = (req.body ?? {}) as Row;
+    if (typeof b.restricted !== 'boolean') ctx.fail(400, 'validation', 'Check the highlighted fields.', { restricted: 'Choose yes or no.' });
+    const before = found.meta?.restricted === true;
+    await ctx.db.query(`update lookups set meta = coalesce(meta, '{}'::jsonb) || jsonb_build_object('restricted', $3::boolean) where list_key = $1 and value = $2`,
+      ['risk_category', category, b.restricted]);
+    let changed = 0;
+    if (b.apply_to_existing === true) {
+      const ids = await ctx.db.query<{ id: string }>('select id from risks where category = $1 and deleted_at is null and restricted <> $2', [category, b.restricted]);
+      for (const r of ids) { await ctx.resources.update('risk', r.id, { restricted: b.restricted }, req); changed += 1; }
+    }
+    await ctx.audit(req, {
+      action: 'risk_category.restriction', recordType: 'lookup', recordId: `risk_category:${category}`,
+      summary: `New risks in ${found.label} are ${b.restricted ? 'restricted records' : 'no longer restricted'}${changed ? `; ${changed} existing risks changed` : ''}`,
+      before: { restricted: before }, after: { restricted: b.restricted, existing_changed: changed },
+    });
+    return { categories: await view(), changed };
+  });
+  ctx.describeRoute({
+    method: 'PUT', path: '/api/risks/categories/:category/restriction', permission: 'risks.administer',
+    summary: 'Make a category\'s new risks restricted records (or not); optionally apply it to the category\'s existing risks',
+    description: 'Needs security.view too. Existing risks change only with apply_to_existing, each through the risk record (audited).',
+    body: '{ restricted: boolean, apply_to_existing?: boolean }', response: '{ categories, changed }',
   });
 }
 

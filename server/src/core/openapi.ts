@@ -159,6 +159,7 @@ export function makeOpenApi(app: FastifyInstance) {
       const owner = res.registry.all().filter((d) => r.url === d.path || r.url.startsWith(`${d.path}/`)).sort((a, b) => b.path.length - a.path.length)[0];
       if (owner && hidden.includes(owner)) continue;
       if (doc ? !allowed(doc.permission) : r.url.startsWith('/api/admin/') && !allowed('admin.administer')) continue;
+      if (doc?.area && deps.gate?.known().on[doc.area] === false) continue;
       const tag = doc?.tag ?? owner?.plural ?? (r.url.split('/')[2] ?? 'api').replace(/^./, (c) => c.toUpperCase());
       if (!tags.has(tag)) tags.set(tag, '');
       const isPublic = doc?.public ?? r.public;

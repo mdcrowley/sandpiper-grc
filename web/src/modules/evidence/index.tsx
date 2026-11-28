@@ -3,7 +3,8 @@
 // Other pages show what a record uses through EvidencePanel.tsx (loaded with import.meta.glob).
 // Vendor evidence (Vendors > Evidence) is the vendors module's own and stays there.
 import type { ModuleDef } from '../../core';
-import { EvidenceDetail, EvidenceLibrary, ExpiringEvidence } from './Library';
+import { ExpiringEvidence } from '../attachments/ExpiringEvidence';
+import { EvidenceDetail, EvidenceLibrary } from './Library';
 
 const view = 'evidence.view';
 
@@ -15,7 +16,8 @@ const mod: ModuleDef = {
   ],
   routes: [
     { path: '/evidence-library', element: <EvidenceLibrary />, permission: view },
-    { path: '/evidence-library/expiring', element: <ExpiringEvidence />, permission: view },
+    // E44-08: the one page for expiring evidence, opened on the library's own records.
+    { path: '/evidence-library/expiring', element: <ExpiringEvidence defaultSource="library" />, permission: view },
     { path: '/evidence-library/:id', element: <EvidenceDetail />, permission: view },
   ],
   create: [{ label: 'Evidence record', path: '/evidence-library?new=1', permission: 'evidence.create', icon: 'paperclip' }],

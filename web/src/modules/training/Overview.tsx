@@ -1,9 +1,9 @@
 // Training overview: completion by course and by department, the overdue trend and the overdue list.
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  api, ApiError, Button, Card, Chart, chartColor, EmptyState, errorMessage, ErrorState, formatDate, Loading, Modal, NumberField, PageHeader,
-  Stat, TableWrap, useAuth, useFetch, useToast,
+  Button, Card, Chart, chartColor, EmptyState, ErrorState, formatDate, Loading, PageHeader,
+  Stat, TableWrap, useAuth, useFetch,
 } from '../../core';
 import type { ChartOption, ChartSegment } from '../../core';
 import { daysPhrase, rateColor, recordsLink } from './shared';
@@ -62,41 +62,6 @@ function Breakdown({ caption, first, rows }: {
   );
 }
 
-/** The overdue reminder interval (`training.reminder_interval_days`). */
-function ReminderSettings({ onClose }: { onClose: () => void }) {
-  const toast = useToast();
-  const { data } = useFetch<{ reminder_interval_days: number }>('/api/training/settings');
-  const [value, setValue] = useState<number | null>(null);
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
-  const days = value ?? data?.reminder_interval_days ?? null;
-  const save = async () => {
-    setBusy(true);
-    setError('');
-    try {
-      await api.put('/api/training/settings', { reminder_interval_days: days });
-      toast.success('Reminder interval saved.');
-      onClose();
-    } catch (err) {
-      setError(err instanceof ApiError && err.fields?.reminder_interval_days ? err.fields.reminder_interval_days : errorMessage(err));
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <Modal open title="Training reminders" onClose={onClose} size="sm" dirty={value !== null && value !== data?.reminder_interval_days}
-      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" loading={busy} disabled={days === null} onClick={() => void save()}>Save</Button></>}>
-      <div className="stack">
-        <p className="muted">
-          People are told when training is assigned to them. Once it is past its due date they are reminded through their notifications,
-          then again after this many days until it is completed.
-        </p>
-        <NumberField label="Days between reminders" value={days} min={1} max={90} step={1} onChange={setValue} error={error} hint="From 1 to 90." />
-      </div>
-    </Modal>
-  );
-}
-
 export function TrainingOverview() {
   const navigate = useNavigate();
   const { can } = useAuth();
@@ -134,15 +99,8 @@ export function TrainingOverview() {
     if (row) navigate(row.to(status));
   };
 
-  const [settings, setSettings] = useState(false);
-  const actions = (
-    <>
-      {can('training.create') && <Button icon="upload" onClick={() => navigate('/training/import')}>Import completions</Button>}
-      <Button onClick={() => navigate('/training/courses')}>Courses</Button>
-      {can('training.administer') && <Button icon="settings" onClick={() => setSettings(true)}>Reminder settings</Button>}
-      {settings && <ReminderSettings onClose={() => setSettings(false)} />}
-    </>
-  );
+  // E44-07: Courses and Settings are tabs; the header keeps the action only.
+  const actions = can('training.create') ? <Button icon="upload" onClick={() => navigate('/training/import')}>Import completions</Button> : undefined;
   const header = (
     <PageHeader
       title="Training overview" actions={actions}

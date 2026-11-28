@@ -25,6 +25,8 @@ export function AuditTabs({ active }: { active: (typeof SECTIONS)[number]['key']
 const INSPECTION_SECTIONS = [
   { key: 'inspections', label: 'Inspections', path: '/inspections' },
   { key: 'schedules', label: 'Schedules', path: '/inspections/schedules' },
+  // Wave 26: defects found on vehicles, sites and assets.
+  { key: 'defects', label: 'Defects', path: '/inspections/defects' },
   { key: 'templates', label: 'Checklists', path: '/audits/templates' },
 ] as const;
 
@@ -44,8 +46,11 @@ export const sourceRoute = (type: string | null | undefined, id: string) => (typ
  * The kind of record an inspection is about, and the record itself. Only kinds whose record type
  * is part of this installation (and switched on) are offered.
  */
-export function TargetPicker({ type, id, display, onChange }: {
+export function TargetPicker({ type, id, display, onChange, kinds: only, kindLabel = 'Inspects' }: {
   type: string; id: string | null; display?: string;
+  /** Only these kinds of record (wave 26: defects are on vehicles, sites and assets). */
+  kinds?: string[];
+  kindLabel?: string;
   onChange: (type: string, id: string | null) => void;
 }) {
   const kinds = useLookup('inspection_target_type');
@@ -54,10 +59,10 @@ export function TargetPicker({ type, id, display, onChange }: {
   const asset = useResource('asset');
   const system = useResource('system');
   const available: Record<string, unknown> = { site, vehicle, asset, system, none: true };
-  const options = kinds.filter((k) => available[k.value]).map((k) => ({ value: k.value, label: k.label }));
+  const options = kinds.filter((k) => available[k.value] && (!only || only.includes(k.value))).map((k) => ({ value: k.value, label: k.label }));
   return (
     <>
-      <Select label="Inspects" value={type} options={options} onChange={(v) => onChange(v, null)} placeholder="Choose what is inspected" />
+      <Select label={kindLabel} value={type} options={options} onChange={(v) => onChange(v, null)} placeholder="Choose what is inspected" />
       {type && type !== 'none' && available[type] ? (
         <RecordPicker key={type} label={`${kinds.find((k) => k.value === type)?.label ?? 'Record'} inspected`} type={type} value={id} display={display}
           onChange={(v) => onChange(type, v)} />

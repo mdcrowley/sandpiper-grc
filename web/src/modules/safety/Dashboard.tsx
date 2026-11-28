@@ -23,6 +23,11 @@ interface Summary {
   indicators: { id: string; name: string; measure: string; exposure: string | null; per_units: number | null; target: number | null; target_direction: string; latest: Point | null; points: Point[] }[];
 }
 
+interface Attention {
+  inspections: { overdue: number; due_soon: number; missed_open: number; missed_90_days: number; schedules_behind: number };
+  defects: { open: number; out_of_service: number; to_verify: number; deferral_overdue: number };
+}
+
 const monthLabel = (p: string) => new Date(`${p}-15T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' });
 const monthStart = (p: string) => `${p}-01`;
 const nextMonth = (p: string) => { const [y, m] = p.split('-').map(Number); return m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`; };
@@ -34,6 +39,10 @@ export function SafetyDashboard() {
   const { data: s, error, loading, reload } = useFetch<Summary>('/api/safety/summary');
   // Notification clocks (E25-06): counted for everyone, whatever they may see.
   const { data: clocks, reload: reloadClocks } = useFetch<{ summary: { red: number; amber: number; green: number; open: number } }>('/api/safety/clocks');
+  // Inspections needing attention (wave 26), while the inspections area is on and the reader may see inspections.
+  const { areaOn } = useAuth();
+  const inspections = areaOn('audits') && can('audits.view');
+  const { data: attention } = useFetch<Attention>(inspections ? '/api/inspections/attention' : null);
   const since = s ? monthStart(s.periods[0]) : '';
 
   const charts = useMemo(() => {
@@ -105,6 +114,16 @@ export function SafetyDashboard() {
             color={clocks.summary.red ? 'red' : clocks.summary.amber ? 'amber' : undefined}
             hint={clocks.summary.red || clocks.summary.amber ? `${clocks.summary.red} overdue, ${clocks.summary.amber} due soon` : 'None overdue or due soon'}
             to={ev('f.reportable=true')} />
+        )}
+        {attention && (
+          <Stat label="Inspections overdue or missed" value={attention.inspections.overdue + attention.inspections.missed_open} icon="check-square"
+            color={attention.inspections.missed_open ? 'red' : attention.inspections.overdue ? 'amber' : undefined}
+            hint={`${attention.inspections.missed_open} missed and not followed up, ${attention.inspections.schedules_behind} ${attention.inspections.schedules_behind === 1 ? 'schedule' : 'schedules'} behind`}
+            to="/inspections?view=late" />
+        )}
+        {attention && (
+          <Stat label="Open defects" value={attention.defects.open} icon="alert-circle" color={attention.defects.out_of_service ? 'red' : undefined}
+            hint={`${attention.defects.out_of_service} keeping something out of service`} to="/inspections/defects" />
         )}
       </div>
 

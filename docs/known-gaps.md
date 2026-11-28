@@ -218,39 +218,32 @@ content, which belongs in a document tool (E25-13, E29-11, E32-06, E34-09).
   `list_record_types` lists every read-only field as settable in a load, including the few the
   database works out (refused with a field error on save). A load is undone per record type and day,
   not per assistant conversation.
-- **On behalf of someone in a load (E18-71, E18-94):** module actor columns name the person named,
-  with a few left: an inspection's inspector and a finding's response owner default to the loader
-  (E45-53); evidence rows copied into the evidence library and framework evidence record the loader as
-  creator (E45-54); ticks on checklists (a ticket's fulfillment tasks, an incident's checklist, control
-  test steps, a change's review after implementation) keep the time they are recorded, not a time
-  from the load (E45-55). A loaded comment is not listed on the Data loads page and is not removed by
+- **On behalf of someone in a load (E18-71, E18-94, E45-53 to E45-55):** module actor columns and
+  checklist tick times follow the person and time a load names. A loaded comment is not listed on the Data loads page and is not removed by
   undoing a load (it disappears from view with its record when that record was loaded). Approval
   decisions keep the time they are recorded.
-- **Enterprise risk (wave 25)**: a change to the risk appetite is recorded after the fact with who
-  approved it, not routed through an approval workflow or a committee decision (E45-56); which
-  categories are restricted, and the fields each shows, are set by editing the category list's meta,
-  with no form of their own; proximity, velocity and strategic objective are not recorded (E45-57).
-- **Evidence library (wave 25)**: outside reviewers do not see library evidence linked to their
-  review (E45-59); an uploaded file is not checked against existing evidence for duplicates (no
-  content hash); AI assistants cannot link evidence to records (E45-65). A funder review has no
-  readiness view or package export yet (E45-58).
+- **Enterprise risk (wave 25)**: a change to the risk appetite can be tied to a committee decision but
+  not routed through an approval workflow (E46-53). The fields each category shows are still set in the
+  category list's meta.
+- **Evidence library (wave 25)**: an uploaded file is not checked against existing evidence for
+  duplicates (no content hash). A funder review's readiness does not count the previous review's open
+  deficiencies or the award's overdue obligations (E46-55).
 - **Audits (wave 25)**: the audit plan's factor columns show only on wide screens (no column chooser
   on that table); control tests of a restricted audit are not themselves restricted; a workpaper
-  step's files are chosen from the audit's attachments, not uploaded from the step; workpapers have
-  no reference numbering and no time budget against actual hours (E45-63); the annual plan is
-  approved by a person with `audits.approve`, not linked to a committee decision (E45-64).
-- **Committees and meetings (wave 25)**: PDF papers appended to the board book are not described for
-  screen readers (a text-only version of the book is offered instead), and a tagged PDF paper, or one
-  without embedded fonts, makes the merged book fall short of PDF/UA (E45-61); no "recused" vote or
-  conflict-of-interest declarations (E45-60); no electronic approval of minutes by members; no agenda
-  posting deadline per committee or annual work plan (E45-62); no personal notes in the member view;
-  no rich text in minutes. Members without `governance.view` do not get their meetings in calendar
-  feeds (E45-67).
-- **IT figures (wave 25)**: the change success rate does not count changes that caused an incident
-  (there is no change-to-incident link yet, E45-66). The IT leadership overview's new chart and gauges are not added to
+  step's files are chosen from the audit's attachments, not uploaded from the step.
+- **Committees and meetings (wave 25)**: board book: appended PDF papers are marked as artifacts; their
+  own tags are not merged into the book (use **Text only** with a screen reader), and a paper without
+  embedded fonts makes the merged book fall short of PDF/UA (E45-61, a documented limit: pdf-lib cannot
+  merge structure trees). No electronic approval of minutes by members; no personal notes in the member
+  view; no rich text in minutes.
+- **IT figures (wave 25)**: the home dashboard's standard report gauge **Change success rate**
+  (`reports/standard.ts`, outcome filter) still counts outcomes only; the Overview widget
+  (`/api/changes/success-rate`) counts changes that caused an incident (E46-54). The IT leadership overview's new chart and gauges are not added to
   that dashboard on an existing installation (standard dashboards are added once, never updated).
-- **Search inside files (E41-16)** covers PDF, .docx and plain text only; scanned PDFs (no
-  OCR), .doc, spreadsheets and presentations are found by name only. File previews cover images and
+- **Search inside files (E41-16)** covers PDF, .docx and plain text only; .doc, spreadsheets and
+  presentations are found by name only. OCR of scanned PDFs (E43-15) reads English only unless other
+  language data is supplied (`GRC_OCR_LANGS`, `GRC_OCR_LANG_DIR`; E46-56), reads pictures embedded in
+  PDFs (not vector-drawn text without a text layer) and the first 50 pages. File previews cover images and
   PDFs (first 30 pages).
   File text reading: the memory cap is checked every 20 ms, so a single very large allocation can
   briefly push the reader process past 768 MB before it ends; only the reader process is affected,
@@ -258,6 +251,29 @@ content, which belongs in a document tool (E25-13, E29-11, E32-06, E34-09).
   Text reading starts one Node process per file (about 100 ms each); acceptable for hourly batches
   of 25 but not pooled. In the compliance calendar's area filter, retention items (E41-15) are listed under
   Records requests and privacy (they share its permissions).
+- **Procurement and budgets (wave 26)**: invoices and payments are not recorded, so "spent" is what
+  was received (E46-66); budget amendments are not kept as versions (E46-67); outside evaluators
+  without accounts are recorded by the buyer in a data load.
+- **Insurance (wave 26)**: claim payments are totals, not one by one (E46-62); the contract page does
+  not list its insurance requirements (E46-63); no premium allocation or property schedule of values
+  (E46-64); certificates are not requested from vendors by email (E46-65); the register template dialog
+  is not covered by a browser test.
+- **Civil rights (wave 26)**: eligibility for accessible services (for example paratransit
+  eligibility, which holds individual medical data) is not part of the area. Complaint time limits are
+  calendar days only and a complaint has one basis (E46-61); participation attainment counts the firm
+  amounts recorded (committed and paid are not told apart).
+- **Strategy and performance (wave 26)**: quarters follow the calendar year (E46-58); a measure cannot
+  take its values from a statistics series (E46-59); no dashboard widget for one measure (E46-60);
+  values pulled from a metric are recorded as system work (no person); a measure fed by a figure over
+  time copies values for people who may not hold `reports.view` (figures only, no restricted detail).
+- **Operations (wave 26)**: no planned maintenance intervals or mileage history (E46-71); certifications
+  cannot be filtered by position or department (E46-72); there is no "My certifications" page for
+  employees (E46-70); defects raised from a dev-seed inspection take the checklist prompt as title
+  (no "[Sample]" prefix). Safety indicators are not on the Board summary (E46-68), and the "indicators
+  off target" widget uses the latest complete month.
+- **Roles (wave 26)**: a switched-off role can still be assigned without a warning (E46-69). The four new
+  roles and the new grants of existing roles reach an installation only through "Sync default grants".
+- **Paper copies (E43-14)**: the copy number is not printed on the controlled-copy PDF (E46-57).
 
 ## Verification status
 

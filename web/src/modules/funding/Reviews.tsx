@@ -9,6 +9,7 @@ import {
 } from '../../core';
 import type { Row } from '../../core';
 import { Evidence, evidenceInBuild, FundingTabs, ofText } from './shared';
+import { ReviewReadiness } from './Readiness';
 
 // Outside reviewers (E41-09): the funder's reviewer may be invited to one review; the tab shows only when that module is in the build.
 interface ReviewersPanelProps { basePath: string; recordId: string; noun: string; restricted?: boolean }
@@ -605,6 +606,7 @@ export function ReviewDetail() {
       summaryFields={['title', 'funder_id', 'period', 'site_visit_on', 'lead_id', 'status', 'closed_on', 'previous_review_id', 'notes']}
       tabs={[
         { key: 'areas', label: 'Areas', content: ({ row, canEdit }) => <Areas row={row} canEdit={canEdit} /> },
+        { key: 'readiness', label: 'Readiness', content: ({ row }) => <ReviewReadiness reviewId={row.id} /> },
         { key: 'requests', label: 'Requests', content: ({ row, canEdit }) => <Requests row={row} canEdit={canEdit} /> },
         { key: 'deficiencies', label: 'Deficiencies', content: ({ row }) => <Deficiencies row={row} /> },
         { key: 'awards', label: 'Awards', content: ({ row, canEdit }) => <AwardsUnderReview row={row} canEdit={canEdit} /> },

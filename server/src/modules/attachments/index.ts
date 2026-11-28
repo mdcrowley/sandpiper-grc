@@ -329,7 +329,7 @@ const mod: ModuleDef = {
         `update attachments set kind = $2, description = $3, collected_on = $4, expires_on = $5,
            link_url = coalesce($7, link_url), link_title = coalesce($8, link_title), file_name = coalesce($8, file_name),
            updated_at = now(), updated_by = $6 where id = $1 returning *`,
-        [att.id, next.kind, next.description, next.collected_on, next.expires_on, req.user!.id, link.link_url ?? null, link.link_title ?? null],
+        [att.id, next.kind, next.description, next.collected_on, next.expires_on, actorOf(req).id ?? req.user!.id, link.link_url ?? null, link.link_title ?? null],
       ))!;
       await ctx.audit(req, {
         action: 'attachment.update', recordType: parent.def.type, recordId: parent.row.id,

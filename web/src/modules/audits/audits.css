@@ -134,3 +134,9 @@
 .au-versions li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); justify-content: space-between; border-top: 1px solid var(--border); padding-top: var(--s-2); }
 .au-versions li:first-child { border-top: 0; padding-top: 0; }
 .au-check { width: 1.1rem; height: 1.1rem; accent-color: var(--c-blue-solid); }
+
+/* Wave 26: the view switch above the inspection and defect lists, and the inspections-and-defects panel. */
+.au-views { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; }
+.au-history-head { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; justify-content: space-between; }
+.au-subhead { font-size: var(--fs-md, 1rem); font-weight: 600; margin: 0; }
+.au-time-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--s-3); margin-bottom: var(--s-3); }

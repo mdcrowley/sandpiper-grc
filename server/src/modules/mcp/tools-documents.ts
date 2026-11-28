@@ -148,7 +148,8 @@ const readDocument: ToolSpec = {
       if (chosen.content_kind === 'file') {
         const ft = await t.api.tryGet<Json>(`/api/documents/${d.id}/versions/${chosen.id}/text?max_chars=${max}`);
         text = ft?.text ?? '';
-        textNote = !ft ? 'The text of the file could not be read.' : ft.scanned ? 'Scanned PDF: no text layer, so there is no text to read (no OCR).'
+        textNote = !ft ? 'The text of the file could not be read.' : ft.ocr ? 'Scanned PDF read by OCR: the text may contain reading mistakes.'
+          : ft.scanned ? 'Scanned PDF: no text layer, and no text could be read from it by OCR here.'
           : ft.status === 'waiting' ? 'The text of the file has not been read yet; try again in a few minutes.' : ft.status === 'no_file' ? 'This version has no original file.' : null;
       } else text = String(chosen.body ?? '');
     }

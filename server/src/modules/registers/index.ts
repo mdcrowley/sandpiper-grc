@@ -4,6 +4,7 @@ import { registerAdminRoutes } from './admin.ts';
 import { makeRegisters, type Registers } from './definitions.ts';
 import { registerRecordRoutes } from './routes.ts';
 import { seedRegisters } from './seed.ts';
+import { registerTemplateRoutes } from './templates.ts';
 
 /**
  * Registers an administrator defines (E41-06). Administration > Registers makes a new kind of record
@@ -21,7 +22,8 @@ async function register(ctx: ModuleContext) {
   const regs = makeRegisters(ctx);
   byApp.set(ctx.app, regs);
   registerRecordRoutes(ctx, regs);
-  registerAdminRoutes(ctx, regs);
+  const admin = registerAdminRoutes(ctx, regs);
+  registerTemplateRoutes(ctx, regs, admin.shape);
   // Every register is in the registry before the application is ready, so core indexes it for search
   // and every module that reads the record types at start-up sees it.
   await regs.load(false);

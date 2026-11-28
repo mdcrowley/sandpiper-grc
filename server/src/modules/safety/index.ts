@@ -10,6 +10,7 @@ import { registerPortalIntake } from './portal-intake.ts';
 import { registerReminders } from './reminders.ts';
 import { registerReporting, scheduleClockSweep } from './reporting.ts';
 import { registerTargets } from './targets.ts';
+import { registerSafetyPlan } from './plan.ts';
 import { seedSafety } from './seed.ts';
 
 /**
@@ -152,6 +153,7 @@ async function register(ctx: ModuleContext) {
   registerConfidential(ctx);
   registerIndicators(ctx);
   registerTargets(ctx);
+  registerSafetyPlan(ctx); // wave 26: the safety plan from the safety pages
   registerChangeAssessment(ctx);
   registerPortalIntake(ctx);
   await registerReminders(ctx);

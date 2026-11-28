@@ -272,7 +272,7 @@ export function registerRoutes(ctx: ModuleContext, access: Access, isReviewer: (
     method: 'GET', path: '/api/outside-review/:grantId', tag: 'Outside review',
     summary: 'For an outside reviewer: one engagement or review they may open, with its requests, evidence files and findings',
     description: 'Needs only a session, and only the reviewer it was given to, while it runs. Anything else answers 404. Audited at most once an hour.',
-    response: '{ grant: { id, expires_on, days_left }, today, subject: { type, kind, ref, title, facts, sections }, requests: [...], findings: [...], files: [...], labels }',
+    response: '{ grant: { id, expires_on, days_left }, today, subject: { type, kind, ref, title, facts, sections }, requests: [...], findings: [...], files: [...], evidence: [{ id, ref, title, part, part_label, relation, valid_until, period, files }] (library evidence linked to it, not restricted, E45-59), labels }',
   });
 
   app.get('/api/outside-review/:grantId/files/:fileId', { onSend: sandboxDownload }, async (req, reply) => {
@@ -298,6 +298,6 @@ export function registerRoutes(ctx: ModuleContext, access: Access, isReviewer: (
   ctx.describeRoute({
     method: 'GET', path: '/api/outside-review/:grantId/files/:fileId', tag: 'Outside review',
     summary: 'For an outside reviewer: download one evidence file of an engagement or review open to them',
-    description: 'Only files on its evidence requests and evidence files on the record itself. Every download is audited on the record.',
+    description: 'Only files on its evidence requests, evidence files on the record itself, and the files of evidence library records linked to it that are not restricted (E45-59). Every download is audited on the record.',
   });
 }

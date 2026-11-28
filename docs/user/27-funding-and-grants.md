@@ -183,7 +183,13 @@ Carrying forward copies the earlier review's set of areas, each area with its qu
 
 ### The funder's reviewer
 
-The funder's reviewer can be given access to one review for a set period, on the review's **Outside reviewers** tab (needs `funding.edit` and email set up). They see the review's details (funder, period, site visit, status and lead), its document requests with their answers, the evidence files on the review, and its deficiencies, and nothing else in the application. Mark the files on the review that the reviewer should see as evidence; other files are not shown. Inviting, the account (with no roles, and a second factor set up at the first sign-in), what the reviewer sees and how access ends work as for audits: see [Outside reviewers](25-audits-and-inspections.md#outside-reviewers). While **Funding and grants** is switched off, invitations to reviews are hidden and closed.
+The funder's reviewer can be given access to one review for a set period, on the review's **Outside reviewers** tab (needs `funding.edit` and email set up). They see the review's details (funder, period, site visit, status and lead), its document requests with their answers, the evidence files on the review, the **Evidence records** of the [evidence library](43-evidence-library.md) linked to the review (to an area or a document request) with their files, and its deficiencies, and nothing else in the application. Restricted evidence records are never shown to an outside reviewer. Mark the files on the review that the reviewer should see as evidence; other files are not shown. Inviting, the account (with no roles, and a second factor set up at the first sign-in), what the reviewer sees and how access ends work as for audits: see [Outside reviewers](25-audits-and-inspections.md#outside-reviewers). While **Funding and grants** is switched off, invitations to reviews are hidden and closed.
+
+### Readiness and the evidence package
+
+The review's **Readiness** tab says how ready the review is. For each area it checks five things: an owner, a self-assessment, every question answered, evidence linked (not needed for an area marked not applicable) and no open deficiency; for each document request, that it is answered (evidence linked, or **Provided** or **Accepted**). The bar shows the share of checks met, and the table what each area still lacks. Evidence is counted for everyone, never named.
+
+**Download the evidence package** (needs `funding.export`) makes one ZIP for the funder: `index.pdf` (the review, each area with its self-assessment, questions and answers, the evidence of each area and request with the file names in the package, the requests and the readiness) and the files of the evidence records you may see, in `areas/<code>/` and `requests/<request>/`. Evidence you may not see is counted in the index, never named or included. Links are listed, not fetched; files the malware scanner found infected, and files beyond 200 MB in all, are listed under **Not included**. Every package downloaded is recorded in the review's history.
 
 ### Close a review
 
@@ -215,5 +221,4 @@ The `dev` sample data adds invented funders, four invented awards ("[Sample] Bus
 ## Not available yet
 
 - Drawdowns, budgets and expenditure by award: keep those in your finance system.
-- The funder's outside reviewer does not see the evidence library: they see the evidence files attached to the review itself. Attach there what the reviewer should see.
-- A readiness view of a review (areas assessed and evidenced, open deficiencies of the previous review, overdue obligations of the awards under review) and an export of the whole review package as one file.
+- The readiness view does not yet count the open deficiencies of the previous review or overdue obligations of the awards under review.

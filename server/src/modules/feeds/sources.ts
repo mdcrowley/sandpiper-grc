@@ -29,6 +29,10 @@ interface Spec {
    * and the query matches `($1::uuid is null or <person column> = $1)` and returns the person as `p`.
    */
   anyone?: boolean;
+  /** Offered without the permission because each item names the person (E45-67); never with `anyone`. */
+  named?: boolean;
+  /** Where an event links to, when not the record page (for example a member's view of a meeting). */
+  link?(ctx: ModuleContext, user: SessionUser, id: string): string | null;
   /** Rows of the type (alias t) the person is involved in, in the window ($1 user, $2 from, $3 to). */
   query(ctx: ModuleContext, user: SessionUser, visible: string): Promise<{ sql: string; extra?: unknown[] }>;
   /** Event title from a row (`title`, `ref`, `d` and maybe `e`). */
@@ -56,7 +60,7 @@ async function eventsOf(spec: Spec, ctx: ModuleContext, user: SessionUser, from:
       : (r.e ? day(r.e) : undefined);
     return {
       uid: `${spec.key}:${recordType}:${r.id}`, title: spec.title(r), start, end, allDay: !spec.timed,
-      url: `${route}/${r.id}`, recordType, recordId: r.id, ref: r.ref ?? null, personId: r.p ?? (spec.anyone ? null : user.id),
+      url: spec.link?.(ctx, user, String(r.id)) ?? `${route}/${r.id}`, recordType, recordId: r.id, ref: r.ref ?? null, personId: r.p ?? (spec.anyone ? null : user.id),
     };
   });
 }
@@ -145,6 +149,9 @@ export const SOURCE_SPECS: Spec[] = [
   {
     key: 'governance.meetings', label: 'Meetings of committees I sit on', type: 'meeting', permission: 'governance.view', kind: 'Meetings',
     timed: true, minutes: 60,
+    // Members without governance.view get their own meetings too, linking to their member view (E45-67).
+    named: true,
+    link: (ctx, user, id) => (ctx.can(user, 'governance.view') ? null : `/governance/my-meetings/${id}`),
     async query(ctx, _u, visible) {
       const viaPerson = hasPeople(ctx)
         ? 'or m.person_id in (select p.id from people p where p.user_id = $1 and p.deleted_at is null)'
@@ -199,7 +206,7 @@ export function defineFeedSources(app: FastifyInstance): void {
   for (const spec of SOURCE_SPECS) {
     defineCalendarSource(app, {
       key: spec.key, label: spec.label, recordType: spec.type, permission: spec.permission,
-      work: spec.work, anyone: spec.anyone, kind: spec.kind,
+      work: spec.work, anyone: spec.anyone, kind: spec.kind, named: spec.named,
       events: (ctx, user, from, to, scope) => eventsOf(spec, ctx, user, from, to, scope),
     });
   }

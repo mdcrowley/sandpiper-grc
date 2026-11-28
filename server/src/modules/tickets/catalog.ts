@@ -114,8 +114,11 @@ export function makeCatalog(ctx: ModuleContext, notify: TicketNotify) {
       if (!title) bad('fulfilment_tasks', 'Every task needs a title.');
       const was = before[i]?.title === title ? before[i] : before.find((b) => b.title === title);
       const done = raw.done === true;
+      // A data load keeps the time the task was done in the source (E45-55).
+      const given = isDataLoad(req) && typeof raw.done_at === 'string' && !Number.isNaN(Date.parse(raw.done_at)) && Date.parse(raw.done_at) <= Date.now() + 60_000
+        ? new Date(raw.done_at).toISOString() : null;
       out.push(done
-        ? { title, done, done_at: was?.done ? was.done_at ?? now : now, done_by_name: was?.done ? was.done_by_name ?? null : (req && actorOf(req).name) || 'System' }
+        ? { title, done, done_at: given ?? (was?.done ? was.done_at ?? now : now), done_by_name: was?.done ? was.done_by_name ?? null : (req && actorOf(req).name) || 'System' }
         : { title, done });
     }
     if (out.length > 60) bad('fulfilment_tasks', 'A ticket can have at most 60 tasks.');

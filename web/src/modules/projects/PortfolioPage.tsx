@@ -164,7 +164,6 @@ export function PortfolioPage() {
         subtitle="Every project in one place: its stage, how it is going and what it costs."
         actions={(
           <>
-            {can('projects.administer') && <Button icon="settings" onClick={() => navigate('/projects/settings')}>Settings</Button>}
             {mayRequest && <Button variant="primary" icon="plus" onClick={() => navigate('/projects/new')}>New project request</Button>}
           </>
         )}

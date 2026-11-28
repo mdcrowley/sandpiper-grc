@@ -44,7 +44,7 @@ Open **Calendar feeds** from the menu under your name (top right). The entry is 
    | **Reviews of policies I own** | Policies you own, on their review date |
    | **Exercises I own** | Exercises you own, on the exercise date |
    | **Changes I own, work on or approve** | Changes you own, are assigned to or were named to approve, over their planned window |
-   | **Meetings of committees I sit on** | Meetings of committees you are a member of (with your account or your roster person), chair or are secretary of, at their time |
+   | **Meetings of committees I sit on** | Meetings of committees you are a member of (with your account or your roster person), chair or are secretary of, at their time. Offered to members without access to committees too; their meetings then open in the member reading view |
    | **Inspections assigned to me** | Inspections you are the inspector of that are not complete, on their due date |
    | **Tests of controls I own or operate** | Controls you own or operate, on their next test date, and planned tests where you are the tester |
    | **Evidence requests asked of me** | Evidence requests you are asked for that are not provided yet, on their due date |
@@ -52,6 +52,18 @@ Open **Calendar feeds** from the menu under your name (top right). The entry is 
    | **Obligation periods for me to attest** | Recorded periods of obligations you own that are not attested yet, other than the one ending on the next due date, on their due date |
    | **My certifications due for renewal** | Your own active certifications (on the staff roster), on their expiry date |
    | **Funding certifications for me to sign or confirm** | Funding certifications you sign, and their items you are responsible for confirming, until signed, on their due date |
+   | **Paper copies to recall** | Numbered paper copies of documents you own (or issued, for a document with no owner) that are still out after a later version took effect or the document was made obsolete, from that day until each is recorded as recalled |
+   | **Defects I am to see repaired** | Open defects you own on vehicles, sites and assets, on their due date |
+   | **Missed inspections to follow up** | Missed inspections not yet followed up (rescheduled, explained or given an action) |
+   | **Offers due on solicitations** | Solicitations taking offers, on the date offers are due |
+   | **Evaluations I am to score** | Solicitations whose evaluation committee you sit on, until you have scored. Offered to committee members without a procurement role |
+   | **Purchase orders to approve** | Purchase orders waiting for your approval |
+   | **Insurance policies I renew** | Policies you own, on their expiry and renewal application dates |
+   | **Certificates of insurance I follow up** | Certificates of insurance you own, on their expiry date |
+   | **Policy conditions I must meet** | Conditions of insurance policies you are responsible for, on their due date |
+   | **Civil rights complaints I investigate: time limits and steps** | Complaints you investigate, on their next time limit |
+   | **Civil rights reports I own, by due date** | Civil rights monitoring reports you own, on their due date |
+   | **Statistical reports I prepare** | Statistical submissions you prepare, on their due date |
 
    Other parts of the application, such as business continuity, records requests, vendor reassessments and asset condition, add their own kinds when they are switched on.
 4. Choose **What each date shows**: **Titles** (what each date is about, for example "Action due: ACT-00042 Renew the depot certificate") or **Busy only** (only the kind of date, for example "My actions due", never what it is about). Busy only suits a calendar other people can see.

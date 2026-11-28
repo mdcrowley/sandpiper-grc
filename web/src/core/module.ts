@@ -37,6 +37,8 @@ export const MODULE_AREA: Record<string, string> = {
   recordsretention: 'recordsretention',
   // Wave 25: the evidence library (E45-06).
   evidence: 'evidence',
+  // Wave 26 (E46): procurement and budgets, insurance, civil rights programs, strategy and performance.
+  procurement: 'procurement', insurance: 'insurance', civilrights: 'civilrights', strategy: 'strategy',
 };
 
 /** Whether a web module's area is on (always true for a module that is not part of an area). */
@@ -75,6 +77,12 @@ export interface NavItem {
   hint?: string;
   /** The Administration entry itself: shown to whoever may open at least one card of the page. */
   hubHome?: true;
+  /**
+   * On a menu entry: an API path answering `{ count }`, shown as a small number beside the entry while above
+   * zero (E44-09: what is waiting on My work). Read when the shell starts, when the person moves to another
+   * page (at most once a minute) and every five minutes.
+   */
+  count?: string;
 }
 
 export interface ModuleRoute {

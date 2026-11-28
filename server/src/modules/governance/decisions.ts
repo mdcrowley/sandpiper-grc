@@ -121,6 +121,7 @@ export function registerDecisions(ctx: ModuleContext) {
       votes_against: { label: 'Against', type: 'number', readOnly: true },
       votes_abstain: { label: 'Abstaining', type: 'number', readOnly: true },
       votes_absent: { label: 'Absent', type: 'number', readOnly: true },
+      votes_recused: { label: 'Recused', type: 'number', readOnly: true },
       vote_summary: { label: 'Vote', type: 'text', readOnly: true, personal: false },
       closed_session: { label: 'Closed session', type: 'boolean', readOnly: true },
       consent_agenda: { label: 'Adopts the consent agenda', type: 'boolean', readOnly: true },
@@ -265,7 +266,7 @@ export function registerDecisions(ctx: ModuleContext) {
     const rows = await db.query<Row>(
       `select id, ref, title, outcome, record_type, record_id, agenda_item_id, applied_to_workflow, applied_at, restricted, notes,
               motion_text, resolution_number, mover_name, mover_member_id, seconder_name, seconder_member_id, vote_mode,
-              votes_for, votes_against, votes_abstain, votes_absent, vote_summary, closed_session, consent_agenda, created_at
+              votes_for, votes_against, votes_abstain, votes_absent, votes_recused, vote_summary, closed_session, consent_agenda, created_at
        from meeting_decisions
        where meeting_id = $1 and deleted_at is null and ${ctx.resources.visibleWhere('meeting_decision', req.user)} order by created_at`, [meeting.id]);
     // The records decided, read once per record type rather than once per decision (E40-09).

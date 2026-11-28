@@ -7,6 +7,7 @@ import { ExposurePage, IndicatorDetail, IndicatorList } from './Indicators';
 import { MatrixEditor } from './MatrixEditor';
 import { ReportRules } from './ReportRules';
 import { ConfidentialViewers } from './ConfidentialViewers';
+import { SafetyPlanPage } from './Plan';
 import './safety.css';
 
 const view = 'safety.view';
@@ -18,6 +19,8 @@ const mod: ModuleDef = {
     { group: 'Safety and emergency management', label: 'Safety indicators', path: '/safety/indicators', icon: 'target', permission: view, order: 11, menu: false, parent: '/safety' },
     { group: 'Safety and emergency management', label: 'Safety events', path: '/safety/events', icon: 'alert', permission: view, order: 20 },
     { group: 'Safety and emergency management', label: 'Hazard log', path: '/safety/hazards', icon: 'shield', permission: view, order: 30 },
+    // The safety plan (wave 26): a tab of the safety pages; the plan itself is a controlled document.
+    { group: 'Safety and emergency management', label: 'Safety plan', path: '/safety/plan', icon: 'file-text', permission: view, permissions: ['policies.view'], order: 15, menu: false, parent: '/safety' },
     // The safety administrators' settings: the Settings tab of the safety pages opens the first; they share a tab strip.
     { group: 'Safety and emergency management', label: 'Hazard matrix', path: '/safety/matrix', icon: 'target', permission: 'safety.administer', order: 12, menu: false, parent: '/safety', tabs: 'Hazard matrix', hub: 'Area settings', hint: 'The likelihood and severity levels hazards are scored on.' },
     { group: 'Safety and emergency management', label: 'Safety reporting rules', path: '/safety/reporting-rules', icon: 'clock', permission: 'safety.administer', order: 13, menu: false, parent: '/safety/matrix', tab: 'Reporting rules', hub: 'Area settings', hint: 'When a safety event must be reported, to whom and how fast.' },
@@ -32,6 +35,7 @@ const mod: ModuleDef = {
     { path: '/safety/indicators', element: <IndicatorList />, permission: view },
     { path: '/safety/indicators/:id', element: <IndicatorDetail />, permission: view },
     { path: '/safety/exposure', element: <ExposurePage />, permission: view },
+    { path: '/safety/plan', element: <SafetyPlanPage />, permission: view },
     { path: '/safety/matrix', element: <MatrixEditor />, permission: 'safety.administer' },
     { path: '/safety/reporting-rules', element: <ReportRules />, permission: 'safety.administer' },
     { path: '/safety/confidential', element: <ConfidentialViewers />, permission: 'safety.administer' },

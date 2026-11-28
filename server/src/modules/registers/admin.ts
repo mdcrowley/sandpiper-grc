@@ -243,4 +243,7 @@ export function registerAdminRoutes(ctx: ModuleContext, regs: Registers) {
     description: 'Needs a recent password confirmation. Refused (409 `in_use`) while the register holds records, deleted ones included: switch it off instead. Removes its fields, lifecycle rules and the roles\' grants of its permissions.',
     response: '{ ok: true }',
   });
+
+  // Register templates (wave 26, templates.ts) answer with the same shape.
+  return { shape: async (r: RegisterRow) => shape(r, (await counts()).get(r.key)) };
 }

@@ -20,7 +20,7 @@ The default **Asset manager** role holds all of the assets, sites and fleet perm
 
 Open **Asset condition**. Choose the **Year** at the top right: a past year is taken on its last day, this year on today, and a later year is a **projection** with today's records and their useful life as it stands.
 
-- Tiles for **Past useful life** (the share of every classed record in use whose useful life has ended, and how many), **Over target** (classes past their yearly target), **Poor condition** (the share of rated records whose condition is at or below their class's poor rating), **With a replacement project** and **No asset class** (records in use that are not counted yet).
+- Tiles for **Past useful life** (the share of every classed record in use whose useful life has ended, and how many), **Over target** (classes past their yearly target), **Poor condition** (the share of rated records whose condition is at or below their class's poor rating), **With a replacement project** and **No asset class** (records in use that are not counted yet; select it to open the assets with no class).
 - **Past useful life by class**: a bar per class with its target marked. Select a bar to open the class's members.
 - **Trend**: the share past useful life over ten years; starred years are projections.
 - **By class**: for each class, the records in use, how many are past useful life (and the share, highlighted when it is over the target), the target (marked **Draft** or **Waiting** until it is approved), poor condition, records not rated yet, average age and how many of those past useful life have a replacement project. Where funding and grants are in use, a **Funded** column counts those linked to a funding award.
@@ -109,6 +109,6 @@ The `dev` sample profile loads nine invented classes (40-foot bus, cutaway, ligh
 
 ## Not available yet
 
-- Maintenance work orders and inspection schedules for vehicles and facilities: they belong in a maintenance management system (not planned).
+- Maintenance work orders and planned maintenance intervals for vehicles and facilities: they belong in a maintenance management system (not planned). Inspections and defects of vehicles, sites and assets are kept under **Safety and emergency management > Inspections**, and each vehicle, site and asset page shows its own (see [Audits and inspections](25-audits-and-inspections.md#defects)).
 - Condition history drawn as a chart on a record: the assessments are listed instead.
 - Useful life of a class that changes over time: a class has one benchmark, and changing it recomputes every member.

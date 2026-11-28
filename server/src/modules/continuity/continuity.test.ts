@@ -25,6 +25,8 @@ const ok = <T = Row>(res: { status: number; body: T }, status = 200): T => {
 beforeAll(async () => {
   t = await testApp();
   manager = await t.as('continuity_manager');
+  // Wave 26: the Safety manager may now run an emergency activation; this test needs a continuity viewer only.
+  await t.db.query("delete from role_permissions where role_id = (select id from roles where key = 'safety_manager') and permission in ('continuity.create', 'continuity.edit')");
   viewer = await t.as('safety_manager');
   for (const [k, rto] of [['fast', 2], ['slow', 24], ['unknown', null], ['gone', 48], ['svc', 72]] as const) {
     sys[k] = ok(await t.api.post('/api/systems', { name: `Test system ${k}`, rto_hours: rto }), 201).id;

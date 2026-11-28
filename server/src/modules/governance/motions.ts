@@ -16,15 +16,17 @@ import type { ModuleContext, Row } from '../../core/module.ts';
 import { todayInZone } from '../../core/timezone.ts';
 import { quorumOf, seesClosed, withNames } from './committees.ts';
 import { votesOf } from './decisions.ts';
+import { checkRecusals } from './declarations.ts';
 import { meetingFor } from './meetings.ts';
 
-export const VOTES = ['for', 'against', 'abstain', 'absent'] as const;
+// "recused": the member declared an interest and took no part (E45-60, declarations.ts).
+export const VOTES = ['for', 'against', 'abstain', 'absent', 'recused'] as const;
 type Vote = (typeof VOTES)[number];
 const LOCKED = 'minutes_approved';
 
-/** "For 5, against 1, abstaining 0, absent 1". */
-export function voteSummary(c: { for: number; against: number; abstain: number; absent: number }): string {
-  return `For ${c.for}, against ${c.against}, abstaining ${c.abstain}, absent ${c.absent}`;
+/** "For 5, against 1, abstaining 0, absent 1" (and ", recused 1" when someone was). */
+export function voteSummary(c: { for: number; against: number; abstain: number; absent: number; recused?: number }): string {
+  return `For ${c.for}, against ${c.against}, abstaining ${c.abstain}, absent ${c.absent}${c.recused ? `, recused ${c.recused}` : ''}`;
 }
 
 /** Carried when more voted for than against (a simple majority of the votes cast). */
@@ -99,7 +101,7 @@ export function registerMotions(ctx: ModuleContext) {
     const out: { member_id: string; vote: Vote }[] = [];
     for (const raw of v.votes as Row[]) {
       const vote = String(raw?.vote ?? '') as Vote;
-      if (!VOTES.includes(vote)) invalid({ vote: 'Each vote is for, against, abstain or absent.' });
+      if (!VOTES.includes(vote)) invalid({ vote: 'Each vote is for, against, abstain, absent or recused.' });
       const who = await named(members, raw?.member_id ? { member_id: raw.member_id } : raw?.member ?? raw?.name, 'vote');
       if (!who.member_id) invalid({ vote: `${who.name ?? 'Someone'} is not a member of this committee.` });
       const member = members.find((m) => m.id === who.member_id)!;
@@ -111,7 +113,7 @@ export function registerMotions(ctx: ModuleContext) {
   }
 
   const tally = (votes: { vote: Vote }[]): Record<Vote, number> => {
-    const c = { for: 0, against: 0, abstain: 0, absent: 0 };
+    const c = { for: 0, against: 0, abstain: 0, absent: 0, recused: 0 };
     for (const v of votes) c[v.vote] += 1;
     return c;
   };
@@ -133,7 +135,7 @@ export function registerMotions(ctx: ModuleContext) {
     let votes: { member_id: string; vote: Vote }[] | null = null;
     if (body.vote !== undefined) {
       if (body.vote === null) {
-        Object.assign(patch, { vote_mode: null, votes_for: null, votes_against: null, votes_abstain: null, votes_absent: null, vote_summary: null });
+        Object.assign(patch, { vote_mode: null, votes_for: null, votes_against: null, votes_abstain: null, votes_absent: null, votes_recused: null, vote_summary: null });
         votes = [];
       } else {
         const counts = countsOf(body);
@@ -141,7 +143,8 @@ export function registerMotions(ctx: ModuleContext) {
         if (!counts && !votes) invalid({ vote: 'Record the vote per member (mode "members") or as counts (mode "counts").' });
         const c = counts ? counts.counts : tally(votes!);
         Object.assign(patch, {
-          vote_mode: counts ? 'counts' : 'members', votes_for: c.for, votes_against: c.against, votes_abstain: c.abstain, votes_absent: c.absent, vote_summary: voteSummary(c),
+          vote_mode: counts ? 'counts' : 'members', votes_for: c.for, votes_against: c.against, votes_abstain: c.abstain, votes_absent: c.absent,
+          votes_recused: c.recused, vote_summary: voteSummary(c),
         });
       }
     }
@@ -203,6 +206,8 @@ export function registerMotions(ctx: ModuleContext) {
     const data = await decisionFields(body, null, members);
     // The mover, seconder and vote are checked before anything is saved.
     const plan = await planMotion({}, body, members);
+    // A member who declared an interest and took no part is recorded as recused (E45-60).
+    await checkRecusals(ctx, req, meeting.id, body.agenda_item_id ? String(body.agenda_item_id) : null, plan.votes, members);
     const recorder = actorOf(req);
     Object.assign(plan.patch, { recorded_by: recorder.id, recorded_by_name: recorder.name, consent_agenda: body.consent_agenda === true });
     const created = await ctx.resources.create('meeting_decision', { meeting_id: meeting.id, ...data }, req);
@@ -222,7 +227,7 @@ export function registerMotions(ctx: ModuleContext) {
   ctx.describeRoute({
     method: 'POST', path: '/api/meetings/:id/motions', tag: 'Governance', permission: 'governance.create',
     summary: 'Record a motion and its decision: mover, seconder, the vote (per member or counts), outcome and resolution number. Movers and seconders are members (id or name) or, in a data load, anyone named as a data load names people',
-    body: '{ agenda_item_id?, consent_agenda?, motion_text, title?, outcome?, notes?, record_type?, record_id?, resolution_number?, assign_resolution?, mover?, seconder?, vote?: { mode: "members", votes: [{ member_id | name, vote: for | against | abstain | absent }] } | { mode: "counts", for, against, abstain, absent } }',
+    body: '{ agenda_item_id?, consent_agenda?, motion_text, title?, outcome?, notes?, record_type?, record_id?, resolution_number?, assign_resolution?, mover?, seconder?, vote?: { mode: "members", votes: [{ member_id | name, vote: for | against | abstain | absent | recused }] } | { mode: "counts", for, against, abstain, absent, recused } }',
     response: 'the decision with votes and the meeting\'s quorum',
   });
 
@@ -236,6 +241,7 @@ export function registerMotions(ctx: ModuleContext) {
     const members = await allMembers(ctx, meeting.committee_id);
     const plan = await planMotion(decision, body, members);
     const data = await decisionFields(body, decision, members);
+    await checkRecusals(ctx, req, meeting.id, String((data.agenda_item_id !== undefined ? data.agenda_item_id : decision.agenda_item_id) ?? '') || null, plan.votes, members);
     if (Object.keys(data).length) await ctx.resources.update('meeting_decision', decision.id, data, req);
     const motion = await applyMotion(decision.id, plan);
     if (Object.keys(motion).length) {

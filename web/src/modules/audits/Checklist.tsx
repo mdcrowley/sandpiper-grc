@@ -5,6 +5,8 @@ import { Badge } from '../../core';
 export interface ChecklistItem {
   id: string; section: string | null; prompt: string; guidance: string | null; sort: number;
   critical: boolean; photo_required: boolean; removed: boolean;
+  /** Workpaper reference (E45-63): A.1 by section, and with the audit's reference. */
+  wp_ref?: string | null; wp_ref_full?: string | null;
 }
 export interface ChecklistResponse {
   item_id: string; answer: 'yes' | 'no' | 'na' | null; note: string | null; attachment_ids: string[];

@@ -201,3 +201,9 @@
 .home-lead-value { font-size: var(--fs-xl); font-weight: 650; line-height: 1.2; font-variant-numeric: tabular-nums; }
 .home-outcomes { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-3); }
 .home-outcomes li { display: inline-flex; align-items: center; gap: var(--s-1); }
+
+/* Widgets for the leaders of safety, fleet, condition, inspections and continuity (widgetsAreaLeads.tsx, wave 26). */
+.home-subhead { margin: 0 0 var(--s-1); font-weight: 600; }
+.home-plain-list { margin: 0; padding-inline-start: var(--s-4); display: grid; gap: 4px; }
+.home-bad { color: var(--danger); font-weight: 600; }
+.home-cell:empty { display: none; }

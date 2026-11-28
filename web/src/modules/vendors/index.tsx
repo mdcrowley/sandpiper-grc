@@ -1,8 +1,9 @@
 // Vendors and contracts: vendors, contracts, security terms, evidence, assessments and renewals, and the
 // vendor risk lifecycle (reassessments, exclusion-list checks, issues and offboarding).
 import type { ModuleDef } from '../../core';
+import { Navigate } from 'react-router-dom';
 import { ContractDetail, ContractList } from './ContractPages';
-import { EvidenceDetail, EvidenceExpiring, EvidenceList } from './EvidencePages';
+import { EvidenceDetail, EvidenceList } from './EvidencePages';
 import { IntakeSettings } from './Intake';
 import { IssueDetail, IssueList } from './Issues';
 import { MissingDates } from './MissingDates';
@@ -30,7 +31,6 @@ const mod: ModuleDef = {
     { group: 'Vendors', label: 'Renewal calendar', path: '/contracts/renewals', icon: 'calendar', permission: 'contracts.view', order: 21, menu: false, parent: '/contracts', tab: 'Renewals' },
     { group: 'Vendors', label: 'Contractor performance', path: '/contracts/performance', icon: 'target', permission: 'contracts.view', order: 22, menu: false, parent: '/contracts', tab: 'Performance' },
     { group: 'Vendors', label: 'Evidence', path: '/evidence', icon: 'clipboard', permission: 'vendors.view', order: 30, tabs: 'Evidence' },
-    { group: 'Vendors', label: 'Expiring evidence', path: '/evidence/expiring', icon: 'clock', permission: 'vendors.view', order: 31, menu: false, parent: '/evidence', tab: 'Expiring' },
   ],
   routes: [
     { path: '/vendors', element: <VendorList />, permission: 'vendors.view' },
@@ -49,7 +49,8 @@ const mod: ModuleDef = {
     { path: '/contracts/performance', element: <PerformanceReview />, permission: 'contracts.view' },
     { path: '/contracts/:id', element: <ContractDetail />, permission: 'contracts.view' },
     { path: '/evidence', element: <EvidenceList />, permission: 'vendors.view' },
-    { path: '/evidence/expiring', element: <EvidenceExpiring />, permission: 'vendors.view' },
+    // E44-08: one page for expiring evidence, with a source filter (attachments/ExpiringEvidence.tsx); this address opens it on vendor evidence.
+    { path: '/evidence/expiring', element: <Navigate to="/attachments/expiring?source=vendor" replace />, permission: 'vendors.view' },
     { path: '/evidence/:id', element: <EvidenceDetail />, permission: 'vendors.view' },
   ],
   // A vendor answering an assessment through a link, without an account (E06-21).

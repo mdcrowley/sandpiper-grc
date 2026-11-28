@@ -10,14 +10,16 @@ const SECTIONS = [
   { key: 'hazards', label: 'Hazard log', path: '/safety/hazards' },
   { key: 'indicators', label: 'Indicators', path: '/safety/indicators' },
   { key: 'exposure', label: 'Exposure', path: '/safety/exposure' },
+  // The safety plan is a controlled document (wave 26): shown while documents are switched on.
+  { key: 'plan', label: 'Safety plan', path: '/safety/plan', area: 'policies' },
   // The safety administrators' settings (hazard matrix, reporting rules, confidential reports), always last (wave 24).
   { key: 'settings', label: 'Settings', path: '/safety/matrix', admin: true },
 ] as const;
 
 export function SafetyTabs({ active }: { active: (typeof SECTIONS)[number]['key'] }) {
   const navigate = useNavigate();
-  const { can } = useAuth();
-  const shown = SECTIONS.filter((s) => !('admin' in s) || can('safety.administer'));
+  const { can, areaOn } = useAuth();
+  const shown = SECTIONS.filter((s) => (!('admin' in s) || can('safety.administer')) && (!('area' in s) || areaOn(s.area)));
   return (
     <Tabs label="Safety sections" active={active} tabs={shown.map((s) => ({ key: s.key, label: s.label }))}
       onChange={(key) => navigate(SECTIONS.find((s) => s.key === key)?.path ?? '/safety')} />

@@ -40,6 +40,11 @@ export const PAGE_AREA: Record<string, string> = {
   'records-retention-schedule': 'recordsretention',
   // Wave 25 (E45-06).
   'evidence-library': 'evidence',
+  // Wave 26 (E46).
+  'procurement-and-budgets': 'procurement',
+  insurance: 'insurance',
+  'civil-rights-programs': 'civilrights',
+  'strategy-and-statistics': 'strategy',
 };
 
 /** Whether a guide page's part of the application is on (pages of no particular part always are). */

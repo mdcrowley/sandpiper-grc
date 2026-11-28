@@ -36,6 +36,8 @@ beforeAll(async () => {
   t = await testApp();
   sink = await startSmtpSink();
   manager = await t.as('continuity_manager');
+  // Wave 26: the Safety manager may now run an emergency activation; this test needs a continuity viewer only.
+  await t.db.query("delete from role_permissions where role_id = (select id from roles where key = 'safety_manager') and permission in ('continuity.create', 'continuity.edit')");
   viewer = await t.as('safety_manager');
   lead = await t.as('security_lead');
   await t.db.query(`update users set email = 'invented.lead@example.test' where id = $1`, [lead.userId]);

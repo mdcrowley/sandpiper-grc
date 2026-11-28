@@ -1,0 +1,21 @@
+/* Strategy and performance (wave 26). */
+.stg-toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-3, 12px); }
+.stg-toolbar > :first-child { min-width: 16rem; max-width: 32rem; flex: 1 1 16rem; }
+.stg-plan-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2, 8px) var(--space-3, 12px); }
+.stg-objective { padding: var(--space-3, 12px) 0; border-top: 1px solid var(--border); }
+.stg-objective:first-of-type { border-top: 0; padding-top: 0; }
+.stg-objective-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2, 8px); }
+.stg-objective-title { font-weight: 600; }
+.stg-narrative { margin: var(--space-2, 8px) 0; max-width: 72ch; }
+.stg-initiatives { list-style: none; margin: var(--space-2, 8px) 0 0; padding: 0; display: grid; gap: var(--space-1, 4px); }
+.stg-initiatives li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2, 8px); }
+.stg-small { font-size: 0.85em; }
+.stg-matrix td.stg-row { font-weight: 500; min-width: 14rem; text-align: left; }
+.stg-matrix tr.stg-sub td.stg-row { padding-left: 1.75rem; font-weight: 400; }
+.stg-matrix td { text-align: center; }
+.stg-matrix td.stg-row { text-align: left; }
+.stg-add {
+  border: 1px dashed var(--border-strong, var(--border)); background: transparent; color: var(--text-muted);
+  border-radius: 6px; min-width: 2rem; min-height: 1.75rem; cursor: pointer; font: inherit;
+}
+.stg-add:hover, .stg-add:focus-visible { color: var(--text); border-color: var(--accent, currentColor); }

@@ -13,7 +13,7 @@ An administrator can switch training and exercises off under **Administration > 
 | `training.edit` | Change courses and certifications, add or remove assignment rules, and set what each position requires |
 | `training.delete` | Remove courses and training records |
 | `training.export` | Export courses and training records |
-| `training.administer` | Change the reminder settings on the **Training overview** and the certification reminder days |
+| `training.administer` | Change the reminder settings on the **Settings** tab and the certification reminder days |
 | `exercises.view`, `exercises.create`, `exercises.edit`, `exercises.delete`, `exercises.export` | The same for exercises |
 
 Everyone who can sign in can open **My work > Training** (**My training**), which shows only their own records.
@@ -135,7 +135,7 @@ Select any tile, bar segment, point or number to open **Training records** filte
 
 Positions, the courses and certifications each one requires, and the roster itself are described in [People and qualifications](29-people-and-qualifications.md). In training:
 
-- **Certifications** (the **Certifications** tab of **People and training > Qualifications**) lists every certification (`CRT-` numbers) with the person, type, number, issuing body, issue and expiry dates and status. Select **New certification**, or **Create** then **Certification**; when you give the **Issued on** date and leave **Expires on** empty, the expiry is worked out from the type's validity, and **Issued by** is filled from the type. Add the scanned certificate on the record's **Evidence files** tab.
+- **Certifications** (the **Certifications** tab of **People and training > Qualifications**) lists every certification (`CRT-` numbers) with the **Person**, **Certification**, **Expires** (the date with the days left: red "Expired N days ago", amber within 60 days) and **Status**, soonest expiry first; the reference, number, issuing body and issue date are in the column chooser. Safety managers can record certifications too. Select **New certification**, or **Create** then **Certification**; when you give the **Issued on** date and leave **Expires on** empty, the expiry is worked out from the type's validity, and **Issued by** is filled from the type. Add the scanned certificate on the record's **Evidence files** tab.
 - **Expiring** on the certifications list shows the certifications that have expired or expire within 30, 60, 90 or 180 days and have not been renewed by a later certification of the same type.
 - **Qualifications** shows the qualification matrix (see the guide page above).
 
@@ -163,11 +163,15 @@ When notifications are in use (see [Attachments and notifications](14-attachment
 - You are told when training is assigned to you, by a rule or by hand. Someone given more than three courses at once gets one notification with the count.
 - Once a course is past its due date you are reminded, then again every 7 days until it is completed.
 
-Each notification opens **My training**. To change the 7 days, someone with **Administer** on **Training** selects **Reminder settings** on the **Training overview**, enters **Days between reminders** (1 to 90) and selects **Save**. One course can have its own interval: set **Days between overdue reminders** on the course (1 to 90), or leave it empty to use the setting.
+Each notification opens **My training**. To change the 7 days, see [Training settings](#training-settings). One course can have its own interval: set **Days between overdue reminders** on the course (1 to 90), or leave it empty to use the setting.
+
+## Training settings
+
+*Someone with **Administer** on **Training**.* Open **People and training > Training overview** and the **Settings** tab (also the **Training settings** card under **Administration > Area settings**; its address is `/training/settings`). Under **Overdue training reminders**, enter **Days between reminders** (1 to 90) and save. One course can still have its own interval (**Days between overdue reminders** on the course). The overview no longer has a **Reminder settings** button, and **Courses** is a tab only.
 
 ## Exercises
 
-Open **Safety and emergency management > Exercises**.
+Open **Safety and emergency management > Exercises**. **Continuity managers** plan, run and record exercises too (wave 26), and safety managers and training coordinators can see them.
 
 ### Plan an exercise
 
@@ -218,7 +222,7 @@ An exercise that tested a business continuity or emergency plan can be linked to
 
 ### Exercise calendar
 
-Open **Safety and emergency management > Exercises** and the **Calendar** tab.
+Open **Safety and emergency management > Exercises** and the **Calendar** tab (there is no separate Calendar button).
 
 | Part | Shows |
 |---|---|

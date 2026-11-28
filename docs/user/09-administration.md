@@ -47,6 +47,9 @@ This page is for administrators. It explains how to add people and give them acc
 | Area settings | **Hazard matrix** | The levels and cell ratings of the safety hazard matrix | [Change the hazard matrix](20-safety-management.md#change-the-hazard-matrix) |
 | Area settings | **Safety reporting rules** | Which safety events must be reported to whom, and by when | [Safety reporting rules](20-safety-management.md#safety-reporting-rules) |
 | Area settings | **Confidential safety reports** | Who may see the identity of a safety reporter who asked to stay confidential | [Confidential reporting](20-safety-management.md#confidential-reporting) |
+| Area settings | **Security incident rules** | Notification rules, kinds of data, scenario checklists and the incident team (shown only to people who may change them: the security incidents **Administer** permission) | [Security incidents](07-security-incidents.md) |
+| Area settings | **Training settings** | How often people are reminded of training past its due date (also the **Settings** tab of **Training overview**) | [Training and exercises](12-training-and-exercises.md) |
+| Area settings | **Document settings** | Document numbers, department codes and acknowledgment reminders (also the **Settings** tab of the **Document library**) | [Policies and documents](11-policies-and-exceptions.md) |
 | Area settings | **Vulnerability severity policy** | How fast findings of each severity must be fixed | [Vulnerabilities](13-vulnerabilities.md) |
 | Area settings | **Vendor assessment questions**, **Vendor intake questions** | The questions vendors answer, and those asked before a vendor is taken on | [Vendor risk lifecycle](34-vendor-risk-lifecycle.md) |
 | Connections | **Email** | Outgoing email, templates, delivery log, text messages | [Email settings](14-attachments-and-notifications.md#email-settings) |
@@ -212,19 +215,23 @@ A role is a named set of permissions. People get access only through the roles t
 | **Administrator** | Configuration, users and roles. Holds every permission. | On |
 | **Agent** | Service desk and inventory work: tickets, knowledge, inventory, changes (including approving them and change settings), fleet and actions, finding asset tags and counting inventory, with read access to most other areas. | On |
 | **Security lead** | Risks, frameworks, security incidents (and every restricted record), vulnerabilities, policies, training, vendors and contracts, the audit log, dashboards and reports, and the same service desk, inventory and change rights as an agent, with read access to projects, fleet and safety. Also controls and their testing, with read access to audits, committees, the staff roster, business continuity and privacy assessments. | On |
-| **Project manager** | Projects, gates, status reports and actions. | On |
-| **Safety manager** | Safety team: hazard log, safety events, investigations and indicators, audits and inspections, with the action tracker and read access to fleet, systems, sites, committees, the staff roster, business continuity, policies, training, dashboards and reports. | On |
-| **Compliance officer** | Obligations, funding and grant compliance, controls and committees, with the action tracker and read access to audits, policies, vendors, contracts, projects, assets, fleet, the staff roster, dashboards and reports, business continuity, records requests, privacy assessments and legal holds. | On |
-| **Audit lead** | Audits and inspections, controls and their testing, and the action tracker, with read access to committees, obligations, policies and framework outcomes. | On |
-| **Training coordinator** | Training, the staff roster and qualifications, with read access to policies. | On |
-| **Continuity manager** | Business continuity and emergency management: business processes, impact analyses, plans and activations, with the action tracker and read access to systems, sites, assets, fleet, vendors, the staff roster, exercises, dashboards and reports. | On |
+| **Project manager** | Projects, gates, status reports and actions, with read access to funding. | On |
+| **Safety manager** | Safety team: hazard log, safety events, investigations and indicators, audits and inspections, recording certifications and assigning training, and running an emergency activation (business continuity **Create** and **Edit**), with the action tracker and read access to fleet, systems, sites, committees, the staff roster, exercises, policies, dashboards and reports. | On |
+| **Compliance officer** | Obligations, funding and grant compliance, controls and committees, with the action tracker and read access to audits, policies, vendors, contracts, projects, assets, fleet, safety, the staff roster, dashboards and reports, business continuity, records requests, privacy assessments and legal holds. | On |
+| **Audit lead** | Audits and inspections, controls and their testing, and the action tracker, with read access to committees, obligations, policies, framework outcomes, and the sites, vehicles and assets an inspection covers. | On |
+| **Training coordinator** | Training, the staff roster and qualifications, with read access to policies and exercises. | On |
+| **Continuity manager** | Business continuity and emergency management: business processes, impact analyses, plans and activations, with the action tracker, planning, running and recording exercises, and read access to systems, sites, assets, fleet, vendors, the staff roster, dashboards and reports. | On |
 | **Records and privacy officer** | Legal holds, requests for records and personal data, and privacy impact assessments, with the action tracker and read access to data categories, systems and reports. | On |
-| **Asset manager** | Assets, sites and vehicles, their tags, inventory counts, condition and replacement, with the action tracker and read access to projects, funding, dashboards and reports. | On |
+| **Asset manager** | Assets, sites and vehicles, their tags, inventory counts, condition and replacement, opening and running inspections of stations, depots, vehicles and equipment, with the action tracker and read access to projects, funding, safety events, dashboards and reports. | On |
 | **Approver** | People who approve changes, service requests, asset decisions and project gates. It does not include risks: risk acceptance is left to the Risk manager role, and a risk acceptance is recorded by someone who can see the risk, naming the approver. | Off |
-| **Executive viewer** | Read-only dashboards and reports, projects, framework outcomes, committees, business continuity and the risk register. | Off |
+| **Executive viewer** | A read-only leadership view: dashboards and reports, and the registers and figures of safety (restricted events stay hidden), fleet, asset condition, inspections, business continuity, risks, funding, projects, the strategic plan, procurement budgets, framework outcomes, committees and the action tracker. Lands on the Overview with the **Board summary** first. | Off |
 | **Risk manager** | Enterprise risk without access to security incidents: the risk register, reviews, acceptances, the risk appetite and key risk indicators, and the action tracker, with read access to obligations, controls, committees, audits, documents, dashboards and reports. Cybersecurity risks, which are restricted, stay hidden unless the person also holds the security permission. | Off |
 | **Auditor** | Read-only access to chosen areas, with export of framework evidence, audits and controls, and read access to business continuity, privacy assessments and legal holds. | Off |
 | **Requester** | Anyone in the organization submitting their own requests. | Off |
+| **Procurement officer** | Solicitations, evaluations and awards, purchase orders and receiving, and budgets ([Procurement and budgets](44-procurement-and-budgets.md)). Belongs to the procurement part and is not offered while it is off. | Off |
+| **Risk and insurance coordinator** | The insurance program: policies and renewals, certificates of insurance from vendors and claims, with read access to vendors, contracts, controls, assets, vehicles, sites, systems and risks ([Insurance](45-insurance.md)). | Off |
+| **Civil rights officer** | Civil rights and accessibility programs, their reports, complaints and business participation goals ([Civil rights programs](46-civil-rights-programs.md)). Handles a confidential complaint only once named as a complaint handler. | Off |
+| **Strategy and performance analyst** | The strategic plan, its measures and quarterly updates, operating statistics and the statistical reports sent to outside bodies, with reports and dashboards ([Strategy and statistics](47-strategy-and-statistics.md)). | Off |
 
 The list shows each role's **Access** (for example "12 permissions in 5 areas", or "Everything"), the number of **Members**, whether a **Second factor** is Required or Optional, and a **Switched on** switch. Treat the supplied roles as a starting point and check each one's permissions against how your organization works.
 
@@ -234,7 +241,20 @@ The Continuity manager, Records and privacy officer and Asset manager roles come
 
 The evidence library adds the permission area **Evidence library**. Compliance officers and audit leads get all of it; auditors get **View** and **Export**; security leads, safety managers, continuity managers, records and privacy officers, project managers and asset managers get **View**, **Create** and **Edit**, since they keep evidence of their own. On an existing installation these are offered under [Applying default permissions after an upgrade](#applying-default-permissions-after-an-upgrade).
 
+Procurement, insurance, civil rights and strategy add permission areas of their own (wave 26). Approvers also get **View** and **Approve** on procurement; auditors **View** and **Export**; compliance officers, project managers, asset managers and executive viewers **View**; executive viewers also **View** on strategy. On an existing installation these are offered under [Applying default permissions after an upgrade](#applying-default-permissions-after-an-upgrade), and the four new roles appear by themselves, switched off.
+
 Asset tags add the permission area **Asset tags** with three permissions: **View** (tag history and stock), **Manage** (formats, stock, printing, attaching, replacing and ending tags) and **Count** (inventory counts). Asset managers get all three and agents get **View** and **Count**; on an existing installation they are offered under [Applying default permissions after an upgrade](#applying-default-permissions-after-an-upgrade). Finding a record by its tag needs no permission beyond seeing the record.
+
+Wave 26 gave several roles what their job needs: the Continuity manager plans and records exercises, the Asset manager opens and runs inspections, the Safety manager records certifications, assigns training and runs an emergency activation, and the Executive viewer reads safety, fleet, condition, inspections, funding and actions. On an existing installation these are offered under [Applying default permissions after an upgrade](#applying-default-permissions-after-an-upgrade).
+
+### Where people land
+
+On a role's page, **Home page** chooses where its members land after signing in and when they open the application's address: **Overview**, **My work**, **Self-service portal** (while the portal is on) or one of the dashboards. **Default** keeps the role's usual start page (the Overview, or the portal for the Requester role). The choice is saved as soon as you change it, and recorded in the audit log.
+
+- On the **Roles** page, **People with no role** chooses where people who hold no role land: **My work** unless you change it, where they can report a problem, read the documents given to them and do their training.
+- With several roles, the first of their roles' choices in this order wins: **My work**, a dashboard, **Overview**, the portal.
+- A choice that cannot be used (the portal switched off, the dashboard removed or no longer shared with them, or no dashboards permission) gives the Overview.
+- It applies only on arrival: choosing **Overview** in the menu always shows the Overview.
 
 ### Applying default permissions after an upgrade
 
@@ -637,7 +657,7 @@ So a pale brand color is made darker for the light theme, and a dark one lighter
 
 ## Settings
 
-Open **Administration > Settings**. The settings are in groups: **Identity**, **Security**, **Sessions**, **API tokens**, **Outbound connections**, **Retention**, **Actions**, **Features**, **Files** and **Departments**. The links at the side of the page (at the top on a narrow screen) jump to each group.
+Open **Administration > Settings**. The settings are in groups: **Identity**, **Security**, **Sessions**, **API tokens**, **Outbound connections**, **Retention**, **Actions**, **Features**, **Data load mode** and **Elsewhere**. The links at the side of the page (at the top on a narrow screen) jump to each group.
 
 Each setting has its name and an explanation on the left and its control on the right. Make your changes, then select **Save settings** at the top right, or **Undo changes** to discard them. A setting you have altered is marked **Changed**, and the number of unsaved changes is shown beside the buttons. Every change is recorded in the audit log with the old and new value.
 
@@ -710,31 +730,13 @@ The logs are removed once a day by the same daily check as retention reviews, an
 
 This group only points to **Administration > Features**, where the parts of the application are switched on and off (see [Features](#features) below). The audience roles (Requester, Approver, Executive viewer, Auditor) are not there either: they are switched on the **Roles** page.
 
-### Files
-
-The limits for files attached to records. They apply to new uploads; files already attached are not affected. This group has its own buttons: select **Save file settings** to save it, separately from **Save settings**.
-
-| Setting | Allowed | Notes |
-|---|---|---|
-| **Largest file** | 1 to 2048 megabytes | Each attached file may be up to this size. |
-| **Allowed file types** | Extensions separated by commas, for example `pdf, docx, png` | A file is refused when its content does not match its extension. Programs and scripts can never be allowed. Adding a type asks you to confirm your password. |
-| **Malware scanning** | Shown only | Says whether new files are scanned, and by which scanner. Scanning is set on the **Malware scanning** tab of **File settings** (see [Attachments and notifications](14-attachments-and-notifications.md#malware-scanning)). |
-
-The same settings are on **Administration > File settings**. If file attachments are not part of your installation, the group says so.
-
-### Departments
-
-The **Departments** group holds the list used to group people. Departments are also records of their own, with the department each is part of and a manager, on the **Departments** tab of **People and training > People** (see [People and qualifications](29-people-and-qualifications.md#departments)); changes made in either place show in both.
-
-- Select **Add department**, enter a name and select **Save**.
-- Select **Rename** to change a name.
-- Select **Remove** to delete a department. The people in it are left without a department.
-
-Department changes save immediately; they do not wait for **Save settings**.
-
 ### Data load mode (settings)
 
 The **Data load mode** group switches [data load mode](#data-load-mode) on and off. It saves with its own buttons, not with **Save settings**.
+
+### Elsewhere
+
+Settings that have a page of their own are not repeated here; this group links to them: **File settings** (the largest file, allowed file types, malware scanning and storage, see [File settings](14-attachments-and-notifications.md#file-settings)), **Data loads** (what data load mode created, and undoing a load), **Departments** (the **Departments** tab of **People and training > People**, see [People and qualifications](29-people-and-qualifications.md#departments)) and **Retention**.
 
 ## Data load mode
 
@@ -783,13 +785,15 @@ This never hides who did the load. The audit log and each record's history keep 
 
 For approval decisions the person must have an account and be one of the approvers of the step; the usual rules of the step apply.
 
-The person named is also recorded wherever an area keeps its own "who did it": approvals and decisions given outside an approval workflow, sign-offs, verifications, log entries, figures entered, check-outs and check-ins, and the people who added files. Rules tied to a person (the reviewer of an access review, the chair of a committee, the requester of an approval) are checked against the person named. Where the date or time of the act matters (a decision, a verification, a check-out, a confirmation), give it in the load and it is kept; otherwise it is the time of the load. A file attached in a load can carry the date it was originally added.
+The person named is also recorded wherever an area keeps its own "who did it": approvals and decisions given outside an approval workflow, sign-offs, verifications, log entries, figures entered, check-outs and check-ins, and the people who added files. Rules tied to a person (the reviewer of an access review, the chair of a committee, the requester of an approval) are checked against the person named. Where the date or time of the act matters (a decision, a verification, a check-out, a confirmation), give it in the load and it is kept; otherwise it is the time of the load. A file attached in a load can carry the date it was originally added, and so can a link to a document kept elsewhere. Times of ticks and reviews follow the load too: a fulfillment task, an incident checklist step and a control test step ticked in a load keep the time given as `done_at`, and a post-implementation review keeps `pir_completed_at`. The inspector of an inspection answered in a load, the owner of the findings it raises, and the author of framework outcome evidence are the person named.
 
 An acknowledgment of a document version by a reader can be loaded with its date: `POST /api/policies/:id/versions/:version/acknowledgments`, or `record_acknowledgment` from an AI assistant.
 
 ### Undoing a load
 
-Every record created in data load mode is listed on **Administration > Data loads**, grouped by the day it was loaded and its record type (files added to records in a load are listed as **Files**), with how many were created, how many are still there and who loaded them.
+Every record created in data load mode is listed on **Administration > Data loads**, grouped by the day it was loaded and its record type (files and links added to records in a load are listed as **Files**), with how many were created, how many are still there and who loaded them.
+
+Some loads are listed one by one as well: **Document versions** (each version loaded into a document's history) and **Paper copies** (copies of documents loaded into the register of issued copies). **Show each** lists them, and **Undo this one** removes just that one after you give your password again: a wrong version is taken out of the document's history (with the acknowledgments loaded for it; the version before it is in force again when it was the effective one) without undoing the document or its other versions. The text of a version removed this way is kept in the audit log.
 
 To undo a load, select **Delete this load** on its row (it deletes everything that load created), then **Delete them**, and give your password again. Each record is deleted as if it were deleted from its own page (it is kept in the database as deleted, and the deletion is in the audit log). Records under a legal hold are kept, and the message says how many. This works whether data load mode is on or off.
 
@@ -829,6 +833,10 @@ Each part has a switch, a line saying what it covers, whether it is **On** or **
 | **User access reviews** | The accounts each system holds, matched to the staff roster with leavers and people on leave flagged, and review campaigns in which system owners keep or remove each account, with removals tracked to done ([User access reviews](40-user-access-reviews.md)) | On |
 | **Evidence library** | Evidence filed once and linked to controls, obligations, audits, funder reviews and corrective actions, with expiry reminders, and the **Evidence** tab of those records ([Evidence library](43-evidence-library.md)) | On |
 | **Records retention schedule** | The organization's own record series, paper and electronic, with their retention periods and triggers, and the destruction log with approvals ([Records retention schedule](42-records-retention-schedule.md)). It uses the records permissions, so it is hidden while **Records requests and privacy** is off | On |
+| **Procurement and budgets** | Solicitations, offers, evaluation and award, protests, purchase orders with approval and receiving, and budgets against committed and spent ([Procurement and budgets](44-procurement-and-budgets.md)) | On |
+| **Insurance** | Insurance policies, their conditions and covered records, renewals, certificates of insurance against contract requirements, and claims ([Insurance](45-insurance.md)) | On |
+| **Civil rights** | Civil rights and accessibility programs, monitoring reports, complaints (confidential by default) and business participation goals ([Civil rights programs](46-civil-rights-programs.md)). Off until you choose to keep complaints here | Off |
+| **Strategy and performance** | The strategic plan with goals, objectives, measures and initiatives, quarterly updates, the board scorecard, operating statistics and statistical submissions ([Strategy and statistics](47-strategy-and-statistics.md)) | On |
 | *Each register* | Every register an administrator defines under Administration > Registers has a switch of its own, named after the register ([Registers](41-registers.md#switching-a-register-off)) | On |
 | **Mobile app** | The Sandpiper GRC app for iPhone and Android: sign-in through the phone's browser, My work, reading asset tags with the camera, reporting problems with photos, inspections, condition assessments and counts that work offline, push notifications, and the list of signed-in devices. Switching it off signs out every device | Off |
 

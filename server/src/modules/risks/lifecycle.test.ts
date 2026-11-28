@@ -286,7 +286,7 @@ describe('sharing one restricted action', () => {
     expect((await agent.get(`/api/actions/shared/${action.id}`)).status).toBe(404);
     expect((await agent.get(`/api/actions/${action.id}/shares`)).status).toBe(404);
     expect((await agent.post(`/api/actions/${action.id}/shares`, { user_id: agent.userId })).status).toBe(404);
-    expect((await (await t.as('executive_viewer')).get('/api/actions/shared-with-me')).status).toBe(403);
+    expect((await (await t.as('approver')).get('/api/actions/shared-with-me')).status).toBe(403);
 
     expect((await lead.post(`/api/actions/${open.id}/shares`, { user_id: agent.userId })).body.error.code).toBe('not_restricted');
     expect((await lead.post(`/api/actions/${action.id}/shares`, { user_id: 'nope' })).body.error.fields.user_id).toBeDefined();

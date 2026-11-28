@@ -79,3 +79,5 @@
   .doc-side { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
   .doc-main { order: -1; }
 }
+.doc-copies-actions { text-align: right; white-space: nowrap; }
+.doc-copies-actions > * + * { margin-left: var(--s-2); }

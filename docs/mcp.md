@@ -149,7 +149,7 @@ reports `data_load` (with a type: `extra_fields`, and `settable_in_data_load` on
 `create_record` and `update_record` accept read-only fields and `created_at`, `created_by`,
 `updated_at` (their descriptions say so), and `delete_record` is offered. Field errors come back as
 usual. In data load mode the write tools (`create_record`, `update_record`, `add_comment`, `link_records`, `attach_file`, `attach_link`,
-`decide_approval`, `save_document`, `add_document_version`, `link_document`, `record_document_review`,
+`link_evidence`, `decide_approval`, `save_document`, `add_document_version`, `link_document`, `record_document_review`,
 `record_acknowledgment`) also take `as`, the person who really wrote or did the thing (E18-71, E18-94; see
 the user guide, chapter 21): the tools resolve it with `POST /api/data-load/person` and send `on_behalf_of`.
 The argument is part of the input schema only while the caller's saves are loads (`ToolSpec.dataLoadInput`).
@@ -214,7 +214,8 @@ token with write scopes, not only to document editors.
 | Tool | Input | Output |
 |---|---|---|
 | `attach_file` | `type`, `id`, `upload_id` (from `finish_upload`), `evidence?`, `description?`, `collected_on?`, `expires_on?` | Write. `POST /api/attachments/uploads/:id/attach`: the file on the record (the full intake ran when the upload was finished), once per upload. `evidence` defaults to the type's own default (evidence types); dates in the common formats above; `as` in data load mode (sent as `on_behalf_of`), and `created_at` (a date or ISO time) kept as the file's added date; a file attached in a load records the person named as "added by" and is listed with the load, so undoing it removes the file (E45-51, E45-52) |
-| `attach_link` | `type`, `id`, `url`, `title?`, `evidence?`, `description?`, `collected_on?`, `expires_on?` | Write. `POST /api/attachments/link`: http or https, no user name or password, never fetched; `as` in data load mode (the link's "added by" is the person named) |
+| `attach_link` | `type`, `id`, `url`, `title?`, `evidence?`, `description?`, `collected_on?`, `expires_on?`, `created_at?` | Write. `POST /api/attachments/link`: http or https, no user name or password, never fetched; `as` in data load mode (the link's "added by" is the person named), and `created_at` kept as the link's added date; a link attached in a load is listed with the load, so undoing it removes the link (E46-51) |
+| `link_evidence` | `evidence`, `type`, `id`, `part?`, `relation?`, `note?` | Write. `POST /api/evidence-links`: links an evidence library record to a record (or a part of one, such as a workpaper step); offered while the evidence library is on and the caller may see it; `as` in data load mode (E45-65) |
 | `list_attachments` | `type`, `id` | `GET /api/attachments`: each file and link with kind, size, description, evidence dates, who added it and when |
 
 ### Work and insight

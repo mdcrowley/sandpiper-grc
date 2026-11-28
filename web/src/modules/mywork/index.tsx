@@ -8,7 +8,8 @@ import { MyWorkPage } from './MyWorkPage';
 const mod: ModuleDef = {
   key: 'mywork',
   nav: [
-    { group: 'Home', label: 'My work', path: '/my-work', icon: 'check-circle', order: 10, tabs: 'Summary' },
+    // The number beside the entry is what waits for the person (E44-09), counted as this page counts it.
+    { group: 'Home', label: 'My work', path: '/my-work', icon: 'check-circle', order: 10, tabs: 'Summary', count: '/api/work/waiting' },
   ],
   routes: [{ path: '/my-work', element: <MyWorkPage /> }],
 };

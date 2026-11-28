@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   api, ApiError, Badge, Button, Card, DateField, ErrorState, errorMessage, formatDate, formatDateTime, Loading, NumberField, PageHeader, Select,
-  StatusChip, TableWrap, TextArea, TextField, useAuth, useFetch, useToast, useUnsavedChanges,
+  RecordPicker, StatusChip, Switch, TableWrap, TextArea, TextField, useAuth, useFetch, useMeta, useToast, useUnsavedChanges,
 } from '../../core';
 import type { ColorName } from '../../core';
 import { RiskTabs } from './RiskTabs';
@@ -37,11 +37,13 @@ export function approvalLine(c: Pick<AppetiteCategory, 'approved_by_name' | 'app
 type Draft = {
   statement: string | null; max_rating: string | null; max_score: number | null; approved_on: string | null;
   approved_by_name: string | null; approval_body: string | null; reference: string | null; reason: string | null;
+  /** E45-56: approved by a committee decision instead of the fields above. */
+  decision_id?: string | null;
 };
 const draftOf = (c: AppetiteCategory): Draft => ({
   statement: c.statement, max_rating: c.max_rating, max_score: c.max_score,
   // A change is a new decision: its approval is given afresh.
-  approved_on: null, approved_by_name: null, approval_body: null, reference: null, reason: null,
+  approved_on: null, approved_by_name: null, approval_body: null, reference: null, reason: null, decision_id: null,
 });
 
 /** The versions of one category's appetite, newest first. */
@@ -85,6 +87,7 @@ function History({ category, ratings }: { category: string; ratings: AppetiteCat
 /** One category: the appetite in force, its history, and (for administrators) a new version. */
 function CategoryCard({ c, onSaved }: { c: AppetiteCategory; onSaved: () => void }) {
   const { can } = useAuth();
+  const { resources } = useMeta();
   const toast = useToast();
   const [draft, setDraft] = useState<Draft | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -102,7 +105,10 @@ function CategoryCard({ c, onSaved }: { c: AppetiteCategory; onSaved: () => void
     setErrors({});
     try {
       const { reason, ...rest } = draft;
-      const body = remove ? { category: c.category } : { category: c.category, ...rest };
+      const { decision_id: decisionId, ...fields } = rest;
+      const body = remove ? { category: c.category } : decisionId
+        ? { category: c.category, statement: fields.statement, max_rating: fields.max_rating, max_score: fields.max_score, decision_id: decisionId }
+        : { category: c.category, ...fields };
       await api.put('/api/risks/appetite', { reason, categories: [body] });
       unsaved.release();
       toast.success(remove ? 'Appetite removed. The change is kept as a version.' : 'New version recorded. Every risk has been checked against it.');
@@ -139,10 +145,19 @@ function CategoryCard({ c, onSaved }: { c: AppetiteCategory; onSaved: () => void
               hint="Residual rating, or inherent while a risk has no residual score."
             />
             <NumberField label="Highest acceptable score" value={draft.max_score} min={0} step={1} onChange={(v) => set({ max_score: v })} error={err('max_score')} hint="Optional, on the register's score." />
-            <DateField label="Approved on" required value={draft.approved_on ?? ''} onChange={(v) => set({ approved_on: v || null })} error={err('approved_on')} />
-            <TextField label="Approved by" required value={draft.approved_by_name ?? ''} onChange={(v) => set({ approved_by_name: v || null })} error={err('approved_by_name')} hint="The person who signed off, for example the chair." />
-            <TextField label="Approving body" required value={draft.approval_body ?? ''} onChange={(v) => set({ approval_body: v || null })} error={err('approval_body')} hint="For example the board or a risk committee." />
-            <TextField label="Reference" value={draft.reference ?? ''} onChange={(v) => set({ reference: v || null })} error={err('reference')} hint="A resolution or minute." />
+            {resources.meeting_decision && (
+              <RecordPicker className="form-cell-wide" label="Approved by a committee decision (optional)" type="meeting_decision" value={draft.decision_id ?? null}
+                onChange={(id) => set({ decision_id: id })} error={err('decision_id')}
+                hint="A carried decision of a committee meeting: the committee becomes the approver, the meeting's date the approval date and its resolution the reference." />
+            )}
+            {!draft.decision_id && (
+              <>
+                <DateField label="Approved on" required value={draft.approved_on ?? ''} onChange={(v) => set({ approved_on: v || null })} error={err('approved_on')} />
+                <TextField label="Approved by" required value={draft.approved_by_name ?? ''} onChange={(v) => set({ approved_by_name: v || null })} error={err('approved_by_name')} hint="The person who signed off, for example the chair." />
+                <TextField label="Approving body" required value={draft.approval_body ?? ''} onChange={(v) => set({ approval_body: v || null })} error={err('approval_body')} hint="For example the board or a risk committee." />
+                <TextField label="Reference" value={draft.reference ?? ''} onChange={(v) => set({ reference: v || null })} error={err('reference')} hint="A resolution or minute." />
+              </>
+            )}
           </div>
           <TextArea label="Why it is changing" required rows={2} value={draft.reason ?? ''} onChange={(v) => set({ reason: v || null })} error={err('reason')} hint="Kept with the version, beside your name." />
           <div className="form-actions">
@@ -203,6 +218,52 @@ export function Appetite() {
     <div className="stack">
       {header}
       {data.categories.map((c) => <CategoryCard key={c.category} c={c} onSaved={reload} />)}
+      <CategoryRestriction />
     </div>
+  );
+}
+
+interface RestrictionRow { category: string; label: string; color: string; restricted: boolean; risks: number; restricted_risks: number }
+
+/** Which categories make their new risks restricted records (E45-57), for people who may change it. */
+function CategoryRestriction() {
+  const toast = useToast();
+  const { data, error, reload } = useFetch<{ categories: RestrictionRow[]; can_change: boolean }>('/api/risks/categories');
+  const [busy, setBusy] = useState<string | null>(null);
+  const [existing, setExisting] = useState(false);
+  if (error) return <ErrorState error={error} onRetry={reload} />;
+  if (!data || !data.can_change) return null;
+  const change = async (c: RestrictionRow, restricted: boolean) => {
+    setBusy(c.category);
+    try {
+      const r = await api.put<{ changed: number }>(`/api/risks/categories/${encodeURIComponent(c.category)}/restriction`, { restricted, apply_to_existing: existing });
+      toast.success(`New ${c.label.toLowerCase()} risks are ${restricted ? 'restricted records' : 'no longer restricted'}${r.changed ? `; ${r.changed} existing risks changed` : ''}.`);
+      reload();
+    } catch (err) { toast.error(errorMessage(err)); } finally { setBusy(null); }
+  };
+  return (
+    <Card title="Restricted categories" flush>
+      <p className="muted" style={{ margin: 0, padding: 'var(--s-3) var(--s-4) 0' }}>
+        New risks in a restricted category are restricted records: only people with access to restricted records see their details (counts stay the same for everyone).
+      </p>
+      <div style={{ padding: 'var(--s-3) var(--s-4) 0' }}>
+        <Switch label="Also change the existing risks of a category" checked={existing} onChange={setExisting} />
+      </div>
+      <TableWrap label="Restricted categories">
+        <table className="table">
+          <thead><tr><th scope="col">Category</th><th scope="col" className="num">Risks</th><th scope="col" className="num">Restricted</th><th scope="col">New risks restricted</th></tr></thead>
+          <tbody>
+            {data.categories.map((c) => (
+              <tr key={c.category}>
+                <td><StatusChip color={(c.color || 'gray') as ColorName} label={c.label} /></td>
+                <td className="num">{c.risks}</td>
+                <td className="num">{c.restricted_risks}</td>
+                <td><Switch label={c.restricted ? `Restricted (new ${c.label.toLowerCase()} risks)` : `Not restricted (new ${c.label.toLowerCase()} risks)`} checked={c.restricted} disabled={busy !== null} onChange={(v) => void change(c, v)} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </TableWrap>
+    </Card>
   );
 }

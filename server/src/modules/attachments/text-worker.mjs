@@ -9,10 +9,20 @@
 //     looked at (.docm is refused at upload anyway), and parts that would unpack beyond the limit
 //     are skipped (a zip bomb is never unpacked).
 //   - Plain text (.txt, .md, .log, .csv): decoded as UTF-8 or UTF-16 (by its byte-order mark).
+//   - Scanned PDFs (E43-15): a PDF with no text layer is reported as `scanned`; read again with `ocr`,
+//     the pictures on its first pages are taken from the file by pdf.js (decoded in JavaScript, no
+//     canvas) and read with tesseract.js (Apache-2.0, WebAssembly) using the language data bundled
+//     with the application (`ocr.langPath`): nothing is downloaded and no outside request is made.
 // No outside program is ever started.
 import { parentPort, workerData } from 'node:worker_threads';
 
-const { bytes, extension, maxChars, maxPages, maxUnpacked } = workerData;
+const { bytes, extension, maxChars, maxPages, maxUnpacked, ocr } = workerData;
+/** A PDF whose text layer has fewer letters than this is treated as scanned. */
+const SCANNED_BELOW = 20;
+/** Pictures larger than this (pixels) are not read: a page scanned at 300 dpi is about 8.4 million. */
+const OCR_MAX_PIXELS = 40_000_000;
+/** Pictures smaller than this on either side are not text worth reading (logos, rules). */
+const OCR_MIN_SIDE = 100;
 
 function clip(text) {
   const clean = String(text ?? '').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, ' ').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
@@ -109,14 +119,77 @@ async function pdf(buf) {
   return out.join('\n');
 }
 
+/** A decoded pdf.js picture as an 8-bit grey PNM (P5) file, which the OCR engine reads directly. */
+function toPgm(img) {
+  const { width: w, height: h, kind, data } = img;
+  const gray = Buffer.alloc(w * h);
+  if (kind === 2 || kind === 3) {
+    const bpp = kind === 2 ? 3 : 4;
+    for (let i = 0, j = 0; i < w * h; i++, j += bpp) gray[i] = (data[j] * 299 + data[j + 1] * 587 + data[j + 2] * 114) / 1000;
+  } else {
+    // One bit per pixel, rows padded to whole bytes; a set bit is white (pdf.js GRAYSCALE_1BPP).
+    const row = (w + 7) >> 3;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) gray[y * w + x] = (data[y * row + (x >> 3)] >> (7 - (x & 7))) & 1 ? 255 : 0;
+  }
+  return Buffer.concat([Buffer.from(`P5\n${w} ${h}\n255\n`), gray]);
+}
+
+/** The text of a scanned PDF: its pictures, page by page, read by the OCR engine. */
+async function ocrPdf(buf) {
+  const { getDocument, OPS } = await load('pdfjs-dist/legacy/build/pdf.mjs');
+  const { createWorker } = await load('tesseract.js');
+  const task = getDocument({
+    data: new Uint8Array(buf), disableFontFace: true, useSystemFonts: false, enableXfa: false,
+    stopAtErrors: false, verbosity: 0, disableAutoFetch: true, disableStream: true,
+    isOffscreenCanvasSupported: false, isImageDecoderSupported: false,
+  });
+  const doc = await task.promise;
+  // Local language data only; nothing cached to disk, nothing fetched.
+  const engine = await createWorker(ocr.langs, 1, { langPath: ocr.langPath, cacheMethod: 'none', gzip: ocr.gzip !== false });
+  const out = [];
+  let length = 0;
+  let pictures = 0;
+  try {
+    const pages = Math.min(doc.numPages, ocr.maxPages);
+    for (let i = 1; i <= pages && length < maxChars; i++) {
+      const page = await doc.getPage(i);
+      const ops = await page.getOperatorList();
+      for (let k = 0; k < ops.fnArray.length && length < maxChars; k++) {
+        if (ops.fnArray[k] !== OPS.paintImageXObject) continue;
+        const name = ops.argsArray[k][0];
+        const img = await new Promise((resolve) => (page.objs.has(name) ? resolve(page.objs.get(name)) : page.objs.get(name, resolve)));
+        if (!img || !img.data || !img.width || !img.height) continue;
+        if (img.width * img.height > OCR_MAX_PIXELS || img.width < OCR_MIN_SIDE || img.height < OCR_MIN_SIDE / 4) continue;
+        pictures += 1;
+        const r = await engine.recognize(toPgm(img));
+        const text = String(r?.data?.text ?? '');
+        out.push(text);
+        length += text.length;
+      }
+      page.cleanup();
+    }
+  } finally {
+    await engine.terminate();
+    await task.destroy();
+  }
+  return { text: out.join('\n'), pictures };
+}
+
 async function run() {
   const buf = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if (extension === 'pdf' && ocr) return ocrPdf(buf);
   if (extension === 'pdf') return pdf(buf);
   if (extension === 'docx') return docx(buf);
   return decodeText(buf);
 }
 
 run().then(
-  (text) => parentPort.postMessage({ ok: true, text: clip(text) }),
+  (out) => {
+    if (out && typeof out === 'object') return parentPort.postMessage({ ok: true, text: clip(out.text), ocr: true, pictures: out.pictures });
+    const text = clip(out);
+    // A PDF with (almost) no text layer is a scan: the caller may read it again with OCR.
+    const scanned = extension === 'pdf' && text.replace(/\s+/g, '').length < SCANNED_BELOW;
+    return parentPort.postMessage({ ok: true, text, ...(scanned ? { scanned: true } : {}) });
+  },
   (err) => parentPort.postMessage({ ok: false, error: String((err && err.message) || err).slice(0, 300), unavailable: Boolean(err && err.unavailable) }),
 );

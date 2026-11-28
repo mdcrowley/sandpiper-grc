@@ -1,6 +1,7 @@
 import type { FastifyRequest } from 'fastify';
 import { todayInZone } from '../../core/config.ts';
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
+import { actorOf } from '../../core/dataload.ts';
 import { registerAdmin } from './admin.ts';
 import { registerExtras } from './extras.ts';
 import { registerOwnerActions } from './owner-actions.ts';
@@ -549,7 +550,7 @@ const mod: ModuleDef = {
       const row = (await db.one<Row>(
         `insert into outcome_evidence (outcome_id, title, description, location, collected_on, expires_on, created_by)
          values ($1,$2,$3,$4,$5,$6,$7) returning id, outcome_id, title, description, location, collected_on, expires_on, created_at`,
-        [o.id, text(b.title), text(b.description), text(b.location), text(b.collected_on), text(b.expires_on), req.user!.id],
+        [o.id, text(b.title), text(b.description), text(b.location), text(b.collected_on), text(b.expires_on), actorOf(req).id ?? req.user!.id],
       ))!;
       await ctx.audit(req, {
         action: 'framework_outcome.evidence_add', recordType: 'framework_outcome', recordId: o.id,

@@ -166,6 +166,32 @@ export const REMINDER_SETTINGS: ReminderSettingDef[] = [
     label: 'Days the auditor has to verify a finding',
     description: 'Once a finding is ready for verification, its verification is due this many days later; the auditor is reminded when it is overdue.',
   },
+  // Wave 26 (E46): insurance, civil rights and strategy. Each is also changed on its area's Settings page.
+  {
+    key: 'insurance.renewal_reminder_days', group: 'Insurance', requires: 'insurance_policy', kind: 'steps', unit: 'days', min: 0, max: 365, default: [90, 60, 30],
+    label: 'Remind policy owners before a policy expires',
+    description: 'A policy’s owner is reminded this many days before the policy expires, once for each step.',
+  },
+  {
+    key: 'insurance.application_reminder_days', group: 'Insurance', requires: 'insurance_policy', kind: 'steps', unit: 'days', min: 0, max: 180, default: [14, 3, 0],
+    label: 'Remind policy owners before the renewal application is due',
+    description: 'A policy’s owner is reminded this many days before its renewal application is due, once for each step.',
+  },
+  {
+    key: 'insurance.certificate_reminder_days', group: 'Insurance', requires: 'insurance_certificate', kind: 'steps', unit: 'days', min: 0, max: 180, default: [30, 0],
+    label: 'Remind certificate owners before a certificate of insurance expires',
+    description: 'A certificate’s owner is reminded this many days before it expires, once for each step.',
+  },
+  {
+    key: 'civilrights.reminder_days', group: 'Civil rights', requires: 'civil_rights_complaint', kind: 'number', unit: 'days', min: 0, max: 90, default: 7,
+    label: 'Remind before a complaint or report time limit',
+    description: 'The investigator (or the complaint handlers) and report owners are reminded this many days before a time limit, and once when it has passed.',
+  },
+  {
+    key: 'strategy.submission_reminder_days', group: 'Strategy', requires: 'stat_submission', kind: 'steps', unit: 'days', min: 0, max: 365, default: [30, 7, 0],
+    label: 'Remind the preparer before a statistical report is due',
+    description: 'The person preparing a statistical report is reminded at each step until it is submitted.',
+  },
   {
     key: 'attachments.link_check_days', group: 'Files', kind: 'number', unit: 'days', min: 1, max: 3650, default: 90,
     label: 'Remind record owners to check linked documents',

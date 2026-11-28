@@ -9,6 +9,7 @@ import {
 } from '../../core';
 import type { Row } from '../../core';
 import { GovernanceTabs, type Member } from './shared';
+import { WorkPlanCard } from './Interests';
 
 const CREATE = ['name', 'kind', 'purpose', 'chair_id', 'secretary_id', 'quorum_rule', 'quorum_value', 'resolution_prefix', 'meeting_frequency', 'joint_labor_management'];
 
@@ -189,6 +190,7 @@ export function CommitteeDetail() {
       tabs={[
         { key: 'members', label: 'Members', content: ({ row }) => <Members committee={row} /> },
         { key: 'meetings', label: 'Meetings', content: ({ row }) => <Meetings committeeId={row.id} /> },
+        { key: 'work-plan', label: 'Work plan', content: ({ row }) => <WorkPlanCard committee={row} /> },
         { key: 'waiting', label: 'Waiting for the chair', content: ({ row }) => <Card title="Approvals waiting for the chair"><WaitingApprovals committeeId={row.id} /></Card> },
       ]}
     />

@@ -1,0 +1,20 @@
+/* Insurance (wave 26). */
+.ins-pad { padding: var(--s-3) var(--s-4); }
+.ins-small { font-size: 0.875rem; }
+.ins-block { display: block; }
+.ins-good { color: var(--c-green-fg); }
+.ins-warn { color: var(--c-amber-fg); }
+.ins-bad { color: var(--c-red-fg); }
+.ins-actions { text-align: right; white-space: nowrap; }
+.ins-toolbar { max-width: 16rem; }
+.ins-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--s-4);
+  align-items: start;
+}
+@media (max-width: 62em) {
+  .ins-grid { grid-template-columns: minmax(0, 1fr); }
+}
+.ins-links { margin: 0.5rem 0 0; padding-left: 1.25rem; }
+.ins-links li + li { margin-top: 0.25rem; }

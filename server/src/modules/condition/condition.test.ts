@@ -241,6 +241,8 @@ describe('targets and figures', () => {
     const newBus = (await manager.post('/api/vehicles', { fleet_number: 'T-902', mode: 'bus', in_service_date: dayInZone(-200), asset_class_id: ids.busClass })).body;
     d = (await manager.get('/api/condition/dashboard')).body;
     expect(d.classes.find((c: any) => c.id === ids.busClass)).toMatchObject({ total: 2, past_ulb: 1, past_ulb_pct: 50 });
+    // Retiring needs an approval (wave 26): give it here, as the approval workflow would.
+    await t.db.query(`update vehicles set retirement_request_status = 'approved' where id = $1`, [ids.bus]);
     await manager.patch(`/api/vehicles/${ids.bus}`, { status: 'retired' });
     d = (await manager.get('/api/condition/dashboard')).body;
     bus = d.classes.find((c: any) => c.id === ids.busClass);

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
-  Badge, Card, EmptyState, ErrorState, formatDate, Loading, LookupChip, PageHeader, RecordPage, ResourceList, Select, Stat, TableWrap, useAuth, useFetch,
+  Badge, Card, EmptyState, ErrorState, formatDate, Loading, LookupChip, PageHeader, RecordPage, ResourceList, Select, Stat, TableWrap, todayInZone, useAuth, useFetch,
   type ColorName,
 } from '../../core';
 
@@ -161,6 +161,16 @@ function ExpiringCard() {
   );
 }
 
+/** The expiry date with the days left: red once expired, amber within 60 days (wave 26). */
+function ExpiryCell({ date }: { date: string | null | undefined }) {
+  if (!date) return <span className="muted">Does not expire</span>;
+  const today = todayInZone();
+  const days = Math.round((Date.parse(`${String(date).slice(0, 10)}T12:00:00Z`) - Date.parse(`${today}T12:00:00Z`)) / 86_400_000);
+  if (days < 0) return <span>{formatDate(date)} <Badge color="red">Expired {-days} {-days === 1 ? 'day' : 'days'} ago</Badge></span>;
+  if (days <= 60) return <span>{formatDate(date)} <Badge color="amber">{days === 0 ? 'Expires today' : `${days} ${days === 1 ? 'day' : 'days'} left`}</Badge></span>;
+  return <span>{formatDate(date)} <span className="muted">{days} days left</span></span>;
+}
+
 export function CertificationList() {
   const { can } = useAuth();
   const [params] = useSearchParams();
@@ -181,7 +191,11 @@ export function CertificationList() {
     <ResourceList
       type="certification"
       title="Certifications"
-      columns={['ref', 'person_id', 'certification_type', 'number', 'issuing_body', 'issued_on', 'expires_on', 'status']}
+      // Wave 26: who, what and when it expires come first, soonest expiry first; expired and expiring ones stand out.
+      columns={['person_id', 'certification_type',
+        { field: 'expires_on', label: 'Expires', sortable: true, priority: 1, render: (r) => <ExpiryCell date={r.expires_on} /> },
+        'status', { field: 'ref', hidden: true }, { field: 'number', hidden: true }, { field: 'issuing_body', hidden: true }, { field: 'issued_on', hidden: true }]}
+      defaultSort={{ field: 'expires_on', dir: 'asc' }}
       filters={['certification_type', 'status', 'person_id', 'expires_on']}
       createFields={['person_id', 'certification_type', 'number', 'issuing_body', 'issued_on', 'expires_on', 'status', 'notes']}
       bulkFields={['status']}

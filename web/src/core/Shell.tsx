@@ -6,6 +6,7 @@ import { Link, matchPath, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from './auth';
 import { BreakGlassBanner, ChangePasswordDialog } from './AuthPages';
 import { CommandPalette, type PaletteLink } from './CommandPalette';
+import { api } from './api';
 import { useFetch, useMediaQuery } from './hooks';
 import { Icon, type IconName } from './Icon';
 import { Logo, Wordmark } from './Logo';
@@ -45,6 +46,39 @@ type NavExtras = { nav: NavItem[]; create: CreateItem[] };
 const navExtraHooks = Object.values(import.meta.glob<{ useNavExtras?: () => NavExtras }>('../modules/*/NavExtras.ts', { eager: true }))
   .map((m) => m.useNavExtras).filter((f): f is () => NavExtras => typeof f === 'function');
 
+/**
+ * The counts shown beside menu entries that ask for one (NavItem.count, E44-09), by API path. Read once
+ * at start, again when the person moves to another page if a minute has passed, and every five minutes.
+ */
+function useNavCounts(paths: string[], pathname: string): Record<string, number> {
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const last = useRef(0);
+  const key = paths.join('|');
+  const read = useCallback(() => {
+    last.current = Date.now();
+    for (const path of key ? key.split('|') : []) {
+      api.get<{ count?: number }>(path)
+        .then((res) => setCounts((prev) => (typeof res?.count === 'number' && prev[path] !== res.count ? { ...prev, [path]: res.count } : prev)))
+        .catch(() => { /* no count: nothing shown */ });
+    }
+  }, [key]);
+  useEffect(() => {
+    read();
+    const timer = window.setInterval(read, 5 * 60_000);
+    return () => window.clearInterval(timer);
+  }, [read]);
+  useEffect(() => {
+    if (Date.now() - last.current > 60_000) read();
+  }, [pathname, read]);
+  return counts;
+}
+
+/** The number beside a menu entry: read as part of the entry's name by screen readers ("My work, 3 waiting"). */
+function NavBadge({ count }: { count: number | undefined }) {
+  if (!count) return null;
+  return <span className="nav-badge"><span className="sr-only">, </span>{count > 99 ? '99+' : count}<span className="sr-only"> waiting</span></span>;
+}
+
 /** Start fetching a page's code when the pointer or focus reaches its link. */
 const preload = (path: string) => ({ onMouseEnter: () => preloadRoute(path), onFocus: () => preloadRoute(path) });
 
@@ -74,6 +108,8 @@ interface NavData {
   /** `label`: the name shown, shorter while one of a joined group's areas is off (navGroups.ts groupLabel). */
   groups: { group: NavGroup | typeof PINNED; label?: string; items: NavItem[] }[];
   current: string | null;
+  /** Counts beside entries that ask for one (NavItem.count), by API path. */
+  counts?: Record<string, number>;
 }
 
 /**
@@ -81,7 +117,7 @@ interface NavData {
  * on screen opens by itself; the others start closed and stay as the person leaves them (per person,
  * in this browser). Up/Down move between entries, Left/Right close and open a group.
  */
-function NavFull({ groups, current, open: openGroups, onToggle }: NavData & { open: Record<string, boolean>; onToggle: (group: string, open?: boolean) => void }) {
+function NavFull({ groups, current, counts, open: openGroups, onToggle }: NavData & { open: Record<string, boolean>; onToggle: (group: string, open?: boolean) => void }) {
   const onKeyDown = (e: KeyboardEvent<HTMLElement>) => {
     const all = Array.from(e.currentTarget.querySelectorAll<HTMLElement>('a[href], button'));
     const at = all.indexOf(document.activeElement as HTMLElement);
@@ -135,6 +171,7 @@ function NavFull({ groups, current, open: openGroups, onToggle }: NavData & { op
                   >
                     <Icon name={item.icon} size={17} />
                     <span className="nav-label">{item.label}</span>
+                    {item.count && <NavBadge count={counts?.[item.count]} />}
                   </Link>
                 </li>
               ))}
@@ -147,7 +184,7 @@ function NavFull({ groups, current, open: openGroups, onToggle }: NavData & { op
 }
 
 /** Rail: one icon per group; groups with several pages open a fly-out menu. */
-function NavRail({ groups, current }: NavData) {
+function NavRail({ groups, current, counts }: NavData) {
   return (
     <nav className="nav nav-rail" aria-label="Main">
       {groups.map(({ group, label, items }) => {
@@ -182,6 +219,7 @@ function NavRail({ groups, current }: NavData) {
                   leftSection={<Icon name={item.icon} size={16} />}
                 >
                   {item.label}
+                  {item.count && <NavBadge count={counts?.[item.count]} />}
                 </MMenu.Item>
               ))}
             </MMenu.Dropdown>
@@ -254,7 +292,7 @@ export function Shell({ children }: { children: ReactNode }) {
     if (shownPins.length > 0) {
       groups.unshift({
         group: PINNED,
-        items: shownPins.map((p): NavItem => ({ group: 'Home', label: p.label, path: p.path, icon: byPath.get(p.path)?.icon ?? 'star' })),
+        items: shownPins.map((p): NavItem => ({ group: 'Home', label: p.label, path: p.path, icon: byPath.get(p.path)?.icon ?? 'star', count: byPath.get(p.path)?.count })),
       });
     }
     return {
@@ -264,6 +302,8 @@ export function Shell({ children }: { children: ReactNode }) {
       pages: allowed.map((i) => ({ label: i.label, path: i.path, icon: i.icon, group: i.hub && !i.parent ? 'Administration' : groupLabel(i.group, areaOn) })),
     };
   }, [allowed, shownPins, location.pathname, areaOn]);
+  // The numbers beside menu entries that ask for one (My work's waiting count, E44-09).
+  const counts = useNavCounts([...new Set(allowed.filter((i) => i.count && i.menu !== false).map((i) => i.count!))], location.pathname);
 
   // The Create menu is grouped like the navigation, A to Z within a group, and every entry has an
   // icon: its own, or that of the navigation page it opens (E18-63).
@@ -485,7 +525,7 @@ export function Shell({ children }: { children: ReactNode }) {
           {rail ? <Logo size={30} surface="dark" /> : <Wordmark name={appName} surface="dark" />}
         </Link>
         <div className="sidebar-scroll">
-          {rail ? <NavRail groups={nav.groups} current={nav.current} /> : <NavFull groups={nav.groups} current={nav.current} open={openGroups} onToggle={toggleGroup} />}
+          {rail ? <NavRail groups={nav.groups} current={nav.current} counts={counts} /> : <NavFull groups={nav.groups} current={nav.current} counts={counts} open={openGroups} onToggle={toggleGroup} />}
         </div>
       </AppShell.Navbar>
 
@@ -502,7 +542,7 @@ export function Shell({ children }: { children: ReactNode }) {
         closeButtonProps={{ 'aria-label': 'Close navigation' }}
         classNames={{ content: 'nav-drawer', header: 'nav-drawer-head', body: 'nav-drawer-body' }}
       >
-        <NavFull groups={nav.groups} current={nav.current} open={openGroups} onToggle={toggleGroup} />
+        <NavFull groups={nav.groups} current={nav.current} counts={counts} open={openGroups} onToggle={toggleGroup} />
       </Drawer>
       <CommandPalette
         opened={paletteOpen}

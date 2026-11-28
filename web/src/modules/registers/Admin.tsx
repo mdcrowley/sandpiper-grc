@@ -8,6 +8,7 @@ import {
   Select, StatusChip, Switch, TableWrap, TextArea, TextField, useFetch, useMeta, useToast, useUnsavedChanges,
 } from '../../core';
 import { REGISTERS_CHANGED } from './NavExtras';
+import { TemplatesDialog } from './Templates';
 
 interface FieldSummary { key: string; label: string; type: string; required: boolean }
 export interface AdminRegister {
@@ -80,6 +81,7 @@ export function AdminRegistersPage() {
   const toast = useToast();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [templates, setTemplates] = useState(false);
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -110,8 +112,14 @@ export function AdminRegistersPage() {
       <PageHeader
         title="Registers"
         subtitle="New kinds of record for things your organization keeps track of that have no part of their own: lost property, keys issued, visitors, permits. Each gets a list, record pages, search, history, files, imports, exports, reports, permissions and a switch."
-        actions={<Button variant="primary" icon="plus" onClick={() => { setDraft(EMPTY); setErrors({}); setOpen(true); }}>New register</Button>}
+        actions={(
+          <>
+            <Button variant="primary" icon="plus" onClick={() => { setDraft(EMPTY); setErrors({}); setOpen(true); }}>New register</Button>
+            <Button icon="folder" onClick={() => setTemplates(true)}>Start from a template</Button>
+          </>
+        )}
       />
+      {templates && <TemplatesDialog onClose={() => setTemplates(false)} />}
       {data && !data.schemaChanges && (
         <Notice tone="warning" title="New registers wait for the database owner">
           This server&apos;s database account may not change the database, so a new register is listed as waiting until migrate runs as the
@@ -122,7 +130,7 @@ export function AdminRegistersPage() {
         : !data ? <Card><Loading lines={4} label="Loading the registers" /></Card>
         : data.registers.length === 0 ? (
           <Card>
-            <EmptyState icon="folder" title="No registers yet" message="Define one with New register. Registers that are switched off are listed only under Administration > Features." />
+            <EmptyState icon="folder" title="No registers yet" message="Define one with New register, or start from a template (labor agreements, real property). Registers that are switched off are listed only under Administration > Features." />
           </Card>
         ) : (
           <Card flush title="Defined registers">

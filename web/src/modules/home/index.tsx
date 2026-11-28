@@ -3,11 +3,12 @@
 // layoutStore.ts. The route has no permission of its own: everyone gets "My work", and the
 // dashboard widgets check `dashboards.view` themselves.
 import type { ModuleDef } from '../../core';
-import { OverviewPage } from './OverviewPage';
+import { HomeRoute } from './HomeRoute';
 
 const mod: ModuleDef = {
   key: 'home',
   nav: [{ group: 'Home', label: 'Overview', path: '/', icon: 'home', order: 0 }],
-  routes: [{ path: '/', element: <OverviewPage /> }],
+  // On arrival, a role may send its people to My work, the portal or a dashboard instead (HomeRoute.tsx, E44-09).
+  routes: [{ path: '/', element: <HomeRoute /> }],
 };
 export default mod;

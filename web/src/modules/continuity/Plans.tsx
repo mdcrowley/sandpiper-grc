@@ -1,7 +1,7 @@
 // Continuity and emergency plans: the list, and one plan with the processes it covers, its call tree,
 // its checklist, its approval and the exercises that tested it.
-import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useMemo, useState, type ReactElement } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   api, Button, Card, ConfirmDialog, EmptyState, errorMessage, ErrorState, formatDate, IconButton, KeyValue, Loading, LookupChip, Modal,
   PageHeader, RecordPage, RecordPicker, ResourceList, Select, TableWrap, TextArea, TextField, useAuth, useFetch, useResource, useToast, useUnsavedChanges,
@@ -10,19 +10,138 @@ import {
 import type { RecordContext, Row } from '../../core';
 import { ContinuityTabs, hoursText, PHASES } from './shared';
 
+interface PlanTemplate { key: string; label: string; description: string; plan_type: string; checklist: { phase: string; item: string; role: string }[] }
+
+/** "New continuity plan": blank, or started from a built-in template (its sections and a starter checklist). */
+function NewPlanDialog({ onClose }: { onClose: () => void }) {
+  const navigate = useNavigate();
+  const toast = useToast();
+  const { data: templates, error: templatesError } = useFetch<PlanTemplate[]>('/api/continuity/plan-templates');
+  const [form, setForm] = useState({ template_key: 'business_continuity', title: '', owner_id: null as string | null });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const dirty = Boolean(form.title || form.owner_id);
+  const set = (p: Partial<typeof form>) => setForm((f) => ({ ...f, ...p }));
+  const chosen = templates?.find((t) => t.key === form.template_key) ?? null;
+  const save = async () => {
+    setBusy(true); setErrors({});
+    try {
+      const row = await api.post<Row>('/api/continuity-plans', { title: form.title, owner_id: form.owner_id, ...(chosen ? { template_key: chosen.key } : {}) });
+      toast.success(chosen ? 'Plan created from the template. Replace the prompts in square brackets with your own words.' : 'Plan created.');
+      onClose();
+      navigate(`/continuity/plans/${row.id}`);
+    } catch (err) { setErrors((err as { fields?: Record<string, string> }).fields ?? {}); toast.error(errorMessage(err)); }
+    finally { setBusy(false); }
+  };
+  return (
+    <Modal open title="New continuity plan" onClose={onClose} dirty={dirty}
+      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" loading={busy} onClick={save}>Create the plan</Button></>}>
+      <div className="form-grid">
+        <Select className="form-cell-wide" label="Start from" value={templates ? form.template_key : ''} error={errors.template_key}
+          onChange={(v) => set({ template_key: v ?? '' })}
+          options={[...(templates ?? []).map((t) => ({ value: t.key, label: `Template: ${t.label}` })), { value: '', label: 'A blank plan' }]}
+          hint={templatesError ? 'The templates could not be loaded; the plan starts blank.' : chosen ? `${chosen.description} Adds ${chosen.checklist.length} checklist items.` : 'Write every section yourself.'} />
+        <TextField className="form-cell-wide" label="Title" required value={form.title} error={errors.title} onChange={(v) => set({ title: v })}
+          hint={chosen ? `For example ${chosen.label} for the head office` : undefined} />
+        <UserPicker label="Owner" value={form.owner_id} error={errors.owner_id} onChange={(id) => set({ owner_id: id })} />
+      </div>
+    </Modal>
+  );
+}
+
 export function PlanList() {
+  const { can } = useAuth();
+  const [params, setParams] = useSearchParams();
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (params.get('new') === '1') {
+      if (can('continuity.create')) setOpen(true);
+      const p = new URLSearchParams(params); p.delete('new'); setParams(p, { replace: true });
+    }
+  }, [params, setParams, can]);
   return (
     <div className="stack">
-      <PageHeader title="Continuity plans" subtitle="Continuity, emergency operations and disaster recovery plans, with their review cycle and approval." />
+      <PageHeader title="Continuity plans" subtitle="Continuity, emergency operations and disaster recovery plans, with their review cycle and approval."
+        actions={can('continuity.create') ? <Button variant="primary" icon="plus" onClick={() => setOpen(true)}>New continuity plan</Button> : undefined} />
       <ContinuityTabs active="plans" />
       <ResourceList
         type="continuity_plan"
         urlState
         columns={['ref', 'title', 'plan_type', 'status', 'owner_id', 'next_review_on', 'approved_on', { field: 'review_months', hidden: true }]}
         filters={['plan_type', 'status', 'owner_id', 'next_review_on']}
-        createFields={['title', 'plan_type', 'owner_id', 'review_months', 'scope', 'activation_criteria', 'recovery_strategies']}
       />
+      {open && <NewPlanDialog onClose={() => setOpen(false)} />}
     </div>
+  );
+}
+
+// ---------- plan sections ----------
+
+/** The plan's other sections, kept as simple Markdown: headings, lists, tables and paragraphs. */
+function SectionsText({ text }: { text: string }) {
+  const blocks: ReactElement[] = [];
+  const lines = text.replace(/\r/g, '').split('\n');
+  for (let i = 0; i < lines.length;) {
+    const line = lines[i];
+    if (!line.trim()) { i++; continue; }
+    const key = `b${i}`;
+    if (/^#{1,6}\s/.test(line)) { blocks.push(<h3 key={key} className="bc-h">{line.replace(/^#+\s*/, '')}</h3>); i++; continue; }
+    if (line.startsWith('|')) {
+      const rows: string[][] = [];
+      while (i < lines.length && lines[i].startsWith('|')) {
+        if (!/^\|[\s|:-]+\|?$/.test(lines[i])) rows.push(lines[i].replace(/^\||\|$/g, '').split('|').map((c) => c.trim()));
+        i++;
+      }
+      const [head, ...body] = rows;
+      blocks.push(
+        <TableWrap key={key} label={`Table ${blocks.length + 1}`}>
+          <table className="table">
+            <thead><tr>{head.map((c, n) => <th key={n} scope="col">{c}</th>)}</tr></thead>
+            <tbody>{body.map((r, n) => <tr key={n}>{r.map((c, m) => <td key={m}>{c}</td>)}</tr>)}</tbody>
+          </table>
+        </TableWrap>);
+      continue;
+    }
+    const bullet = /^\s*[-*]\s+/;
+    const numbered = /^\s*\d+[.)]\s+/;
+    if (bullet.test(line) || numbered.test(line)) {
+      const re = bullet.test(line) ? bullet : numbered;
+      const items: string[] = [];
+      while (i < lines.length && re.test(lines[i])) { items.push(lines[i].replace(re, '')); i++; }
+      const children = items.map((t, n) => <li key={n}>{t}</li>);
+      blocks.push(re === bullet ? <ul key={key}>{children}</ul> : <ol key={key}>{children}</ol>);
+      continue;
+    }
+    const para: string[] = [];
+    while (i < lines.length && lines[i].trim() && !/^(#{1,6}\s|\||\s*[-*]\s+|\s*\d+[.)]\s+)/.test(lines[i])) { para.push(lines[i]); i++; }
+    blocks.push(<p key={key}>{para.join(' ')}</p>);
+  }
+  return <div className="bc-sections">{blocks}</div>;
+}
+
+function PlanSections({ row, save, canEdit }: RecordContext) {
+  const toast = useToast();
+  const [draft, setDraft] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  useUnsavedChanges(draft !== null && draft !== (row.body ?? ''));
+  const store = async () => {
+    setBusy(true);
+    try { await save({ body: draft }); toast.success('Plan sections saved.'); setDraft(null); }
+    catch (err) { toast.error(errorMessage(err)); } finally { setBusy(false); }
+  };
+  if (draft !== null) {
+    return (
+      <Card title="Plan sections" actions={<><Button onClick={() => setDraft(null)}>Cancel</Button><Button variant="primary" loading={busy} onClick={store}>Save</Button></>}>
+        <TextArea label="Plan sections" hideLabel rows={18} maxRows={40} value={draft} onChange={setDraft}
+          hint="Headings start with ##, list items with a dash, table rows with |." />
+      </Card>
+    );
+  }
+  return (
+    <Card title="Plan sections" actions={canEdit && <Button icon="edit" onClick={() => setDraft(String(row.body ?? ''))}>Edit</Button>}>
+      {row.body ? <SectionsText text={String(row.body)} />
+        : <EmptyState icon="clipboard" title="No sections yet" message="Write the plan's roles, communications, recovery objectives, alternate sites and how it is kept up to date, or start a new plan from a template." />}
+    </Card>
   );
 }
 
@@ -367,6 +486,7 @@ export function PlanDetail() {
         ? <p className="notice notice-warn">This plan was due for review on {formatDate(row.next_review_on)}.</p> : null)}
       summaryFields={['title', 'plan_type', 'owner_id', 'review_months', 'next_review_on', 'policy_id', 'scope', 'activation_criteria', 'recovery_strategies']}
       tabs={[
+        { key: 'sections', label: 'Plan sections', content: (rec) => <PlanSections {...rec} /> },
         { key: 'processes', label: 'Processes', content: ({ row }) => <CoveredProcesses plan={row} /> },
         { key: 'call-tree', label: 'Call tree', content: ({ row }) => <CallTree plan={row} /> },
         { key: 'checklist', label: 'Checklist', content: ({ row }) => <Checklist plan={row} /> },

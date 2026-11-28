@@ -31,8 +31,8 @@ regulator, and nothing in it is specific to one organization.
   text message, acknowledged through each person's own link
 - **Legal holds, records requests and privacy**: holds that stop deletion and anonymizing
   everywhere, records and personal-data requests against a deadline, privacy impact assessments, a
-  records retention schedule and destruction log; search inside attached files, with previews of
-  images and PDFs
+  records retention schedule and destruction log; search inside attached files (scanned
+  PDFs read by OCR), with previews of images and PDFs
 - **Risk, safety and compliance**: an enterprise risk register open to risk staff without
   security access (cybersecurity risks restricted), inherent, residual and target risk, heat map
   and a versioned risk appetite; a safety hazard log and safety
@@ -54,12 +54,31 @@ regulator, and nothing in it is specific to one organization.
 - **My work and the compliance calendar**: a compliance calendar and one "My work" list of
   everything due across every area: evidence requests, control tests, verifications, inspections,
   attestations, reassessments and certifications
+- **Procurement and budgets**: solicitations from planning to award with evaluation committees and
+  conflict-of-interest declarations, purchase orders with approval and receiving, budgets against
+  committed and spent
+- **Insurance**: policies with conditions tracked by controls, covered assets, vehicles and sites,
+  renewals, certificates of insurance checked against contract requirements, and claims
+- **Civil rights programs** (off until switched on): required elements with evidence, public notices,
+  language assistance, monitoring reports with a submission log; complaints with time limits,
+  confidential by default; business participation goals and attainment
+- **Strategy and performance**: the strategic plan with goals, objectives, measures against targets,
+  initiatives and quarterly status updates, a board scorecard PDF, operating statistics and the log of
+  statistical reports submitted to outside bodies
+- **Operations**: defects raised from inspections (out of service until repaired), missed
+  inspections followed up, vehicle retirement through an approval, a safety plan tab and continuity
+  plan templates; a home page per role, a count of what waits on My work, and Report a problem for
+  everyone
 - **Registers**: administrators define their own kinds of record (lost property, keys issued,
-  visitors) with fields, numbering, permissions and a switch
+  visitors) with fields, numbering, permissions and a switch, or start from a template (labor
+  agreements, real property)
 - **Outside reviewers**: give an external auditor or a funder's reviewer time-limited access to
   one audit or funder review, and nothing else
 - **English and Spanish**: the self-service portal, the acknowledgment kiosk and the mobile app's
   employee screens in English or Spanish, with translated policies
+- **Document control**: policies, standards, procedures and plans with controlled numbers,
+  versions, reviews, controlled-copy printing with a diagonal status mark, and a register of issued
+  paper copies recalled when a new version takes effect
 - **Security incidents**: a restricted workspace with notification clocks you configure
 - **Approval workflows**: approval steps on any kind of record (change approval, catalog
   requests, asset disposal, risk acceptance and project gates included), run in order or side by

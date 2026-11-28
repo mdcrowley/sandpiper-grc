@@ -13,8 +13,20 @@ const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 /** How files a load added are listed in data_load_records (attachments/loaded.ts, E45-52). */
 const LOADED_FILES = 'attachment';
 
+/**
+ * Records a load lists one by one that are not record types of their own (E43-18: document versions),
+ * each listed and undone by its module through the shared `loadedParts` decorator.
+ */
+interface LoadedPart {
+  label: string;
+  list(ids: string[]): Promise<{ id: string; label: string; route: string | null; gone: boolean }[]>;
+  undo(req: FastifyRequest, id: string): Promise<'deleted' | 'missing' | 'held'>;
+}
+
 export function registerDataLoad(ctx: ModuleContext): void {
   const { db } = ctx;
+  if (!ctx.app.hasDecorator('loadedParts')) ctx.app.decorate('loadedParts', new Map<string, LoadedPart>());
+  const parts = () => (ctx.app as unknown as { loadedParts: Map<string, LoadedPart> }).loadedParts;
   const state = () => readDataLoad(db, ctx.audit);
   const sessionOnly = (req: FastifyRequest) => {
     if (req.apiToken) ctx.fail(403, 'token_not_allowed', 'This cannot be done with an API token. Sign in to do it.');
@@ -36,6 +48,9 @@ export function registerDataLoad(ctx: ModuleContext): void {
     const loads = rows.map((r): Row => {
       // Files added by a load (E45-52) are listed as `attachment`: not a record type of their own.
       if (r.record_type === LOADED_FILES) return { ...r, label: 'Files', route: null, installed: true };
+      // Parts a module lists one by one (E43-18): each can be undone alone.
+      const part = parts().get(r.record_type);
+      if (part) return { ...r, label: part.label, route: null, installed: true, itemized: true };
       const def = ctx.resources.get(r.record_type);
       return { ...r, label: def?.plural ?? r.record_type, route: def?.route ?? null, installed: !!def };
     }).filter((r) => r.installed || r.remaining > 0);
@@ -145,6 +160,56 @@ export function registerDataLoad(ctx: ModuleContext): void {
     return { deleted, held: held.length, missing };
   };
 
+  /** Undoes one listed part (E43-18) and marks it undone in data_load_records. */
+  const undoPart = async (req: FastifyRequest, type: string, part: LoadedPart, id: string) => {
+    const result = await part.undo(req, id);
+    if (result !== 'held') {
+      await db.query('update data_load_records set deleted_at = now(), deleted_by = $3 where record_type = $1 and record_id = $2 and deleted_at is null', [type, id, req.user!.id]);
+    }
+    return result;
+  };
+
+  /** The records of one load listed one by one, for the types a module lists that way (E43-18). */
+  adminRoute(ctx, 'GET', '/api/admin/data-load/records', async (req) => {
+    const q = (req.query ?? {}) as Row;
+    const part = typeof q.type === 'string' ? parts().get(q.type) : undefined;
+    const fields: Record<string, string> = {};
+    if (!part) fields.type = 'Choose a record type listed one by one.';
+    if (typeof q.day !== 'string' || !DAY_RE.test(q.day)) fields.day = 'Choose a day (YYYY-MM-DD).';
+    if (Object.keys(fields).length) invalid(fields);
+    const rows = await db.query<Row>(
+      `select record_id, deleted_at, loaded_at from data_load_records
+       where record_type = $1 and to_char(loaded_at at time zone $3, 'YYYY-MM-DD') = $2 order by id limit 1000`, [q.type, q.day, TIME_ZONE]);
+    const listed = await part!.list(rows.map((r) => String(r.record_id)));
+    const byId = new Map(listed.map((l) => [l.id, l]));
+    return {
+      type: q.type, day: q.day, label: part!.label,
+      rows: rows.map((r) => {
+        const l = byId.get(String(r.record_id));
+        return { id: r.record_id, label: l?.label ?? String(r.record_id), route: l?.route ?? null, loaded_at: r.loaded_at, undone: Boolean(r.deleted_at) || Boolean(l?.gone) };
+      }),
+    };
+  });
+
+  /** Undoes one record of a load that is listed one by one (E43-18; recent password confirmation). */
+  adminRoute(ctx, 'POST', '/api/admin/data-load/undo-one', async (req) => {
+    sessionOnly(req);
+    const b = body(req);
+    const part = typeof b.type === 'string' ? parts().get(b.type) : undefined;
+    const fields: Record<string, string> = {};
+    if (!part) fields.type = 'Choose a record type listed one by one.';
+    if (typeof b.id !== 'string' || !UUID_RE.test(b.id)) fields.id = 'Choose a loaded record.';
+    if (Object.keys(fields).length) invalid(fields);
+    if (!(await db.one('select 1 from data_load_records where record_type = $1 and record_id = $2 and deleted_at is null', [b.type, b.id]))) {
+      ctx.fail(404, 'not_found', 'No record of a data load with that id, or it was already undone.');
+    }
+    await sensitive(ctx, req, 'deleting a record a data load created');
+    req.dataLoad = true;
+    const result = await asDataLoad(() => undoPart(req, String(b.type), part!, String(b.id)));
+    if (result === 'held') ctx.fail(409, 'on_hold', 'The record is under a legal hold, so it is kept.');
+    return { result };
+  });
+
   /**
    * Undoes one load: soft-deletes every record of one type that data load mode created on one day
    * (recent password confirmation). Records under a legal hold, and records already deleted, stay.
@@ -153,13 +218,29 @@ export function registerDataLoad(ctx: ModuleContext): void {
     sessionOnly(req);
     const b = body(req);
     const files = b.type === LOADED_FILES;
-    const def = typeof b.type === 'string' && !files ? ctx.resources.get(b.type) : undefined;
+    const part = typeof b.type === 'string' ? parts().get(b.type) : undefined;
+    const def = typeof b.type === 'string' && !files && !part ? ctx.resources.get(b.type) : undefined;
     const fields: Record<string, string> = {};
-    if (!def && !files) fields.type = 'Choose a record type.';
+    if (!def && !files && !part) fields.type = 'Choose a record type.';
     if (typeof b.day !== 'string' || !DAY_RE.test(b.day)) fields.day = 'Choose a day (YYYY-MM-DD).';
     if (Object.keys(fields).length) invalid(fields);
     await sensitive(ctx, req, 'deleting the records a data load created');
     if (files) return undoFiles(req, b.day);
+    if (part) {
+      const ids = (await db.query<{ record_id: string }>(
+        `select record_id from data_load_records
+         where record_type = $1 and deleted_at is null and to_char(loaded_at at time zone $3, 'YYYY-MM-DD') = $2 order by id desc`,
+        [b.type, b.day, TIME_ZONE])).map((r) => r.record_id);
+      const count = { deleted: 0, held: 0, missing: 0 };
+      req.dataLoad = true;
+      await asDataLoad(async () => { for (const id of ids) count[await undoPart(req, String(b.type), part, id)] += 1; });
+      await ctx.audit(req, {
+        action: 'data_load.undo', recordType: String(b.type),
+        summary: `Data load of ${b.day} undone: ${count.deleted} ${part.label.toLowerCase()} removed${count.held ? `, ${count.held} kept under a legal hold` : ''}${count.missing ? `, ${count.missing} not found` : ''}`,
+        after: { day: b.day, type: b.type, ...count },
+      });
+      return count;
+    }
     const ids = (await db.query<{ record_id: string }>(
       `select record_id from data_load_records
        where record_type = $1 and deleted_at is null and to_char(loaded_at at time zone $3, 'YYYY-MM-DD') = $2 order by id`,

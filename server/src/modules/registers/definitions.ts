@@ -53,7 +53,7 @@ export const KEY_RE = /^[a-z][a-z0-9_]{1,29}$/;
 export const PREFIX_RE = /^[A-Z][A-Z0-9]{0,7}-$/;
 /** Permission modules, menu words and addresses a register's key may not take. */
 const BUILT_IN_MODULES = new Set(MODULE_KEYS);
-const RESERVED = new Set(['new', 'admin', 'api', 'me', 'mine', 'all', 'stats', 'registers', 'register', 'mcp', 'scim', 'core', 'search', 'help', 'home', 'account', 'settings']);
+const RESERVED = new Set(['new', 'admin', 'api', 'me', 'mine', 'all', 'stats', 'registers', 'register', 'mcp', 'scim', 'core', 'search', 'help', 'home', 'account', 'settings', 'templates']);
 
 export const typeOf = (key: string) => `reg_${key}`;
 export const statusList = (key: string) => `register_${key}_status`;

@@ -584,6 +584,9 @@ rest). `.\grc.ps1 schedule-backup` writes the values in force into its scheduled
 | `GRC_LOG_REQUESTS` | on | `off` leaves out the line per request |
 | `GRC_COMMIT` | the git checkout's commit | The commit shown with the version; the container image has it built in |
 | `GRC_PDF_FONTS` | well-known system fonts | Font files for PDF text outside Western European, `;`-separated on Windows and `:` elsewhere; `file.ttc#PostScriptName` picks one font of a collection; `none` switches it off ([Operations](operations.md#fonts-for-pdf-exports)) |
+| `GRC_OCR` | on | `off` stops reading scanned PDFs (no text layer) by OCR; nothing is ever downloaded for it |
+| `GRC_OCR_LANGS` | `eng` | OCR languages joined by `+` (`eng+spa`); each needs its `<lang>.traineddata.gz` |
+| `GRC_OCR_LANG_DIR` | the bundled English data | A folder of `<lang>.traineddata.gz` files (from tessdata_fast or tessdata) used instead of the bundled one |
 | `GRC_SLOW_QUERY_MS` | not set | Log database statements taking this many milliseconds or more (their text only, never their values) |
 | `GRC_STARTUP_WARN_MS` | `2000` | Log a start-up step that takes longer than this many milliseconds, named after where it was added |
 | `GRC_STARTUP_TIMEOUT_SECONDS` | `600` | How long one start-up step may take before the start is abandoned (at least `10`). Rebuilding a search index after an upgrade grows with the data |

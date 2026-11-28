@@ -315,6 +315,8 @@ export interface RouteDoc {
   tag?: string;
   /** Permission needed. The route is left out of the document for callers who lack it. */
   permission?: string;
+  /** A feature area the route works only in: left out of the document while that area is off (wave 26). */
+  area?: string;
   /** No session or token needed. */
   public?: boolean;
   /** Query parameters: name -> description (or a JSON Schema with a description). */

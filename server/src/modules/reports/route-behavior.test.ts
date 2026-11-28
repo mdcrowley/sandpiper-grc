@@ -39,7 +39,7 @@ describe('GET /api/reports/departments', () => {
     expect(agent).not.toContain('Invented Secret Unit');
     expect(await values(await t.as('security_lead'))).toContain('Invented Secret Unit');
     // Without actions.view, the actions' departments are not offered; the organization's list is.
-    const exec = await values(await t.as('executive_viewer'));
+    const exec = await values(await t.as('approver')); // dashboards.view without actions.view (wave 26: the executive viewer reads actions)
     expect(exec).toContain('Invented Rail Operations');
     expect(exec).not.toContain('Invented Bus Maintenance');
   });

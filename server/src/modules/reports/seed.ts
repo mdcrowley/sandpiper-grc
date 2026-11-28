@@ -5,7 +5,7 @@
 import { addMonths } from '../../../../shared/dates.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { todayInZone } from '../../core/timezone.ts';
-import { STANDARD_DASHBOARDS, STANDARD_FIGURES, STANDARD_PACK, STANDARD_REPORTS } from './standard.ts';
+import { BOARD_SUMMARY_BEFORE, STANDARD_DASHBOARDS, STANDARD_FIGURES, STANDARD_PACK, STANDARD_REPORTS } from './standard.ts';
 
 export async function seedStandard(ctx: ModuleContext, profile: 'pilot' | 'dev' = 'pilot'): Promise<string> {
   const exists = async (table: string, key: string) => ctx.db.one<{ id: string }>(`select id from ${table} where key = $1`, [key]);
@@ -99,4 +99,27 @@ async function sampleFigureHistory(ctx: ModuleContext): Promise<void> {
       );
     }
   }
+}
+
+/** JSON with object keys in order, so a stored dashboard (jsonb reorders keys) compares with a definition. */
+function stable(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(stable).join(',')}]`;
+  if (v && typeof v === 'object') return `{${Object.keys(v as Row).sort().filter((k) => (v as Row)[k] !== undefined).map((k) => `${JSON.stringify(k)}:${stable((v as Row)[k])}`).join(',')}}`;
+  return JSON.stringify(v);
+}
+
+/**
+ * Brings an unedited Board summary up to the current standard one (wave 26: safety and operations first).
+ * Only while its widgets and description still read exactly as they shipped before; an edited board is left
+ * alone. Runs at every start (the module's register), and changes the record through the registry, so it is audited.
+ */
+export async function refreshBoardSummary(ctx: ModuleContext): Promise<boolean> {
+  // While the reports area is switched off its types are not in the registry: try again at the next start.
+  if (!ctx.resources.get('dashboard')) return false;
+  const board = await ctx.db.one<Row>(`select id, description, widgets from dashboards where key = 'board_summary' and deleted_at is null`);
+  if (!board) return false;
+  if (board.description !== BOARD_SUMMARY_BEFORE.description || stable(board.widgets) !== stable(BOARD_SUMMARY_BEFORE.widgets)) return false;
+  const now = STANDARD_DASHBOARDS.find((d) => d.key === 'board_summary')!;
+  await ctx.resources.update('dashboard', board.id, { description: now.description, widgets: now.widgets }, null, { via: 'the standard Board summary of this version' });
+  return true;
 }

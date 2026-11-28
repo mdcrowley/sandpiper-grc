@@ -4,6 +4,7 @@ import { registerCertifications } from './certifications.ts';
 import { registerDue } from './due.ts';
 import { DEFAULT_FUNDING_CLAUSES, FUNDING_CLAUSE_STATUSES, registerClauses } from './clauses.ts';
 import { registerFunders } from './funders.ts';
+import { registerReviewPackage } from './package.ts';
 import { registerReviewLinks } from './review-links.ts';
 import { registerReviews } from './reviews.ts';
 import { seedFunding } from './seed.ts';
@@ -95,6 +96,7 @@ async function register(ctx: ModuleContext) {
   await registerCertifications(ctx);
   registerReviews(ctx);
   registerReviewLinks(ctx); // awards under review, what areas rely on, evidence, carrying forward (E45-10)
+  registerReviewPackage(ctx); // readiness of a funder review and its evidence package (E45-58)
   registerClauses(ctx);
   registerSummary(ctx);
   await registerSubrecipients(ctx);

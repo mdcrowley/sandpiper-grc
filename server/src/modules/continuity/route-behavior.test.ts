@@ -79,6 +79,8 @@ describe('DELETE /api/emergency-activations/:id/roles/:roleId', () => {
     const role = (await manager.post(`/api/emergency-activations/${a}/roles`, { role: 'Invented incident commander', name: 'Robin Example' })).body;
     const other = (await manager.post(`/api/emergency-activations/${a}/roles`, { role: 'Scribe', user_id: manager.userId })).body;
 
+    // Wave 26: the Safety manager may now run an emergency activation; this test needs a continuity viewer only.
+    await t.db.query("delete from role_permissions where role_id = (select id from roles where key = 'safety_manager') and permission in ('continuity.create', 'continuity.edit')");
     const viewer = await t.as('safety_manager'); // continuity.view
     expect((await viewer.del(`/api/emergency-activations/${a}/roles/${role.id}`)).status).toBe(403);
 

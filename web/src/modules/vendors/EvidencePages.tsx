@@ -25,12 +25,8 @@ export function EvidenceList() {
       ]}
       filters={['type', 'vendor_id', 'expires_on', 'received_on']}
       bulkFields={['type', 'expires_on']}
-      actions={(
-        <>
-          <Link className="btn btn-secondary" to="/evidence/expiring">Expiring evidence</Link>
-          <AddEvidence watchNew onCreated={(row) => navigate(`/evidence/${row.id}`)} />
-        </>
-      )}
+      // E44-07: Expiring is a tab of Evidence; the header keeps the action only.
+      actions={<AddEvidence watchNew onCreated={(row) => navigate(`/evidence/${row.id}`)} />}
     />
   );
 }

@@ -6,7 +6,7 @@ If your organization does not manage vehicles here, an administrator can switch 
 
 You need the **fleet** permissions to see these pages (`fleet.view`, and `fleet.create`, `fleet.edit`, `fleet.delete`, `fleet.export` to change and export; `fleet.administer` for the required equipment). Equipment is made of assets, so working with it also needs permission to see assets; **What is affected** needs permission to see systems.
 
-Of the default roles, **Agent** holds every fleet permission; **Security lead**, **Safety manager** and **Auditor** can read the fleet pages (`fleet.view`). An administrator can grant the fleet permissions to any other role under **Administration > Roles**.
+Of the default roles, **Agent** and **Asset manager** hold every fleet permission (approving a vehicle retirement needs `fleet.approve`); **Security lead**, **Safety manager**, **Compliance officer**, **Audit lead**, **Auditor** and **Executive viewer** can read the fleet pages (`fleet.view`). An administrator can grant the fleet permissions to any other role under **Administration > Roles**.
 
 ## Vehicles
 
@@ -37,9 +37,21 @@ The **Details** card holds the facts above; select **Edit** to change them. When
 
 Where safety management is in use, a **Safety events** tab lists the safety events recorded against the vehicle.
 
+Where inspections are in use, an **Inspections and defects** tab shows whether the vehicle is **Out of service**, its open defects (raised by hand or by an inspection whose checks were not met) and its inspections, newest first. A critical defect marks the vehicle **Out of service** when it is raised; return it to service on the vehicle's record once the repair is verified. See [Defects](25-audits-and-inspections.md#defects).
+
+### Retire a vehicle
+
+Retiring a vehicle needs an approval, as disposing of an asset does. A vehicle cannot be set to **Retired** any other way (a vehicle that still carries equipment cannot be retired either: remove it first).
+
+1. On the vehicle's page, select **Retire**. Say **Why it should be retired**, and optionally the **Disposal method** (**Sold**, **Sold at auction**, **Traded in**, **Transferred to another organization**, **Scrapped or recycled** or **Other**) and the **Expected proceeds**. When the vehicle's useful life has not ended yet, the dialog says until when, so the reason can explain why it leaves early. Select **Ask for approval**.
+2. The **Vehicle retirement** approval workflow tells the people who may approve it (`fleet.approve`). When an outside funder keeps an interest in the vehicle (**Funder interest**), a second step, decided by another person, confirms the funder has agreed. The person who asked cannot approve it. An administrator can change the steps under **Administration > Approval workflows**. When no workflow is active, one decision by someone with `fleet.approve` settles it.
+3. Once it is approved, open the **Retirement** tab and select **Mark as retired**: give the **Retired on** date, the **Disposal method** and the **Disposal proceeds**, and, when a funder keeps an interest, the **Funder approval reference**.
+
+The **Retirement** tab shows the steps, every request with who asked, when, the decision and where its approval workflow stands (with **Withdraw** while it waits), and the **Retirement record**: who approved it and when, the method, proceeds, funder reference and the date retired. Asking needs `fleet.edit`. A data load may record vehicles retired in the past directly.
+
 ### Vehicle condition
 
-Where asset condition is in use, a **Condition** tab shows the vehicle's **Asset class**, its latest **Condition** and when it was assessed, the **End of useful life** (marked **Past useful life** once it has passed), its **Odometer** and the day it was read, and its **Replacement project**, with every condition assessment, newest first. Select **Edit condition details** to choose the class, enter the odometer or name the replacement project, and **Record assessment** to rate the vehicle. The end of useful life counts from **In service since** (or the **Model year**) and the class's years, or the day the vehicle reaches the class's miles at the rate it has run so far, whichever comes first. Retired vehicles are left out of the condition figures. The vehicle list can show the class, condition, end of useful life and odometer as columns, and filter by them. See [Asset condition](31-asset-condition.md).
+Where asset condition is in use, a **Condition** tab shows the vehicle's **Asset class**, its latest **Condition** and when it was assessed, the **End of useful life** (marked **Past useful life** once it has passed), its **Odometer** and the day it was read, and its **Replacement project**, with every condition assessment, newest first. Select **Edit condition details** to choose the class, enter the odometer or name the replacement project, and **Record assessment** to rate the vehicle. The end of useful life counts from **In service since** (or the **Model year**) and the class's years, or the day the vehicle reaches the class's miles at the rate it has run so far, whichever comes first. Retired vehicles are left out of the condition figures. The vehicle list shows the condition, end of useful life and odometer as columns by default (the class is in the column chooser), and can filter by them. See [Asset condition](31-asset-condition.md).
 
 ### Install equipment
 
@@ -163,5 +175,5 @@ When the application is set up, the person installing it can load your own vehic
 
 - Vehicle blocks and daily assignments of vehicles to services.
 - Individual vehicles on the relationship map: they are drawn as groups by depot and mode. Open a group's vehicle list to see each one.
-- Mileage logs and maintenance work orders; these belong in a fleet maintenance system. Only the latest odometer reading is kept, for the useful life. Recurring inspections of vehicles (checklists, schedules and findings) are kept under **Safety and emergency management > Inspections** (see [Audits and inspections](25-audits-and-inspections.md#inspections)); the vehicle page does not list them yet.
+- Mileage logs, planned maintenance intervals and maintenance work orders; these belong in a fleet maintenance system, whose work order number can be recorded on a defect. Only the latest odometer reading is kept, for the useful life. Inspections and defects of vehicles are kept under **Safety and emergency management > Inspections** (see [Audits and inspections](25-audits-and-inspections.md#inspections)) and shown on the vehicle's **Inspections and defects** tab.
 - Maintenance schedules and parts on a vehicle model (planned separately, E32-06). A model never creates vehicles by itself.

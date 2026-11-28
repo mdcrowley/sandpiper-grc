@@ -14,6 +14,7 @@ import type { ModuleContext, ResourceDef, Row } from '../../core/module.ts';
 import { todayInZone } from '../../core/timezone.ts';
 import { redactWebhookUrl } from '../../core/webhooks.ts';
 import { present, validateDescriptive } from './service.ts';
+import { fileLoad, noteLoadedFile } from './loaded.ts';
 import { LINK_DRIVER } from './stores.ts';
 
 export const MAX_LINK_LENGTH = 1000;
@@ -72,7 +73,9 @@ export function registerLinkRoutes(ctx: ModuleContext, h: Helpers) {
     const meta = validateDescriptive(ctx, { ...b, kind: b.evidence === true || b.kind === 'evidence' ? 'evidence' : 'file' });
     const url = (address as { url: string }).url;
     const name = (title as { title: string }).title;
-    const row = (await db.one<Row>(
+    // A link added in a data load is listed with the load's files, so undoing the load removes it too.
+    const load = await fileLoad(ctx, req, b.created_at);
+    const row = await noteLoadedFile(ctx, req, (await db.one<Row>(
       `insert into attachments (record_type, record_id, file_name, extension, content_type, size_bytes, sha256, storage_driver, storage_key,
          kind, description, collected_on, expires_on, scan_status, uploaded_by_name, created_by, updated_by,
          link_url, link_title, last_checked_on, checked_by)
@@ -80,7 +83,7 @@ export function registerLinkRoutes(ctx: ModuleContext, h: Helpers) {
        returning *`,
       [parent.def.type, parent.row.id, name, LINK_DRIVER, `link/${randomUUID()}`, meta.kind, meta.description, meta.collected_on,
         meta.expires_on, actorOf(req).name, actorOf(req).id, url, todayInZone()],
-    ))!;
+    ))!, load);
     await ctx.audit(req, {
       action: 'attachment.link', recordType: parent.def.type, recordId: parent.row.id,
       summary: `${meta.kind === 'evidence' ? 'Evidence link' : 'Link'} added: ${name}`,
@@ -91,9 +94,9 @@ export function registerLinkRoutes(ctx: ModuleContext, h: Helpers) {
   });
   ctx.describeRoute({
     method: 'POST', path: '/api/attachments/link', summary: 'Link a document kept elsewhere to a record, instead of uploading a copy',
-    body: '{ record_type, record_id, url, title?, evidence?, description?, collected_on?, expires_on? }',
+    body: '{ record_type, record_id, url, title?, evidence?, description?, collected_on?, expires_on?, created_at? (data load only) }',
     response: 'The new attachment, with is_link, link_url, link_title and last_checked_on',
-    description: 'Needs edit permission on the record (the same check as an upload). The address must be http or https, at most 1,000 characters, with no user name or password; the server never fetches it. The link counts as checked today.',
+    description: 'Needs edit permission on the record (the same check as an upload). The address must be http or https, at most 1,000 characters, with no user name or password; the server never fetches it. The link counts as checked today. In data load mode the link is listed with the load\'s files (Administration > Data loads), so undoing that day\'s files removes it; `created_at` keeps the date it was first added.',
   });
 
   app.post('/api/attachments/:id/checked', async (req) => {

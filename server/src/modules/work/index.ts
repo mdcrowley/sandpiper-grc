@@ -18,6 +18,8 @@ import type { ModuleContext, ModuleDef, SessionUser } from '../../core/module.ts
 import { dayInZone } from '../../core/timezone.ts';
 import { addDays, daysBetween, isYmd, monthEndOf, monthStartOf } from '../../../../shared/dates.ts';
 import type { ComplianceCalendar, DueItem, DueSection, MyDueWork } from '../../../../shared/work-api.ts';
+import { registerHome } from './home.ts';
+import { registerReport } from './report.ts';
 
 /** Overdue work is looked for this far back. */
 export const OVERDUE_DAYS_BACK = 3650;
@@ -150,6 +152,9 @@ const mod: ModuleDef = {
   key: 'work',
   async register(ctx) {
     registerRoutes(ctx);
+    // Wave 26: where people land by role, the waiting count on My work (E44-09), and Report a problem.
+    registerHome(ctx);
+    registerReport(ctx);
   },
 };
 export default mod;

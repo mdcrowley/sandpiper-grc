@@ -19,9 +19,13 @@ interface LinkRow {
 
 const AFFECTS = 'affects';
 const AFFECTED_TYPES = ['system', 'asset'];
-const WORK_TYPES = ['ticket', 'problem', 'project'];
+// Incidents a change caused count against the change success rate (E45-66).
+const WORK_TYPES = ['ticket', 'security_incident', 'safety_event', 'problem', 'project'];
+const CAUSED_ONLY = [{ value: 'caused', label: 'This change caused it' }, { value: 'related', label: 'Related' }];
 const RELATIONS: Record<string, { value: string; label: string }[]> = {
   ticket: [{ value: 'caused', label: 'This change caused it' }, { value: 'fixes', label: 'This change fixes it' }, { value: 'related', label: 'Related' }],
+  security_incident: CAUSED_ONLY,
+  safety_event: CAUSED_ONLY,
   problem: [{ value: 'fixes', label: 'This change fixes it' }, { value: 'caused', label: 'This change caused it' }, { value: 'related', label: 'Related' }],
   project: [{ value: 'delivers', label: 'This change is part of it' }, { value: 'related', label: 'Related' }],
 };
@@ -79,7 +83,7 @@ function LinkTable({ rows, mainIds, canEdit, onRemove, phrase }: { rows: LinkRow
                   {mainIds.includes(l.recordId) && <Badge color="blue">Main</Badge>}
                 </span>
               </td>
-              {phrase && <td>{l.direction === 'out' ? PHRASE[l.relation] ?? l.relation : `Linked from the ${l.typeLabel.toLowerCase()} (${l.relation})`}</td>}
+              {phrase && <td>{l.direction === 'out' ? PHRASE[l.relation] ?? l.relation : /^caused[ _]by$/i.test(l.relation) ? 'Caused by this change' : `Linked from the ${l.typeLabel.toLowerCase()} (${l.relation})`}</td>}
               <td className="num">
                 {canEdit && l.direction === 'out' && !mainIds.includes(l.recordId) && (
                   <IconButton icon="trash" variant="ghost" label={`Remove the link to ${l.label}`} onClick={() => onRemove(l)} />
@@ -137,13 +141,13 @@ export function RelatedTab({ row, canEdit, onChanged }: { row: Row; canEdit: boo
         )}
       </Card>
 
-      <Card title="Tickets, problems and projects" flush>
+      <Card title="Incidents, tickets, problems and projects" flush>
         {workTypes.length === 0 ? (
-          <EmptyState icon="link" title="Nothing to link to" message="Tickets, problems and projects can be linked when those areas are switched on." />
+          <EmptyState icon="link" title="Nothing to link to" message="Incidents, tickets, problems and projects can be linked when those areas are switched on." />
         ) : (
           <>
             {work.length === 0
-              ? <EmptyState icon="link" title="No related work" message="Link the ticket or problem this change fixes or caused, and the project it belongs to. The link shows on both records." />
+              ? <EmptyState icon="link" title="No related work" message="Link the incident or ticket this change caused, the ticket or problem it fixes, and the project it belongs to. A change that caused an incident counts as not successful. The link shows on both records." />
               : <LinkTable rows={work} mainIds={[]} canEdit={editable} onRemove={(l) => void remove(l)} phrase />}
             {editable && <div className="chg-card-foot"><AddLink changeId={row.id} types={workTypes} affects={false} onAdded={reload} /></div>}
           </>

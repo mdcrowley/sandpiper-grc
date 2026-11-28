@@ -67,22 +67,93 @@ export function TrendChart({ points, name, unit, height = 260 }: { points: Point
     emptyMessage={unit === 'entered each month' ? 'No values entered yet' : unit.startsWith('per ') || unit.startsWith('revenue') ? 'No figures yet: this needs the exposure for the month' : 'No figures yet'} />;
 }
 
+/** Where one indicator stands (GET /api/safety/indicator-status, wave 26). */
+interface IndicatorStatus {
+  id: string;
+  latest: Point | null;
+  previous: { period: string; value: number | null } | null;
+  direction: 'better' | 'worse' | 'same' | null;
+  month_to_date: { period: string; value: number | null } | null;
+  spark: (number | null)[];
+}
+
+/** The last twelve complete months as a small line, with the target as a dashed line; the words carry the meaning. */
+function Sparkline({ values, target }: { values: (number | null)[]; target: number | null }) {
+  const known = values.filter((v): v is number => v !== null);
+  if (known.length < 2) return null;
+  const all = target === null ? known : [...known, target];
+  const min = Math.min(...all);
+  const span = Math.max(...all) - min || 1;
+  const w = 88;
+  const h = 26;
+  const x = (i: number) => (i / (values.length - 1)) * (w - 4) + 2;
+  const y = (v: number) => h - 3 - ((v - min) / span) * (h - 6);
+  const segments: string[] = [];
+  let run: string[] = [];
+  values.forEach((v, i) => {
+    if (v === null) { if (run.length) segments.push(run.join(' ')); run = []; } else run.push(`${x(i)},${y(v)}`);
+  });
+  if (run.length) segments.push(run.join(' '));
+  const lastIndex = values.map((v, i) => (v === null ? -1 : i)).filter((i) => i >= 0).at(-1)!;
+  return (
+    <svg className="sf-spark" width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true" focusable="false">
+      {target !== null && <line x1="0" x2={w} y1={y(target)} y2={y(target)} className="sf-spark-target" />}
+      {segments.map((pts) => <polyline key={pts} points={pts} className="sf-spark-line" />)}
+      <circle cx={x(lastIndex)} cy={y(values[lastIndex]!)} r="2.5" className="sf-spark-dot" />
+    </svg>
+  );
+}
+
+const TREND_WORDS = { better: 'Better than the month before', worse: 'Worse than the month before', same: 'Same as the month before' } as const;
+
 export function IndicatorList() {
   const { can } = useAuth();
   const [adding, setAdding] = useState(false);
   const navigate = useNavigate();
   const exposures = useLookup('safety_exposure_measure');
+  // Where each indicator stands: the latest complete month (never the month to date) against its target.
+  const { data: status } = useFetch<{ rows: IndicatorStatus[]; off_target: number; on_target: number }>('/api/safety/indicator-status');
+  const byId = useMemo(() => new Map((status?.rows ?? []).map((r) => [r.id, r])), [status]);
+  const latestCell = (r: Row) => {
+    const s = byId.get(String(r.id));
+    if (!status) return <span className="muted">…</span>;
+    if (!s?.latest) return <span className="muted">No figure yet</span>;
+    return <span className="sf-latest"><strong>{formatNumber(s.latest.value)}</strong> <span className="muted">{monthLabel(s.latest.period)}</span></span>;
+  };
   return (
     <div className="stack">
-      <PageHeader title="Safety indicators" subtitle="Named measures of safety performance, worked out each month from the safety events, with a target."
+      <PageHeader title="Safety indicators" subtitle="Named measures of safety performance, worked out each month from the safety events, with a target. Each is judged on its latest complete month."
         actions={can('safety.create') && <Button variant="primary" icon="plus" onClick={() => setAdding(true)}>New indicator</Button>} />
       <SafetyTabs active="indicators" />
+      {status && status.rows.length > 0 && (
+        <div className="grid-stats">
+          <Stat label="Off target" value={status.off_target} icon="target" color={status.off_target ? 'red' : undefined} hint="In the latest complete month" />
+          <Stat label="On target" value={status.on_target} icon="check" color={status.on_target ? 'green' : undefined} hint="In the latest complete month" />
+          <Stat label="No figure or no target" value={status.rows.length - status.off_target - status.on_target} icon="chart" />
+        </div>
+      )}
       <ResourceList type="safety_indicator" urlState filters={['active']} bulkFields={[]}
         columns={[
           'name',
+          { field: 'latest', label: 'Latest', render: latestCell, priority: 1 },
+          { field: 'against', label: 'Against target', priority: 1, render: (r) => {
+            const s = byId.get(String(r.id));
+            return status ? <MetChip met={s?.latest?.met ?? null} /> : null;
+          } },
+          { field: 'trend', label: 'Trend, 12 months', render: (r) => {
+            const s = byId.get(String(r.id));
+            if (!s) return null;
+            const target = s.latest?.target ?? (r.target === null || r.target === undefined ? null : Number(r.target));
+            return (
+              <span className="sf-trend">
+                <Sparkline values={s.spark} target={target} />
+                {s.direction && <span className={`sf-trend-word is-${s.direction}`}>{TREND_WORDS[s.direction]}</span>}
+              </span>
+            );
+          } },
           { field: 'measure', label: 'Measure', render: (r) => unitText(r as never, exposures) },
           { field: 'target', label: 'Target', render: (r) => targetText(r as never) },
-          { field: 'active', label: 'On the dashboard' },
+          { field: 'active', label: 'On the dashboard', hidden: true },
         ]} />
       <IndicatorDialog open={adding} onClose={() => setAdding(false)} onSaved={(row) => { setAdding(false); navigate(`/safety/indicators/${row.id}`); }} />
     </div>

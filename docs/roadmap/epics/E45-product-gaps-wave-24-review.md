@@ -1,6 +1,6 @@
 # E45 Product gaps found in the wave 24 review
 
-**Status:** in progress (52 of 67 issues done)
+**Status:** in progress (66 of 67 issues done)
 
 ## Goal
 
@@ -10,7 +10,8 @@ stands on its own beside cybersecurity. Evidence is filed once and reused. Funde
 the awards, controls and evidence they cover. Internal audit has a risk-ranked plan, workpapers and
 verification of fixes. Committees get a board book, structured minutes and motions with votes. The
 service desk, vulnerability, framework, system and vendor screens join up the IT workflows. An AI
-assistant can build complete records. Wave 25 built the issues marked done.
+assistant can build complete records. Wave 25 built most of the issues marked done; wave 26 built E45-53 to
+E45-60 and E45-62 to E45-67. E45-61 stays open with its limit documented.
 
 ## Scope notes
 
@@ -77,21 +78,21 @@ assistant can build complete records. Wave 25 built the issues marked done.
 | E45-50 | Completeness guidance and prompt | done | P2 |
 | E45-51 | A chunked upload attached as someone records the named person | done | P2 |
 | E45-52 | Attachments added in data load mode keep their date and are undone with the load | done | P2 |
-| E45-53 | Audits: inspection inspector and finding owner defaults follow the named person | open | P3 |
-| E45-54 | Evidence `created_by` follows the named person | open | P3 |
-| E45-55 | Loaded times for checklist ticks | open | P3 |
-| E45-56 | Appetite change through an approval workflow or committee decision | open | P3 |
-| E45-57 | Risk restriction per category form and further risk fields | open | P3 |
-| E45-58 | Funder review readiness view and package export | open | P3 |
-| E45-59 | Outside reviewer sees library evidence linked to the review | open | P3 |
-| E45-60 | Recused votes and conflict-of-interest declarations | open | P3 |
+| E45-53 | Audits: inspection inspector and finding owner defaults follow the named person | done | P3 |
+| E45-54 | Evidence `created_by` follows the named person | done | P3 |
+| E45-55 | Loaded times for checklist ticks | done | P3 |
+| E45-56 | Appetite change through an approval workflow or committee decision | done | P3 |
+| E45-57 | Risk restriction per category form and further risk fields | done | P3 |
+| E45-58 | Funder review readiness view and package export | done | P3 |
+| E45-59 | Outside reviewer sees library evidence linked to the review | done | P3 |
+| E45-60 | Recused votes and conflict-of-interest declarations | done | P3 |
 | E45-61 | Merge the structure of tagged PDF papers into the board book | open | P3 |
-| E45-62 | Agenda posting deadline per committee and annual work plan | open | P3 |
-| E45-63 | Workpaper reference numbering and time budget | open | P3 |
-| E45-64 | Audit plan approval through a committee decision | open | P3 |
-| E45-65 | MCP tool to link evidence | open | P3 |
-| E45-66 | Change-to-incident link so "caused an incident" counts against change success | open | P3 |
-| E45-67 | Members' committee meetings in calendar feeds | open | P3 |
+| E45-62 | Agenda posting deadline per committee and annual work plan | done | P3 |
+| E45-63 | Workpaper reference numbering and time budget | done | P3 |
+| E45-64 | Audit plan approval through a committee decision | done | P3 |
+| E45-65 | MCP tool to link evidence | done | P3 |
+| E45-66 | Change-to-incident link so "caused an incident" counts against change success | done | P3 |
+| E45-67 | Members' committee meetings in calendar feeds | done | P3 |
 
 ## Enterprise risk
 
@@ -478,60 +479,78 @@ with `as` in data load mode shows the named person as "added by".
 In a load an attachment keeps the `created_at` it is given, and it is listed in `data_load_records`
 (type `attachment`), so undoing the load removes it.
 
-## Open
+## Wave 26 follow-ups (data load, risk, funding, committees, audits)
+
+All done in wave 26 except E45-61, which stays open with the limit documented.
 
 ### E45-53 Audits: inspection inspector and finding owner defaults follow the named person
 
-**Status:** open · **Priority:** P3
+**Status:** done · **Priority:** P3 · **Implemented in:** `server/src/modules/audits/checklists.ts`.
 
 `audits/checklists.ts` still sets `inspector_id` and `response_owner_id` from the signed-in person; in a
 load they should follow `actorOf(req)` (follow-up of E18-94).
 
+Done in wave 26: the inspection inspector and the finding owner default to `actorOf(req)`, so a load that names a person records that person.
+
 ### E45-54 Evidence `created_by` follows the named person
 
-**Status:** open · **Priority:** P3
+**Status:** done · **Priority:** P3 · **Implemented in:** `server/src/modules/frameworks/index.ts`, `extras.ts`, `server/src/modules/attachments/index.ts`.
 
 Evidence rows written from `req.user!.id` (the attachments evidence copy, `frameworks/extras.ts`,
 `frameworks/index.ts`) should follow the named person in a load (follow-up of E18-94).
 
+Done in wave 26: outcome evidence `created_by`/`updated_by` and the attachment PATCH `updated_by` follow `actorOf(req)`; evidence links already did.
+
 ### E45-55 Loaded times for checklist ticks
 
-**Status:** open · **Priority:** P3
+**Status:** done · **Priority:** P3 · **Implemented in:** `server/src/modules/tickets/catalog.ts`, `secincidents/index.ts`, `controls/steps.ts`, `changes/workflow.ts` (test `secincidents/loaded-times.test.ts`).
 
 Ticket fulfillment task `done_at`, incident checklist `done_at`, control step `done_at` and change PIR
 `pir_completed_at` should take the body's time in a load (the actor already follows).
 
+Done in wave 26: ticket task `done_at`, incident checklist `done_at`, control step `done_at` and change `pir_completed_at` take the time the body gives in a load.
+
 ### E45-56 Appetite change through an approval workflow or committee decision
 
-**Status:** open · **Priority:** P3
+**Status:** done · **Priority:** P3 · **Implemented in:** `server/src/modules/risks/enterprise.ts`, migration `risks/010_appetite_decision_and_risk_fields.sql`, `governance/decision-ref.ts`, `web/src/modules/risks/Appetite.tsx`.
 
 Today an appetite version is recorded after the fact; it could go through an approval workflow or be
 tied to a committee decision.
 
+Done in wave 26 (committee decision): a new appetite version may name `decision_id`, a carried committee decision; the committee is the approver and body, the meeting date the approval date and the resolution the reference. An approval workflow for the appetite is not built: it is E46-53.
+
 ### E45-57 Risk restriction per category form and further risk fields
 
-**Status:** open · **Priority:** P3
+**Status:** done · **Priority:** P3 · **Implemented in:** `server/src/modules/risks/enterprise.ts`, `index.ts`, migration `010_appetite_decision_and_risk_fields.sql`, `web/src/modules/risks/Appetite.tsx`, `RiskDetail.tsx`, `RiskRegister.tsx` (test `risks/categories.test.ts`).
 
 Restriction per category is set by editing the category list's meta; a form is not built. Proximity,
 velocity and strategic objective fields are not added.
 
+Done in wave 26: `GET /api/risks/categories` and `PUT /api/risks/categories/:category/restriction` (`risks.administer` and `security.view`, optionally applied to existing risks) behind the **Restricted categories** card; new risk fields proximity, velocity (lists `risk_proximity`, `risk_velocity`) and strategic objective.
+
 ### E45-58 Funder review readiness view and package export
 
-**Status:** open · **Priority:** P3
+**Status:** done · **Priority:** P3 · **Implemented in:** `server/src/modules/funding/package.ts`, `web/src/modules/funding/Readiness.tsx`, `Reviews.tsx` (test `funding/package.test.ts`).
 
 A readiness view of a funder review and an export of its evidence package.
 
+Done in wave 26: the **Readiness** tab of a funder review shows readiness per area and request; the package export is a ZIP with an index PDF (PDF/UA) and the evidence files the caller may see.
+
 ### E45-59 Outside reviewer sees library evidence linked to the review
 
-**Status:** open · **Priority:** P3
+**Status:** done · **Priority:** P3 · **Implemented in:** `server/src/modules/outsidereviews/subjects.ts`, `routes.ts`, `web/src/modules/outsidereviews/ReviewerApp.tsx`.
 
 Outside reviewers do not yet see evidence library records linked to the review they are invited to.
 
+Done in wave 26: the reviewer workspace of audits and funder reviews lists linked evidence library records and their files; restricted evidence is never shown.
+
 ### E45-60 Recused votes and conflict-of-interest declarations
 
-**Status:** open · **Priority:** P3
+**Status:** done · **Priority:** P3 · **Implemented in:** `server/src/modules/governance/declarations.ts`, `motions.ts`, `decisions.ts`, `book.ts`, migration `004_declarations_and_work_plan.sql`, `web/src/modules/governance/Interests.tsx`, `Board.tsx`, `MyMeetings.tsx` (test `governance/declarations.test.ts`).
 
 A "recused" vote and conflict-of-interest declarations per agenda item.
+
+Done in wave 26: a vote may be "recused"; members declare an interest per agenda item (also from their own meeting page); the minutes list the declarations and recused votes.
 
 ### E45-61 Merge the structure of tagged PDF papers into the board book
 
@@ -540,40 +559,58 @@ A "recused" vote and conflict-of-interest declarations per agenda item.
 Appended PDF pages are marked as artifacts today; their tag structure could be merged so the book stays
 fully accessible.
 
+Wave 26 looked at it and documents the limit instead (kept open): merging another file's structure means
+rewriting its StructTreeRoot, ParentTree and every page's StructParents and marked-content ids into the
+book's tree and role-mapping its custom tags; pdf-lib has no support for it, and a half-merged tree fails
+PDF/UA worse than artifacts do. The book stays fully tagged for its own pages, appended papers stay
+artifacts, and **Text only** prints their text for screen readers (user guide page 28, known gaps).
+
 ### E45-62 Agenda posting deadline per committee and annual work plan
 
-**Status:** open · **Priority:** P3
+**Status:** done · **Priority:** P3 · **Implemented in:** `server/src/modules/governance/workplan.ts`, `committees.ts`, `reminders.ts`, `web/src/modules/governance/Interests.tsx`, `Committees.tsx`.
 
 An agenda posting deadline per committee with a reminder, and an annual work plan of standing items.
 
+Done in wave 26: `agenda_posting_days` per committee with a reminder and a notice on the meeting; the committee **Work plan** of standing items by month, added to a meeting's agenda, with a year view.
+
 ### E45-63 Workpaper reference numbering and time budget
 
-**Status:** open · **Priority:** P3
+**Status:** done · **Priority:** P3 · **Implemented in:** `server/src/modules/audits/time.ts`, `checklists.ts`, `resources.ts`, migration `005_plan_decision_and_time.sql`, `web/src/modules/audits/Time.tsx`, `Workpapers.tsx` (test `audits/time.test.ts`).
 
 Workpaper reference numbers and budgeted against actual hours per audit.
 
+Done in wave 26: workpaper references A.1, B.1 (`AUD-00012/A.1`), `budget_hours` per audit and time entries by person and step on the **Time** tab.
+
 ### E45-64 Audit plan approval through a committee decision
 
-**Status:** open · **Priority:** P3
+**Status:** done · **Priority:** P3 · **Implemented in:** `server/src/modules/audits/plan.ts`, migration `005_plan_decision_and_time.sql`, `web/src/modules/audits/Plan.tsx`.
 
 Approval is by a person holding `audits.approve`; linking it to a committee's meeting decision is not built.
 
+Done in wave 26: `POST /api/audits/plans/:id/approve` takes `decision_id`; the plan keeps `approval_decision_id` and `approval_reference`.
+
 ### E45-65 MCP tool to link evidence
 
-**Status:** open · **Priority:** P3
+**Status:** done · **Priority:** P3 · **Implemented in:** `server/src/modules/mcp/tools-files.ts`, `server.ts` (test `mcp/link-evidence.test.ts`).
 
 Evidence records are ordinary MCP resources, but linking them (`/api/evidence-links`) has no tool
 (for example `link_evidence`).
 
+Done in wave 26: the `link_evidence` tool (`POST /api/evidence-links`), offered while the evidence library is on; `as` in data load mode.
+
 ### E45-66 Change-to-incident link so "caused an incident" counts against change success
 
-**Status:** open · **Priority:** P3
+**Status:** done · **Priority:** P3 · **Implemented in:** `server/src/modules/changes/success.ts`, `web/src/modules/changes/RelatedTab.tsx` (test `changes/caused-incident.test.ts`).
 
 No change-to-incident link exists, so the change success rate does not count changes that caused an incident.
 
+Done in wave 26: a "caused" link from a change to a ticket, security incident or safety event (or "caused by" back) counts against change success; the API gives `caused_incident`. The standard report gauge still counts outcomes only (E46-54).
+
 ### E45-67 Members' committee meetings in calendar feeds
 
-**Status:** open · **Priority:** P3
+**Status:** done · **Priority:** P3 · **Implemented in:** `server/src/modules/feeds/sources.ts`.
 
 The `governance.meetings` calendar source could become `named: true`, so members without
 `governance.view` get their meetings, linking to `/governance/my-meetings/:id`.
+
+Done in wave 26: `governance.meetings` is `named`; members without `governance.view` get their meetings, linking to `/governance/my-meetings/:id`.

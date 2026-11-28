@@ -69,7 +69,6 @@ export function ChangeList() {
         subtitle="Planned, current and past changes to systems."
         actions={(
           <>
-            <Link className="btn btn-secondary" to="/changes/calendar"><Icon name="calendar" /> Calendar</Link>
             {can('changes.create') && <Link className="btn btn-primary" to="/changes/new"><Icon name="plus" /> New change</Link>}
           </>
         )}

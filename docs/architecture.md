@@ -342,12 +342,14 @@ without `security.view`. See [Security](security.md#audit-log).
   since wave 25 evidence parts (`defineEvidencePart` in `modules/evidence/parts.ts`), through
   which audits, funding and obligations let the evidence library link to parts of their records.
   The shared record page adds the **Evidence** tab to every linkable record type while the
-  evidence area is on. See [the developer guide](development.md#evidence-parts-shared-registry).
+  evidence area is on. Wave 26 links the evidence library to procurement and insurance records and
+  to the required elements of a civil rights program (part `element`). See [the developer guide](development.md#evidence-parts-shared-registry).
 - **Feature switches.** An administrator can switch optional parts of the application off
   (`server/src/core/features.ts`). `can()` then answers false for that part's permissions
   whoever holds them, its record types leave the resource registry, its routes answer 404
   `switched_off` and its jobs are skipped, so a switched-off part behaves like a module that
-  is not installed. See [the developer guide](development.md#feature-switches-optional-areas).
+  is not installed. Writing the switches reads them again at once and rebuilds the record types' fields
+  before the write returns, so background work in the same process follows the change too (wave 26). See [the developer guide](development.md#feature-switches-optional-areas).
 - **The web hides what the user cannot do**, using the permissions in `/api/auth/state`,
   but the server is the control: every route checks again.
 

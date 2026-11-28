@@ -80,7 +80,7 @@ const audited = async (action: string) =>
 beforeAll(async () => {
   t = await testApp({ extraModules: [gadgets] });
   // Every optional part on, the portal included (off by default), so every route is described (E14-34).
-  await t.api.patch('/api/admin/features', { features: { portal: true, mobile: true } });
+  await t.api.patch('/api/admin/features', { features: { portal: true, mobile: true, civilrights: true } });
   agent = await t.as('agent'); // tickets.* and no security.view
   lead = await t.as('security_lead'); // tickets.* and security.view
   viewer = await t.as('executive_viewer'); // no tickets permission at all

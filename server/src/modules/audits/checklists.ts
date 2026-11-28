@@ -7,6 +7,7 @@ import { actorOf } from '../../core/dataload.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { dayInZone } from '../../core/timezone.ts';
 import { addDays } from './dates.ts';
+import { workpaperRefs } from './time.ts';
 import {
   CHECKLIST_ANSWERS, completionProblem, findingRatingOf, liveItems, scoreChecklist, SIGNATURE_NAME_MAX, type AnswerOf,
 } from '../../../../shared/inspection-rules.ts';
@@ -103,8 +104,11 @@ export function registerChecklists(ctx: ModuleContext) {
     }
     const prepared = items.filter((i) => answers.get(i.id)?.prepared_at).length;
     const reviewed = items.filter((i) => answers.get(i.id)?.reviewed_at).length;
+    // Workpaper reference numbers (E45-63): A.1, A.2, B.1 by section; the full one starts with the audit's reference.
+    const refs = workpaperRefs(items);
+    const numbered = items.map((i) => ({ ...i, wp_ref: refs.get(i.id) ?? null, wp_ref_full: refs.get(i.id) ? `${parent.ref ?? ''}/${refs.get(i.id)}` : null }));
     return {
-      ...base, prepared, reviewed, open_notes: notes.filter((n) => !n.cleared_at).length,
+      ...base, items: numbered, prepared, reviewed, open_notes: notes.filter((n) => !n.cleared_at).length,
       evidence_available: Boolean(ctx.resources.get(EVIDENCE_TYPE)),
       can_review: ctx.can(req.user, 'audits.edit'), me: actorOf(req).id,
     };
@@ -334,7 +338,7 @@ export function registerChecklists(ctx: ModuleContext) {
     if (CANCELED_STATUSES.includes(String(ins.status))) ctx.fail(409, 'inspection_canceled', 'The inspection was canceled, so it cannot be carried out.');
     const saved = await saveAnswers('inspection', ins, ins.template_id, (req.body ?? {}) as Row, req);
     if (ins.status !== 'in_progress' || !ins.inspector_id) {
-      await ctx.resources.update('inspection', ins.id, { status: 'in_progress', ...(ins.inspector_id ? {} : { inspector_id: req.user!.id }) }, null);
+      await ctx.resources.update('inspection', ins.id, { status: 'in_progress', ...(ins.inspector_id ? {} : { inspector_id: actorOf(req).id ?? req.user!.id }) }, null);
     }
     return { saved };
   });
@@ -375,7 +379,7 @@ export function registerChecklists(ctx: ModuleContext) {
     const today = dayInZone();
     const updated = await ctx.resources.update('inspection', ins.id, {
       status: 'complete', result, score_pct, performed_on: today,
-      ...(ins.inspector_id ? {} : { inspector_id: req.user!.id }),
+      ...(ins.inspector_id ? {} : { inspector_id: actorOf(req).id ?? req.user!.id }),
       ...(typeof body.notes === 'string' && body.notes.trim() ? { notes: body.notes.trim().slice(0, 4000) } : {}),
       ...(signedBy ? { signed_by_name: signedBy, signed_at: new Date().toISOString() } : {}),
     }, null);
@@ -393,7 +397,7 @@ export function registerChecklists(ctx: ModuleContext) {
           title: i.prompt.slice(0, 200), source_type: 'inspection', source_id: ins.id,
           rating: findingRatingOf(i), criteria: i.prompt,
           condition: a.note || `Not met at inspection ${ins.ref}${ins.target_label ? ` of ${ins.target_label}` : ''}.`,
-          response_due: addDays(today, FINDING_RESPONSE_DAYS), response_owner_id: ins.inspector_id ?? req.user!.id,
+          response_due: addDays(today, FINDING_RESPONSE_DAYS), response_owner_id: ins.inspector_id ?? actorOf(req).id ?? req.user!.id,
         }, req));
         await db.query('update audit_findings set item_id = $2 where id = $1', [findings.at(-1)!.id, i.id]);
       }

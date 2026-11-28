@@ -4,6 +4,7 @@
 import { Link, useParams } from 'react-router-dom';
 import { Card, EmptyState, ErrorState, formatDateTime, Loading, PageHeader, TableWrap, useFetch } from '../../core';
 import { ItemMarks, PaperName, type AgendaItem } from './Board';
+import { DeclareOwnInterest } from './Interests';
 
 interface MyMeeting {
   id: string; ref: string; title: string; committee_name: string; scheduled_at: string; location: string | null; status: string;
@@ -99,6 +100,8 @@ export function MyMeetingDetail() {
             </ol>
           )}
       </Card>
+      {/* E45-60: declare an interest in an item before the meeting. */}
+      {!['canceled', 'minutes_approved'].includes(meeting.status) && <DeclareOwnInterest meetingId={meeting.id} held={meeting.status === 'held'} />}
     </div>
   );
 }

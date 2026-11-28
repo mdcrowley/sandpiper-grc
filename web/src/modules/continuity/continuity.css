@@ -59,3 +59,9 @@
 .bc-ack-head h1 { margin: 0; font-size: var(--fs-xl, 1.5rem); }
 .bc-ack-head p { margin: 0; }
 .bc-ack-org { display: flex; align-items: center; gap: var(--s-2); color: var(--text-muted); font-weight: 600; }
+
+/* Plan sections (wave 26): the plan's text, started from a template or written by hand. */
+.bc-sections { overflow-wrap: anywhere; }
+.bc-sections > :first-child { margin-top: 0; }
+.bc-sections ul, .bc-sections ol { margin: 0.25rem 0 0.75rem; padding-inline-start: 1.5rem; }
+.bc-sections p { margin: 0.25rem 0 0.75rem; }

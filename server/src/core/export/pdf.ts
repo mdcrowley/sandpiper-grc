@@ -239,6 +239,12 @@ export interface PdfOptions {
   meta?: string[];
   /** Restricted content: this line is printed in red at the top of every page, with a faint diagonal mark. */
   watermark?: string | null;
+  /**
+   * A faint diagonal word on every page, such as DRAFT, SUPERSEDED or OBSOLETE (E43-16): a printed
+   * document's status. Shown instead of the diagonal RESTRICTED (the restricted line at the top stays).
+   * Page furniture, so it is an artifact: screen readers skip it; say the status in the text as well.
+   */
+  mark?: string | null;
   appName?: string;
   landscape?: boolean;
   /** A cover page with the title, subtitle and meta; the body starts on page 2. */
@@ -961,14 +967,17 @@ export class PdfBuilder {
       margins.bottom = 0; // writing in the margin must not start a new page
       const w = doc.page.width - margins.left - margins.right;
       this.artifact(() => {
-        if (this.opts.watermark) {
+        const mark = (this.opts.mark ?? '').trim().toUpperCase().slice(0, 24) || (this.opts.watermark ? 'RESTRICTED' : '');
+        if (mark) {
           doc.save();
           doc.rotate(-35, { origin: [doc.page.width / 2, doc.page.height / 2] });
           this.base(true);
-          doc.fontSize(64).fillColor(DANGER).fillOpacity(0.07)
-            .text('RESTRICTED', 0, doc.page.height / 2 - 32, { width: doc.page.width, align: 'center', lineBreak: false });
+          doc.fontSize(mark.length > 12 ? 48 : 64).fillColor(DANGER).fillOpacity(0.07)
+            .text(mark, 0, doc.page.height / 2 - 32, { width: doc.page.width, align: 'center', lineBreak: false });
           doc.restore();
           doc.fillOpacity(1);
+        }
+        if (this.opts.watermark) {
           doc.fontSize(8).fillColor(DANGER);
           this.write(this.opts.watermark, margins.left, 24, { width: w, align: 'center', lineBreak: false, ellipsis: true, bold: true });
         } else if (i > 0) {

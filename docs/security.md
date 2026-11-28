@@ -1269,6 +1269,29 @@ evidence shows only what the viewer may open, with a count of the rest. A part m
 evidence linked to a reviewed audit workpaper step cannot be added or removed. Figures count every
 record.
 
+### Wave 26 areas
+
+Procurement, insurance, civil rights and strategy are ordinary areas with their own permission modules,
+switches and default roles (all switched off as installed), and follow the rule that figures are the same
+for everyone:
+
+- **Offers and scores** (`procurement/solicitations.ts`): before the award an offer is readable only by
+  people holding `procurement.edit` and the solicitation's evaluation committee (a row rule, so lists,
+  search, links and exports follow); counts are masked, never dropped. Committee members score from
+  `/api/procurement/my-evaluations*` without a procurement role, only for their own solicitations, after a
+  conflict-of-interest declaration. A purchase order is never approved by its requester.
+- **Confidential civil rights complaints** (`civilrights/complaints.ts`): readable only by the named
+  complaint handlers, the investigator and the creator; naming a handler needs a recent password; only
+  handlers and administrators change confidentiality. The area starts **off**, so an upgrade adds no new
+  store of sensitive data by itself. Personal fields are anonymized by retention.
+- **Insurance claims** are restricted per claim: personal kinds and claims about security incidents
+  start restricted, and only a holder of `security.view` lifts the flag.
+- **Report a problem** (`work/report.ts`) is open to everyone signed in and uses the portal's safety
+  intake (`safety/portal-intake.ts`), so confidential reporting keeps the reporter off the event.
+- A role's home page (`home.role_homes`) is a convenience: landing on a page grants nothing.
+- Switching an area on or off now applies at once to background work in the same process too
+  (`refreshFeatures`, E46-52), so a job right after the switch never sees the old state of fields.
+
 ### Committee members' reading view
 
 `server/src/modules/governance/members.ts` (wave 25). `/api/governance/my-meetings*` need no
@@ -1417,7 +1440,11 @@ memory, which a heap limit does not cover, so the process-wide check is what sto
 bomb. Each attempt is recorded before reading (`attachment_texts.status = 'reading'`, `attempts`).
 A file whose reading was stopped by time, memory or a server crash is tried once more, then marked
 failed and never read again automatically. Files a vendor sent through a response link are not read
-until staff take them over.
+until staff take them over. A PDF with no text layer is read again by OCR in the same separate process
+(wave 26, `attachments/ocr.ts`, tesseract.js compiled to WebAssembly) with longer limits (5 minutes,
+1 GB, the first 50 pages). The language data is bundled (`attachments/tessdata`, with its source and
+SHA-256 in `NOTICE.txt`) and the engine is given a local folder with caching off, so nothing is
+downloaded and no outside request is made; `GRC_OCR=off` stops it.
 
 Previews are
 served inline only for PNG, JPEG, GIF, WebP, BMP and PDF, under their fixed type, with

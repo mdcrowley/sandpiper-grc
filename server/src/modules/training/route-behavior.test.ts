@@ -50,7 +50,7 @@ describe('PATCH /api/positions/:id/requirements/:rid', () => {
     expect((await t.api.patch(`/api/positions/${pos.id}/requirements/${MISSING}`, { grace_days: 1 })).status).toBe(404);
     expect((await t.api.patch(`/api/positions/${MISSING}/requirements/${req.id}`, { grace_days: 1 })).status).toBe(404);
 
-    for (const role of ['agent', 'safety_manager']) { // training.view only
+    for (const role of ['agent']) { // training.view only (wave 26: the Safety manager may now edit training)
       const c = await t.as(role);
       expect((await c.patch(`/api/positions/${pos.id}/requirements/${req.id}`, { grace_days: 1 })).status).toBe(403);
       expect((await c.del(`/api/positions/${pos.id}/requirements/${req.id}`)).status).toBe(403);

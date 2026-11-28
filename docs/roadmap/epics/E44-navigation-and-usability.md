@@ -1,6 +1,6 @@
 # E44 Navigation and usability
 
-**Status:** in progress (6 of 10 issues done)
+**Status:** done (10 of 10 issues done)
 
 ## Goal
 
@@ -22,10 +22,10 @@ page. Nothing became unreachable: every page keeps its address and stays in the 
 | E44-04 | Pinned pages and recently opened records | done | P2 |
 | E44-05 | One approvals inbox and an honest "waiting for you" count | done | P1 |
 | E44-06 | Permissions on Expiring evidence files and the API reference | done | P2 |
-| E44-07 | Header buttons that repeat a tab | open | P3 |
-| E44-08 | One page for expiring evidence | open | P3 |
-| E44-09 | A start page per role and a count on My work | open | P2 |
-| E44-10 | Administration cards still missing | open | P3 |
+| E44-07 | Header buttons that repeat a tab | done | P3 |
+| E44-08 | One page for expiring evidence | done | P3 |
+| E44-09 | A start page per role and a count on My work | done | P2 |
+| E44-10 | Administration cards still missing | done | P3 |
 
 ### E44-01 Menu groups named after the work, sibling pages as tabs
 
@@ -82,30 +82,38 @@ reference card needs administration; Service desk settings are offered only to s
 
 ### E44-07 Header buttons that repeat a tab
 
-**Status:** open · **Priority:** P3
+**Status:** done · **Priority:** P3 · **Implemented in:** `web/src/modules/changes/ChangeList.tsx`, `projects/PortfolioPage.tsx`, `training/ExercisePages.tsx`, `training/Overview.tsx`, `vendors/VendorPages.tsx`, `vendors/EvidencePages.tsx`, `admin/Settings.tsx`.
 
 Some pages still have header buttons for what is now a tab (Tickets Dashboard, Changes Calendar, Vendors
 question sets, Training Courses, Projects Settings and others), and **Administration > Settings** repeats
 sections that have their own pages.
 
+Done in wave 26: the Changes Calendar, Projects Settings, Training Courses and Reminder settings, Exercises Calendar and Vendors Security terms matrix buttons are gone (tabs only); the vendor question buttons stay only for readers without the tab; **Administration > Settings** has an **Elsewhere** group of links instead of repeating File settings and Departments.
+
 ### E44-08 One page for expiring evidence
 
-**Status:** open · **Priority:** P3
+**Status:** done · **Priority:** P3 · **Implemented in:** `web/src/modules/attachments/ExpiringEvidence.tsx`, `attachments/index.tsx`, `vendors/index.tsx`, `evidence/index.tsx`.
 
 Expiring vendor evidence and expiring files on any record are two tabs; one page with a source filter
 would be simpler.
 
+Done in wave 26: `/attachments/expiring` lists vendor evidence, evidence library records and evidence files with a **Source** filter and a look-ahead of 30 to 365 days; it is the Expiring tab of Vendors > Evidence and of the Evidence library, and `/evidence/expiring` opens it on vendor evidence.
+
 ### E44-09 A start page per role and a count on My work
 
-**Status:** open · **Priority:** P2
+**Status:** done · **Priority:** P2 · **Implemented in:** `server/src/modules/work/home.ts` (test `work/home.test.ts`), `web/src/modules/home/HomeRoute.tsx`, `widgetsAreaLeads.tsx`, `admin/RoleHome.tsx`, `web/src/core/Shell.tsx` (`NavItem.count`).
 
 A role chooses where its people land (Overview, the portal, a dashboard), and My work shows a count of
 what waits.
 
+Done in wave 26: each role, and people with no role, has a home page (Overview, My work, the portal or a dashboard; setting `home.role_homes`, `GET/PUT /api/work/role-homes`), applied on arrival at "/" only; people with no role land on My work. The My work menu entry shows what waits (`GET /api/work/waiting`). The Overview gains widgets for safety, inspections, vehicles, state of good repair and continuity, and an active-emergency banner.
+
 ### E44-10 Administration cards still missing
 
-**Status:** open · **Priority:** P3
+**Status:** done · **Priority:** P3 · **Implemented in:** `web/src/modules/secincidents/index.tsx`, `training/Settings.tsx`, `training/index.tsx`, `policies/index.tsx`.
 
 Security incident rules and checklists (needs a separate administer permission so the card does not show
 Administration to every security viewer), training reminders (a dialog today, with no address of its own),
 and document settings.
+
+Done in wave 26: Administration cards **Security incident rules** (`/security-incidents/settings`, `security.administer`), **Training settings** (`/training/settings`, also the Settings tab of Training) and **Document settings**.

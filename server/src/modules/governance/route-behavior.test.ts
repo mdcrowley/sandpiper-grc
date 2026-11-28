@@ -115,7 +115,7 @@ describe('POST /api/governance/reminders/run', () => {
     const m = (await officer.post('/api/meetings', { committee_id: c, title: 'Invented meeting soon', scheduled_at: new Date(Date.now() + 2 * 86_400_000).toISOString(), secretary_id: officer.userId })).body.id;
     const res = await officer.post('/api/governance/reminders/run');
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ available: true, packsDue: expect.any(Number), minutesWaiting: expect.any(Number), notified: expect.any(Number) });
+    expect(res.body).toEqual({ available: true, packsDue: expect.any(Number), minutesWaiting: expect.any(Number), agendasDue: expect.any(Number), notified: expect.any(Number) });
     expect(res.body.packsDue).toBeGreaterThanOrEqual(1);
     const sent = async () => (await t.db.query(`select 1 from notifications where record_id = $1 and kind = 'governance'`, [m])).length;
     expect(await sent()).toBeGreaterThanOrEqual(1);

@@ -94,3 +94,22 @@ button.sf-cell:hover { border-color: var(--border-strong); }
 .sf-viewer-list li { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; }
 .sf-confidential { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-3); align-items: center; }
 .sf-confidential p { margin: 0; flex: 1 1 320px; }
+
+/* Indicator list (wave 26): latest complete month, against target, and a twelve-month sparkline. */
+.sf-latest { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sf-trend { display: inline-flex; align-items: center; gap: var(--s-2); }
+.sf-trend-word { font-size: var(--fs-sm); color: var(--text-muted); }
+.sf-trend-word.is-worse { color: var(--danger-text); }
+.sf-spark { flex: none; overflow: visible; }
+.sf-spark-line { fill: none; stroke: var(--c-blue-solid); stroke-width: 1.75; stroke-linejoin: round; stroke-linecap: round; }
+.sf-spark-target { stroke: var(--text-muted); stroke-width: 1; stroke-dasharray: 3 3; }
+.sf-spark-dot { fill: var(--c-blue-solid); }
+
+/* Hazard log (wave 26): a review date that has passed, and a hazard with no owner. */
+.sf-overdue { color: var(--danger-text); font-weight: 600; }
+.sf-quick { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; }
+
+/* The safety plan page (wave 26). */
+.sf-plan-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: var(--s-3); margin: 0; }
+.sf-plan-facts dt { font-size: var(--fs-sm); color: var(--text-muted); }
+.sf-plan-facts dd { margin: 0; font-weight: 600; }

@@ -102,6 +102,9 @@
 }
 .nav-link .icon { color: var(--nav-muted); }
 .nav-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The waiting count beside an entry (NavItem.count, E44-09): the sidebar is dark in both themes. */
+.nav-badge { margin-inline-start: auto; min-width: 20px; padding: 0 6px; border-radius: 999px; background: var(--nav-accent); color: var(--nav-bg); font-size: 0.6875rem; font-weight: 700; line-height: 18px; text-align: center; }
+.ui-menu-item .nav-badge { margin-inline-start: 8px; background: var(--brand); color: var(--brand-contrast); }
 .nav-link:hover { background: var(--nav-hover); color: #ffffff; }
 .nav-link-active { background: var(--nav-active); color: #ffffff; font-weight: 600; }
 .nav-link-active .icon { color: var(--nav-accent); }

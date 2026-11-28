@@ -45,6 +45,19 @@ The register is ready at once: it appears in the navigation, the Create menu, th
 
 The register's page under Administration > Registers shows how many records it holds, lets you change everything but its name in addresses, and links to the pages below.
 
+## Starting from a template (administrators)
+
+Some registers are common enough that the application offers them ready-made. On **Administration > Registers**, choose **Start from a template**, then **Make register** beside the one you want. The register is made at once, with its fields, its statuses, its numbering and its place in the navigation, and its page opens. It is an ordinary register: change its names, fields, statuses and permissions afterwards like any other. Nothing is made until an administrator asks for it.
+
+| Template | Menu group, prefix | Statuses | Fields |
+|---|---|---|---|
+| **Labor agreements** | People and training, `LA-` | In negotiation, In effect, Expired, terms continue, Superseded | Bargaining unit or union; Parties; Term starts and ends; Next reopener; Reopener dates and terms; Main covered position (a link to a position of the roster; link further positions under **Related**); Covered positions and classifications; Wage schedule notes; Grievance procedure document (a link to a document of the document library) |
+| **Real property** | Assets, `RP-` | In use, Surplus, identified for disposal, Disposal in progress, Disposed | Address; Parcel or legal reference; Acquired; How acquired (purchase, donation or gift, transfer from another body, lease-purchase, other); Funding source; Use; Condition; Appraised value and Appraised on; Leases and easements; Disposed on; Disposal method and proceeds. The register's own **Site** field links the property to the site of the inventory. Files on these records are evidence (deeds, appraisals) |
+
+The main field is called **Agreement** and **Property**. The fields are added as custom fields under your name, each recorded in the audit log. A field that links to a part of the application that is switched off or not installed (the document library, for example) is made as a text field instead.
+
+A template already used shows **Make another**: give the second register names and a prefix of its own (for example "Leased property", `LP2`). A template whose name or prefix another register already uses asks for other names the same way.
+
 ## Fields, statuses and lifecycle
 
 - **Fields.** A register's own fields are [custom fields](09-administration.md#custom-fields) of its record type: choose **Add or change fields** on the register's page, which opens **Administration > Custom fields** with the register chosen. Text, long text, numbers, amounts, dates, yes or no, a choice from a list (or several), a person, or a link to another record (a vehicle, a site, a system, a record of another register). A field can be required, have help text and sit under a heading on the form.
@@ -78,3 +91,5 @@ Each register needs a small change to the database when it is defined (a view of
 - A register defined while the application runs gets [approval workflows](22-approval-workflows.md) after the next restart of the server; everything else works at once.
 - With more than one server process on the same database, the other processes pick up a new or changed register within a few seconds.
 - The register's records are kept with every other record: backups, exports and restores carry them.
+- The `dev` sample data defines an invented **Lost property** register and makes the **Labor agreements** and **Real property** registers from their templates, each with invented "[Sample]" records. An installation loaded with its own data (the `pilot` profile) gets no register until an administrator makes one.
+- The address `templates` is taken by the templates, so no register can be named `templates`.

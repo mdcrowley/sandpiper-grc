@@ -3,8 +3,8 @@
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  api, Badge, Button, Card, DateField, EmptyState, errorMessage, ErrorState, Loading, LookupSelect, Modal, PageHeader, RecordPage, RecordPicker,
-  ResourceList, useAuth, useFetch, UserPicker, useToast,
+  api, Badge, Button, Card, DateField, EmptyState, errorMessage, ErrorState, Loading, LookupSelect, Modal, Notice, PageHeader, RecordPage, RecordPicker,
+  ResourceList, TextArea, TextField, todayInZone, useAuth, useFetch, UserPicker, useResource, useToast,
 } from '../../core';
 import type { RecordContext } from '../../core';
 import { ANSWER_LABEL, bySection, type ChecklistData, ItemFlags } from './Checklist';
@@ -68,17 +68,53 @@ function useNewDialog() {
   return { open, show: () => setOpen(true), close };
 }
 
+interface Attention {
+  inspections: { overdue: number; due_soon: number; missed_open: number; missed_90_days: number; schedules_behind: number };
+  defects: { open: number; out_of_service: number; to_verify: number; deferral_overdue: number };
+}
+
+/** Wave 26: the list opens on what is due, soonest first; the other views are a click away. */
+function inspectionViews(today: string) {
+  return [
+    { key: 'due', label: 'Due and overdue', filter: { status: 'scheduled,in_progress' } as Record<string, string>, sort: { field: 'due_on', dir: 'asc' as const } },
+    { key: 'late', label: 'Overdue', filter: { status: 'scheduled,in_progress', 'due_on.lt': today }, sort: { field: 'due_on', dir: 'asc' as const } },
+    { key: 'missed', label: 'Missed', filter: { status: 'missed' }, sort: { field: 'due_on', dir: 'desc' as const } },
+    { key: 'all', label: 'All inspections', filter: {} as Record<string, string>, sort: undefined },
+  ];
+}
+
 export function InspectionList() {
   const { can, areaOn } = useAuth();
   const dialog = useNewDialog();
+  const [params] = useSearchParams();
+  const views = inspectionViews(todayInZone());
+  const view = views.find((v) => v.key === params.get('view')) ?? views[0];
+  const { data: attention } = useFetch<Attention>('/api/inspections/attention');
+  const a = attention?.inspections;
   return (
     <div className="stack">
       <PageHeader title="Inspections" subtitle={`Inspections of stations, depots${areaOn('fleet') ? ', vehicles' : ''} and equipment, created from their schedules or by hand, and run on a phone or tablet.`} />
       <InspectionTabs active="inspections" />
+      {a && (a.overdue > 0 || a.missed_open > 0) && (
+        <Notice tone="warning" title="Inspections need following up">
+          {a.overdue} overdue and {a.missed_open} missed without a reason, a new date or a follow-up action; {a.schedules_behind} {a.schedules_behind === 1 ? 'schedule is' : 'schedules are'} behind.
+          {' '}<Link to="/inspections?view=late">Overdue</Link> · <Link to="/inspections?view=missed">Missed</Link>
+        </Notice>
+      )}
+      <nav className="au-views" aria-label="Which inspections to show">
+        {views.map((v) => (
+          <Link key={v.key} className={`btn btn-sm ${v.key === view.key ? 'btn-primary' : 'btn-secondary'}`} aria-current={v.key === view.key ? 'page' : undefined}
+            to={v.key === 'due' ? '/inspections' : `/inspections?view=${v.key}`}>{v.label}</Link>
+        ))}
+      </nav>
       <ResourceList
+        key={view.key}
         type="inspection"
         urlState
-        columns={['ref', 'title', 'target_label', 'due_on', 'status', 'result', 'score_pct', 'inspector_id', { field: 'performed_on', hidden: true }, { field: 'template_id', hidden: true }]}
+        baseFilter={view.filter}
+        defaultSort={view.sort}
+        columns={['ref', 'title', 'target_label', 'due_on', 'status', 'result', 'score_pct', 'inspector_id', { field: 'performed_on', hidden: true }, { field: 'template_id', hidden: true },
+          { field: 'missed_reason', hidden: true }]}
         filters={['status', 'result', 'inspector_id', 'template_id', 'schedule_id', 'due_on', 'target_type']}
         actions={can('audits.create') ? <Button variant="primary" icon="plus" onClick={dialog.show}>New inspection</Button> : undefined}
       />
@@ -118,13 +154,104 @@ function Answers({ row }: RecordContext) {
   );
 }
 
+type FollowUp = 'reason' | 'reschedule' | 'action';
+const FOLLOW_UP_TITLE: Record<FollowUp, string> = { reason: 'Record why it was missed', reschedule: 'Reschedule', action: 'Raise a follow-up action' };
+
+/** Missed or overdue inspections (wave 26): record why, reschedule as a new inspection, or raise an action. */
+function FollowUpDialog({ kind, rec, onClose }: { kind: FollowUp; rec: RecordContext; onClose: () => void }) {
+  const toast = useToast();
+  const navigate = useNavigate();
+  const [reason, setReason] = useState('');
+  const [due, setDue] = useState('');
+  const [person, setPerson] = useState<string | null>(rec.row.inspector_id ?? null);
+  const [title, setTitle] = useState('');
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const needReason = !rec.row.missed_reason;
+  const submit = async () => {
+    setBusy(true);
+    setErrors({});
+    try {
+      if (kind === 'reason') {
+        await api.post(`/api/inspections/${rec.row.id}/missed-reason`, { reason });
+        toast.success('The reason is recorded.');
+        onClose();
+      } else if (kind === 'reschedule') {
+        const next = await api.post<{ id: string; ref: string }>(`/api/inspections/${rec.row.id}/reschedule`, { due_on: due || null, reason: reason || undefined, inspector_id: person });
+        toast.success(`Rescheduled as ${next.ref}.`);
+        onClose();
+        navigate(`/inspections/${next.id}`);
+      } else {
+        const action = await api.post<{ id: string; ref: string }>(`/api/inspections/${rec.row.id}/follow-up`, { title: title || undefined, owner_id: person, due_on: due || undefined });
+        toast.success(`Action ${action.ref} raised.`);
+        onClose();
+      }
+    } catch (err) {
+      const fields = (err as { fields?: Record<string, string> }).fields;
+      if (fields) setErrors(fields);
+      toast.error(errorMessage(err));
+    } finally { setBusy(false); }
+  };
+  return (
+    <Modal open title={FOLLOW_UP_TITLE[kind]} onClose={onClose} dirty={Boolean(reason || due || title)}
+      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" loading={busy} onClick={submit}>{FOLLOW_UP_TITLE[kind]}</Button></>}>
+      <form className="form" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
+        {(kind === 'reason' || (kind === 'reschedule' && needReason)) && (
+          <TextArea label="Why it was missed" value={reason} onChange={setReason} required error={errors.reason} />
+        )}
+        {kind === 'reschedule' && <>
+          <p className="muted">A new inspection is created for the new date. This one stays as missed, so the on-time figures keep it.</p>
+          <DateField label="New due date" value={due} onChange={setDue} required error={errors.due_on} />
+          <UserPicker label="Inspector" value={person} onChange={(id) => setPerson(id)} />
+        </>}
+        {kind === 'action' && <>
+          <TextField label="Action" value={title} onChange={setTitle} placeholder={`Follow up the missed inspection ${rec.row.ref ?? ''}`} />
+          <UserPicker label="Owner" value={person} onChange={(id) => setPerson(id)} />
+          <DateField label="Due" value={due} onChange={setDue} hint="In two weeks when left empty." />
+        </>}
+      </form>
+    </Modal>
+  );
+}
+
+function InspectionActions(rec: RecordContext) {
+  const { can } = useAuth();
+  const actions = useResource('action');
+  const [open, setOpen] = useState<FollowUp | null>(null);
+  const { row } = rec;
+  const late = row.status === 'missed' || (['scheduled', 'in_progress'].includes(String(row.status)) && row.due_on && String(row.due_on) < todayInZone());
+  const run = row.status === 'complete' || row.status === 'canceled' || row.rescheduled_to_id ? null
+    : <Link className={`btn ${row.status === 'missed' ? 'btn-secondary' : 'btn-primary'}`} to={`/inspections/${row.id}/run`}>
+      {row.status === 'missed' ? 'Carry it out late' : row.status === 'in_progress' ? 'Continue the checklist' : 'Start the checklist'}</Link>;
+  return (
+    <>
+      {late && !row.rescheduled_to_id && can('audits.create') && <Button variant="primary" onClick={() => setOpen('reschedule')}>Reschedule</Button>}
+      {run}
+      {late && !row.missed_reason && can('audits.edit') && <Button onClick={() => setOpen('reason')}>Record why it was missed</Button>}
+      {late && actions && can('actions.create') && <Button onClick={() => setOpen('action')}>Raise a follow-up action</Button>}
+      {open && <FollowUpDialog kind={open} rec={rec} onClose={() => { setOpen(null); rec.reload(); }} />}
+    </>
+  );
+}
+
 export function InspectionDetail() {
+  const actions = useResource('action');
   return (
     <RecordPage
       type="inspection"
-      actions={({ row }) => (row.status === 'complete' ? null
-        : <Link className="btn btn-primary" to={`/inspections/${row.id}/run`}>{row.status === 'in_progress' ? 'Continue the checklist' : 'Start the checklist'}</Link>)}
-      summaryFields={['title', 'template_id', 'schedule_id', 'target_label', 'inspector_id', 'due_on', 'performed_on', 'status', 'result', 'score_pct', 'signed_by_name', 'signed_at', 'notes']}
+      actions={(rec) => <InspectionActions {...rec} />}
+      banner={({ row }) => (
+        <>
+          {row.status === 'missed' && !row.missed_reason && !row.rescheduled_to_id && (
+            <Notice tone="warning" title="Missed">This inspection was not carried out by its due date. Record why, reschedule it, or raise a follow-up action.</Notice>
+          )}
+          {row.rescheduled_to_id && (
+            <Notice title="Rescheduled">Replaced by <Link to={`/inspections/${row.rescheduled_to_id}`}>{row._display?.rescheduled_to_id ?? 'a new inspection'}</Link>.</Notice>
+          )}
+        </>
+      )}
+      summaryFields={['title', 'template_id', 'schedule_id', 'target_label', 'inspector_id', 'due_on', 'performed_on', 'status', 'result', 'score_pct', 'signed_by_name', 'signed_at', 'notes',
+        'missed_reason', 'missed_reason_by', 'missed_reason_on', 'rescheduled_from_id', 'rescheduled_to_id']}
       tabs={[
         { key: 'answers', label: 'Checklist', content: (rec) => <Answers {...rec} /> },
         {
@@ -136,6 +263,20 @@ export function InspectionDetail() {
               createInitial={{ source_type: 'inspection', source_id: row.id }} />
           ),
         },
+        // Wave 26: defects raised from the items not met, and follow-up actions of a missed inspection.
+        {
+          key: 'defects', label: 'Defects',
+          content: ({ row }) => (
+            <ResourceList type="defect" baseFilter={{ inspection_id: row.id }} urlState={false}
+              columns={['ref', 'title', 'severity', 'out_of_service', 'status', 'owner_id', 'deferred_until']} />
+          ),
+        },
+        ...(actions ? [{
+          key: 'follow-up', label: 'Follow-up actions',
+          content: ({ row }: RecordContext) => (
+            <ResourceList type="action" baseFilter={{ source_id: row.id }} urlState={false} columns={['ref', 'title', 'status', 'owner_id', 'due_on']} />
+          ),
+        }] : []),
       ]}
     />
   );

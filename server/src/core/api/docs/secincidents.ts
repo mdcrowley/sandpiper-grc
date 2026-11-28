@@ -148,8 +148,8 @@ export const DOCS: RouteDoc[] = [
     body: '{ phase: string "A value of the incident_checklist_phase list.", step: string }', response: CHECK_ITEM, status: 201,
   }),
   route('PATCH', '/api/security-incidents/:id/checklist/:itemId', 'Tick or untick a checklist step', {
-    tag: T, permission: EDIT, description: `${ON_INCIDENT} Records who checked it and when. Audited.`,
-    body: '{ done: boolean }', response: CHECK_ITEM,
+    tag: T, permission: EDIT, description: `${ON_INCIDENT} Records who checked it and when; in data load mode done_at gives the time it was done. Audited.`,
+    body: '{ done: boolean, done_at?: string }', response: CHECK_ITEM,
   }),
 
   // ---------- configurable lists ----------

@@ -27,6 +27,57 @@ const activeProjects = all(c('status', 'in', ['active', 'on_hold']));
 const DATE = [{ kind: 'date', label: 'Dates' }];
 const ON_VEHICLE = ['onboard_computer', 'cad_avl_unit', 'farebox', 'validator', 'vehicle_router', 'camera', 'radio', 'passenger_info_display'];
 
+/**
+ * The Board summary (wave 26, E46): an organization-wide page with safety at the top, then operations
+ * (vehicles, inspections, emergencies and continuity plans), then service, risk, technology and projects.
+ * Each line is one fact; a line whose area is switched off is left out of the page by the dashboard itself.
+ */
+const openSafetyEvents = all(c('status', 'nin', ['closed']));
+const BOARD_SUMMARY_WIDGETS: W[] = [
+  text('t0', 0, 0, 12, 2, 'About this page', 'Each line below is one fact about the organization, written without jargon, most important first. The arrow compares the **last 30 days** with the 30 days before. Select any figure to see the records behind it.'),
+  number('b1', 0, 2, 'Safety events', 'safety_event', all(c('occurred_at', 'last_days', 30)), { sentence: '{value} safety {event was|events were} recorded in the last 30 days.', trend: { field: 'occurred_at', days: 30, filters: null, upIsGood: false, noun: 'were recorded' } }, 6),
+  number('b2', 6, 2, 'Serious safety events', 'safety_event', all(c('severity', 'in', ['serious', 'major']), c('occurred_at', 'last_days', 90)), { sentence: '{value} serious or major safety {event|events} in the last 90 days.', tone: 'bad', trend: null }, 6),
+  number('b3', 0, 4, 'Hazards', 'hazard', all(c('rating', 'in', ['serious', 'high']), c('status', 'nin', ['closed'])), { sentence: '{value} open {hazard is|hazards are} rated serious or high.', tone: 'bad', trend: { field: 'created_at', days: 30, upIsGood: false, noun: 'were added' } }, 6),
+  number('b4', 6, 4, 'Safety investigations', 'safety_event', all(c('investigation_due', 'past'), openSafetyEvents), { sentence: '{value} safety {investigation is|investigations are} past {its|their} due date.', tone: 'bad', trend: null }, 6),
+  chart('b5', 0, 6, 12, 4, 'Safety events each month, by type', 'stacked', { type: 'safety_event', groupBy: [{ field: 'occurred_at', bucket: 'month' }, { field: 'event_type' }], filters: all(c('occurred_at', 'last_days', 365)) }, { dateField: 'occurred_at' }),
+  number('o1', 0, 10, 'Vehicles', 'vehicle', all(c('status', 'in', ['out_of_service', 'in_maintenance'])), { sentence: '{value} {vehicle is|vehicles are} out of service or in maintenance.', trend: null }, 6),
+  number('o2', 6, 10, 'Inspections', 'inspection', all(c('status', 'in', ['missed']), c('due_on', 'last_days', 90)), { sentence: '{value} {inspection was|inspections were} missed in the last 90 days.', tone: 'bad', trend: null }, 6),
+  number('o3', 0, 12, 'Emergencies', 'emergency_activation', all(c('status', 'in', ['active'])), { sentence: '{value} emergency {activation is|activations are} active.', tone: 'bad', trend: null }, 6),
+  number('o4', 6, 12, 'Continuity plans', 'continuity_plan', all(c('next_review_on', 'past'), c('status', 'nin', ['retired'])), { sentence: '{value} continuity {plan is|plans are} past {its|their} review date.', tone: 'bad', trend: null }, 6),
+  number('s1', 0, 14, 'Service', 'ticket', openTickets, { sentence: '{value} {request or fault is|requests and faults are} open with the service desk.', trend: { field: 'opened_at', days: 30, filters: null, upIsGood: false, noun: 'were raised' } }, 6),
+  number('s2', 6, 14, 'Follow-up actions', 'action', overdueActions, { sentence: '{value} agreed {action is|actions are} past {its|their} due date.', tone: 'bad', trend: { field: 'completed_on', days: 30, filters: null, upIsGood: true, noun: 'were completed' } }, 6),
+  number('s4', 0, 16, 'Risk', 'risk', all(c('summary_level', 'in', ['high', 'critical'])), { sentence: '{value} {risk is|risks are} rated high or critical.', tone: 'bad', trend: { field: 'created_at', days: 30, upIsGood: false, noun: 'were added' } }, 6),
+  number('s3', 6, 16, 'Security incidents', 'security_incident', openIncidents, { sentence: '{value} security {incident is|incidents are} being handled.', tone: 'bad', trend: { field: 'discovered_at', days: 30, filters: null, upIsGood: false, noun: 'were discovered' } }, 6),
+  number('s5', 0, 18, 'Known weaknesses', 'vulnerability', all(c('closed', 'false'), c('overdue', 'true')), { sentence: '{value} known {weakness|weaknesses} in our systems {has|have} not been fixed in the time we allow.', tone: 'bad', trend: { field: 'fixed_on', days: 30, filters: null, upIsGood: true, noun: 'were fixed' } }, 6),
+  number('s6', 6, 18, 'Suppliers', 'contract', all(c('notice_date', 'next_days', 120)), { sentence: '{value} supplier {contract reaches its|contracts reach their} notice date in the next four months.', trend: null }, 6),
+  number('s7', 0, 20, 'Projects', 'project', all(c('rag_overall', 'in', ['red']), c('status', 'in', ['active', 'on_hold'])), { sentence: '{value} {project is|projects are} rated red: {it needs|they need} a decision or help.', tone: 'bad', trend: null }, 6),
+  { id: 'p1', kind: 'progress', title: 'Security framework: priority outcomes largely met or met', x: 6, y: 20, w: 6, h: 2, config: { spec: { type: 'framework_outcome', filters: all(c('priority', 'true'), c('status', 'in', ['largely_met', 'met'])) }, of: all(c('priority', 'true')) } },
+  chart('c1', 0, 22, 6, 4, 'Projects by overall rating', 'donut', { type: 'project', filters: activeProjects, groupBy: [{ field: 'rag_overall' }] }),
+  chart('c2', 6, 22, 6, 4, 'Requests and faults raised each month', 'bar', { type: 'ticket', groupBy: [{ field: 'opened_at', bucket: 'month' }], filters: all(c('opened_at', 'last_days', 365)) }, { dateField: 'opened_at' }),
+];
+
+/**
+ * The Board summary as it shipped before wave 26 (technology and security only). An installation whose
+ * board summary still reads exactly like this, and so was never edited, is brought up to the current one
+ * when the application starts (`refreshBoardSummary` in seed.ts); an edited one is left alone.
+ */
+export const BOARD_SUMMARY_BEFORE: { description: string; widgets: W[] } = {
+  description: 'One page in plain language, with arrows showing which way each figure is moving.',
+  widgets: [
+      text('t0', 0, 0, 12, 2, 'About this page', 'Each line below is one fact about technology and security, written without jargon. The arrow compares the **last 30 days** with the 30 days before. Select any figure to see the records behind it.'),
+      number('s1', 0, 2, 'Service', 'ticket', openTickets, { sentence: '{value} {request or fault is|requests and faults are} open with the IT team.', trend: { field: 'opened_at', days: 30, filters: null, upIsGood: false, noun: 'were raised' } }, 6),
+      number('s2', 6, 2, 'Follow-up actions', 'action', overdueActions, { sentence: '{value} agreed {action is|actions are} past {its|their} due date.', tone: 'bad', trend: { field: 'completed_on', days: 30, filters: null, upIsGood: true, noun: 'were completed' } }, 6),
+      number('s3', 0, 4, 'Security incidents', 'security_incident', openIncidents, { sentence: '{value} security {incident is|incidents are} being handled.', tone: 'bad', trend: { field: 'discovered_at', days: 30, filters: null, upIsGood: false, noun: 'were discovered' } }, 6),
+      number('s4', 6, 4, 'Risk', 'risk', all(c('summary_level', 'in', ['high', 'critical'])), { sentence: '{value} {risk is|risks are} rated high or critical.', tone: 'bad', trend: { field: 'created_at', days: 30, upIsGood: false, noun: 'were added' } }, 6),
+      number('s5', 0, 6, 'Known weaknesses', 'vulnerability', all(c('closed', 'false'), c('overdue', 'true')), { sentence: '{value} known {weakness|weaknesses} in our systems {has|have} not been fixed in the time we allow.', tone: 'bad', trend: { field: 'fixed_on', days: 30, filters: null, upIsGood: true, noun: 'were fixed' } }, 6),
+      number('s6', 6, 6, 'Suppliers', 'contract', all(c('notice_date', 'next_days', 120)), { sentence: '{value} supplier {contract reaches its|contracts reach their} notice date in the next four months.', trend: null }, 6),
+      { id: 'p1', kind: 'progress', title: 'Security framework: priority outcomes largely met or met', x: 0, y: 8, w: 6, h: 2, config: { spec: { type: 'framework_outcome', filters: all(c('priority', 'true'), c('status', 'in', ['largely_met', 'met'])) }, of: all(c('priority', 'true')) } },
+      number('s7', 6, 8, 'Projects', 'project', all(c('rag_overall', 'in', ['red']), c('status', 'in', ['active', 'on_hold'])), { sentence: '{value} {project is|projects are} rated red: {it needs|they need} a decision or help.', tone: 'bad', trend: null }, 6),
+      chart('c1', 0, 10, 6, 4, 'Projects by overall rating', 'donut', { type: 'project', filters: activeProjects, groupBy: [{ field: 'rag_overall' }] }),
+      chart('c2', 6, 10, 6, 4, 'Requests and faults raised each month', 'bar', { type: 'ticket', groupBy: [{ field: 'opened_at', bucket: 'month' }], filters: all(c('opened_at', 'last_days', 365)) }, { dateField: 'opened_at' }),
+  ],
+};
+
 export interface StandardDashboard { key: string; name: string; description: string; filters: Row[]; widgets: W[]; refresh_seconds?: number }
 
 export const STANDARD_DASHBOARDS: StandardDashboard[] = [
@@ -141,21 +192,9 @@ export const STANDARD_DASHBOARDS: StandardDashboard[] = [
   },
   {
     key: 'board_summary', name: 'Board summary',
-    description: 'One page in plain language, with arrows showing which way each figure is moving.',
+    description: 'One page in plain language for leadership: safety first, then operations, service, risk and projects, with arrows showing which way each figure is moving.',
     filters: [],
-    widgets: [
-      text('t0', 0, 0, 12, 2, 'About this page', 'Each line below is one fact about technology and security, written without jargon. The arrow compares the **last 30 days** with the 30 days before. Select any figure to see the records behind it.'),
-      number('s1', 0, 2, 'Service', 'ticket', openTickets, { sentence: '{value} {request or fault is|requests and faults are} open with the IT team.', trend: { field: 'opened_at', days: 30, filters: null, upIsGood: false, noun: 'were raised' } }, 6),
-      number('s2', 6, 2, 'Follow-up actions', 'action', overdueActions, { sentence: '{value} agreed {action is|actions are} past {its|their} due date.', tone: 'bad', trend: { field: 'completed_on', days: 30, filters: null, upIsGood: true, noun: 'were completed' } }, 6),
-      number('s3', 0, 4, 'Security incidents', 'security_incident', openIncidents, { sentence: '{value} security {incident is|incidents are} being handled.', tone: 'bad', trend: { field: 'discovered_at', days: 30, filters: null, upIsGood: false, noun: 'were discovered' } }, 6),
-      number('s4', 6, 4, 'Risk', 'risk', all(c('summary_level', 'in', ['high', 'critical'])), { sentence: '{value} {risk is|risks are} rated high or critical.', tone: 'bad', trend: { field: 'created_at', days: 30, upIsGood: false, noun: 'were added' } }, 6),
-      number('s5', 0, 6, 'Known weaknesses', 'vulnerability', all(c('closed', 'false'), c('overdue', 'true')), { sentence: '{value} known {weakness|weaknesses} in our systems {has|have} not been fixed in the time we allow.', tone: 'bad', trend: { field: 'fixed_on', days: 30, filters: null, upIsGood: true, noun: 'were fixed' } }, 6),
-      number('s6', 6, 6, 'Suppliers', 'contract', all(c('notice_date', 'next_days', 120)), { sentence: '{value} supplier {contract reaches its|contracts reach their} notice date in the next four months.', trend: null }, 6),
-      { id: 'p1', kind: 'progress', title: 'Security framework: priority outcomes largely met or met', x: 0, y: 8, w: 6, h: 2, config: { spec: { type: 'framework_outcome', filters: all(c('priority', 'true'), c('status', 'in', ['largely_met', 'met'])) }, of: all(c('priority', 'true')) } },
-      number('s7', 6, 8, 'Projects', 'project', all(c('rag_overall', 'in', ['red']), c('status', 'in', ['active', 'on_hold'])), { sentence: '{value} {project is|projects are} rated red: {it needs|they need} a decision or help.', tone: 'bad', trend: null }, 6),
-      chart('c1', 0, 10, 6, 4, 'Projects by overall rating', 'donut', { type: 'project', filters: activeProjects, groupBy: [{ field: 'rag_overall' }] }),
-      chart('c2', 6, 10, 6, 4, 'Requests and faults raised each month', 'bar', { type: 'ticket', groupBy: [{ field: 'opened_at', bucket: 'month' }], filters: all(c('opened_at', 'last_days', 365)) }, { dateField: 'opened_at' }),
-    ],
+    widgets: BOARD_SUMMARY_WIDGETS,
   },
 ];
 

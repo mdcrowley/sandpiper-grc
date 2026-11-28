@@ -26,6 +26,8 @@ const mod: ModuleDef = {
   nav: [
     // No permission: everyone reads the documents distributed to them (E43-12).
     { group: 'Documents', label: 'Document library', path: '/documents', icon: 'book', order: 10 },
+    // E44-10: the Settings tab is also a card on the Administration page.
+    { group: 'Documents', label: 'Document settings', path: '/documents/settings', icon: 'settings', permission: 'policies.administer', order: 19, menu: false, parent: '/documents', hub: 'Area settings', hint: 'Document numbers, department codes and acknowledgment reminders.' },
     // Exceptions to a document are risk decisions: they sit with Risk and compliance.
     { group: 'Risk and compliance', label: 'Exceptions', path: '/exceptions', icon: 'clock', permission: 'exceptions.view', order: 50 },
     // The person's own acknowledgments: a tab of My work, not a menu entry.

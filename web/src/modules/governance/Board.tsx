@@ -28,13 +28,15 @@ export interface AgendaItem {
 export interface Motion {
   id: string; ref: string; title: string; outcome: string; agenda_item_id: string | null; motion_text: string | null; notes: string | null;
   resolution_number: string | null; mover_name: string | null; mover_member_id: string | null; seconder_name: string | null; seconder_member_id: string | null;
-  vote_mode: 'members' | 'counts' | null; votes_for: number | null; votes_against: number | null; votes_abstain: number | null; votes_absent: number | null;
+  vote_mode: 'members' | 'counts' | null; votes_for: number | null; votes_against: number | null; votes_abstain: number | null; votes_absent: number | null; votes_recused?: number | null;
   vote_summary: string | null; closed_session: boolean; consent_agenda: boolean; record: NamedRecord | null; record_type: string | null; record_id: string | null;
   votes: { member_id: string; name: string; vote: Vote }[]; applied_at: string | null; applied_to_workflow: string | null;
 }
-type Vote = 'for' | 'against' | 'abstain' | 'absent';
+type Vote = 'for' | 'against' | 'abstain' | 'absent' | 'recused';
 const VOTES: { value: Vote; label: string }[] = [
   { value: 'for', label: 'For' }, { value: 'against', label: 'Against' }, { value: 'abstain', label: 'Abstain' }, { value: 'absent', label: 'Absent' },
+  // E45-60: a member who declared an interest and took no part.
+  { value: 'recused', label: 'Recused' },
 ];
 interface AttendanceRow { member_id: string; name: string; voting: boolean; present: boolean; apology: boolean }
 
@@ -282,7 +284,7 @@ export function MotionDialog({ meeting, motion, itemId, consentAgenda, onClose, 
     mover: motion?.mover_member_id ?? (motion?.mover_name ? 'other' : ''), mover_other: motion?.mover_member_id ? '' : motion?.mover_name ?? '',
     seconder: motion?.seconder_member_id ?? (motion?.seconder_name ? 'other' : ''), seconder_other: motion?.seconder_member_id ? '' : motion?.seconder_name ?? '',
     mode: (motion?.vote_mode ?? 'members') as 'members' | 'counts' | 'none',
-    counts: { for: motion?.votes_for ?? 0, against: motion?.votes_against ?? 0, abstain: motion?.votes_abstain ?? 0, absent: motion?.votes_absent ?? 0 },
+    counts: { for: motion?.votes_for ?? 0, against: motion?.votes_against ?? 0, abstain: motion?.votes_abstain ?? 0, absent: motion?.votes_absent ?? 0, recused: motion?.votes_recused ?? 0 },
     resolution_number: motion?.resolution_number ?? '', assign: false,
     record_type: motion?.record_type ?? '', record_id: motion?.record_id ?? null as string | null,
   });
@@ -293,7 +295,7 @@ export function MotionDialog({ meeting, motion, itemId, consentAgenda, onClose, 
   const set = (p: Partial<typeof form>) => setForm((f) => ({ ...f, ...p }));
   const shown = votes ?? (attendance.data ? initialVotes() : {});
   const tally = useMemo(() => {
-    const c = { for: 0, against: 0, abstain: 0, absent: 0 };
+    const c = { for: 0, against: 0, abstain: 0, absent: 0, recused: 0 };
     if (form.mode === 'counts') return form.counts;
     for (const v of Object.values(shown)) c[v] += 1;
     return c;
@@ -375,7 +377,7 @@ export function MotionDialog({ meeting, motion, itemId, consentAgenda, onClose, 
               ))}
             </div>
           )}
-          {form.mode !== 'none' && <p className="muted" aria-live="polite">For {tally.for}, against {tally.against}, abstaining {tally.abstain}, absent {tally.absent}.</p>}
+          {form.mode !== 'none' && <p className="muted" aria-live="polite">For {tally.for}, against {tally.against}, abstaining {tally.abstain}, absent {tally.absent}{tally.recused ? `, recused ${tally.recused}` : ''}.</p>}
           <div className="form-grid">
             <TextField label="Resolution number" value={form.resolution_number} error={errors.resolution_number} onChange={(v) => set({ resolution_number: v })} />
             {!motion && <Checkbox label="Give it the committee's next resolution number" checked={form.assign} disabled={Boolean(form.resolution_number.trim())} onChange={(v) => set({ assign: v })} />}

@@ -17,6 +17,7 @@ import { TranslationsPanel } from './TranslationsPanel';
 import { VersionsPanel } from './VersionsPanel';
 import { AccessCard } from './documents/AccessEditor';
 import { DocVersionChip, HierarchyPanel, RelationshipsPanel, VersionFacts, versionDates, versionName } from './documents/parts';
+import { CopiesPanel } from './documents/Copies';
 import { ReviewsPanel } from './documents/Reviews';
 import { readerPath, recordPath, type FullVersion } from './documents/types';
 
@@ -204,6 +205,7 @@ export function PolicyDetail() {
         { key: 'acknowledgements', label: 'Acknowledgments', content: ({ row }) => (versions.data ? <AckTracking row={row} versions={versions.data} /> : <Card><Loading /></Card>) },
         { key: 'translations', label: 'Translations', content: ({ row }) => (versions.data ? <TranslationsPanel row={row} versions={versions.data} /> : <Card><Loading /></Card>) },
         { key: 'reviews', label: 'Reviews', content: (rec) => <ReviewsPanel doc={{ ...rec.row, title: String(rec.row.title) }} onChanged={rec.reload} /> },
+        { key: 'copies', label: 'Paper copies', content: ({ row }) => <CopiesPanel docId={row.id} /> },
         { key: 'outcomes', label: 'Mapped outcomes', content: ({ row }) => <OutcomesPanel row={row} /> },
         { key: 'exceptions', label: 'Exceptions', content: ({ row }) => <PolicyExceptions row={row} /> },
       ]}

@@ -8,6 +8,7 @@ import { AuditPlan } from './Plan';
 import { FindingDetail, FindingList } from './Findings';
 import { InspectionDetail, InspectionList, ScheduleDetail, ScheduleList } from './Inspections';
 import { InspectionRun } from './InspectionRun';
+import { DefectDetail, DefectList } from './Defects';
 import { MyRequests, RequestDetail, RequestList } from './Requests';
 import { TemplateDetail, TemplateList } from './Templates';
 import './audits.css';
@@ -20,6 +21,8 @@ const mod: ModuleDef = {
     { group: 'Risk and compliance', label: 'Audits', path: '/audits', icon: 'clipboard', permission: view, order: 40 },
     { group: 'Risk and compliance', label: 'Audit findings', path: '/audit-findings', icon: 'alert-circle', permission: view, order: 41, menu: false, parent: '/audits' },
     { group: 'Safety and emergency management', label: 'Inspections', path: '/inspections', icon: 'check-square', permission: view, order: 40 },
+    // Wave 26: defects on vehicles, sites and assets; a tab of the inspection pages.
+    { group: 'Safety and emergency management', label: 'Defects', path: '/inspections/defects', icon: 'alert-circle', permission: view, order: 41, menu: false, parent: '/inspections' },
   ],
   routes: [
     { path: '/audits', element: <AuditsDashboard />, permission: view },
@@ -37,6 +40,8 @@ const mod: ModuleDef = {
     { path: '/inspections', element: <InspectionList />, permission: view },
     { path: '/inspections/schedules', element: <ScheduleList />, permission: view },
     { path: '/inspections/schedules/:id', element: <ScheduleDetail />, permission: view },
+    { path: '/inspections/defects', element: <DefectList />, permission: view },
+    { path: '/inspections/defects/:id', element: <DefectDetail />, permission: view },
     { path: '/inspections/:id', element: <InspectionDetail />, permission: view },
     { path: '/inspections/:id/run', element: <InspectionRun />, permission: view },
     { path: '/audit-findings', element: <FindingList />, permission: view },
@@ -45,6 +50,7 @@ const mod: ModuleDef = {
   create: [
     { label: 'Audit engagement', path: '/audits/engagements?new=1', permission: 'audits.create', icon: 'clipboard' },
     { label: 'Inspection', path: '/inspections?new=1', permission: 'audits.create', icon: 'check-square' },
+    { label: 'Defect', path: '/inspections/defects?new=1', permission: 'audits.create', icon: 'alert-circle' },
   ],
 };
 export default mod;

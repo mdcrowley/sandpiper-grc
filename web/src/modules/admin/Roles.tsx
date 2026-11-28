@@ -7,6 +7,7 @@ import {
 import { Notice } from './common';
 import type { Role, RolesResponse } from './common';
 import { adminApi } from './reauth';
+import { NoRoleHomeCard } from './RoleHome';
 import { Switch } from './Switch';
 
 /** Wider-audience roles that ship switched off; an administrator switches each on when ready. */
@@ -120,6 +121,8 @@ export function RolesPage() {
             </TableWrap>
           )}
       </Card>
+      {/* E44-09: where people who hold no role land (each role's own choice is on its page). */}
+      <NoRoleHomeCard />
       <NewRoleDialog open={creating} onClose={() => setCreating(false)} onCreated={(r) => navigate(`/admin/roles/${r.id}`)} />
     </>
   );

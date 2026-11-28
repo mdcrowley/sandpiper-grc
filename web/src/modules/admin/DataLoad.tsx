@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  api, Button, Card, ConfirmDialog, EmptyState, ErrorState, errorMessage, formatDate, formatDateTime, Loading, Notice, NumberField,
+  api, Button, Card, ConfirmDialog, EmptyState, ErrorState, errorMessage, formatDate, formatDateTime, Loading, Modal, Notice, NumberField,
   PageHeader, StatusChip, TableWrap, useAuth, useFetch, useToast,
 } from '../../core';
 import { confirmIdentity, withReauth } from '../../core/reauth';
@@ -13,7 +13,10 @@ import { confirmIdentity, withReauth } from '../../core/reauth';
 interface Load {
   day: string; record_type: string; label: string; route: string | null; records: number; remaining: number;
   first_at: string; last_at: string; people: string | null; tokens: string | null; on_behalf: string | null;
+  /** Listed one by one, so each can be undone alone (E43-18: document versions). */
+  itemized?: boolean;
 }
+interface LoadedItem { id: string; label: string; route: string | null; loaded_at: string; undone: boolean }
 /** Work written on behalf of other people (E18-71), from the audit log. */
 interface Behalf { day: string; person: string; loaded_by: string; tokens: string | null; events: number }
 interface DataLoadView {
@@ -89,11 +92,62 @@ export function DataLoadCard() {
   );
 }
 
+/** The records of one load, one by one, each undone alone (E43-18). */
+function LoadItems({ load, onClose, onChanged }: { load: Load; onClose: () => void; onChanged: () => void }) {
+  const toast = useToast();
+  const { data, error, reload } = useFetch<{ rows: LoadedItem[] }>(`${URL}/records?type=${encodeURIComponent(load.record_type)}&day=${load.day}`);
+  const [busy, setBusy] = useState<string | null>(null);
+  const undoOne = async (item: LoadedItem) => {
+    setBusy(item.id);
+    try {
+      if (!(await confirmIdentity())) return;
+      await api.post(`${URL}/undo-one`, { type: load.record_type, id: item.id });
+      toast.success(`Removed: ${item.label}.`);
+      reload();
+      onChanged();
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setBusy(null);
+    }
+  };
+  return (
+    <Modal open title={`${load.label} loaded on ${formatDate(load.day)}`} onClose={onClose} size="lg"
+      footer={<Button variant="secondary" onClick={onClose}>Close</Button>}>
+      {error ? <ErrorState error={error} onRetry={reload} />
+        : !data ? <Loading lines={3} label="Loading the loaded records" />
+        : data.rows.length === 0 ? <EmptyState icon="upload" title="Nothing listed" message="This load has no records left." />
+        : (
+          <TableWrap label={`${load.label} loaded on ${formatDate(load.day)}`}>
+            <table className="table adm-dataloads">
+              <thead><tr><th scope="col">Record</th><th scope="col">Loaded</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
+              <tbody>
+                {data.rows.map((r) => (
+                  <tr key={r.id}>
+                    <td>{r.route && !r.undone ? <Link to={r.route}>{r.label}</Link> : r.label}</td>
+                    <td>{formatDateTime(r.loaded_at)}</td>
+                    <td className="adm-dataloads-action">
+                      {r.undone ? <span className="muted">Undone</span> : (
+                        <Button size="sm" variant="danger" loading={busy === r.id} disabled={busy !== null && busy !== r.id}
+                          onClick={() => void undoOne(r)} aria-label={`Undo this one: ${r.label}`}>Undo this one</Button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableWrap>
+        )}
+    </Modal>
+  );
+}
+
 /** Administration > Data loads: what each load created, and undoing one. */
 export function DataLoadsPage() {
   const toast = useToast();
   const { data, error, reload } = useFetch<DataLoadView>(URL);
   const [undo, setUndo] = useState<Load | null>(null);
+  const [items, setItems] = useState<Load | null>(null);
   const [busy, setBusy] = useState(false);
 
   const run = async () => {
@@ -149,6 +203,12 @@ export function DataLoadsPage() {
                               {l.on_behalf ? <span className="muted"> on behalf of {l.on_behalf}</span> : null}
                             </td>
                             <td className="adm-dataloads-action">
+                              {l.itemized && (
+                                <Button size="sm" variant="secondary" disabled={l.remaining === 0} onClick={() => setItems(l)}
+                                  aria-label={`Show each of the ${l.label.toLowerCase()} loaded on ${formatDate(l.day)}`}>
+                                  Show each
+                                </Button>
+                              )}
                               <Button size="sm" variant="danger" disabled={l.remaining === 0} onClick={() => setUndo(l)}
                                 aria-label={`Delete this load: the ${l.remaining} ${l.label.toLowerCase()} loaded on ${formatDate(l.day)}`}>
                                 Delete this load
@@ -189,6 +249,7 @@ export function DataLoadsPage() {
             </Card>
           </>
         )}
+      {items && <LoadItems load={items} onClose={() => setItems(null)} onChanged={reload} />}
       <ConfirmDialog
         open={undo !== null} danger busy={busy}
         title="Delete everything this load created?"

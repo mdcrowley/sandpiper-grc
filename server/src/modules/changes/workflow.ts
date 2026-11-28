@@ -353,9 +353,13 @@ export function makeWorkflow(ctx: ModuleContext, base: Base, conflicts: Conflict
       if (req && !ctx.can(req.user, 'actions.create')) ctx.fail(403, 'forbidden', 'You do not have permission to raise actions.');
     }
 
+    // A data load keeps the time the review was recorded in the source (E45-55).
+    const at = body.pir_completed_at;
+    const loadedAt = req && typeof at === 'string' && !Number.isNaN(Date.parse(at)) && Date.parse(at) <= Date.now() + 60_000 && await dataLoadFor(db, req)
+      ? new Date(at).toISOString() : null;
     const updated = await base.setFields(req, change.id, {
       pir_what_happened: d.what_happened, pir_cause: d.cause, pir_follow_up: d.follow_up ?? null,
-      pir_completed_at: new Date().toISOString(), pir_completed_by_name: base.actorName(req),
+      pir_completed_at: loadedAt ?? new Date().toISOString(), pir_completed_by_name: base.actorName(req),
       ...(change.status === 'completed' ? { status: 'reviewed' } : {}),
     });
     await ctx.audit(req, {

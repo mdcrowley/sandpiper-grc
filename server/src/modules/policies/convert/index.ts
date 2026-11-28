@@ -106,7 +106,7 @@ export async function convertAttachment(ctx: ModuleContext, req: FastifyRequest,
 export async function syncFileTexts(ctx: ModuleContext): Promise<{ files: number; documents: number; scanned: number }> {
   const since = await ctx.settings.get<string | null>(TEXT_SYNC_KEY, null);
   const rows = await ctx.db.query<Row>(
-    `select x.attachment_id, x.status, x.extracted_at from attachment_texts x join attachments a on a.id = x.attachment_id
+    `select x.attachment_id, x.status, x.detail, x.extracted_at from attachment_texts x join attachments a on a.id = x.attachment_id
      where a.record_type = 'policy' and a.deleted_at is null and x.status in ('indexed', 'empty')
        and ($1::timestamptz is null or x.extracted_at > $1::timestamptz)
      order by x.extracted_at limit 500`, [since]);
@@ -117,8 +117,19 @@ export async function syncFileTexts(ctx: ModuleContext): Promise<{ files: number
       const marked = await ctx.db.query(
         `update policy_versions set conversion = coalesce(conversion, '{}'::jsonb) || $2::jsonb
          where (source_attachment_id = $1 or rendition_attachment_id = $1) and content_kind = 'file' and not coalesce((conversion ->> 'scanned')::boolean, false) returning id`,
-        [r.attachment_id, JSON.stringify({ scanned: true, note: 'Scanned: no text was found in this PDF, so it is found by title and number only (no OCR).' })]);
+        [r.attachment_id, JSON.stringify({
+          scanned: true,
+          note: /OCR found no text/.test(String(r.detail ?? ''))
+            ? 'Scanned: no text could be read from this PDF, even by OCR, so it is found by title and number only.'
+            : 'Scanned: no text was found in this PDF and it could not be read by OCR here, so it is found by title and number only.',
+        })]);
       scanned += marked.length;
+    } else if (/^read by OCR/.test(String(r.detail ?? ''))) {
+      // A scan read by OCR (E43-15): found by its words, which may contain reading mistakes.
+      await ctx.db.query(
+        `update policy_versions set conversion = coalesce(conversion, '{}'::jsonb) || $2::jsonb
+         where (source_attachment_id = $1 or rendition_attachment_id = $1) and content_kind = 'file' and not coalesce((conversion ->> 'ocr')::boolean, false)`,
+        [r.attachment_id, JSON.stringify({ scanned: true, ocr: true, note: 'Scanned: its text was read by OCR, so it is found by its words; the text may contain reading mistakes.' })]);
     }
     documents += await setSearchTextFromFile(ctx, r.attachment_id);
   }
@@ -159,16 +170,18 @@ export async function registerDocumentFiles(ctx: ModuleContext) {
     return {
       status: !files.length ? 'no_file' : row ? row.status : 'waiting',
       detail: row?.detail ?? (files.length ? null : 'This version has no original file.'),
-      scanned: row?.status === 'empty' || version.conversion?.scanned === true,
+      scanned: row?.status === 'empty' || version.conversion?.scanned === true || /^(scanned|read by OCR)/.test(String(row?.detail ?? '')),
+      // Read from a scan by OCR (E43-15): the words may contain reading mistakes.
+      ocr: /^read by OCR/.test(String(row?.detail ?? '')),
       chars: text.length, truncated: text.length > max, text: text.slice(0, max),
     };
   });
   ctx.describeRoute({
     method: 'GET', path: '/api/documents/:id/versions/:vid/text', tag: 'Documents', permission: 'policies.view',
     summary: "The text read from a version's original file (for search and assistants)",
-    description: 'For readers of the version (drafts only for people who write or approve documents). `status`: indexed, empty (a scan with no text: `scanned` true), waiting (not read yet), failed, skipped or no_file. `max_chars` (default 100,000, at most 300,000).',
+    description: 'For readers of the version (drafts only for people who write or approve documents). `status`: indexed, empty (a scan with no text: `scanned` true), indexed with `ocr` true (a scan read by OCR), waiting (not read yet), failed, skipped or no_file. `max_chars` (default 100,000, at most 300,000).',
     query: { max_chars: 'Most characters returned.' },
-    response: '{ status, detail, scanned, chars, truncated, text }',
+    response: '{ status, detail, scanned, ocr, chars, truncated, text }',
   });
 
   // Preview of a conversion: nothing is saved (images are named, not stored).

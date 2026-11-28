@@ -6,7 +6,8 @@ import { testApp } from '../../test/helpers.ts';
 let t: Awaited<ReturnType<typeof testApp>>;
 const setFeatures = (features: Record<string, boolean>) => t.api.patch('/api/admin/features', { features });
 
-beforeAll(async () => { t = await testApp(); }, 60_000);
+// Civil rights starts off (wave 26); switch it on so that everything is on.
+beforeAll(async () => { t = await testApp(); await setFeatures({ civilrights: true }); }, 60_000);
 afterAll(async () => { await t?.close(); });
 
 describe('record types of switched-off areas, for dashboards', () => {

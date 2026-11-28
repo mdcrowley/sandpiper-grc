@@ -4,6 +4,9 @@ import { registerAgenda } from './agenda.ts';
 import { registerBook } from './book.ts';
 import { registerCommittees } from './committees.ts';
 import { registerDecisions } from './decisions.ts';
+import { registerDeclarations } from './declarations.ts';
+import { registerWorkPlan } from './workplan.ts';
+import { registerDecisionRef } from './decision-ref.ts';
 import { registerInvitations } from './invitations.ts';
 import { registerMeetings } from './meetings.ts';
 import { registerMemberView } from './members.ts';
@@ -100,6 +103,12 @@ async function register(ctx: ModuleContext) {
   registerAgenda(ctx);
   registerDecisions(ctx);
   registerMotions(ctx);
+  // Declarations of interest and recused votes (E45-60).
+  registerDeclarations(ctx);
+  // The annual work plan of standing items and the agenda posting deadline (E45-62).
+  registerWorkPlan(ctx);
+  // A carried decision as the approval of a record elsewhere: the audit plan, the risk appetite (E45-64, E45-56).
+  registerDecisionRef(ctx);
   registerMinutes(ctx);
   registerBook(ctx);
   registerMemberView(ctx);

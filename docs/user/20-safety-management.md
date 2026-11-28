@@ -1,6 +1,6 @@
 # Safety management
 
-The safety pages hold the safety side of the operation: the **hazard log**, **safety events** (collisions, injuries, near misses, assaults, fires, derailments and unsafe conditions) with their investigation and corrective actions, and **safety performance indicators** measured against targets. Open them from the **Safety and emergency management** group in the navigation: **Safety dashboard**, **Safety events** and **Hazard log**. The pages share tabs along the top: **Dashboard**, **Safety events**, **Hazard log**, **Indicators**, **Exposure** and, for safety administrators, **Settings** (the hazard matrix, the reporting rules and the confidential reports, which share tabs of their own). Lists and record pages work as described in [Getting started](01-getting-started.md).
+The safety pages hold the safety side of the operation: the **hazard log**, **safety events** (collisions, injuries, near misses, assaults, fires, derailments and unsafe conditions) with their investigation and corrective actions, and **safety performance indicators** measured against targets. Open them from the **Safety and emergency management** group in the navigation: **Safety dashboard**, **Safety events** and **Hazard log**. The pages share tabs along the top: **Dashboard**, **Safety events**, **Hazard log**, **Indicators**, **Exposure**, **Safety plan** (while documents are in use) and, for safety administrators, **Settings** (the hazard matrix, the reporting rules and the confidential reports, which share tabs of their own). Lists and record pages work as described in [Getting started](01-getting-started.md).
 
 If your organization does not run its safety program here, an administrator can switch **Safety management** off under **Administration > Features** (see [Administration](09-administration.md#features)). The safety pages, their reminders and **Report a safety concern** in the portal then disappear. Records are kept and return when it is switched back on.
 
@@ -13,6 +13,7 @@ The default **Safety manager** role holds all of these, the action tracker, and 
 Open **Safety dashboard**. It covers the last twelve months:
 
 - Tiles for **Safety events**, **Serious or worse**, **Open events** (and how many are past their investigation date), **Corrective actions open** (and how many are overdue), **Open hazards** (how many are rated serious or high, and how many are past their review date) and **Notification clocks running** (how many are overdue or due soon; see [Reporting and notification clocks](#reporting-and-notification-clocks)). Each tile opens the records behind it. The clock count includes restricted events, so it is the same for everyone.
+- Where inspections are in use and you may see them: **Inspections overdue or missed** (with how many missed inspections nobody has followed up yet and how many inspection schedules are behind) and **Open defects** (with how many keep a vehicle, site or asset out of service). See [Audits and inspections](25-audits-and-inspections.md#missed-and-overdue-inspections). These counts include every inspection and defect, so they are the same for everyone.
 - **Safety events by month**, **By type** and **By severity**. Select a bar to open those events.
 - **Open hazards on the hazard matrix**: how many open hazards sit in each cell, rated after mitigation where that is scored, otherwise as they are now.
 - **Safety performance indicators**: each active indicator's value for the latest complete month, whether it is **On target** or **Off target**, and its trend with the target as a dashed line. The current month is not over, so its figure is **Month to date** and is not judged against the target; it is shown only when there is no complete month yet.
@@ -41,6 +42,8 @@ The event gets a reference such as `SE-00101`.
 ### Reports from the self-service portal
 
 When the portal is on and its setting **Staff can report a safety event** is on, staff can use **Report a safety concern** in the portal to describe what happened in plain words (see [Report a safety concern](18-self-service-portal.md#report-a-safety-concern)). Each report becomes a safety event with the status **Reported**, the reporter in **Reported by**, and a severity taken from how bad the reporter said it was. A note on the event says it came from the portal; check the severity when you triage it. Everyone who may edit safety records is notified of each new report (a **Serious** or worse report is announced as described under "Notifications" below). The reporter sees only the reference, the title and a plain status (**Received**, **Being looked into** or **Closed**); for a restricted event, only the reference. When the event closes, the reporter also sees what was done (see [Telling the reporter what was done](#telling-the-reporter-what-was-done)). A reporter can ask for their name to be kept confidential (see [Confidential reporting](#confidential-reporting)).
+
+Staff can also report a safety hazard or concern from **My work > Report a problem**, with no role and whether or not the portal is on (see [Getting started](01-getting-started.md#report-a-problem)). The same intake and confidential reporting rules apply; the note on the event says it was reported in My work, and the reporter follows it under **My reports**.
 
 ### Confidential reporting
 
@@ -131,7 +134,9 @@ A new rule starts switched off. Rules apply to events as they are next saved; ch
 
 ## Hazard log
 
-Open **Hazard log**. The list shows each hazard's **Rating** now and **After mitigation**, sorted with the worst first.
+Open **Hazard log**. The list shows each hazard's **Rating** now and **After mitigation**, sorted with the worst first, with its **Owner** and **Next review**. A hazard nobody owns says **No owner**, one with no review date says **No review date**, and a review date that has passed is shown in red with **(overdue)**. The **Rating** stays in the list on narrow screens.
+
+Above the list, **Past review** shows the hazards whose review date has passed (oldest first), **No owner** the hazards nobody owns, and **All hazards** the whole log. Every hazard should have an owner, who is reminded of its review, and a review date.
 
 ### Add a hazard
 
@@ -168,6 +173,14 @@ The **Mitigations** tab holds the actions that reduce the hazard, kept in the ac
 
 Open **Safety indicators**. Each indicator is worked out month by month: from the safety events, from values entered by hand, from a figure another part of the application offers, or from the exposure.
 
+The list shows where each indicator stands without opening it:
+
+- **Latest**: the value of the latest complete month with a figure, and which month. The current month is not over, so it is never used here.
+- **Against target**: **On target** or **Off target** in that month, or **No figure** when there is no value or no target.
+- **Trend, 12 months**: the last twelve complete months as a small line, with the target as a dashed line, and whether the latest month is **Better than the month before**, **Worse than the month before** or the **Same as the month before** (better means lower for an "at most" target and higher for an "at least" one).
+
+The tiles above the list count the indicators **Off target** and **On target** in their latest complete month. **On the dashboard** is in the column chooser.
+
 ### Add an indicator
 
 1. Select **New indicator**.
@@ -199,6 +212,14 @@ A new target is **Proposed**. To have it approved:
 - with `safety.approve`, select **Record a decision** to record a decision taken elsewhere, for example at a committee meeting: **Approved** or **Rejected**, **Decided by**, the **Date of the decision** and a **Reference** such as the meeting and item.
 
 Changing the figure of an approved target sends it back to **Proposed**. Only someone with `safety.approve` can remove an approved target.
+
+## Safety plan
+
+The safety plan is a controlled document whose **Document type** is **Plan**, kept with the other documents (see [Documents](11-policies-and-exceptions.md#plans)): its versions and approval, its **element map** (where the plan covers each element of the safety management system, and who owns it) and its **annual review**, approved in turn by the accountable executive, the governing body and the safety committee. The **Safety plan** tab of the safety pages shows it where the safety team works. It appears while documents are in use.
+
+For each safety plan the tab shows the **Version in force**, the **Owner**, the **Next annual review** (in red with **(overdue)** once it has passed), the **Last review** (its year, **Approved**, **In review** or **Rejected**, and when it was approved), whether the **Annual review** is running and how many approvals it has, and how many elements the **Element map** has and how many have no owner. Select the plan's title, or **Open the plan, its element map and the annual review**, to work on it (this needs access to documents).
+
+Which documents are the safety plan: until a safety administrator chooses, every plan with "safety" in its title. With `safety.administer`, select **Choose the plan**, tick the plans and select **Save**; tick none to go back to every plan titled with "safety". When no plan is found, create it under **Documents** with the document type **Plan**.
 
 ## Exposure
 

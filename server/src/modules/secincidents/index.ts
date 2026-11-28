@@ -1,7 +1,7 @@
 import type { FastifyRequest } from 'fastify';
 import { featureState, optionName, optionOn } from '../../core/features.ts';
 import { scheduleWork } from '../../core/jobs/index.ts';
-import { actorOf, isDataLoad } from '../../core/dataload.ts';
+import { actorOf, dataLoadFor, isDataLoad } from '../../core/dataload.ts';
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
 import { TIME_ZONE, todayInZone } from '../../core/timezone.ts';
 import { emitWebhookEvent } from '../../core/webhooks.ts';
@@ -955,8 +955,12 @@ const mod: ModuleDef = {
         : undefined) ?? ctx.fail(404, 'not_found', 'Checklist step not found.');
       const b = await parseCols({ done: { label: 'Done', type: 'boolean' } }, (req.body ?? {}) as Row, 'update');
       if (b.done === undefined || b.done === before.done) return before;
+      // In a data load the time the step was done in the source is kept (E45-55).
+      const at = (req.body as Row | null)?.done_at;
+      const loadedAt = typeof at === 'string' && !Number.isNaN(Date.parse(at)) && Date.parse(at) <= Date.now() + 60_000 && await dataLoadFor(db, req)
+        ? new Date(at).toISOString() : null;
       const row = await updateRow('incident_checklist_items', before.id, b.done
-        ? { done: true, done_by: actorOf(req).id, done_by_name: actorOf(req).name, done_at: new Date().toISOString() }
+        ? { done: true, done_by: actorOf(req).id, done_by_name: actorOf(req).name, done_at: loadedAt ?? new Date().toISOString() }
         : { done: false, done_by: null, done_by_name: null, done_at: null }, req);
       await ctx.audit(req, {
         action: b.done ? 'security_incident.checklist_tick' : 'security_incident.checklist_untick',

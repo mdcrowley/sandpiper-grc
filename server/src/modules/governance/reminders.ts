@@ -4,6 +4,8 @@
 //   pack yet; the secretary is told once per meeting date.
 // - Minutes waiting: a meeting held more than MINUTES_AFTER_DAYS ago whose minutes have not been
 //   submitted for approval; the secretary is told once per meeting.
+// - Agenda to post: the committee's posting deadline is two days away or past and the agenda is not
+//   published (workplan.ts, E45-62).
 // Without a secretary, everyone who may edit committee records is told. The chair hears about
 // minutes waiting for their approval from the approval workflow itself.
 import { approvalEngine } from '../../core/approval-kinds.ts';
@@ -11,6 +13,7 @@ import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { todayInZone } from '../../core/timezone.ts';
 import { MINUTES_KIND } from './meetings.ts';
+import { remindAgendaDeadlines } from './workplan.ts';
 
 export const PACK_DAYS_SETTING = 'governance.pack_days';
 export const DEFAULT_PACK_DAYS = 5;
@@ -21,10 +24,10 @@ const DAY = 24 * HOUR;
 const dateFormat = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 const plain = (ymd: string) => dateFormat.format(new Date(`${ymd}T00:00:00Z`));
 
-export interface GovernanceReminderRun { available: boolean; packsDue: number; minutesWaiting: number; notified: number }
+export interface GovernanceReminderRun { available: boolean; packsDue: number; minutesWaiting: number; agendasDue: number; notified: number }
 
 export async function runGovernanceReminders(ctx: ModuleContext, now = new Date()): Promise<GovernanceReminderRun> {
-  const run: GovernanceReminderRun = { available: ctx.app.hasDecorator('notify'), packsDue: 0, minutesWaiting: 0, notified: 0 };
+  const run: GovernanceReminderRun = { available: ctx.app.hasDecorator('notify'), packsDue: 0, minutesWaiting: 0, agendasDue: 0, notified: 0 };
   if (!run.available) return run;
   const raw = Math.round(Number(await ctx.settings.get<unknown>(PACK_DAYS_SETTING, DEFAULT_PACK_DAYS)));
   const lead = Number.isFinite(raw) ? Math.min(60, Math.max(0, raw)) : DEFAULT_PACK_DAYS;
@@ -64,6 +67,10 @@ export async function runGovernanceReminders(ctx: ModuleContext, now = new Date(
     run.minutesWaiting += 1;
     run.notified += res.sent;
   }
+  // Agendas to post before the committee's posting deadline (E45-62).
+  const agendas = await remindAgendaDeadlines(ctx, now);
+  run.agendasDue = agendas.due;
+  run.notified += agendas.notified;
   return run;
 }
 
@@ -71,8 +78,8 @@ export async function registerGovernanceReminders(ctx: ModuleContext) {
   ctx.app.post('/api/governance/reminders/run', { preHandler: ctx.requirePerm('governance.administer') }, async () => runGovernanceReminders(ctx));
   ctx.describeRoute({
     method: 'POST', path: '/api/governance/reminders/run', tag: 'Governance', permission: 'governance.administer',
-    summary: 'Send the meeting pack and minutes reminders now (they also run every hour; each occasion is announced once)',
-    response: '{ available, packsDue, minutesWaiting, notified }',
+    summary: 'Send the meeting pack, agenda posting and minutes reminders now (they also run every hour; each occasion is announced once)',
+    response: '{ available, packsDue, minutesWaiting, agendasDue, notified }',
   });
   await scheduleWork(ctx, 'governance.reminders', () => runGovernanceReminders(ctx), { every: HOUR, firstRunInMs: 110_000 });
 }

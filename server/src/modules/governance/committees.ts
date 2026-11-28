@@ -104,6 +104,10 @@ export function registerCommittees(ctx: ModuleContext) {
   const invalid = (fields: Record<string, string>): never => ctx.fail(400, 'validation', 'Check the highlighted fields.', fields);
 
   function checkCommittee(merged: Row, patch: Row) {
+    if (patch.agenda_posting_days !== undefined && patch.agenda_posting_days !== null) {
+      const n = Number(patch.agenda_posting_days);
+      if (!Number.isInteger(n) || n < 0 || n > 60) invalid({ agenda_posting_days: 'Enter a whole number of days from 0 to 60, or leave it empty.' });
+    }
     if ('quorum_rule' in patch && !['count', 'percent'].includes(String(patch.quorum_rule))) invalid({ quorum_rule: 'Choose a number of members or a percentage.' });
     if (typeof patch.resolution_prefix === 'string') {
       patch.resolution_prefix = patch.resolution_prefix.trim().slice(0, 20) || null;
@@ -138,6 +142,8 @@ export function registerCommittees(ctx: ModuleContext) {
       joint_labor_management: { label: 'Joint labor-management committee', type: 'boolean', default: false },
       // Resolution numbers are this text, the year of the meeting and a running number: "R-" gives R-2026-01.
       resolution_prefix: { label: 'Resolution number prefix', type: 'text', personal: false },
+      // E45-62: the agenda must be posted (published) this many days before each meeting; the secretary is reminded.
+      agenda_posting_days: { label: 'Agenda posted at least this many days before the meeting', type: 'number', help: 'For example 3, or as your bylaws or open meetings rules say. Empty: no posting deadline.' },
     },
     hooks: {
       beforeCreate: async (_req, data) => checkCommittee(data, data),

@@ -58,7 +58,7 @@ The **Used by** tab lists every record that uses the evidence. Records you may n
 
 ## Expiring evidence
 
-The **Expiring** tab (**Evidence to renew**) lists evidence that has lapsed or lapses within the reminder window, the soonest first. To renew evidence, collect a current copy, attach it to the evidence record (or change its link) and change **Valid until**: every record that uses it then has the new copy.
+The **Expiring** tab is the one **Expiring evidence** page, opened on the evidence library (its **Source** filter also shows vendor evidence and evidence files; see [Attachments and notifications](14-attachments-and-notifications.md#expiring-evidence)). It lists evidence that has lapsed or lapses within the reminder window, the soonest first. To renew evidence, collect a current copy, attach it to the evidence record (or change its link) and change **Valid until**: every record that uses it then has the new copy.
 
 The owner (or, without an owner, the person who filed it) is reminded in the application, and by email when it is set up, 30 days and 7 days before **Valid until** and on the day, once for each step and date. Changing **Valid until** starts the reminders again for the new date. An administrator changes the steps under **Administration > Reminders** (setting `evidence.reminder_days`, see [Administration](09-administration.md)). Evidence to renew also appears in the owner's **My work** and in the compliance calendar on its **Valid until** date.
 

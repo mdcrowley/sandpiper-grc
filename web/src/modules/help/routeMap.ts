@@ -17,7 +17,7 @@ export const ROUTE_HELP: RouteHelp[] = [
   { prefix: '/redeem', page: '09-administration', section: 'one-time-setup-and-reset-links' },
   { prefix: '/notifications', page: '14-attachments-and-notifications', section: 'the-notifications-page' },
   { prefix: '/attachments', page: '14-attachments-and-notifications', section: 'attachments' },
-  { prefix: '/attachments/expiring', page: '14-attachments-and-notifications', section: 'expiring-evidence-files' },
+  { prefix: '/attachments/expiring', page: '14-attachments-and-notifications', section: 'expiring-evidence' },
 
   // Service desk
   { prefix: '/tickets', page: '02-service-desk', section: 'tickets' },
@@ -61,7 +61,7 @@ export const ROUTE_HELP: RouteHelp[] = [
   { prefix: '/contracts/dates', page: '04-vendors-and-contracts', section: 'complete-the-dates' },
   { prefix: '/contracts/performance', page: '04-vendors-and-contracts', section: 'contractor-performance' },
   { prefix: '/evidence', page: '04-vendors-and-contracts', section: 'evidence-and-expiry' },
-  { prefix: '/evidence/expiring', page: '04-vendors-and-contracts', section: 'expiry' },
+  { prefix: '/evidence/expiring', page: '14-attachments-and-notifications', section: 'expiring-evidence' },
 
   // Cybersecurity
   { prefix: '/frameworks', page: '05-cybersecurity-frameworks', section: 'the-outcomes-board' },
@@ -301,6 +301,56 @@ export const ROUTE_HELP: RouteHelp[] = [
   { prefix: '/account/devices', page: '39-mobile-app', section: 'devices-and-lost-phones' },
   { prefix: '/admin/mobile-app', page: '39-mobile-app', section: 'for-administrators' },
   { prefix: '/admin/push', page: '39-mobile-app', section: 'push-notifications' },
+
+  // Civil rights programs (wave 26).
+  { prefix: '/civil-rights', exact: true, page: '46-civil-rights-programs', section: 'programs' },
+  { prefix: '/civil-rights', page: '46-civil-rights-programs', section: 'programs' },
+  { prefix: '/civil-rights/complaints', page: '46-civil-rights-programs', section: 'complaints' },
+  { prefix: '/civil-rights/reports', page: '46-civil-rights-programs', section: 'monitoring-reports' },
+  { prefix: '/civil-rights/goals', page: '46-civil-rights-programs', section: 'participation-goals' },
+  { prefix: '/civil-rights/awards', page: '46-civil-rights-programs', section: 'participation-goals' },
+  { prefix: '/civil-rights/templates', page: '46-civil-rights-programs', section: 'program-templates' },
+  { prefix: '/civil-rights/settings', page: '46-civil-rights-programs', section: 'settings' },
+
+  // Insurance (wave 26).
+  { prefix: '/insurance', exact: true, page: '45-insurance', section: 'policies' },
+  { prefix: '/insurance', page: '45-insurance', section: 'policies' },
+  { prefix: '/insurance/conditions', page: '45-insurance', section: 'conditions' },
+  { prefix: '/insurance/certificates', page: '45-insurance', section: 'certificates-of-insurance' },
+  { prefix: '/insurance/requirements', page: '45-insurance', section: 'what-each-contract-requires' },
+  { prefix: '/insurance/claims', page: '45-insurance', section: 'claims' },
+  { prefix: '/insurance/renewals', page: '45-insurance', section: 'renewals' },
+  { prefix: '/insurance/settings', page: '45-insurance', section: 'settings' },
+
+  // Procurement and budgets (wave 26).
+  { prefix: '/procurement', exact: true, page: '44-procurement-and-budgets', section: 'solicitations' },
+  { prefix: '/procurement/solicitations', page: '44-procurement-and-budgets', section: 'solicitations' },
+  { prefix: '/procurement/offers', page: '44-procurement-and-budgets', section: 'offers' },
+  { prefix: '/procurement/evaluations', page: '44-procurement-and-budgets', section: 'scoring-as-a-committee-member' },
+  { prefix: '/procurement/evaluate', page: '44-procurement-and-budgets', section: 'scoring-as-a-committee-member' },
+  { prefix: '/procurement/purchase-orders', page: '44-procurement-and-budgets', section: 'purchase-orders' },
+  { prefix: '/procurement/purchase-order-lines', page: '44-procurement-and-budgets', section: 'purchase-orders' },
+  { prefix: '/procurement/budgets', page: '44-procurement-and-budgets', section: 'budgets' },
+  { prefix: '/procurement/budget-lines', page: '44-procurement-and-budgets', section: 'budgets' },
+  { prefix: '/procurement/settings', page: '44-procurement-and-budgets', section: 'settings' },
+  // Strategy and performance (wave 26).
+  { prefix: '/strategy', exact: true, page: '47-strategy-and-statistics', section: 'strategic-plans' },
+  { prefix: '/strategy', page: '47-strategy-and-statistics', section: 'strategic-plans' },
+  { prefix: '/strategy/scorecard', page: '47-strategy-and-statistics', section: 'scorecard-and-board-pdf' },
+  { prefix: '/strategy/measures', page: '47-strategy-and-statistics', section: 'measures' },
+  { prefix: '/strategy/measure-values', page: '47-strategy-and-statistics', section: 'measures' },
+  { prefix: '/strategy/initiatives', page: '47-strategy-and-statistics', section: 'initiatives' },
+  { prefix: '/strategy/updates', page: '47-strategy-and-statistics', section: 'quarterly-status-updates' },
+  { prefix: '/strategy/statistics', page: '47-strategy-and-statistics', section: 'operating-statistics' },
+  { prefix: '/strategy/stat-values', page: '47-strategy-and-statistics', section: 'operating-statistics' },
+  { prefix: '/strategy/submissions', page: '47-strategy-and-statistics', section: 'statistical-submissions' },
+  { prefix: '/strategy/settings', page: '47-strategy-and-statistics', section: 'settings' },
+
+  // Wave 26 pages of earlier areas.
+  { prefix: '/inspections/defects', page: '25-audits-and-inspections', section: 'defects' },
+  { prefix: '/safety/plan', page: '20-safety-management', section: 'safety-plan' },
+  { prefix: '/training/settings', page: '12-training-and-exercises', section: 'training-settings' },
+  { prefix: '/security-incidents/settings', page: '07-security-incidents', section: 'notification-rules-checklists-and-contacts' },
 ];
 
 /** The guide entry for an address, or undefined when nothing covers it. */

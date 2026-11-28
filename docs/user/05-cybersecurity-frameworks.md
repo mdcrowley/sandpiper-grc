@@ -238,7 +238,7 @@ Each note shows an expiry label:
 | **Expires** (amber) | The item expires within 30 days. |
 | **Expired** (red) | The expiry date has passed. |
 
-The outcome's owner (or, when it has none, everyone who may edit framework outcomes) is reminded once when a note's expiry date is 30 days away, and once when it has passed. An administrator changes the 30 days of the reminder under **Administration** > **Reminders**; the amber **Expires** label always uses 30 days. Files attached as evidence are listed on the **Expiring evidence files** page instead.
+The outcome's owner (or, when it has none, everyone who may edit framework outcomes) is reminded once when a note's expiry date is 30 days away, and once when it has passed. An administrator changes the 30 days of the reminder under **Administration** > **Reminders**; the amber **Expires** label always uses 30 days. Files attached as evidence are listed on the **Expiring evidence** page instead (see [Attachments and notifications](14-attachments-and-notifications.md#expiring-evidence)).
 
 Adding evidence does not change the status. Update the status yourself when the evidence justifies it.
 

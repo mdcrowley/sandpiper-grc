@@ -3,12 +3,15 @@
 // (approval body and reference), file versions (the original PDF is the text), minor versions, the
 // dates a version stopped being in force, and data load of whole version histories.
 import type { FastifyRequest } from 'fastify';
-import { actorOf, asDataLoad, dataLoadFor, onBehalfOf } from '../../core/dataload.ts';
+import { actorOf, asDataLoad, dataLoadFor, noteLoaded, onBehalfOf } from '../../core/dataload.ts';
 import { featureState, rolesShown } from '../../core/features.ts';
+import { assertNotHeld } from '../../core/holds.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { readableSql, tablesFor, type AccessTables } from './access.ts';
 import { audienceUserIds, bodyHash, publishVersion, syncPolicyStatus } from './acknowledgments.ts';
+import { notifyRecalls } from './copies.ts';
 import { isDate, localDate } from './dates.ts';
+import { loadedParts } from './loaded-parts.ts';
 import { renderPolicyMarkdown } from './markdown.ts';
 import { refreshSearchText } from './search.ts';
 import { cycleOf } from './types.ts';
@@ -40,6 +43,10 @@ export const versionView = (v: Row, withBody = true) => ({
 });
 
 const label = (p: Row) => [p.doc_number ?? p.ref, p.title].filter(Boolean).join(' ');
+
+/** How loaded versions are listed in data_load_records (E43-18), so one can be undone alone. */
+export const LOADED_VERSION_TYPE = 'policy_version';
+
 
 /**
  * Runs a hand-written save as a data load when this request is one (E18-70, core/dataload.ts): an
@@ -273,6 +280,8 @@ export function registerVersionRoutes(ctx: ModuleContext, tables: AccessTables =
     const data = await versionInput(req, policy, b, 'create');
     if (load) {
       const row = await loadVersion(req, policy, b, data);
+      // Listed by itself, so one wrong version can be undone without the document (E43-18).
+      await noteLoaded(db, LOADED_VERSION_TYPE, String(row.id), req);
       await settleLoaded(req, policy);
       await ctx.audit(req, {
         action: 'policy.version_load', recordType: 'policy', recordId: policy.id,
@@ -449,6 +458,63 @@ export function registerVersionRoutes(ctx: ModuleContext, tables: AccessTables =
     return { version: versionView(result.version), requested: result.requested, roster_requested: result.roster_requested ?? 0, due_on: result.due_on, status: result.policy.status, scheduled: false };
   }));
 
+  // ---------- undoing one loaded version (E43-18) ----------
+
+  /**
+   * Removes a version a data load created: its acknowledgments (loaded with it) go too, the version
+   * before it is in force again when it was the effective one, and the document follows its versions.
+   * The version's text is kept in the audit event, as when a draft is discarded.
+   */
+  async function undoLoadedVersion(req: FastifyRequest, id: string): Promise<'deleted' | 'missing' | 'held'> {
+    const v = UUID.test(id) ? await db.one<Row>('select * from policy_versions where id = $1', [id]) : undefined;
+    const policy = v ? await db.one<Row>('select * from policies where id = $1 and deleted_at is null', [v.policy_id]) : undefined;
+    if (!v || !policy) return 'missing';
+    try {
+      await assertNotHeld(db, 'policy', String(policy.id), 'delete');
+    } catch (err) {
+      if ((err as { code?: string }).code === 'on_hold') return 'held';
+      throw err;
+    }
+    const acks = await db.query<Row>('delete from policy_acknowledgements where version_id = $1 returning id', [v.id]);
+    acks.push(...await db.query<Row>('delete from policy_person_acknowledgements where version_id = $1 returning id', [v.id]));
+    await db.query('delete from policy_versions where id = $1', [v.id]);
+    if (v.status === 'published') {
+      // The version before it is in force again.
+      const prev = await db.one<Row>(
+        `select id from policy_versions where policy_id = $1 and status = 'superseded' order by effective_on desc nulls last, version desc limit 1`, [policy.id]);
+      if (prev && policy.status !== 'retired') {
+        await db.query(`update policy_versions set status = 'published', superseded_on = null, updated_at = now(), updated_by = $2 where id = $1`, [prev.id, req.user!.id]);
+      }
+    }
+    await syncPolicyStatus(ctx, String(policy.id), req.user!.id);
+    await refreshSearchText(ctx, String(policy.id));
+    await ctx.audit(req, {
+      action: 'policy.version_unload', recordType: 'policy', recordId: policy.id,
+      summary: `Loaded version ${v.version}${v.version_label ? ` (${v.version_label})` : ''} of ${label(policy)} removed (undoing a data load)${acks.length ? `, with ${acks.length} acknowledgment${acks.length === 1 ? '' : 's'}` : ''}`,
+      before: { version: Number(v.version), status: v.status, effective_on: v.effective_on, change_summary: v.change_summary, body: v.body },
+    });
+    return 'deleted';
+  }
+
+  loadedParts(ctx.app).set(LOADED_VERSION_TYPE, {
+    label: 'Document versions',
+    async list(ids) {
+      const rows = ids.length ? await db.query<Row>(
+        `select v.id, v.version, v.version_label, v.status, p.id as policy_id, p.doc_number, p.ref, p.title, p.deleted_at
+         from policy_versions v join policies p on p.id = v.policy_id where v.id = any($1::uuid[])`, [ids]) : [];
+      const byId = new Map(rows.map((r) => [String(r.id), r]));
+      return ids.map((id) => {
+        const r = byId.get(id);
+        if (!r) return { id, label: 'Version no longer there', route: null, gone: true };
+        return {
+          id, label: `${label(r)}: version ${r.version}${r.version_label ? ` (${r.version_label})` : ''}, ${r.status === 'published' ? 'effective' : r.status}`,
+          route: r.deleted_at ? null : `/policies/${r.policy_id}`, gone: Boolean(r.deleted_at),
+        };
+      });
+    },
+    undo: undoLoadedVersion,
+  });
+
   // ---------- make obsolete (retire) ----------
 
   ctx.app.post('/api/policies/:id/retire', { preHandler: ctx.requirePerm('policies.approve') }, async (req) => asLoadIfLoading(ctx, req, async (load) => {
@@ -508,6 +574,7 @@ export async function retireDocument(
     summary: `${label(policy)} made obsolete on ${retiredOn}${replacedBy ? `, replaced by ${label(replacedBy)}` : ''}; ${closed.length} outstanding acknowledgment request${closed.length === 1 ? '' : 's'} closed${kids.length ? `; ${kids.length} document${kids.length === 1 ? '' : 's'} still under it` : ''}`,
     before: { status: policy.status }, after: { status: 'retired', retired_on: retiredOn, reason, replaced_by_id: replacedBy?.id ?? null },
   });
-  void input.load;
+  // Every paper copy still out is now due to be recalled (E43-14).
+  if (!input.load) await notifyRecalls(ctx, policy.id);
   return { ok: true, status: 'retired', closed: closed.length, retired_on: retiredOn, children, hidden_children: kids.length - children.length };
 }

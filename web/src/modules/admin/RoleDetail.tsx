@@ -8,6 +8,7 @@ import { Notice } from './common';
 import type { Role, RolesResponse } from './common';
 import { AUDIENCE_ROLES } from './Roles';
 import { adminApi } from './reauth';
+import { RoleHomePicker } from './RoleHome';
 import { Switch } from './Switch';
 
 const MODULE_LABELS: Record<string, string> = {
@@ -161,6 +162,8 @@ export function RoleDetailPage() {
                 hint="What happens to members without an authenticator app (a reminder, or nothing else working until they set one up) is chosen under Settings."
                 error={errors.requiresMfa}
               />
+              {/* E44-09: saved on its own, as soon as it is changed. */}
+              <RoleHomePicker roleKey={role.key} />
             </div>
           </Card>
           <Card title={`Members (${role.members})`} flush>

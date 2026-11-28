@@ -32,6 +32,8 @@ export interface Workspace {
     due_on: string | null; parts: { label: string; text: string }[];
   }[];
   files: ReviewFile[];
+  /** Evidence records of the library linked to it (E45-59), with their files. */
+  evidence?: { id: string; ref: string | null; title: string; part: string; part_label: string | null; relation: string | null; valid_until: string | null; period: string | null; files: ReviewFile[] }[];
   labels: { requests: string; findings: string };
 }
 

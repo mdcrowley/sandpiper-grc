@@ -177,6 +177,7 @@ const EvidencePanel = loadEvidence ? lazy(() => loadEvidence().then((m) => ({ de
 const EVIDENCE_TYPES = new Set([
   'control', 'control_test', 'obligation', 'audit_engagement', 'audit_request', 'audit_finding', 'cap', 'action',
   'framework_outcome', 'policy', 'risk', 'evidence_item', 'funding_award', 'funding_certification',
+  'procurement', 'purchase_order', 'insurance_policy', 'insurance_certificate', 'insurance_condition',
 ]);
 // Legal holds (E34): a banner on a held record, for people who may see holds (the server sends `_holds`).
 const holdLoaders = import.meta.glob<{ HoldBanner: ComponentType<{ row: Row }> }>('../modules/holds/HoldBanner.tsx');

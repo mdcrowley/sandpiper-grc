@@ -131,6 +131,22 @@ function ReviewPage() {
         <FileList grantId={grant.id} files={data.files} empty="No evidence files on it yet." />
       </Card>
 
+      {(data.evidence ?? []).length > 0 && (
+        <Card title={`Evidence records (${data.evidence!.length})`}>
+          <div className="stack">
+            {data.evidence!.map((e) => (
+              <section key={`${e.id}-${e.part}`} className="or-item" aria-label={[e.ref, e.title].filter(Boolean).join(' ')}>
+                <h3 className="or-h3">{e.ref && <span className="muted">{e.ref} </span>}{e.title}</h3>
+                <p className="muted or-small">
+                  {[e.part_label, e.period ? `Period ${e.period}` : null, e.valid_until ? `Valid until ${formatDate(e.valid_until)}` : null].filter(Boolean).join(' · ')}
+                </p>
+                <FileList grantId={grant.id} files={e.files} empty="No files on this evidence record." />
+              </section>
+            ))}
+          </div>
+        </Card>
+      )}
+
       <Card title={`${data.labels.findings} (${data.findings.length})`}>
         {data.findings.length === 0 ? <p className="muted">None recorded.</p> : (
           <div className="stack">

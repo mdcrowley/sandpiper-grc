@@ -11,6 +11,7 @@ import type { RecordContext, Row } from '../../core';
 import { canMoveTo, editableLifecycle } from '../../core/lifecycleMenus';
 import { Agenda, BookCard, MinutesTab, useRecordTypes, type AgendaItem } from './Board';
 import { GovernanceTabs, MeetingActions, RecordName, type NamedRecord } from './shared';
+import { DeclarationsCard, StandingItems } from './Interests';
 
 export function MeetingList() {
   return (
@@ -361,7 +362,7 @@ export function MeetingDetail() {
           fields={['title', 'committee_id', 'scheduled_at', 'duration_minutes', 'location', 'chair_id', 'secretary_id', 'quorum_met', 'invited_at']} />
       )}
       tabs={[
-        { key: 'agenda', label: 'Agenda', content: ({ row }) => <Agenda meeting={row} /> },
+        { key: 'agenda', label: 'Agenda', content: ({ row }) => <AgendaTab meeting={row} /> },
         { key: 'pack', label: 'Board book', content: ({ row }) => <Pack meeting={row} /> },
         { key: 'invitations', label: 'Invitations', content: ({ row, reload }) => <Invitations meeting={row} onChanged={reload} /> },
         { key: 'attendance', label: 'Attendance', content: ({ row, reload }) => <AttendanceTab meeting={row} onChanged={reload} /> },
@@ -376,5 +377,17 @@ export function MeetingDetail() {
         { key: 'actions', label: 'Actions', content: ({ row }) => <MeetingActions meetingId={row.id} /> },
       ]}
     />
+  );
+}
+
+/** The Agenda tab: the posting deadline and standing items due (E45-62), the agenda, and declarations of interest (E45-60). */
+function AgendaTab({ meeting }: { meeting: Row }) {
+  const [version, setVersion] = useState(0);
+  return (
+    <div className="stack">
+      <StandingItems meeting={meeting} onAdded={() => setVersion((n) => n + 1)} />
+      <Agenda key={version} meeting={meeting} />
+      <DeclarationsCard meeting={meeting} />
+    </div>
   );
 }

@@ -395,7 +395,7 @@ Each person hears about one project at most once a day for each of these, and on
 
 ## Project settings
 
-Open **Projects and funding > Project portfolio** and the **Settings** tab (also on the **Administration** page), or select **Settings** on the portfolio. You need **Administer** on **Projects**. Each card is saved separately, and every change is recorded in the audit log.
+Open **Projects and funding > Project portfolio** and the **Settings** tab (also on the **Administration** page; there is no separate Settings button). You need **Administer** on **Projects**. Each card is saved separately, and every change is recorded in the audit log.
 
 | Card | What you can change |
 |---|---|

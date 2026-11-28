@@ -26,6 +26,8 @@ export const MODULE_KEYS = [
   'tags',
   // Wave 25 (E45-06): the evidence library.
   'evidence',
+  // Wave 26 (E46): procurement and budgets, insurance, civil rights, strategy and performance.
+  'procurement', 'insurance', 'civilrights', 'strategy',
 ];
 /** The actions every permission module offers. */
 export const BASE_ACTIONS = ['view', 'create', 'edit', 'delete', 'approve', 'administer', 'export'];

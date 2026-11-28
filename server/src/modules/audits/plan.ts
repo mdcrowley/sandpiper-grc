@@ -214,6 +214,7 @@ export async function registerPlan(ctx: ModuleContext) {
     entries: p.entries ?? [], settings: p.settings ?? {},
     prepared_by_name: p.prepared_by_name ?? null, prepared_at: p.prepared_at,
     approved_by_name: p.approved_by_name ?? null, approved_on: day(p.approved_on), approval_note: p.approval_note ?? null,
+    approval_decision_id: p.approval_decision_id ?? null, approval_reference: p.approval_reference ?? null,
     included: Array.isArray(p.entries) ? p.entries.filter((e: Row) => e.included).length : 0,
   });
 
@@ -359,12 +360,24 @@ export async function registerPlan(ctx: ModuleContext) {
     if (p!.status !== 'draft') ctx.fail(409, 'not_draft', 'Only a draft version of the plan can be approved.');
     const newest = await db.one<Row>('select max(version) as v from audit_plans where plan_year = $1', [p!.plan_year]);
     if (Number(newest?.v) !== Number(p!.version)) ctx.fail(409, 'not_latest', 'A later version of this plan has been saved; approve that one.');
-    const by = actorOf(req);
-    const sameAsPreparer = (by.id && p!.prepared_by && by.id === p!.prepared_by) || (!by.id && by.name && by.name === p!.prepared_by_name);
-    if (sameAsPreparer) ctx.fail(403, 'not_independent', 'The plan is approved by someone other than the person who prepared it.');
     const b = (req.body ?? {}) as Row;
-    let on = dayInZone();
-    if (b.approved_on !== undefined && b.approved_on !== null && b.approved_on !== '') {
+    // E45-64: approved by a committee's decision (the audit committee's resolution), recorded by the
+    // person holding audits.approve: the approver is the committee and the date the meeting's.
+    type Decided = { id: string; committee_name: string; decided_on: string; reference: string };
+    let decision = null as Decided | null;
+    if (b.decision_id !== undefined && b.decision_id !== null && b.decision_id !== '') {
+      const ask = (app as unknown as { committeeDecision?: (r: typeof req, id: unknown) => Promise<{ ok: boolean; message?: string; decision?: Row }> }).committeeDecision;
+      if (!ask) invalid({ decision_id: 'Committees and meetings are not available, so a decision cannot approve the plan.' });
+      const answer = await ask!(req, b.decision_id);
+      if (!answer.ok) invalid({ decision_id: answer.message ?? 'Choose a decision of a committee meeting.' });
+      decision = answer.decision as unknown as Decided;
+      if (decision!.decided_on > dayInZone()) invalid({ decision_id: 'That meeting has not happened yet.' });
+    }
+    const by = decision ? { id: null, name: decision.committee_name } : actorOf(req);
+    const sameAsPreparer = !decision && ((by.id && p!.prepared_by && by.id === p!.prepared_by) || (!by.id && by.name && by.name === p!.prepared_by_name));
+    if (sameAsPreparer) ctx.fail(403, 'not_independent', 'The plan is approved by someone other than the person who prepared it.');
+    let on = decision?.decided_on ?? dayInZone();
+    if (!decision && b.approved_on !== undefined && b.approved_on !== null && b.approved_on !== '') {
       if (!isDataLoad(req)) invalid({ approved_on: 'The approval date is today; another date can be given only in data load mode.' });
       if (!isDate(b.approved_on) || b.approved_on > on) invalid({ approved_on: 'Give a date, not in the future.' });
       on = b.approved_on;
@@ -374,21 +387,22 @@ export async function registerPlan(ctx: ModuleContext) {
       await tx.query(`update audit_plans set status = 'superseded', updated_at = now(), updated_by = $2 where plan_year = $1 and status in ('approved', 'draft') and id <> $3`,
         [p!.plan_year, req.user!.id, p!.id]);
       await tx.query(
-        `update audit_plans set status = 'approved', approved_by = $2, approved_by_name = $3, approved_on = $4, approval_note = $5, updated_at = now(), updated_by = $6 where id = $1`,
-        [p!.id, by.id, by.name, on, note, req.user!.id]);
+        `update audit_plans set status = 'approved', approved_by = $2, approved_by_name = $3, approved_on = $4, approval_note = $5, updated_at = now(), updated_by = $6,
+           approval_decision_id = $7, approval_reference = $8 where id = $1`,
+        [p!.id, by.id, by.name, on, note, req.user!.id, decision?.id ?? null, decision?.reference ?? null]);
     });
     await ctx.audit(req, {
       action: 'audits.plan_approve', recordType: 'audit_plan', recordId: p!.id,
-      summary: `Audit plan ${p!.plan_year} version ${p!.version} approved by ${by.name ?? 'someone'} on ${displayDate(on)}`,
-      after: { approved_on: on, note },
+      summary: `Audit plan ${p!.plan_year} version ${p!.version} approved by ${by.name ?? 'someone'} on ${displayDate(on)}${decision ? ` (${decision.reference})` : ''}`,
+      after: { approved_on: on, note, decision_id: decision?.id ?? null, reference: decision?.reference ?? null },
     });
     return planRow((await db.one<Row>('select * from audit_plans where id = $1', [p!.id]))!);
   });
   ctx.describeRoute({
     method: 'POST', path: '/api/audits/plans/:id/approve', tag: 'Audits', permission: 'audits.approve',
-    summary: 'Approve the newest draft version of a year\'s audit plan (someone other than its preparer); an earlier approved version is superseded',
-    description: '409 `not_draft` or `not_latest`; 403 `not_independent` when the approver prepared it. In data load mode `approved_on` may give a past date and `on_behalf_of` the approver.',
-    body: '{ note?, approved_on? (data load only) }', response: 'the approved version',
+    summary: 'Approve the newest draft version of a year\'s audit plan (someone other than its preparer, or a committee\'s decision); an earlier approved version is superseded',
+    description: '409 `not_draft` or `not_latest`; 403 `not_independent` when the approver prepared it. With `decision_id` (a carried decision of a committee meeting the caller may see) the committee is the approver, the meeting\'s date the approval date and the resolution the reference (E45-64). In data load mode `approved_on` may give a past date and `on_behalf_of` the approver.',
+    body: '{ note?, decision_id?, approved_on? (data load only) }', response: 'the approved version',
   });
 
   app.post('/api/audits/plans/:id/create-audits', { preHandler: ctx.requirePerm('audits.create') }, async (req, reply) => {

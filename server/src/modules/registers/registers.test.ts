@@ -191,7 +191,7 @@ describe('removing a register', () => {
     const busy = await t.api.del('/api/admin/registers/key_log');
     expect([busy.status, busy.body.error.code]).toEqual([409, 'in_use']);
 
-    expect((await define({ label: 'Spare', plural: 'Spares', key: 'spares', prefix: 'SP' })).status).toBe(201);
+    expect((await define({ label: 'Spare', plural: 'Spares', key: 'spares', prefix: 'SPR' })).status).toBe(201);
     await t.api.post('/api/admin/custom-fields', { record_type: 'reg_spares', label: 'Size', key: 'size', type: 'text' });
     await t.api.post('/api/admin/roles', { name: 'Spares desk', grants: ['spares.view'] });
     await t.api.post('/api/auth/confirm', { password: ADMIN.password });
@@ -204,7 +204,7 @@ describe('removing a register', () => {
     expect(await t.db.one(`select 1 from custom_fields where record_type = 'reg_spares'`)).toBeUndefined();
     expect((await t.db.one<{ v: string | null }>(`select to_regclass('reg_spares')::text as v`))?.v).toBeNull();
     // The name is free again.
-    expect((await define({ label: 'Spare', plural: 'Spares', key: 'spares', prefix: 'SP' })).status).toBe(201);
+    expect((await define({ label: 'Spare', plural: 'Spares', key: 'spares', prefix: 'SPR' })).status).toBe(201);
   });
 
   it('takes only its own grants, even when its key is a pattern for another module\'s (W23 F2)', async () => {

@@ -215,8 +215,11 @@ export function RiskRegister() {
             { field: 'parent_id', hidden: true },
             { field: 'last_reviewed_on', hidden: true },
             { field: 'target_on', hidden: true },
+            { field: 'proximity', hidden: true },
+            { field: 'velocity', hidden: true },
+            { field: 'strategic_objective', hidden: true },
           ]}
-          filters={['category', 'summary_level', 'appetite_breach', 'status', 'treatment', 'owner_id', 'parent_id', 'due_on', 'review_on']}
+          filters={['category', 'summary_level', 'appetite_breach', 'status', 'treatment', 'owner_id', 'parent_id', 'due_on', 'review_on', 'proximity', 'velocity']}
           bulkFields={['owner_id', 'treatment', 'category', 'review_on', 'due_on']}
           baseFilter={baseFilter}
           createFields={['title', 'category', 'parent_id', 'description', 'cause', 'consequence', 'existing_controls', 'treatment', 'owner_id', 'due_on', 'review_on']}

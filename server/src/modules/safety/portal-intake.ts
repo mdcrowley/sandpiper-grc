@@ -29,8 +29,108 @@ export const HARM: { value: string; label: string; severity: string }[] = [
 
 const text = (v: unknown, max: number) => String(v ?? '').trim().slice(0, max);
 
-export function registerPortalIntake(ctx: ModuleContext) {
+const PORTAL = 'the self-service portal';
+
+/** Choices for a safety report in plain words: event types and how bad it was. */
+export async function safetyReportOptions(ctx: ModuleContext) {
+  const types = await ctx.lookups.values('safety_event_type');
+  return {
+    types: types.map((t) => ({ value: t.value, label: t.label })),
+    harm: HARM.map(({ value, label }) => ({ value, label })),
+  };
+}
+
+/**
+ * Takes one safety report from a member of staff, in plain words (E20-13, E41-05). Shared by the portal
+ * and by My work's "Report a problem" (wave 26), so the confidential-reporting rules are the same in both.
+ * `via` names where it was reported, for the event's notes.
+ */
+export async function takeSafetyReport(ctx: ModuleContext, req: FastifyRequest, via = PORTAL): Promise<{ id: string; ref: string }> {
   const { app, db } = ctx;
+  const b = (req.body ?? {}) as Row;
+  const me = req.user!;
+  const fields: Record<string, string> = {};
+  const title = text(b.title, 200);
+  const description = text(b.description, 8000);
+  if (!title) fields.title = 'Say in a few words what happened.';
+  if (!description) fields.description = 'Describe what happened.';
+  const types = await ctx.lookups.values('safety_event_type');
+  if (!types.some((t) => t.value === b.event_type)) fields.event_type = 'Choose what kind of event it was.';
+  const harm = HARM.find((h) => h.value === b.harm);
+  if (!harm) fields.harm = 'Choose how bad it was.';
+  const at = b.occurred_at ? new Date(String(b.occurred_at)) : null;
+  if (!at || Number.isNaN(at.getTime())) fields.occurred_at = 'Enter when it happened.';
+  else if (at.getTime() > Date.now() + 5 * 60_000) fields.occurred_at = 'The event cannot be in the future.';
+  const injuries = b.injuries === undefined || b.injuries === null || b.injuries === '' ? null : Number(b.injuries);
+  if (injuries !== null && (!Number.isInteger(injuries) || injuries < 0 || injuries > 500)) fields.injuries = 'Enter a whole number, zero or more.';
+  if (Object.keys(fields).length) ctx.fail(400, 'validation', 'Check the highlighted fields.', fields);
+
+  const severities = await ctx.lookups.values('safety_event_severity');
+  const severity = severities.find((s) => s.value === harm!.severity)?.value ?? severities[0]?.value;
+  const where = text(b.where, 200);
+  const confidential = b.confidential === true;
+  const severityNote = `The severity is as the reporter described it ("${harm!.label}"): check it when triaging.`;
+  const data: Row = {
+    title, description, event_type: b.event_type, severity, occurred_at: at!.toISOString(), status: 'reported',
+    location_detail: where || null, immediate_actions: text(b.immediate_actions, 4000) || null,
+    injuries, reported_by_id: confidential ? null : me.id, confidential_reporter: confidential,
+    notes: confidential
+      ? `Reported in ${via} by someone who asked for their identity to be kept confidential. ${severityNote}`
+      : `Reported by ${me.displayName} in ${via}. ${severityNote}`,
+  };
+  // Personal details: the reporter may ask for the report to be restricted; a type that usually holds them starts restricted anyway.
+  if (b.personal === true) data.restricted = true;
+  // A confidential report is saved as the application's own work, so no "Created by" or history entry names
+  // the reporter; the reporter is kept apart in the same transaction.
+  const saveConfidential = async () => {
+    const made = await (ctx.resources.create as (type: string, data: Row, req: null, opts: { skipCustomRequired: boolean }) => Promise<Row>)(
+      'safety_event', data, null, { skipCustomRequired: true });
+    await keepReporterApart(db, made.id, me.id);
+    return made;
+  };
+  const row = confidential
+    ? await (db.atomic ? db.atomic(saveConfidential) : saveConfidential())
+    : await createFromPortal(ctx, 'safety_event', data, req);
+
+  // The safety team triages every portal report. A serious one is already announced by the event itself.
+  const sev = severities.find((s) => s.value === row.severity);
+  if (app.hasDecorator('notify') && sev?.meta?.notify !== true) {
+    await app.notify({
+      permission: 'safety.edit', kind: 'safety',
+      title: `New safety report${via === PORTAL ? ' from the portal' : ''}: ${row.ref}${row.restricted ? '' : ` ${row.title}`}`,
+      body: confidential ? 'The reporter asked for their identity to be kept confidential.' : row.restricted ? null : `Reported by ${me.displayName}.`,
+      recordType: 'safety_event', recordId: row.id,
+    });
+  }
+  return { id: row.id, ref: row.ref };
+}
+
+/** The safety events a person reported (their own and their confidential ones), newest first, in plain words. */
+export async function mySafetyReports(ctx: ModuleContext, userId: string) {
+  const { db } = ctx;
+  const statuses = await ctx.lookups.values('safety_event_status');
+  const rows = await db.query<Row>(
+    `select id, ref, title, occurred_at, created_at, status, restricted, confidential_reporter, reporter_outcome, closed_on from safety_events
+     where deleted_at is null and (reported_by_id = $1 or id in (select event_id from safety_confidential_reporters where user_id = $1))
+     order by created_at desc limit 50`, [userId]);
+  return {
+    rows: rows.map((r) => {
+      const final = statuses.find((s) => s.value === r.status)?.meta?.final === true;
+      return {
+        id: r.id, ref: r.ref, title: r.restricted ? `Safety report ${r.ref}` : r.title, occurred_at: r.occurred_at, reported_at: r.created_at,
+        confidential: r.confidential_reporter === true,
+        // What was done, in the safety team's words, once it is closed (E41-05).
+        outcome: final ? (String(r.reporter_outcome ?? '').trim() || null) : null, closed_on: final ? r.closed_on : null,
+        status: final
+          ? { key: 'closed', label: 'Closed', tone: 'gray' }
+          : r.status === 'reported' ? { key: 'received', label: 'Received', tone: 'blue' } : { key: 'looking', label: 'Being looked into', tone: 'amber' },
+      };
+    }),
+  };
+}
+
+export function registerPortalIntake(ctx: ModuleContext) {
+  const { app } = ctx;
 
   const need = (perm: 'portal.view' | 'portal.create') => async (req: FastifyRequest) => {
     if (!req.user) ctx.fail(401, 'unauthenticated', 'Sign in to continue.');
@@ -38,13 +138,7 @@ export function registerPortalIntake(ctx: ModuleContext) {
     if (!ctx.can(req.user, perm)) ctx.fail(403, 'forbidden', 'You do not have permission to do that.');
   };
 
-  app.get('/api/portal/safety/options', { preHandler: need('portal.create') }, async () => {
-    const types = await ctx.lookups.values('safety_event_type');
-    return {
-      types: types.map((t) => ({ value: t.value, label: t.label })),
-      harm: HARM.map(({ value, label }) => ({ value, label })),
-    };
-  });
+  app.get('/api/portal/safety/options', { preHandler: need('portal.create') }, async () => safetyReportOptions(ctx));
   ctx.describeRoute({
     method: 'GET', path: '/api/portal/safety/options', permission: 'portal.create',
     summary: 'Choices for reporting a safety event in the portal: event types and how bad it was, in plain words',
@@ -52,63 +146,9 @@ export function registerPortalIntake(ctx: ModuleContext) {
   });
 
   app.post('/api/portal/safety-reports', { preHandler: need('portal.create') }, async (req, reply) => {
-    const b = (req.body ?? {}) as Row;
-    const me = req.user!;
-    const fields: Record<string, string> = {};
-    const title = text(b.title, 200);
-    const description = text(b.description, 8000);
-    if (!title) fields.title = 'Say in a few words what happened.';
-    if (!description) fields.description = 'Describe what happened.';
-    const types = await ctx.lookups.values('safety_event_type');
-    if (!types.some((t) => t.value === b.event_type)) fields.event_type = 'Choose what kind of event it was.';
-    const harm = HARM.find((h) => h.value === b.harm);
-    if (!harm) fields.harm = 'Choose how bad it was.';
-    const at = b.occurred_at ? new Date(String(b.occurred_at)) : null;
-    if (!at || Number.isNaN(at.getTime())) fields.occurred_at = 'Enter when it happened.';
-    else if (at.getTime() > Date.now() + 5 * 60_000) fields.occurred_at = 'The event cannot be in the future.';
-    const injuries = b.injuries === undefined || b.injuries === null || b.injuries === '' ? null : Number(b.injuries);
-    if (injuries !== null && (!Number.isInteger(injuries) || injuries < 0 || injuries > 500)) fields.injuries = 'Enter a whole number, zero or more.';
-    if (Object.keys(fields).length) ctx.fail(400, 'validation', 'Check the highlighted fields.', fields);
-
-    const severities = await ctx.lookups.values('safety_event_severity');
-    const severity = severities.find((s) => s.value === harm!.severity)?.value ?? severities[0]?.value;
-    const where = text(b.where, 200);
-    const confidential = b.confidential === true;
-    const severityNote = `The severity is as the reporter described it ("${harm!.label}"): check it when triaging.`;
-    const data: Row = {
-      title, description, event_type: b.event_type, severity, occurred_at: at!.toISOString(), status: 'reported',
-      location_detail: where || null, immediate_actions: text(b.immediate_actions, 4000) || null,
-      injuries, reported_by_id: confidential ? null : me.id, confidential_reporter: confidential,
-      notes: confidential
-        ? `Reported in the self-service portal by someone who asked for their identity to be kept confidential. ${severityNote}`
-        : `Reported by ${me.displayName} in the self-service portal. ${severityNote}`,
-    };
-    // Personal details: the reporter may ask for the report to be restricted; a type that usually holds them starts restricted anyway.
-    if (b.personal === true) data.restricted = true;
-    // A confidential report is saved as the application's own work, so no "Created by" or history entry names
-    // the reporter; the reporter is kept apart in the same transaction.
-    const saveConfidential = async () => {
-      const made = await (ctx.resources.create as (type: string, data: Row, req: null, opts: { skipCustomRequired: boolean }) => Promise<Row>)(
-        'safety_event', data, null, { skipCustomRequired: true });
-      await keepReporterApart(db, made.id, me.id);
-      return made;
-    };
-    const row = confidential
-      ? await (db.atomic ? db.atomic(saveConfidential) : saveConfidential())
-      : await createFromPortal(ctx, 'safety_event', data, req);
-
-    // The safety team triages every portal report. A serious one is already announced by the event itself.
-    const sev = severities.find((s) => s.value === row.severity);
-    if (app.hasDecorator('notify') && sev?.meta?.notify !== true) {
-      await app.notify({
-        permission: 'safety.edit', kind: 'safety',
-        title: row.restricted ? `New safety report from the portal: ${row.ref}` : `New safety report from the portal: ${row.ref} ${row.title}`,
-        body: confidential ? 'The reporter asked for their identity to be kept confidential.' : row.restricted ? null : `Reported by ${me.displayName}.`,
-        recordType: 'safety_event', recordId: row.id,
-      });
-    }
+    const made = await takeSafetyReport(ctx, req);
     reply.code(201);
-    return { id: row.id, ref: row.ref };
+    return made;
   });
   ctx.describeRoute({
     method: 'POST', path: '/api/portal/safety-reports', permission: 'portal.create',
@@ -118,27 +158,7 @@ export function registerPortalIntake(ctx: ModuleContext) {
     response: '{ id, ref }',
   });
 
-  app.get('/api/portal/safety-reports', { preHandler: need('portal.view') }, async (req) => {
-    const statuses = await ctx.lookups.values('safety_event_status');
-    const rows = await db.query<Row>(
-      `select id, ref, title, occurred_at, created_at, status, restricted, confidential_reporter, reporter_outcome, closed_on from safety_events
-       where deleted_at is null and (reported_by_id = $1 or id in (select event_id from safety_confidential_reporters where user_id = $1))
-       order by created_at desc limit 50`, [req.user!.id]);
-    return {
-      rows: rows.map((r) => {
-        const final = statuses.find((s) => s.value === r.status)?.meta?.final === true;
-        return {
-          id: r.id, ref: r.ref, title: r.restricted ? `Safety report ${r.ref}` : r.title, occurred_at: r.occurred_at, reported_at: r.created_at,
-          confidential: r.confidential_reporter === true,
-          // What was done, in the safety team's words, once it is closed (E41-05).
-          outcome: final ? (String(r.reporter_outcome ?? '').trim() || null) : null, closed_on: final ? r.closed_on : null,
-          status: final
-            ? { key: 'closed', label: 'Closed', tone: 'gray' }
-            : r.status === 'reported' ? { key: 'received', label: 'Received', tone: 'blue' } : { key: 'looking', label: 'Being looked into', tone: 'amber' },
-        };
-      }),
-    };
-  });
+  app.get('/api/portal/safety-reports', { preHandler: need('portal.view') }, async (req) => mySafetyReports(ctx, req.user!.id));
   ctx.describeRoute({
     method: 'GET', path: '/api/portal/safety-reports', permission: 'portal.view',
     summary: 'Safety events I reported, newest first, with a plain status and, once closed, what was done',

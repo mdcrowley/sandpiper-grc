@@ -211,7 +211,7 @@ export function AuditWorkpapers({ auditId, closed }: { auditId: string; closed: 
               return (
                 <li key={i.id} className="au-list-item au-wp-item">
                   <div className="au-list-main">
-                    <p className="au-prompt"><span className="muted">{n}.</span> {i.prompt} <ItemFlags item={i} /></p>
+                    <p className="au-prompt"><span className="muted" title={i.wp_ref_full ?? undefined}>{i.wp_ref ? `WP ${i.wp_ref}` : `${n}.`}</span> {i.prompt} <ItemFlags item={i} /></p>
                     <StepState step={step} />
                     {expanded && <StepEditor key={`${i.id}-${step?.answered_at ?? ''}-${step?.prepared_at ?? ''}-${step?.reviewed_at ?? ''}`}
                       auditId={auditId} item={i} step={step} files={fileList} data={d} closed={closed} onSaved={after} />}

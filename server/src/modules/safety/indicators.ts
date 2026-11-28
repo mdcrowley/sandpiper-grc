@@ -352,6 +352,39 @@ export function registerIndicators(ctx: ModuleContext) {
     };
   });
   ctx.describeRoute({ method: 'GET', path: '/api/safety/summary', summary: 'The safety dashboard: events, investigations, corrective actions, hazards and indicators', permission: 'safety.view' });
+
+  // Wave 26 (E46): where every indicator stands, for the indicator list: the latest complete month
+  // against its target, the month before it (the trend) and the last twelve complete months (a
+  // sparkline). The current month is month to date, so it is given apart and never judged.
+  app.get('/api/safety/indicator-status', { preHandler: ctx.requirePerm('safety.view') }, async (req) => {
+    const periods = monthsBack(13);
+    const indicators = await db.query<Row>(`select * from safety_indicators where deleted_at is null order by sort, name`);
+    const rows = [];
+    for (const ind of indicators) {
+      const pts = await trend(ind, req.user, periods);
+      const complete = pts.filter((p) => !p.partial);
+      const withValue = complete.filter((p) => p.value !== null);
+      const latest = withValue.at(-1) ?? null;
+      const previous = withValue.at(-2) ?? null;
+      let direction: 'better' | 'worse' | 'same' | null = null;
+      if (latest && previous && latest.value !== null && previous.value !== null) {
+        const up = latest.value > previous.value;
+        const lowerBetter = (latest.direction ?? ind.target_direction) !== 'at_least';
+        direction = latest.value === previous.value ? 'same' : up !== lowerBetter ? 'better' : 'worse';
+      }
+      const now = pts.find((p) => p.partial) ?? null;
+      rows.push({
+        id: ind.id, latest, previous: previous ? { period: previous.period, value: previous.value } : null, direction,
+        month_to_date: now ? { period: now.period, value: now.value } : null,
+        spark: complete.slice(-12).map((p) => p.value),
+      });
+    }
+    return { today: dayInZone(), rows, off_target: rows.filter((r) => r.latest?.met === false).length, on_target: rows.filter((r) => r.latest?.met === true).length };
+  });
+  ctx.describeRoute({
+    method: 'GET', path: '/api/safety/indicator-status', summary: 'Where every indicator stands: its latest complete month against the target, the trend and the last twelve months', permission: 'safety.view',
+    response: '{ today, off_target, on_target, rows: [{ id, latest: { period, value, target, direction, met } | null, previous, direction: "better" | "worse" | "same" | null, month_to_date, spark: (number | null)[] }] }',
+  });
 }
 
 const EXPOSURE_COLUMNS = ['vehicle_miles', 'vehicle_hours', 'boardings', 'revenue_miles', 'major_failures'];

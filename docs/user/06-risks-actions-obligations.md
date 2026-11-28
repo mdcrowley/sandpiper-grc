@@ -19,7 +19,7 @@ Some risks are **restricted**: by default every **Cybersecurity** risk is. A res
 - it still counts in every figure (the summary strip, the heat map, the risk appetite and the risk report), which are the same for everyone; where a figure lists risks (the ranked list beside the heat map, the top risks and movements in the report, the roll-up), it appears as **Restricted risk** with its ratings but without its reference, title or owner, and is not a link;
 - a key risk indicator on it, and an action raised from it, are restricted too.
 
-A new risk takes its restriction from its category (an administrator sets which categories are restricted in the risk category list). Someone with access to restricted records can lift or set it on any risk with **Edit details** (**Restricted**). Without that access you cannot add a risk in a restricted category or change the flag, so you never create a risk you could not then see.
+A new risk takes its restriction from its category. Which categories are restricted is set at the foot of the **Appetite** tab, under **Restricted categories** (shown to people who administer risks and have access to restricted records): switch a category on or off, and tick **Also change the existing risks of a category** to apply it to the risks already in it as well (each risk's change is in its history). The table counts every risk and restricted risk per category. Someone with access to restricted records can lift or set it on any risk with **Edit details** (**Restricted**). Without that access you cannot add a risk in a restricted category or change the flag, so you never create a risk you could not then see.
 
 Asking for a risk to be accepted needs **Edit** on **Risks**; deciding a request, recording an acceptance by hand or revoking one needs **Approve** on **Risks**. Editing the risk scales and recording a new version of the risk appetite needs **Administer** on **Risks**. Roles are managed by an administrator; see [Administration](09-administration.md).
 
@@ -136,7 +136,7 @@ The list shows **Reference**, **Title**, **Category**, **Inherent**, **Residual*
 2. Enter a **Title** that names the event plainly, for example "CAD/AVL outage during peak service".
 3. Choose the **Category**. This decides the scale. If the risk belongs under a wider enterprise risk, choose it as the **Parent risk** (see "Parent risks and the roll-up" below).
 4. Fill in what you know of **Description**, **Cause**, **Consequence** and **Existing controls**. For a cybersecurity risk, add **Affected systems and data** afterward with **Edit details** on its page.
-5. Choose a **Treatment** and, if known, the **Owner**, **Due** date and **Next review** date.
+5. Choose a **Treatment** and, if known, the **Owner**, **Due** date and **Next review** date. **Proximity** (when the risk could happen: within 3 months, 3 to 12 months, 1 to 3 years or later), **Velocity** (how fast its impact would be felt: hours or days, weeks, months, a year or more) and the **Strategic objective** it threatens are on the risk page under **Edit details**; the register can show them as columns and filter by proximity and velocity. The proximity and velocity lists can be changed under **Administration > Lists**.
 6. Save. The risk is given a reference beginning `RSK-` and a status of **Open**, and its page opens. A risk in a restricted category (cybersecurity by default) is restricted; you need access to restricted records to add one.
 
 The new risk is not scored yet. Score it next.
@@ -340,7 +340,8 @@ To change a category's appetite (needs **Administer** on **Risks**):
    | **Appetite statement** | In plain words, how much of this kind of risk is acceptable. |
    | **Highest acceptable rating** | A rating of the category's scale, or **No limit**. A risk whose residual rating (or inherent rating, while it has no residual score) is above it is **above appetite**. |
    | **Highest acceptable score** | Optional: a risk whose score is above it is above appetite too. |
-   | **Approved on**, **Approved by**, **Approving body** | Required: the date the change was approved (not in the future), the person who signed it off and the body that approved it, for example the board of directors or a risk committee. |
+   | **Approved by a committee decision** | Optional, while committees and meetings are on: the carried decision of a committee meeting that approved the change. The committee is then the approver and the approving body, the meeting's date the approval date and its resolution (or decision) the reference, and the version links to the decision. |
+   | **Approved on**, **Approved by**, **Approving body** | Required without a committee decision: the date the change was approved (not in the future), the person who signed it off and the body that approved it, for example the board of directors or a risk committee. |
    | **Reference** | Optional: the resolution or minute. |
    | **Why it is changing** | Required: kept with the version beside your name. |
 

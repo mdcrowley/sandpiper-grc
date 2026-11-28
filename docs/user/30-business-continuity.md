@@ -4,7 +4,7 @@ The business continuity pages hold what your organization's work depends on and 
 
 If your organization does not use these pages, an administrator can switch **Business continuity and emergency management** off under **Administration > Features** (see [Administration](09-administration.md#features)). The pages, their reminders, the "Business processes" section on system and site pages, the "Business continuity" source in the action tracker, the continuity notifications, the calendar entries and the continuity figures then disappear. Records are kept and return when it is switched back on.
 
-You need the **continuity** permissions: `continuity.view` to read processes, analyses, plans and activations, `continuity.create` and `continuity.edit` to record and change them (and to run an activation), `continuity.approve` to sign off impact analyses directly and approve plans, `continuity.export` to print call trees and export lists, `continuity.delete`, and `continuity.administer` to send the reminders by hand. The default **Continuity manager** role holds all of them; **Security lead**, **Safety manager**, **Compliance officer**, **Auditor** and **Executive viewer** can read the pages. An administrator can grant the permissions to any other role under **Administration > Roles**.
+You need the **continuity** permissions: `continuity.view` to read processes, analyses, plans and activations, `continuity.create` and `continuity.edit` to record and change them (and to run an activation), `continuity.approve` to sign off impact analyses directly and approve plans, `continuity.export` to print call trees and export lists, `continuity.delete`, and `continuity.administer` to send the reminders by hand. The default **Continuity manager** role holds all of them, and also plans, runs and records exercises (`exercises.*`); the **Safety manager** can record and change continuity records and run an activation (`continuity.create`, `continuity.edit`); **Security lead**, **Compliance officer**, **Auditor** and **Executive viewer** can read the pages. An administrator can grant the permissions to any other role under **Administration > Roles**.
 
 Security incidents keep their own, restricted workspace (see [Security incidents](07-security-incidents.md)). An emergency activation is for everything else and shares nothing with it.
 
@@ -62,6 +62,21 @@ To close a gap, shorten the system's recovery time (and record it on the system)
 ## Plans
 
 Open **Continuity plans**, or **Create** then **Continuity plan**. A plan has a **Title**, a **Type of plan** (**Business continuity plan**, **Emergency operations plan**, **IT disaster recovery plan**, **Severe weather annex**, **Pandemic annex** or **Other**), an **Owner**, its **Scope**, **When to activate it** and its **Recovery strategies**. **Full text (policy document)** links a policy that holds the full text, when you keep it as a policy document (see [Policies](11-policies-and-exceptions.md)). **Review every (months)** (12 unless changed) and **Next review** set the review cycle.
+
+### Starting from a template
+
+**New continuity plan** asks what to **Start from**: one of the built-in templates, or **A blank plan**. Give the plan a **Title** and, if you like, an **Owner**, then select **Create the plan**. The templates are generic starting points that name no law, regulator or place:
+
+- **Business continuity plan**: purpose, roles and responsibilities, communications and the call tree, recovery priorities with recovery time and recovery point objectives, alternate sites and resources, return to normal, and plan maintenance and exercising.
+- **Disaster recovery plan** (type **IT disaster recovery plan**): the systems in scope with their tier and objectives, the recovery tiers, roles, backup and restore procedures, failover steps, testing, return to normal and plan maintenance.
+- **Emergency operations plan**: levels of activation, roles, communications with outside contacts, the emergency operations room, resources such as vehicles and generators, return to normal and plan maintenance.
+- **Loss of a facility**: each facility and its alternate site, roles, moving to the alternate site, communications, return to normal and plan maintenance.
+
+The template fills the **Type of plan**, **Scope**, **When to activate it**, **Recovery strategies** and the **Plan sections** tab, and adds a starter checklist by phase. Prompts in square brackets are for you to replace with your own words; every part can be changed afterward. The plan keeps the name of the template it was started from (**Started from template**), which cannot be changed. Through the API or an AI assistant, create the plan with `template_key` (`business_continuity`, `disaster_recovery`, `emergency_operations` or `loss_of_facility`); sections you give yourself are kept.
+
+### Plan sections
+
+The **Plan sections** tab holds the rest of the plan's text. **Edit** opens it as plain text: a line starting with `##` is a heading, `-` a list item, `1.` a numbered step and `|` a table row. It is searched with the rest of the plan.
 
 ### Processes
 
@@ -150,4 +165,4 @@ Anonymizing a plan at the end of its retention period also clears the typed name
 
 ## Sample data
 
-The sample data (development profile only) has ten invented business processes of a bus and light-rail operator, with dependencies on the sample systems, services, sites, vendors and positions; impact analyses for six; two recovery gaps by construction (fare collection and payroll); three plans (an approved business continuity plan, an emergency operations plan with a severe weather annex waiting for approval, and an IT disaster recovery plan overdue for review) with call trees from the sample roster and checklists; and one closed severe-weather activation with its log, roles, checklist and an after-action corrective action plan. Everything is marked "[Sample]". Vendors and exercises are loaded after this part, so they are linked when the sample data is loaded a second time. Like the sample committees, this part is added only once the first administrator exists: sample data loaded before setup leaves it out, and loading it again after setup adds it.
+The sample data (development profile only) has ten invented business processes of a bus and light-rail operator, with dependencies on the sample systems, services, sites, vendors and positions; impact analyses for six; two recovery gaps by construction (fare collection and payroll); three plans (an approved business continuity plan, an emergency operations plan with a severe weather annex waiting for approval, and an IT disaster recovery plan overdue for review) with call trees from the sample roster and checklists; and one closed severe-weather activation with its log, roles, checklist and an after-action corrective action plan. Everything is marked "[Sample]". Vendors and exercises are loaded after this part, so they are linked when the sample data is loaded a second time. It loads on a new installation before anyone has set it up: its two sample people have no password and cannot sign in, so the setup wizard still opens for the first administrator.

@@ -347,7 +347,7 @@ It ends with spaces to sign. Select **Print or save as PDF** and use your browse
 
 ## Notification rules, checklists and contacts
 
-Open **Security > Security incidents** and the **Rules and checklists** tab. The page has five tabs: **Notification rules**, **Kinds of data**, **Scenario checklists**, **Roles and contacts** and **Incident statuses**. Everyone who can see security incidents can read it. Only people with **Administer** can change it.
+Open **Security > Security incidents** and the **Rules and checklists** tab. The page has five tabs: **Notification rules**, **Kinds of data**, **Scenario checklists**, **Roles and contacts** and **Incident statuses**. Everyone who can see security incidents can read it. Only people with **Administer** can change it; they also find it as the **Security incident rules** card on the **Administration** page (`/security-incidents/settings`). The card is shown only to them, so security viewers are not offered Administration.
 
 ### Why the built-in rules start inactive
 

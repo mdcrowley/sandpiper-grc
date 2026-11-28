@@ -45,6 +45,7 @@ invented.
 - [Routes added in waves 21 and 22](#routes-added-in-waves-21-and-22)
 - [Changes in wave 23 (security review)](#changes-in-wave-23-security-review)
 - [Routes added in wave 25](#routes-added-in-wave-25)
+- [Routes added in wave 26](#routes-added-in-wave-26)
 - [Data load mode](#data-load-mode)
 - [Examples of common integrations](#examples-of-common-integrations)
 
@@ -840,6 +841,95 @@ Record type `evidence_record` (reference `EVD-`) at `/api/evidence-library` (per
   acknowledgment of a version.
 - `GET /api/mcp/people?q=` (AI assistant tokens only): an account by exact username, email or
   display name.
+
+## Routes added in wave 26
+
+Every route below is also in the OpenAPI document (Help > API reference). A route of a switched-off
+area answers 404 `switched_off`; **Civil rights** starts off.
+
+### Procurement and budgets
+
+Record types `procurement` (`PRC-`, `/api/procurements`), `procurement_offer` (`OFR-`,
+`/api/procurement-offers`; before the award only `procurement.edit` holders and the evaluation committee
+read offers), `purchase_order` (`PO-`, `/api/purchase-orders`; the status is set by the routes below),
+`purchase_order_line` (`/api/purchase-order-lines`), `budget` (`BUD-`, `/api/budgets`) and `budget_line`
+(`BL-`, `/api/budget-lines`); permission module `procurement`.
+
+- `GET /api/procurements/:id/evaluation`, `PUT .../criteria`, `POST`/`PATCH`/`DELETE .../evaluators[/:eid]`,
+  `GET .../offers-summary`, `POST .../award`, `POST .../contract` (make or link the resulting contract),
+  `GET`/`POST .../addenda`, `DELETE .../addenda/:aid`, `GET`/`POST .../protests`, `PATCH .../protests/:pid`,
+  `GET`/`PUT .../clauses`.
+- Committee members, with no procurement role: `GET /api/procurement/my-evaluations[/:id]`,
+  `POST .../:id/declaration`, `PUT .../:id/scores`.
+- `POST /api/purchase-orders/:id/submit | decision | issue | receipts | close | cancel`,
+  `GET .../lines | receipts | approval | budget-check`; `GET /api/budgets/:id/figures`,
+  `GET /api/budget-lines/:id/figures`; `GET /api/procurement/summary`; `GET`/`PUT /api/procurement/settings`.
+
+### Insurance
+
+Record types at `/api/insurance/policies`, `/conditions`, `/requirements`, `/certificates` and `/claims`
+(claims are restricted per claim); permission module `insurance`.
+
+- `GET .../policies/:id/conditions`, `GET`/`POST .../policies/:id/covered`, `DELETE .../covered/:item`,
+  `POST .../policies/:id/renew`, `GET /api/insurance/covering?type=&id=` (the policies covering a record),
+  `GET /api/insurance/contracts/:id/check`, `GET /api/insurance/renewals`, `GET /api/insurance/summary`,
+  `GET`/`PUT /api/insurance/settings`.
+
+### Civil rights
+
+Record types at `/api/civil-rights/templates`, `/programs`, `/reports`, `/complaints`, `/goals` and
+`/awards` (a confidential complaint is readable only by its named handlers, investigator and creator);
+permission module `civilrights`; area off by default.
+
+- `GET /api/civil-rights/complaints/:id/clock`, `GET`/`PUT /api/civil-rights/complaint-handlers` (recent
+  password), `GET .../reports/:id/submissions`, `POST .../reports/:id/submit`, `GET /api/civil-rights/attainment`,
+  `GET .../goals/:id/attainment`, `GET .../goals/:id/export` (CSV), `GET /api/civil-rights/summary`,
+  `GET`/`PUT /api/civil-rights/settings`, `POST /api/civil-rights/reminders/run`.
+
+### Strategy and performance
+
+Record types at `/api/strategy/plans`, `/goals`, `/objectives`, `/measures`, `/measure-values`,
+`/initiatives`, `/updates`, `/stat-series`, `/stat-values` and `/submissions`; permission module `strategy`.
+
+- `GET /api/strategy/plans/:id/scorecard`, `GET .../scorecard.pdf` (PDF/UA, audited), `GET .../matrix`,
+  `GET /api/strategy/measure-sources`, `POST /api/strategy/measures/:id/pull`,
+  `GET /api/strategy/stat-series/:id/values`, `GET /api/strategy/summary`, `GET`/`PUT /api/strategy/settings`.
+
+### Operations
+
+- Defects: record type `defect` (`DEF-`) at `/api/defects`; `POST /api/inspections/:id/defects`,
+  `GET /api/inspection-history/:type/:id`.
+- Missed inspections: `POST /api/inspections/:id/missed-reason | reschedule | follow-up`,
+  `GET /api/inspections/attention` (figures).
+- Vehicle retirement: `GET`/`POST /api/vehicles/:id/retirement-requests`,
+  `POST .../:rid/decision`, `POST .../:rid/withdraw`. A person can no longer set a vehicle's status to
+  Retired with `PATCH /api/vehicles/:id` without an approved request (409 `retirement_not_approved`).
+- `GET`/`PUT /api/safety/plans`, `GET /api/safety/indicator-status`.
+
+### Documents, committees, audits, risks and funding
+
+- `GET`/`POST /api/policies/:id/copies`, `PATCH .../copies/:cid`, `POST .../copies/:cid/recall` (paper copies).
+- `GET`/`POST /api/meetings/:id/declarations`, `DELETE .../declarations/:declarationId`,
+  `POST /api/governance/my-meetings/:id/declarations` (a member declares an interest);
+  `GET`/`POST /api/committees/:id/work-plan`, `PATCH`/`DELETE .../work-plan/:itemId`,
+  `GET /api/meetings/:id/work-plan`, `POST /api/meetings/:id/agenda/from-work-plan`. Votes take `recused`.
+- `GET`/`POST /api/audits/:id/time`, `DELETE .../time/:entryId`; `POST /api/audits/plans/:id/approve`
+  takes `decision_id` (a carried committee decision).
+- `GET /api/risks/categories`, `PUT /api/risks/categories/:category/restriction` (`risks.administer` and
+  `security.view`); a new appetite version (`POST /api/risks/appetite/versions`) takes `decision_id`.
+- `GET /api/compliance-reviews/:id/readiness`, `GET /api/compliance-reviews/:id/package` (a ZIP).
+- `GET /api/changes/success-rate` counts "caused" links from a change to a ticket, security incident or
+  safety event; change answers carry `caused_incident`.
+
+### Home pages, My work and data loads
+
+- `GET /api/work/home` (where the caller lands), `GET /api/work/waiting` (`{ count }` for the menu),
+  `GET`/`PUT /api/work/role-homes` (`admin.administer`).
+- `GET /api/work/report/options`, `POST /api/work/report/safety`, `POST /api/work/report/help`,
+  `GET /api/work/report/mine`: Report a problem, for everyone signed in, each kind only while its area is on.
+- `GET /api/admin/data-load/records` (rows a module lists one by one), `POST /api/admin/data-load/undo-one`.
+  In a load, `POST /api/attachments/link` keeps `created_at` and the link is undone with the load;
+  `PATCH /api/security-incidents/:id/checklist/:itemId` takes `done_at`.
 
 ## Data load mode
 

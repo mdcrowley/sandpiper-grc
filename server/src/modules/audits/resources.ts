@@ -178,6 +178,8 @@ export function registerResources(ctx: ModuleContext) {
       report_approved_on: { label: 'Report approved', type: 'date', readOnly: true },
       report_approved_by_name: { label: 'Report approved by', type: 'text', readOnly: true },
       closed_on: { label: 'Closed', type: 'date', readOnly: true },
+      // E45-63: hours budgeted for the audit; the hours worked are recorded against it (time.ts).
+      budget_hours: { label: 'Budget (hours)', type: 'number', help: 'The hours planned for the whole audit; the team records the hours worked on its Time tab.' },
       restricted: { label: 'Restricted', type: 'boolean', default: false },
     },
     hooks: {
@@ -305,6 +307,12 @@ export function registerResources(ctx: ModuleContext) {
       // The signature of completion (E38-11): the signer's name and when; the drawing is a file on the inspection.
       signed_by_name: { label: 'Signed by', type: 'text', readOnly: true, personal: true },
       signed_at: { label: 'Signed', type: 'datetime', readOnly: true },
+      // A missed inspection's follow-up (wave 26, missed.ts): why, who said so and when, and the inspection that replaced it.
+      missed_reason: { label: 'Why it was missed', type: 'longtext', readOnly: true, personal: false },
+      missed_reason_by: { label: 'Reason recorded by', type: 'user', readOnly: true },
+      missed_reason_on: { label: 'Reason recorded', type: 'date', readOnly: true },
+      rescheduled_to_id: { label: 'Rescheduled as', type: 'ref', to: 'inspection', readOnly: true },
+      rescheduled_from_id: { label: 'Rescheduled from', type: 'ref', to: 'inspection', readOnly: true },
     },
     hooks: {
       beforeCreate: (req, data) => inspectionRules(req, null, data),

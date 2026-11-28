@@ -81,6 +81,10 @@ The user guide is in [`user/`](user/) and is also shown inside the application u
 41. [Registers](user/41-registers.md)
 42. [Records retention schedule](user/42-records-retention-schedule.md)
 43. [Evidence library](user/43-evidence-library.md)
+44. [Procurement and budgets](user/44-procurement-and-budgets.md)
+45. [Insurance](user/45-insurance.md)
+46. [Civil rights programs](user/46-civil-rights-programs.md)
+47. [Strategy and statistics](user/47-strategy-and-statistics.md)
 
 ## For people who integrate with it
 

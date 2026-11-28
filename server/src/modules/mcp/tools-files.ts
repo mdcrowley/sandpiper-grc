@@ -97,16 +97,25 @@ const attachLink: ToolSpec = {
     title: z.string().max(200).optional().describe('What to show for the link (default: the address\'s host and last part).'),
     ...evidenceInput,
   },
-  dataLoadInput: AS_INPUT,
-  dataLoadNote: 'Data load mode is on: give "as" for the person who added the link in the source.',
+  dataLoadInput: {
+    ...AS_INPUT,
+    created_at: z.string().optional().describe('The date (or date and time) the link was first added in the source system, e.g. "2021-03-04". Default: now.'),
+  },
+  dataLoadNote: 'Data load mode is on: give "as" for the person who added the link in the source, and created_at for when. A link attached in a load is undone with the files of that load.',
   async run(args, t) {
     const type = await t.typeOf(args.type);
     const row = await t.record(type, args.id);
     const meta = (await t.meta()).resources[type.type] as Json;
     const who = await named(t, args.as);
     const d = descriptive(args, meta?.evidence === true);
+    let createdAt: string | undefined;
+    if (args.created_at) {
+      createdAt = /T\d/.test(String(args.created_at)) ? String(args.created_at) : normalizeDate(args.created_at) ?? undefined;
+      if (!createdAt) fail('Some values are not right. Nothing was attached.', 'validation', { created_at: `"${args.created_at}" is not a date I can read; give YYYY-MM-DD.` });
+    }
     const att = await t.api.post<Json>('/api/attachments/link', {
       record_type: type.type, record_id: row.id, url: args.url, title: args.title, ...d, evidence: d.kind === 'evidence', ...(who ? { on_behalf_of: who.send } : {}),
+      ...(createdAt ? { created_at: createdAt } : {}),
     });
     const name = recordName(type, row);
     const what = att.kind === 'evidence' ? 'Evidence link' : 'Link';
@@ -144,4 +153,45 @@ const listAttachments: ToolSpec = {
   },
 };
 
-export const FILE_TOOLS: ToolSpec[] = [attachFile, attachLink, listAttachments];
+/**
+ * Uses an evidence library record for another record (E45-65): POST /api/evidence-links with the
+ * caller's token, so the library's own rules apply (sight of the evidence, edit permission on the
+ * record or the part's own rule). Linking again changes the relation and note.
+ */
+const linkEvidence: ToolSpec = {
+  name: 'link_evidence', title: 'Use library evidence for a record', group: 'Changes', write: true, idempotent: true,
+  description: 'Links an evidence record of the evidence library (by its reference, such as EVD-00012, or id) to any record you may edit, '
+    + 'for example a control, a funder review or an audit, so the same evidence is used in several places without uploading it again. '
+    + 'Optionally name a part of the record (such as "area:FM" of a funder review or "step:<item id>" of an audit). Linking the same pair again only changes the relation and note.',
+  available: (a) => a.sees('evidence_record'),
+  input: {
+    evidence: z.string().min(1).describe('The evidence record: its reference (EVD-...) or id.'),
+    type: typeArg, id: idArg,
+    part: z.string().max(200).optional().describe('Optional part of the record, such as "area:FM".'),
+    relation: z.enum(['supports', 'demonstrates', 'responds', 'reference']).optional()
+      .describe('How it relates: supports (default), demonstrates (shows it is met), responds (answers the request) or reference.'),
+    note: z.string().max(2000).optional().describe('A short note on why this evidence applies.'),
+  },
+  dataLoadInput: AS_INPUT,
+  dataLoadNote: 'Data load mode is on: give "as" for the person who linked the evidence in the source.',
+  async run(args, t) {
+    const evType = await t.typeOf('evidence_record');
+    const ev = await t.record(evType, args.evidence);
+    const type = await t.typeOf(args.type);
+    const row = await t.record(type, args.id);
+    const who = await named(t, args.as);
+    const link = await t.api.post<Json>('/api/evidence-links', {
+      evidence_id: ev.id, record_type: type.type, record_id: row.id, part: args.part, relation: args.relation, note: args.note,
+      ...(who ? { on_behalf_of: who.send } : {}),
+    });
+    const evName = `${ev.ref ?? ''} ${ev.title ?? ''}`.trim();
+    const name = recordName(type, row);
+    return {
+      text: `Evidence ${evName} used for ${name}${args.part ? ` (${args.part})` : ''} as "${link.relation}"${who ? ` on behalf of ${who.name}` : ''}.`,
+      data: { link_id: link.id, evidence: { id: ev.id, ref: ev.ref ?? null }, type: type.type, id: row.id, part: link.part ?? '', relation: link.relation, url: t.link(type.route, row.id) },
+      audit: { recordType: type.type, recordId: row.id, summary: `Evidence ${evName} linked to ${name}`, onBehalf: who?.name },
+    };
+  },
+};
+
+export const FILE_TOOLS: ToolSpec[] = [attachFile, attachLink, listAttachments, linkEvidence];

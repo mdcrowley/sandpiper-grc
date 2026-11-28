@@ -183,6 +183,9 @@ In a plain shell: `$env:Path = "$PWD\.tools\node;$env:Path"` then `npm run <scri
 | `GRC_JOBS_POLL_MS` | `10000` | How often the job queue looks for due work (at least 1000) |
 | `GRC_LOG_LEVEL`, `GRC_LOG_DIR`, `GRC_LOG_CONSOLE` | `info`, `<data>/logs`, `text` | Server log: level, folder of the rotating `grc.log` (`off` = none), and what reaches the console (`text`, `json`, `off`); also `GRC_LOG_MAX_MB`, `GRC_LOG_FILES`, `GRC_LOG_REQUESTS` ([Operations](operations.md#logs)) |
 | `GRC_PDF_FONTS` | system fonts | Font files for PDF text beyond Western European, separated by `;` (Windows) or `:`; `file.ttc#PostScriptName` picks one font of a collection; `none` switches it off. Unset: Noto, DejaVu, Arial Unicode, Segoe UI, Arial, Microsoft YaHei, Yu Gothic, Malgun or Nirmala, whichever the machine has ([Operations](operations.md#fonts-for-pdf-exports)) |
+| `GRC_OCR` | on | `off` stops reading scanned PDFs (no text layer) by OCR (E43-15) |
+| `GRC_OCR_LANGS` | `eng` | OCR languages, joined by `+` (`eng+spa`); each needs its `<lang>.traineddata.gz` |
+| `GRC_OCR_LANG_DIR` | the bundled `attachments/tessdata` | A folder of `<lang>.traineddata.gz` files used instead of the bundled English data |
 
 Security environment (all optional; see [Security](security.md)): `GRC_SECRET_KEY` (32
 bytes as 64 hex characters or base64; encrypts authenticator keys and other stored
@@ -270,6 +273,13 @@ Read them in code with `ctx.settings.get(key, fallback)`, using the same fallbac
 | `evidence.reminder_days` | `[30, 7, 0]` | Days before an evidence record's "valid until" date that its owner is reminded, once per step (Administration > Reminders) |
 | `audits.plan_settings` | weights 35/25/20/10/10, capacity 6, threshold 60, 36 months | The risk-ranked audit plan: `{ weights: { residual, time, result, change, significance }, capacity, threshold, default_cycle_months }`; changed on Audits > Audit plan by `audits.administer` |
 | `audits.verification_days` | `30` | Days the auditor has to verify a finding once it is ready for verification (Administration > Reminders) |
+| `home.role_homes` | `{ _none: 'mywork', requester: 'portal' }` | Where the people of each role land at "/" (E44-09): role key (or `_none` for people with no role) to `overview`, `mywork`, `portal` or `dashboard:<id>`; with several roles My work, then a dashboard, then the Overview, then the portal; set on each role's page (`GET/PUT /api/work/role-homes`) |
+| `safety.plan_ids` | `[]` | The documents chosen as the safety plan (`PUT /api/safety/plans`); with none, active plans titled "safety" |
+| `procurement.criteria_template` | starter criteria | The standard weighted evaluation criteria copied into a new solicitation (Procurement > Settings) |
+| `insurance.renewal_reminder_days`, `.application_reminder_days`, `.certificate_reminder_days` | `[90, 60, 30]`, `[14, 3, 0]`, `[30, 0]` | Days before a policy expires, before its renewal application is due, and before a certificate of insurance expires that its owner is reminded (Administration > Reminders and Insurance > Settings) |
+| `civilrights.ack_days`, `.investigation_days`, `.appeal_days` | `10`, `90`, `30` | The organization's own complaint time limits in calendar days (Civil rights > Settings); no jurisdiction's deadline is built in |
+| `civilrights.reminder_days` | `7` | Days before a complaint or report time limit that the investigator or owner is reminded (Administration > Reminders) |
+| `strategy.submission_reminder_days`, `strategy.due_soon_days` | `[30, 7, 0]`, `30` | Reminder steps before a statistical submission is due, and what counts as due soon (Strategy > Settings; the steps also under Administration > Reminders) |
 
 Changing an `auth.*`, `tokens.*` or `integrations.*` setting needs a recent password
 confirmation.
@@ -466,7 +476,8 @@ export default mod;
   `opts.organization` is the organization profile (`{}` when there is none).
 - `ctx.fail(status, code, message, fields?)` - throws an API error.
 - `ctx.describeRoute({ method, path, summary, permission?, public?, query?, body?, response? })`
-  (also `description` and `tag`) describes a hand-written route for
+  (also `description`, `tag` and `area`: a route that works only while one area is on is left out of the
+  document while it is off) describes a hand-written route for
   `GET /api/openapi.json`. Call it beside the route, or describe the route in
   `server/src/core/api/docs/<module>.ts`. **Every route must be described**:
   `server/src/core/api/coverage.test.ts` fails for a route that is not. A route with a
@@ -518,12 +529,15 @@ Services other modules may offer are Fastify decorators; check before use:
   logo (inline, `MAIL_LOGO_CID`), name and footer by themselves; HTML documents use
   `printBranding().logoDataUri`. Every PDF is tagged for PDF/UA (E41-13): use `PdfBuilder`, or for
   pages drawn by hand `taggedDocument`, `setBaseFont`, `structOf` and `asArtifact` from
-  `core/export/pdf.ts`. Never use the standard fonts (not embedded). Check new PDFs in tests with
+  `core/export/pdf.ts`. `PdfOptions.mark` puts a faint diagonal word (DRAFT, SUPERSEDED, OBSOLETE) on every page as an artifact (E43-16); it replaces the diagonal RESTRICTED of `watermark`, whose top line stays. Never use the standard fonts (not embedded). Check new PDFs in tests with
   `checkPdfUa(buffer)` from `core/export/pdfua.ts` (pdf.js); `pdfText` reads
   embedded-font text. `pdfjs-dist` is a runtime dependency since wave 22 (it also reads the text of
   attached files, E41-16), not only the PDF/UA test check. Text extraction from attached files runs in
   a child process (`attachments/text-reader.mjs`); never call pdf.js on untrusted files inside the
-  server process. Converting a Word file or stamping a PDF (document control, E43) runs the same way in
+  server process. A PDF with no text layer is read again by OCR in the same reader process
+  (`attachments/ocr.ts`, **tesseract.js** (Apache-2.0, WebAssembly) with the bundled English data in
+  `attachments/tessdata`, longer limits: 5 minutes, 1 GB, 50 pages); nothing is downloaded at run time
+  (E43-15). Converting a Word file or stamping a PDF (document control, E43) runs the same way in
   `policies/convert/sandbox.ts` (a forked process with time, memory and size limits): never parse a
   Word file or PDF in the server process. Appending uploaded PDFs to a generated PDF (the board book,
   wave 25) runs in `governance/book-sandbox.ts` (a forked process with time and memory limits,
@@ -539,6 +553,10 @@ Services other modules may offer are Fastify decorators; check before use:
   messages to people's email-to-text address or mobile number (through the administrator's
   text-message webhook), each a row of the delivery log. Never put restricted detail in `text`.
   Guard with `ctx.app.hasDecorator('sendText')`.
+
+- `app.committeeDecision(req, id)` (governance, `decision-ref.ts`, wave 26): a carried committee decision the
+  caller may see, with the meeting's date and the committee's name, for approvals recorded as a committee
+  decision (the audit plan, a risk appetite version); guard with `ctx.app.hasDecorator('committeeDecision')`.
 
 Core starts the job queue and email in `app.ts` before any module registers, so both exist
 whichever modules are loaded (`ensureJobs` and `ensureMail` are safe to call again).
@@ -658,7 +676,13 @@ field error on `on_behalf_of`, never replaced by the loader. `engine.start` make
 the requester of an approval asked for in a load. Files follow too: `claimUpload` and the plain
 upload record `actorOf(req)` as the uploader, and an attachment created in a load keeps a given
 `created_at` and is listed in `data_load_records` as record type `attachment`, so undoing the
-load soft-deletes it (E45-51, E45-52). MCP `create_record`/`update_record` resolve references,
+load soft-deletes it (E45-51, E45-52). A module may list its own loaded rows one by one on the Data loads page through the `loadedParts` decorator
+(a map of type to `{ label, list(ids), undo(req, id) }`; see `policies/loaded-parts.ts`): document versions
+(`policy_version`) and paper copies (`document_copy`) are listed this way and undone one at a time
+(`POST /api/admin/data-load/undo-one`, E43-18). Links attached in a load (`POST /api/attachments/link`) are
+listed as files and keep `created_at` (E46-51). Tick times taken from the body in a load: ticket task
+`done_at`, incident checklist `done_at`, control step `done_at` and change `pir_completed_at` (E45-55).
+MCP `create_record`/`update_record` resolve references,
 people, list labels and dates (`modules/mcp/resolve.ts`); new write tools that take person or record
 names reuse `resolveValues`.
 
@@ -698,7 +722,9 @@ hook and a module migration that adds `department_id`, converts the text and add
 Record types defined while the application runs (registers, E41-06) use `ResourceDef.partition`
 (several types sharing one table, each seeing only its own rows, search included) and are held in
 `app.runtimeResources`; `resolveRecordRoutes` serves their generated routes under one path
-(`/api/registers/:register`), and `defineRuntimeArea` gives each its own feature switch.
+(`/api/registers/:register`), and `defineRuntimeArea` gives each its own feature switch. `registers/templates.ts` (`TEMPLATES`,
+`createFromTemplate`, `/api/admin/registers/templates`) makes a register from a ready-made template (labor
+agreements, real property) with its fields, only on request.
 
 Generated routes:
 
@@ -808,7 +834,8 @@ Module keys (fixed, `MODULE_KEYS` in `server/src/modules/admin/shared.ts`): `tic
 `frameworks`, `risks`, `security`, `vulnerabilities`, `policies`, `training`,
 `exceptions`, `obligations`, `exercises`, `actions`, `projects`, `dashboards`, `reports`,
 `audit`, `admin`, `portal`, `fleet`, `safety`, `audits`, `controls`, `funding`, `governance`,
-`people`, `continuity`, `legal`, `records`, `privacy`, `tags`, `evidence`. A new key is added there and here. The last four
+`people`, `continuity`, `legal`, `records`, `privacy`, `tags`, `evidence`, `procurement`, `insurance`, `civilrights`,
+`strategy`. A new key is added there and here. The last four
 belong to the wave 11 parts (business continuity, legal holds, records requests, privacy
 assessments). Asset condition shares `assets`, `sites` and `fleet`, and OT security and user access reviews share `systems`.
 A module may also offer actions of its own (`MODULE_ACTIONS` in the same file): asset tags have
@@ -821,7 +848,16 @@ Project manager, Safety manager, Compliance officer, Audit lead, Training coordi
 manager, Records and privacy officer and Asset manager are enabled; Approver, Executive viewer, Auditor, Requester
 and Risk manager (wave 25: `risks.*`, `actions.*` and reading obligations, controls, governance,
 audits, documents, reports and dashboards, without `security.view`) are present but switched off until an
-administrator enables them. The Executive viewer reads the risk register (`risks.view`). A new default role is created on an existing database at the next
+administrator enables them. Wave 26 adds four more that start off and belong to their area (`owns`): Procurement
+officer, Risk and insurance coordinator, Civil rights officer, and Strategy and performance analyst. It also
+gives the working roles what their job needs (E46-47): Project manager `funding.view` and `procurement.view`;
+Safety manager `training.create`/`.edit`, `continuity.create`/`.edit` (emergency activations) and
+`exercises.view`; Compliance officer `safety.view` and `procurement.view`; Audit lead `sites.view`,
+`fleet.view` and `assets.view`; Training coordinator `exercises.view`; Continuity manager `exercises.*`;
+Asset manager `audits.view`/`.create`/`.edit`, `safety.view` and `procurement.view`; Approver
+`procurement.view` and `procurement.approve`; Auditor `procurement.view` and `.export`. The Executive viewer
+(still off) becomes a leadership view (E46-48): `safety`, `fleet`, `assets`, `sites`, `funding`, `audits`,
+`actions`, `strategy` and `procurement` `.view`, with a `describe` that names only areas that are on. The Executive viewer reads the risk register (`risks.view`). A new default role is created on an existing database at the next
 start; new grants on an existing role reach it only when an administrator applies them with
 "Sync default grants" on the Roles page (`defaultGrantDifferences`, `syncDefaultGrants`).
 
@@ -884,8 +920,9 @@ custom fields, retention, webhooks, OpenAPI and MCP tools drop them; its module'
 (tagged with the module that registered them) and its types' generated routes answer 404
 `switched_off`, as does a core route asked about one of its types (`:type`, `type`,
 `record_type`, `from_type`, `to_type`); and the job queue skips its job types. The state is
-cached for five seconds and refreshed at once when the setting is written, so no restart is
-needed. The web app reads `features` and `areasOff` from `/api/auth/state`: `can()`
+cached for five seconds and read again at once when the setting is written (`refreshFeatures`), so no
+restart is needed: the write returns only after the record types' fields are rebuilt for the new state
+(`onFeatureState`), so background work and system saves right after a change follow it too (E46-52). The web app reads `features` and `areasOff` from `/api/auth/state`: `can()`
 answers false for an off permission, `areaOn(key)` says whether an area is on, and
 `MODULE_AREA` in `web/src/core/module.ts` drops a whole web module's menu entries, Create
 entries and pages (the pages show "switched off").
@@ -917,7 +954,12 @@ reviews, on by default; shares the systems permissions, so its types are hidden 
 adds `recordsretention` (Records retention schedule, on by default; shares the records permissions,
 so its types are hidden by name). Wave 25 adds `evidence` (Evidence library, on by default;
 permission module `evidence`, job prefix `evidence.`): while it is off the library, the
-**Evidence** tab of other records and evidence links appear nowhere.
+**Evidence** tab of other records and evidence links appear nowhere. Wave 26 adds `procurement` (Procurement
+and budgets), `insurance` (Insurance) and `strategy` (Strategy and performance), on by default, and
+`civilrights` (Civil rights), **off** by default because it holds confidential complaints; each has its own
+permission module, module folder and job prefix and owns its default role. Tests that need every route
+(`core/api/coverage.test.ts`, `apidocs.test.ts`, `platform.test.ts`) switch on the portal, the mobile app and
+civil rights. The funder interest option also hides a vehicle's `retirement_funder_ref`.
 
 ### Tests
 
@@ -1033,7 +1075,12 @@ The wave 10 plan's keys: `actions.overdue`, `actions.caps_overdue`,
 `condition.past_useful_life_pct`, `condition.poor_condition_pct`, `condition.assessments_due`,
 `ot.zones_below_target` (current state, no history), `records.requests_overdue`,
 `vendors.reassessments_overdue` and `vendors.open_issues`. Wave 25 adds
-`audits.verifications_overdue` and `changes.success_pct`.
+`audits.verifications_overdue` and `changes.success_pct`. Wave 26 adds `procurement.open_solicitations`,
+`procurement.orders_awaiting_approval` and `procurement.budget_used_pct` (current month only),
+`insurance.policies_expiring`, `insurance.certificates_expired`, `insurance.open_claims`,
+`insurance.open_reserves`, `civilrights.complaints_open`, `civilrights.complaints_overdue`,
+`civilrights.goal_attainment_pct`, `strategy.objectives_off_track`, `strategy.objectives_at_risk`,
+`strategy.submissions_overdue` and `strategy.measures_met_pct`.
 
 Figures over time (E41-04, `modules/reports/figures.ts`) record metrics and counts monthly;
 `GET /api/figures`.
@@ -1063,7 +1110,7 @@ statusList, scopeType, subKey?, permission, auditAction, describe })`, then read
 `getChecklist(ctx, setKey, scopeId, subKey?)` and `saveChecklist(...)`; `checksOf` returns the stored
 checks for reports. Each check keeps a status from the set's status list, the clause text as found
 and a note, in the core table `clause_checks` (migration 026). The sets today are `security_terms`
-(vendors) and `funder_clauses` (funding). Routes keep their own shapes and permission checks.
+(vendors), `funder_clauses` (funding) and `procurement_clauses` (procurement, a solicitation's required clauses). Routes keep their own shapes and permission checks.
 
 ### Calendar sources (shared registry)
 
@@ -1097,7 +1144,16 @@ asker, and it cannot be `anyone`. Events carry `personId` and `ref`.
 filters. Wave 21 adds `projects.certification` (open certification requirements, for their
 verifier). Wave 25 adds `evidence.expiry` (evidence about to lapse, for its owner),
 `audits.verifications` (finding verifications, for the auditor named) and `audits.review_notes`
-(workpaper review notes, for the step's preparer), all `work: true` and `anyone: true`. The `work` module (`server/src/modules/work`, `web/src/modules/work`, shapes in
+(workpaper review notes, for the step's preparer), all `work: true` and `anyone: true`. Wave 26 adds `procurement.offers_due` (`anyone`),
+`procurement.evaluations` (`work`, `named`: committee members need no procurement role),
+`procurement.order_approvals` (`work`), `insurance.renewals`, `insurance.certificates`,
+`insurance.conditions`, `civilrights.complaints`, `civilrights.reports`, `strategy.submissions`,
+`audits.defects`, `audits.missed_inspections` and `policies.copy_recalls` (paper copies to recall), all
+`work` and `anyone`, and makes `governance.meetings` `named` (members without `governance.view` get their
+meetings, linking to `/governance/my-meetings/:id`; feeds specs take `named` and `link`, E45-67). The `work`
+module also serves `GET /api/work/home` (where a person lands, from `home.role_homes`), `GET /api/work/waiting`
+(the count beside My work) and the Report a problem routes (`/api/work/report/*`: a safety report through the
+portal's intake, `safety/portal-intake.ts`, or a ticket, for everyone signed in). The `work` module (`server/src/modules/work`, `web/src/modules/work`, shapes in
 `shared/work-api.ts`) has no data of its own.
 
 ### Evidence parts (shared registry)
@@ -1119,7 +1175,9 @@ A link to a part is stored with `part = '<prefix>:<key>'` (`step:<item>`, `area:
 `request:<id>`, `period:<id>`). `mayChange` is checked when a link is added **and** removed, so a
 reviewed (locked) workpaper step keeps its evidence (E45-19). Parts today: audits `step` on
 `audit_engagement`, funding `area` and `request` on `compliance_review`, evidence `period` on
-`obligation`. On the web, `EvidencePanel` (`web/src/modules/evidence/EvidencePanel.tsx`) shows a
+`obligation`, civil rights `element` on `civil_rights_program`. Wave 26 adds `procurement`,
+`purchase_order`, `insurance_policy`, `insurance_certificate` and `insurance_condition` to `LINK_TYPES`
+(and to `EVIDENCE_TYPES` in `web/src/core/RecordPage.tsx`, which mirrors it). On the web, `EvidencePanel` (`web/src/modules/evidence/EvidencePanel.tsx`) shows a
 record's or part's evidence (use existing, upload, remove, hidden counts). The shared record page
 adds an **Evidence** tab to every record of a linkable type by itself (unless the module has a tab
 named `evidence`), only while the evidence area is on and the person holds `evidence.view`
@@ -1262,7 +1320,8 @@ requests, asset disposal, risk acceptance, project gates, corrective action plan
 extensions, audit reports, funding certifications, meeting minutes, annual plan reviews, safety
 performance targets (`safety_targets`), continuity plans, impact analysis sign-off (`bia_signoff`, by the process owner), asset condition targets, legal hold
 releases (`legal_hold_release`), privacy impact assessments, vendor offboarding sign-off
-(`vendor_offboarding`) and records destruction (`records_destruction`) are approval kinds. A committee decision may be applied through
+(`vendor_offboarding`), records destruction (`records_destruction`), purchase orders
+(`purchase_order_approval`) and vehicle retirement (`vehicle_retirement`) are approval kinds. A committee decision may be applied through
 `decide` with `opts.userId` set to the chair (E28-06), only when the chair may decide the current step.
 
 A step may have `branches` (2 to 5 units run side by side; step rows carry `branch` and
@@ -1335,7 +1394,10 @@ wave 24). One menu entry per thing people work on: other pages are `menu: false`
 `tab` to be a tab in the parent's shell-drawn strip, whose entry has `tabs`), or a card on the
 Administration page (`hub`, `hint`). A group with no entry the person may open is not shown. `order` is
 unique within a group (`web/src/core/navOrder.test.ts`, which also keeps the menu at 60 entries or
-fewer); `permissions: [...]` hides an entry unless the user also holds each one.
+fewer); `permissions: [...]` hides an entry unless the user also holds each one. `count: '<api path>'` on a menu entry
+shows the `{ count }` that path answers beside it while above zero (My work: `/api/work/waiting`). "/" is
+`home/HomeRoute.tsx`: on arrival it asks `GET /api/work/home` and moves to the person's home page; the
+Overview menu entry always shows the Overview.
 
 Quality bar: every screen has empty, loading and error states; every list
 has filter, sort, saved view and export; every record shows its history.
@@ -1351,14 +1413,14 @@ has filter, sort, saved view and export; every record shows its history.
 | `frameworks` | `framework` → frameworks, `framework_outcome` → framework_outcomes, `assessment_snapshot` → assessment_snapshots |
 | `risks` | `risk` → risks (flag, from the category; cybersecurity by default), `action` → actions (flag, inherited), `cap` → caps (flag, inherited), `obligation` → obligations, `regulatory_change` → regulatory_changes, `kri` → key_risk_indicators (flag, follows its risk); table risk_appetite_versions |
 | `secincidents` | `security_incident` → security_incidents (restricted), `notification_task` → notification_tasks |
-| `policies` | `policy` (label **Document**) → policies, `policy_exception` → policy_exceptions; tables `policy_person_acknowledgements`, `policy_plan_elements`, `policy_plan_reviews`, `policy_version_translations`, `document_groups`, `document_imports` and the other document-control tables (E43) |
+| `policies` | `policy` (label **Document**) → policies, `policy_exception` → policy_exceptions; tables `policy_person_acknowledgements`, `policy_plan_elements`, `policy_plan_reviews`, `policy_version_translations`, `document_groups`, `document_imports`, `document_copies` and the other document-control tables (E43) |
 | `training` | `course` → courses, `exercise` → exercises, `certification` → certifications |
 | `people` | `person` → people, `position` → positions, `department` → departments (always on, not a feature area) |
-| `audits` | `audit_area` → audit_areas, `audit_engagement` → audits (flag), `checklist_template` → checklist_templates, `inspection_schedule` → inspection_schedules, `inspection` → inspections, `audit_finding` → audit_findings (flag, inherited from its audit), `audit_request` → audit_requests (flag, inherited); tables audit_plans, workpaper_review_notes. The type is `audit_engagement` because `audit` would clash with the audit log (`GET /api/audit`, `audit.export`) |
+| `audits` | `audit_area` → audit_areas, `audit_engagement` → audits (flag), `checklist_template` → checklist_templates, `inspection_schedule` → inspection_schedules, `inspection` → inspections, `audit_finding` → audit_findings (flag, inherited from its audit), `audit_request` → audit_requests (flag, inherited), `defect` → defects (wave 26); tables audit_plans, workpaper_review_notes, audit_time_entries. The type is `audit_engagement` because `audit` would clash with the audit log (`GET /api/audit`, `audit.export`) |
 | `controls` | `control` → controls, `control_test` → control_tests (child table `control_test_samples`) |
 | `funding` | `funding_award` → funding_awards, `funding_certification` → funding_certifications, `compliance_review` → compliance_reviews, `review_deficiency` → review_deficiencies, `subrecipient` → subrecipients (child table subrecipient_monitoring), `funder` → funders; tables compliance_review_awards, compliance_review_area_links |
 | `evidence` | `evidence_record` → evidence_records (flag); table evidence_links |
-| `governance` | `committee` → committees, `meeting` → meetings, `meeting_decision` → meeting_decisions (flag, inherited from the record decided); tables agenda_item_papers, meeting_decision_votes. `/api/governance/my-meetings*` are session-only routes that answer only for committee members |
+| `governance` | `committee` → committees, `meeting` → meetings, `meeting_decision` → meeting_decisions (flag, inherited from the record decided); tables agenda_item_papers, meeting_decision_votes, meeting_declarations, committee_work_plan. `/api/governance/my-meetings*` are session-only routes that answer only for committee members |
 | `continuity` | `business_process` → business_processes, `bia` → bia_assessments, `continuity_plan` → continuity_plans, `emergency_activation` → emergency_activations; tables process_dependencies (source of the `depends_on` links), continuity_plan_processes, call_tree_nodes, continuity_checklist_items, activation_log_entries, activation_roles, activation_checklist (no record type) |
 | `condition` | `asset_class` → asset_classes, `condition_assessment` → condition_assessments (row rule: a vehicle's needs fleet.view, a site's sites.view); tables condition_targets, condition_reminders |
 | `ot` | `ot_zone` → ot_zones (flag), `ot_conduit` → ot_conduits (flag, set from its two zones) |
@@ -1367,9 +1429,13 @@ has filter, sort, saved view and export; every record shows its history.
 | `registers` | `reg_<key>` → view `reg_<key>` of `register_records` (one per register an administrator defines; table `register_definitions`) |
 | `recordsretention` | `record_series` → record_series, `records_destruction` → records_destructions (evidence) |
 | `records` | `records_request` → records_requests (row rule: personal-data kinds need privacy.view; child table records_request_items), `privacy_assessment` → privacy_assessments |
+| `procurement` | `procurement` → procurements, `procurement_offer` → procurement_offers (row rule: before the award only `procurement.edit` holders and the evaluation committee read them; figures masked), `purchase_order` → purchase_orders (status set by the application), `purchase_order_line` → purchase_order_lines, `budget` → budgets, `budget_line` → budget_lines; tables procurement_criteria, procurement_evaluators, procurement_scores, procurement_addenda, procurement_protests, purchase_order_receipts |
+| `insurance` | `insurance_policy` → insurance_policies, `insurance_condition` → insurance_conditions, `insurance_requirement` → insurance_requirements, `insurance_certificate` → insurance_certificates, `insurance_claim` → insurance_claims (flag); table insurance_covered |
+| `civilrights` | `civil_rights_template` → civil_rights_templates, `civil_rights_program` → civil_rights_programs, `civil_rights_report` → civil_rights_reports, `civil_rights_complaint` → civil_rights_complaints (row rule: a confidential complaint only for its named handlers, investigator and creator; figures masked), `participation_goal` → civil_rights_goals, `participation_award` → civil_rights_awards; tables civil_rights_program_items, civil_rights_report_submissions, civil_rights_complaint_steps, civil_rights_complaint_viewers, civil_rights_award_firms, civil_rights_reminders |
+| `strategy` | `strategic_plan` → strategy_plans, `strategic_goal` → strategy_goals, `strategic_objective` → strategy_objectives, `strategic_measure` → strategy_measures, `measure_value` → strategy_measure_values, `strategic_initiative` → strategy_initiatives, `strategy_update` → strategy_updates, `stat_series` → strategy_stat_series, `stat_value` → strategy_stat_values, `stat_submission` → strategy_submissions (evidence) |
 | `vulnerabilities` | `vulnerability` → vulnerability_records (restricted) |
 | `projects` | `project` → projects, `cert_item` → project_cert_items, `cert_requirement` → project_cert_requirements (flag, inherited from its source: restricted when derived from a threat kept as a risk) |
-| `fleet` | `vehicle` → vehicles, `service` → services |
+| `fleet` | `vehicle` → vehicles, `service` → services; table vehicle_retirement_requests |
 | `tags` | `inventory_count` → inventory_counts (child table inventory_count_items); tables tag_formats, tag_series, tag_ranges, tag_range_values, tag_stock_marks, tag_assignments, tag_lookups, tag_label_layouts, tag_verifications (no record type) |
 | `mobile` | no record type: the mobile app's devices, My work, settings, the offline package and the outbox answers (`mobile_sync_items`) (waves 13 and 14, area `mobile`) |
 | `push` | no record type: push notifications to the mobile app (tables `push_config`, `push_registrations`, `push_cursor`; part of the `mobile` area; `app.pushNotify(userIds)`, called by the notifications service) |
@@ -1405,7 +1471,12 @@ vendor_issue, vendor_offboarding → `vendors`; business_process, bia, continuit
 emergency_activation → `continuity`; asset_class, condition_assessment → `assets`; ot_zone,
 ot_conduit, system_account, access_review → `systems`; legal_hold → `legal`; records_request → `records`; privacy_assessment →
 `privacy`; inventory_count → `tags`; cert_item, cert_requirement → `projects`; record_series,
-records_destruction → `records`; `reg_<key>` → the register's key (`<key>`).
+records_destruction → `records`; `reg_<key>` → the register's key (`<key>`); defect → `audits`; procurement, procurement_offer, purchase_order,
+purchase_order_line, budget, budget_line → `procurement`; insurance_policy, insurance_condition,
+insurance_requirement, insurance_certificate, insurance_claim → `insurance`; civil_rights_template,
+civil_rights_program, civil_rights_report, civil_rights_complaint, participation_goal, participation_award →
+`civilrights`; strategic_plan, strategic_goal, strategic_objective, strategic_measure, measure_value,
+strategic_initiative, strategy_update, stat_series, stat_value, stat_submission → `strategy`.
 
 Core refuses a ref field that names a record the caller cannot see (`checkRefsVisible` in
 core/resource.ts); unchanged values are not checked again and system work is exempt.

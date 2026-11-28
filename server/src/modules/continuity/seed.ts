@@ -224,7 +224,8 @@ async function linkExercises(ctx: ModuleContext): Promise<number> {
 
 export async function seedContinuity(ctx: ModuleContext, opts: SeedOptions): Promise<string> {
   if (opts.profile !== 'dev') return 'nothing to load (sample continuity records are dev profile only)';
-  if (!(await ctx.db.one('select 1 from users limit 1'))) return 'nothing to load yet (no account exists)';
+  // Wave 26: no account is needed first. The sample people have no password, so setup stays open
+  // (it waits for someone who can sign in, core/auth.ts) and a fresh dev database shows the samples.
   await renameSamples(ctx, CONTINUITY_RENAMES);
   if (await ctx.db.one('select 1 from business_processes where name like $1 limit 1', [`${MARK} %`])) {
     const deps = await linkDependencies(ctx);

@@ -1,7 +1,7 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { Db, Queryable } from './db.ts';
 import { fail } from './errors.ts';
-import { invalidateFeatures } from './features.ts';
+import { refreshFeatures } from './features.ts';
 import { notePermission } from './permission-use.ts';
 import type { AuditInput, LookupListOptions, LookupValue, SessionUser } from './module.ts';
 import { clientIp } from './request.ts';
@@ -88,6 +88,10 @@ export const DEFAULT_ROLES: {
     grants: [
       'projects.*', 'actions.*', 'systems.view', 'vendors.view', 'contracts.view', 'changes.view',
       'tickets.view', 'dashboards.view', 'reports.view', 'evidence.view', 'evidence.create', 'evidence.edit',
+      // Wave 26 (E46): projects are often grant-funded.
+      'funding.view',
+      // Wave 26 (E46): the solicitations, purchase orders and capital budget lines of their projects.
+      'procurement.view',
     ],
   },
   {
@@ -96,6 +100,8 @@ export const DEFAULT_ROLES: {
     grants: [
       'safety.*', 'fleet.view', 'systems.view', 'sites.view', 'actions.*', 'dashboards.view', 'reports.view', 'policies.view', 'training.view',
       'audits.*', 'governance.view', 'people.view', 'continuity.view', 'evidence.view', 'evidence.create', 'evidence.edit',
+      // Wave 26 (E46): record certifications and assign safety training; run an emergency activation; see drills.
+      'training.create', 'training.edit', 'continuity.create', 'continuity.edit', 'exercises.view',
     ],
   },
   // Wave 10: compliance, audit and training roles (switched on, like the other working roles).
@@ -110,19 +116,27 @@ export const DEFAULT_ROLES: {
       'obligations.*', 'funding.*', 'controls.*', 'governance.*', 'audits.view', 'policies.view', 'vendors.view',
       'contracts.view', 'projects.view', 'assets.view', 'fleet.view', 'people.view', 'actions.*', 'reports.view', 'dashboards.view',
       'continuity.view', 'records.view', 'privacy.view', 'legal.view', 'evidence.*',
+      // Wave 26 (E46): safety reporting rules and the safety plan are compliance matters too.
+      'safety.view',
+      // Wave 26 (E46): procurement files are reviewed by funders.
+      'procurement.view',
     ],
   },
   {
     key: 'audit_lead', name: 'Audit lead', enabled: true, requiresMfa: false,
     description: 'Internal audits and inspections, control testing and corrective actions.',
     describe: (on) => sentence(words([on('audits') && 'internal audits and inspections', on('controls') && 'control testing', 'corrective actions'])),
-    grants: ['audits.*', 'controls.*', 'actions.*', 'governance.view', 'obligations.view', 'policies.view', 'frameworks.view', 'evidence.*'],
+    grants: ['audits.*', 'controls.*', 'actions.*', 'governance.view', 'obligations.view', 'policies.view', 'frameworks.view', 'evidence.*',
+      // Wave 26 (E46): choose the site, vehicle or asset an inspection covers.
+      'sites.view', 'fleet.view', 'assets.view'],
   },
   {
     key: 'training_coordinator', name: 'Training coordinator', enabled: true, requiresMfa: false,
     description: 'Training, the roster of people and their qualifications.',
     describe: (on) => (on('training') ? 'Training, the roster of people and their qualifications.' : 'The roster of people and their qualifications.'),
-    grants: ['training.*', 'people.*', 'policies.view', 'sites.view'],
+    grants: ['training.*', 'people.*', 'policies.view', 'sites.view',
+      // Wave 26 (E46): drills and exercises are part of the training calendar.
+      'exercises.view'],
   },
   // Wave 11: continuity, records and privacy, and asset roles (switched on, like the other working roles).
   {
@@ -132,6 +146,8 @@ export const DEFAULT_ROLES: {
       'continuity.*', 'systems.view', 'sites.view', 'assets.view', 'fleet.view', 'vendors.view', 'people.view',
       'exercises.view', 'actions.*', 'reports.view', 'dashboards.view', 'policies.view',
       'evidence.view', 'evidence.create', 'evidence.edit',
+      // Wave 26 (E46): plan, run and record exercises of the plans.
+      'exercises.*',
     ],
   },
   {
@@ -149,7 +165,11 @@ export const DEFAULT_ROLES: {
       return `${sentence(words(['assets', 'sites', on('fleet') && 'vehicles'])).slice(0, -1)}${their ? `, their ${their}` : ''}.`;
     },
     grants: ['assets.*', 'sites.*', 'fleet.*', 'projects.view', 'funding.view', 'actions.*', 'reports.view', 'dashboards.view', 'tags.*', 'vendors.view', 'contracts.view', 'systems.view',
-      'evidence.view', 'evidence.create', 'evidence.edit'],
+      'evidence.view', 'evidence.create', 'evidence.edit',
+      // Wave 26 (E46): open and run inspections of stations, depots, vehicles and equipment; see safety events on vehicles.
+      'audits.view', 'audits.create', 'audits.edit', 'safety.view',
+      // Wave 26 (E46): the purchase orders that bought an asset.
+      'procurement.view'],
   },
   {
     key: 'approver', name: 'Approver', enabled: false, requiresMfa: false,
@@ -160,14 +180,27 @@ export const DEFAULT_ROLES: {
     grants: [
       'changes.view', 'changes.approve', 'projects.view', 'projects.approve', 'tickets.view', 'tickets.approve',
       'assets.view', 'assets.approve', 'dashboards.view',
+      // Wave 26 (E46): approve purchase orders and record awards when no approval workflow applies.
+      'procurement.view', 'procurement.approve',
     ],
   },
   {
     key: 'executive_viewer', name: 'Executive viewer', enabled: false, requiresMfa: false,
-    description: 'Read-only dashboards and report packs.',
-    describe: (on) => (on('reports') ? 'Read-only dashboards and report packs.' : 'Read-only access to the Overview and its figures.'),
+    description: 'Read-only leadership view: dashboards, report packs and the figures of safety, fleet, asset condition, continuity, risks, funding and projects.',
+    describe: (on) => {
+      const w = words([on('safety') && 'safety', on('fleet') && 'fleet', on('condition') ? 'asset condition' : 'assets', on('continuity') && 'continuity',
+        on('risks') && 'risks', on('funding') && 'funding', on('projects') && 'projects']);
+      return `Read-only leadership view: ${on('reports') ? 'dashboards, report packs and ' : ''}the figures of ${w}.`;
+    },
     // E45-01: the risk register summary, heat map, appetite and report (restricted risks stay hidden).
-    grants: ['dashboards.view', 'reports.view', 'projects.view', 'frameworks.view', 'governance.view', 'continuity.view', 'risks.view'],
+    grants: ['dashboards.view', 'reports.view', 'projects.view', 'frameworks.view', 'governance.view', 'continuity.view', 'risks.view',
+      // Wave 26 (E46): the register-level figures of safety (restricted events stay hidden), fleet, asset condition,
+      // inspections and funding, and the corrective actions they raise.
+      'safety.view', 'fleet.view', 'assets.view', 'sites.view', 'funding.view', 'audits.view', 'actions.view',
+      // Wave 26 (E46): the strategic plan scorecard, measures and statistics.
+      'strategy.view',
+      // Wave 26 (E46): budget against committed and spent.
+      'procurement.view'],
   },
   {
     // E45-01: enterprise risk management without access to security incidents (restricted risks stay hidden).
@@ -186,12 +219,49 @@ export const DEFAULT_ROLES: {
       'contracts.view', 'systems.view', 'assets.view', 'audit.view', 'fleet.view',
       'audits.view', 'audits.export', 'controls.view', 'controls.export', 'governance.view', 'funding.view',
       'continuity.view', 'privacy.view', 'legal.view', 'evidence.view', 'evidence.export',
+      // Wave 26 (E46): procurement files (offers and scores once awarded).
+      'procurement.view', 'procurement.export',
     ],
   },
   {
     key: 'requester', name: 'Requester', enabled: false, requiresMfa: false,
     description: 'Anyone in the organization: submit and track own requests through the portal.',
     grants: ['portal.view', 'portal.create'],
+  },
+  {
+    // Wave 26 (E46): the insurance program (owned by the insurance area). Claims about restricted events stay hidden.
+    key: 'insurance_coordinator', name: 'Risk and insurance coordinator', enabled: false, requiresMfa: false,
+    description: 'The insurance program: policies and renewals, certificates of insurance from vendors, and claims.',
+    grants: [
+      'insurance.*', 'vendors.view', 'contracts.view', 'controls.view', 'assets.view', 'fleet.view', 'sites.view', 'systems.view',
+      'risks.view', 'actions.*', 'reports.view', 'dashboards.view',
+    ],
+  },
+  {
+    // Wave 26 (E46): strategy and performance (owned by the strategy area).
+    key: 'strategy_analyst', name: 'Strategy and performance analyst', enabled: false, requiresMfa: false,
+    description: 'The strategic plan, its measures and quarterly updates, operating statistics and the statistical reports submitted to outside bodies.',
+    grants: [
+      'strategy.*', 'projects.view', 'actions.*', 'governance.view', 'policies.view', 'funding.view', 'reports.*', 'dashboards.*',
+    ],
+  },
+  {
+    // Wave 26 (E46): civil rights programs (owned by the civilrights area). Handles confidential complaints only once named.
+    key: 'civil_rights_officer', name: 'Civil rights officer', enabled: false, requiresMfa: false,
+    description: 'Civil rights and accessibility programs, their reports, complaints and business participation goals.',
+    grants: [
+      'civilrights.*', 'vendors.view', 'contracts.view', 'fleet.view', 'sites.view', 'people.view', 'policies.view', 'governance.view',
+      'evidence.view', 'evidence.create', 'evidence.edit', 'actions.*', 'reports.view', 'dashboards.view',
+    ],
+  },
+  {
+    // Wave 26 (E46): procurement and budgets (owned by the procurement area).
+    key: 'procurement_officer', name: 'Procurement officer', enabled: false, requiresMfa: false,
+    description: 'Solicitations, evaluations and awards, purchase orders and receiving, and budgets.',
+    grants: [
+      'procurement.*', 'vendors.view', 'vendors.create', 'vendors.edit', 'contracts.view', 'contracts.create', 'contracts.edit',
+      'funding.view', 'projects.view', 'assets.view', 'policies.view', 'evidence.view', 'actions.*', 'reports.view', 'dashboards.view',
+    ],
   },
 ];
 
@@ -205,6 +275,7 @@ export const EARLIER_ROLE_DESCRIPTIONS: Record<string, string[]> = {
   security_lead: ['Security staff: risks, controls, security incidents, vendors, policies.', 'Security work: risks, controls, security incidents, vendors, policies.'],
   approver: ['Managers and executives: approve changes, access requests, project gates and risk acceptance.'],
   requester: ['Any employee: submit and track own requests through the portal.'],
+  executive_viewer: ['Read-only dashboards and report packs.'],
 };
 
 /**
@@ -397,7 +468,7 @@ export function makeSettings(db: Db, audit: ReturnType<typeof makeAudit>) {
         [key, JSON.stringify(value), req?.user?.id ?? null],
       );
       // Feature switches apply at once, without a restart (core/features.ts).
-      if (key === 'features' || key === 'feature_options') invalidateFeatures(db);
+      if (key === 'features' || key === 'feature_options') await refreshFeatures(db);
       await audit(req, {
         action: 'setting.change', recordType: 'setting', recordId: key,
         summary: `Setting ${key} changed`, before: before?.value, after: value,

@@ -81,7 +81,7 @@ export function ConditionDashboard() {
         <Stat label="Over target" value={t.over_target} icon="target" color={t.over_target ? 'red' : undefined} hint="Classes past their yearly target" />
         <Stat label="Poor condition" value={pct(t.poor_pct)} icon="alert-circle" color={t.poor ? 'amber' : undefined} hint={`${t.poor} of ${t.rated} rated`} />
         <Stat label="With a replacement project" value={t.with_replacement} icon="refresh" hint={`of the ${t.past_ulb} past useful life${t.funded !== null ? `; ${t.funded} linked to funding` : ''}`} />
-        <Stat label="No asset class" value={unclassed} icon="help" hint="In use, not counted yet" />
+        <Stat label="No asset class" value={unclassed} icon="help" hint="In use, not counted yet: open to assign classes" to="/assets?f.asset_class_id.null=true" />
       </div>
 
       <div className="cnd-grid">

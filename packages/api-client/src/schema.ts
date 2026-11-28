@@ -56,7 +56,7 @@ export interface paths {
     /** Upload a file to a record. */
     put: {
       path: never;
-      query: { record_type?: string; record_id?: string; name?: string; kind?: string; description?: string; collected_on?: string; expires_on?: string };
+      query: { record_type?: string; record_id?: string; name?: string; kind?: string; description?: string; collected_on?: string; expires_on?: string; created_at?: string };
       body: Blob;
       response: {
         id: string;

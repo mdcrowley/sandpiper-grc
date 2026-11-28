@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { readerIds, tablesFor } from './access.ts';
+import { notifyRecalls } from './copies.ts';
 import { addDays, daysBetween, localDate } from './dates.ts';
 import { requestRosterAcks } from './personAcks.ts';
 import { refreshSearchText } from './search.ts';
@@ -189,6 +190,8 @@ export async function publishVersion(
     before: { status: policy.status, current_version: policy.current_version },
     after: { status: after.status, current_version: Number(version.version), effective_on: effective, minor, acknowledgements_requested: requested, roster_requested: roster, moved, due_on: dueOn },
   });
+  // Paper copies of earlier versions are now due to be recalled (E43-14).
+  if (!opts.load) await notifyRecalls(ctx, policy.id);
   return { policy: after, version: published, requested, roster_requested: roster, due_on: dueOn, moved };
 }
 

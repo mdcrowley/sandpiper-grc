@@ -12,9 +12,10 @@ You need the **audits** permissions: `audits.view` to see the pages, `audits.cre
 
 The default roles:
 
-- **Audit lead** holds all of the audits permissions, the action tracker and controls, and can read committees, obligations, policies and frameworks.
+- **Audit lead** holds all of the audits permissions, the action tracker and controls, and can read committees, obligations, policies and frameworks, and sites, vehicles and assets (to choose what an inspection covers).
 - **Safety manager** holds all of the audits permissions, so a safety team can run inspections and safety reviews.
-- **Security lead**, **Compliance officer** and **Auditor** can read audits; the **Auditor** can also export them.
+- **Asset manager** can see, open and run inspections and record defects (`audits.view`, `audits.create`, `audits.edit`), so maintenance staff inspect stations, depots, vehicles and equipment.
+- **Security lead**, **Compliance officer**, **Auditor** and **Executive viewer** can read audits; the **Auditor** can also export them.
 
 Audits flagged **Restricted** (for example a cybersecurity control audit) need `security.view` as well, and so do their findings and evidence requests. Counts on the dashboard include restricted audits for everyone; in the coverage grid someone who may not see one sees "Restricted audit" with its status only.
 
@@ -51,7 +52,7 @@ The table lists the areas from the highest score down, each with **Why** it is p
 
 ### Saving and approving the year's plan
 
-Tick the areas to include (the proposed ones are ticked to start with), add a note if you like and select **Save version** (needs `audits.edit`). Each version keeps the ranking, scores and weights it was made from, with who prepared it and when; **Versions of the plan** lists them. Someone with `audits.approve` who did not prepare it selects **Approve version** on the newest draft, with an optional note (for example the committee meeting that approved it). The version then records who approved it and on what date, and an earlier approved version of that year becomes **Superseded**. An approved version is never changed: to change the plan, save a new version and have it approved. On the approved version, **Create the planned audits** adds a planned audit for each included area that has no audit that year yet. In data load mode an administrator may name the approver (`on_behalf_of`) and give a past approval date (`approved_on`).
+Tick the areas to include (the proposed ones are ticked to start with), add a note if you like and select **Save version** (needs `audits.edit`). Each version keeps the ranking, scores and weights it was made from, with who prepared it and when; **Versions of the plan** lists them. Someone with `audits.approve` who did not prepare it selects **Approve version** on the newest draft, with an optional note. Where the audit committee approves the plan at a meeting, choose that **committee decision** (a carried decision of a committee meeting, while committees and meetings are on): the committee is then recorded as the approver, the meeting's date as the approval date and its resolution (or decision) as the reference, shown beside the version. The version then records who approved it and on what date, and an earlier approved version of that year becomes **Superseded**. An approved version is never changed: to change the plan, save a new version and have it approved. On the approved version, **Create the planned audits** adds a planned audit for each included area that has no audit that year yet. In data load mode an administrator may name the approver (`on_behalf_of`) and give a past approval date (`approved_on`).
 
 ## The audit universe
 
@@ -77,6 +78,7 @@ An audit moves through **Planned**, **Fieldwork**, **Reporting** and **Closed** 
 Above the tabs, the **Scope** card holds the audit's details (select **Edit** to change them), the **Audit team** card is where you add and remove team members, and **Workpapers and follow-up** counts the program steps worked, prepared and reviewed, open review notes, control tests and findings awaiting verification, with a warning when a verification is overdue. The audit page has these tabs:
 
 - **Workpapers**: the audit program, one step per item of the chosen checklist (see [Workpapers](#workpapers)).
+- **Time**: the audit's time budget and the hours worked against it (see [Time budget](#time-budget)).
 - **Evidence requests**: what the auditors asked the auditee for (see [Evidence requests](#evidence-requests)).
 - **Findings**: the findings of this audit, with their verification dates; **New audit finding** adds one.
 - **Control tests**: tests of controls recorded as part of this audit, while controls are on (see [Controls and testing](26-controls-and-testing.md#tests-that-are-part-of-an-audit)).
@@ -86,7 +88,7 @@ Above the tabs, the **Scope** card holds the audit's details (select **Edit** to
 
 ### Workpapers
 
-Each item of the audit's checklist is a step of the audit program. Select **Open step** to work on it:
+Each item of the audit's checklist is a step of the audit program, with a workpaper reference: **WP A.1**, **A.2**, **B.1** and so on by section of the checklist (A for its first section, B for the next), or 1, 2, 3 when the checklist has no sections. The full reference starts with the audit's reference, for example `AUD-00012/A.1` (shown when you point at the number), for citing a workpaper in the report or a finding. Select **Open step** to work on it:
 
 - **Test procedure** (what you did; the item's guidance to start with), **Sample** (what you looked at and how it was chosen), **Result** (**Satisfactory, no exceptions**, **Minor exceptions**, **Exceptions found**, **Could not be tested (scope limitation)** or **Not applicable**), **What was found**, and **Files** chosen from the files on the audit's **Attachments** tab. Select **Save step**. The result list (`workpaper_result`) can be changed under **Administration > Lists**; each result counts as met, not met or not applicable in the report.
 - **Evidence from the library**: while the evidence library is on, **Use existing evidence** links a record of the library to this step, and **Upload a file** files a new one there and links it. The library lists the step among the places the record is used.
@@ -95,6 +97,10 @@ Each item of the audit's checklist is a step of the audit program. Select **Open
 - **Raise note** (the reviewer): a review note sends the step back to its preparer, whose sign-off is withdrawn. Only the preparer clears a note, with a **Response** and **Clear note** (an administrator may clear one whose preparer has left); the preparer then signs again and the reviewer reviews. Open notes are listed in the preparer's **My work** as **Workpaper review notes**, and the preparer is told when one is raised.
 
 Every sign-off and note is recorded in the audit's history. Answers given before workpapers existed (yes, no or not applicable) still count and can be signed. In [data load mode](09-administration.md#data-load-mode) an administrator loading past audits may name the preparer and reviewer (`on_behalf_of`) and give the times (`prepared_at`, `reviewed_at`); they must still be different people.
+
+### Time budget
+
+Give the audit a **Budget (hours)** in its details. On the **Time** tab, the team records the hours each person worked: the **Hours** (in quarters of an hour), the **Day** (not in the future), optionally the **Workpaper step** and **What was done**. The tab shows the budget, the hours worked, what is left (or how far over budget the audit is), the hours by person, and each entry; **Remove** takes out an entry recorded by mistake. Recording needs `audits.edit`; a closed audit takes no more hours. In data load mode an administrator may record past hours in the name of the person who worked them (`on_behalf_of`).
 
 ### Closing an audit
 
@@ -144,6 +150,42 @@ The application works through the schedules every few hours (job `audits.inspect
 Someone with `audits.administer` can run the work at once with `POST /api/audits/inspections/run`.
 
 You can also create a single inspection with **New inspection** (or **Create > Inspection**).
+
+### The inspection list
+
+The **Inspections** tab opens on **Due and overdue**: the inspections still to carry out, soonest due first. The buttons above the list switch to **Overdue** (still open after their due date), **Missed** and **All inspections**. While inspections are overdue or missed without a follow-up, a note above the list says how many, and how many schedules are behind (an active schedule with an overdue inspection, or a missed one nobody has followed up).
+
+### Missed and overdue inspections
+
+A missed inspection, or one still open after its due date, offers three ways to follow it up on its page:
+
+- **Record why it was missed**: give the reason. An overdue inspection is marked **Missed** at the same time. The page then shows **Why it was missed**, who recorded it and when.
+- **Reschedule**: give the **New due date** (today or later), the reason when none is recorded yet, and the **Inspector**. A new inspection is created for that date (from the same schedule, checklist and record) and opens; the missed one stays **Missed** with **Rescheduled as** pointing to the new one, so **Inspections on time** still counts it. A schedule that already has an inspection on that date refuses it.
+- **Raise a follow-up action**: an action in the action tracker under **Inspection**, owned by the inspector unless you name someone else, due in two weeks unless you give a date. The inspection's **Follow-up actions** tab lists it. This needs the actions permissions too.
+
+A missed inspection can still be carried out late with **Carry it out late**. A missed inspection nobody has followed up (no reason recorded and not rescheduled) appears in its inspector's **My work** until someone does; inspections due and overdue are there already. Recording why needs `audits.edit`; rescheduling needs `audits.create`.
+
+### Defects
+
+A defect is something wrong found on a vehicle, site or asset. Open the **Defects** tab of the inspection pages; the list opens on **Open** defects, with buttons for **Repaired, to verify**, **Out of service** and **All defects**.
+
+- **Raised by an inspection**: when an inspection of a vehicle, site or asset is completed (on the web or in the mobile app), each check answered **No** becomes a defect on that record, with the check as its title, the note as its description and the inspector as its owner. A **critical** check gives a **Critical: out of service** defect, any other a **Major** one. The inspection's **Defects** tab lists them.
+- **By hand**: **New defect** (or **Create > Defect**, or **New defect** in the record's **Inspections and defects** panel). Give the **Defect**, what it is **On** and the record, the **Severity** (**Critical: out of service**, **Major** or **Minor**), the **Owner** and a **Description**. Tick **Takes it out of service until repaired** when it must not be used; a critical defect always does.
+
+A defect that takes a **vehicle** out of service marks the vehicle **Out of service** when it is raised. Returning the vehicle to service is a deliberate step on the vehicle's record once the repair is verified.
+
+A defect moves through these steps, with buttons on its page:
+
+1. **Open**.
+2. **Defer the repair**, with **Why the repair can wait** and the date to **Repair by** (not in the past), or **Order the repair**, with the **Work order** number from the maintenance system. A defect that takes the record out of service cannot be deferred.
+3. **Mark as repaired**, with the date and **Repair notes**. The person who marks it is recorded as **Repaired by**.
+4. **Verify the repair**: someone other than the person who repaired it checks it and verifies it. **Reopen the defect** sends a repair that did not hold back to **Open**.
+
+**Cancel the defect** ends one raised by mistake. Each defect's owner has it in **My work** (open and repaired ones by the date found, deferred ones by the date to repair by). Defects need the audits permissions, as inspections do.
+
+### Inspections and defects on a vehicle, site or asset
+
+Vehicle pages have an **Inspections and defects** tab, and site and asset pages an **Inspections and defects** section, for people who may see inspections. It shows whether the record is **Out of service** (and how many open defects keep it so), the counts of open defects, repairs waiting for verification, overdue and missed inspections and the next inspection due, the open defects (select **Show all defects** for the earlier ones) and the inspections of the record, newest first.
 
 ### Run an inspection on a phone or tablet
 
@@ -221,7 +263,7 @@ The tab lists each reviewer with their organization, the day access ends, its st
 
 ### What the reviewer sees
 
-The reviewer signs in to a page of their own, **Your reviews**, with the audits and reviews open to them and how many days are left. Opening one shows its details (type, status, lead auditor, dates, scope and criteria; the report summary and overall opinion once the report is approved or the audit closed), the evidence requests with each answer and its files, the evidence files on the audit, and the findings with their criteria, condition, cause, effect, recommendation and management response. They can download the files. Files on the audit that are not marked as evidence are not shown, so mark the files the reviewer should see as evidence. **Account security** lets them change their password and manage their second factor.
+The reviewer signs in to a page of their own, **Your reviews**, with the audits and reviews open to them and how many days are left. Opening one shows its details (type, status, lead auditor, dates, scope and criteria; the report summary and overall opinion once the report is approved or the audit closed), the evidence requests with each answer and its files, the evidence files on the audit, the **Evidence records** of the [evidence library](43-evidence-library.md) linked to the audit (or to a workpaper step) with their files, and the findings with their criteria, condition, cause, effect, recommendation and management response. They can download the files. Files on the audit that are not marked as evidence are not shown, so mark the files the reviewer should see as evidence. Restricted evidence records are never shown to an outside reviewer. **Account security** lets them change their password and manage their second factor.
 
 Every time a reviewer opens an audit (at most once an hour) and every file they download is recorded in the audit's history.
 

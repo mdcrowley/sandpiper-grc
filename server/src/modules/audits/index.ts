@@ -11,6 +11,9 @@ import { registerResources } from './resources.ts';
 import { seedAudits } from './seed.ts';
 import { registerPlan } from './plan.ts';
 import { registerWorkpapers } from './workpapers.ts';
+import { ensureDefectLists, registerDefects } from './defects.ts';
+import { registerMissed } from './missed.ts';
+import { registerTime } from './time.ts';
 
 /**
  * Audits and inspections (E24, feature area `audits`, permission module `audits`): the audit
@@ -142,6 +145,7 @@ async function seedDefaults(ctx: ModuleContext) {
       { value: 'audits', label: 'Audits and inspections', color: 'purple', sort: 77, meta: { description: 'An inspection or an evidence request is due or overdue, or an audit report waits for approval.' } },
     ]);
   }
+  await ensureDefectLists(ctx); // wave 26
 }
 
 async function register(ctx: ModuleContext) {
@@ -156,6 +160,9 @@ async function register(ctx: ModuleContext) {
   registerMetrics(ctx);
   await registerJobs(ctx);
   registerDue(ctx); // evidence requests in My work and the calendars (E41-03)
+  registerDefects(ctx); // wave 26: defects on vehicles, sites and assets, raised from inspections
+  registerMissed(ctx); // wave 26: missed inspections followed up, figures needing attention, inspections in My work
+  registerTime(ctx); // E45-63: the audit's time budget and hours worked
 }
 
 const mod: ModuleDef = {

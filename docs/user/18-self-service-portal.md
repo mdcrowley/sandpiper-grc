@@ -78,6 +78,8 @@ A supervisor can raise a request for one of their team, for example for an opera
 
 ## Report a safety concern
 
+Staff who use the application itself (not only the portal) can report the same way from **My work > Report a problem**, with the same confidential reporting; see [Getting started](01-getting-started.md#report-a-problem).
+
 Select **Report a safety concern** on the home page. If someone is in danger now, call the emergency services and follow your local safety procedure first, then report it here. Fill in:
 
 - **What happened, in a few words?** (required) and **When did it happen?** (required; it starts at now). The time is your organization's local time, named under the field (for example "Local time (Eastern Standard Time).").

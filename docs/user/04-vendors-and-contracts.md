@@ -13,7 +13,7 @@ Open **Vendors > Vendors**. Its tabs are **Vendors**, **Reassessments due**, **I
 
 - **Annual spend**: the sum of the **Annual value** of the vendor's active contracts (see [Annual value](#annual-value)); empty when it has none with a value. Sort by it to see where the money goes.
 
-These three columns appear only if you may view contracts. Under the list, **Annual spend with all vendors** gives the total for the year over every vendor, with how many have spend. It is a figure, so it is the same for everyone and does not change with the list's search or filters. **Security terms matrix** opens the matrix; **Assessment questions** opens the questions used in vendor assessments (only people who administer vendors can change them).
+These three columns appear only if you may view contracts. Under the list, **Annual spend with all vendors** gives the total for the year over every vendor, with how many have spend. It is a figure, so it is the same for everyone and does not change with the list's search or filters. The **Security terms** tab shows the matrix. People who administer vendors change the questions used in vendor assessments on their own tab; readers without that tab have an **Assessment questions** button instead.
 
 ### Add a vendor
 
@@ -111,7 +111,7 @@ Below it:
 
 The header has **Start offboarding**, which starts an offboarding checklist for the contract by hand, or **Open offboarding** once it has one (an offboarding also starts by itself when the contract's status becomes **Expired** or **Ended**; see [Offboarding](34-vendor-risk-lifecycle.md#offboarding)). A contract can be made **Active**, and an active contract moved to another vendor, only once every check its (new) vendor's risk tier needs is done or waived (see [Intake and risk tiers](34-vendor-risk-lifecycle.md#intake-and-risk-tiers)); a draft contract's page says which are missing. When your administrator has asked for it, it also needs a recent exclusion-list check of its vendor (see [Exclusion-list checks](34-vendor-risk-lifecycle.md#exclusion-list-checks)).
 
-The tabs are **Security terms**, **Evidence**, **Performance** (measures with targets and periodic scores; see [Contractor performance](#contractor-performance)), **Actions** (when the action tracker is switched on), **Funder clauses** (when funding and grant compliance is switched on and you may see funding records), and the usual **Activity**, **Attachments**, **Related** and **History**. Attach the signed contract and its schedules on the **Attachments** tab. **Funder clauses** is a checklist of the clauses required by each award that pays for the contract; see [Funder-required clauses on contracts](27-funding-and-grants.md#funder-required-clauses-on-contracts).
+The tabs are **Security terms**, **Evidence**, **Performance** (measures with targets and periodic scores; see [Contractor performance](#contractor-performance)), **Actions** (when the action tracker is switched on), **Funder clauses** (when funding and grant compliance is switched on and you may see funding records), and the usual **Activity**, **Attachments**, **Related** and **History**. Attach the signed contract and its schedules on the **Attachments** tab. **Funder clauses** is a checklist of the clauses required by each award that pays for the contract; see [Funder-required clauses on contracts](27-funding-and-grants.md#funder-required-clauses-on-contracts). A contract made from a procurement award shows the solicitation under **Related** (see [Procurement and budgets](44-procurement-and-budgets.md#the-resulting-contract)).
 
 ### Value by year
 
@@ -191,7 +191,7 @@ The security terms and the funder-required clauses (see [Funder-required clauses
 
 ## The security-terms matrix
 
-The matrix shows every vendor against every clause on one page. Open **Vendors > Vendors** and the **Security terms** tab, or select **Security terms matrix** on the vendor list.
+The matrix shows every vendor against every clause on one page. Open **Vendors > Vendors** and the **Security terms** tab.
 
 - Vendors run down the page, most critical first. Clauses run across. The vendor column and the clause headings stay in view as you scroll.
 - Each cell is colored and marked: a check mark on green for **Present**, a half-filled circle on amber for **Partial**, a cross on red for **Absent**, and a dot in a dashed box for **Not assessed**. The legend at the top repeats this.
@@ -236,14 +236,7 @@ The **Expiry** column shows a colored chip:
 | Green, "Valid to …" | More than 90 days left |
 | Gray, "No expiry" | No expiry date recorded |
 
-To see everything that needs chasing, open **Vendors > Evidence** and the **Expiring** tab.
-
-1. Use **Look ahead** to choose **30 days**, **60 days**, **90 days**, **180 days** or **365 days**.
-2. The tiles count the items **Already expired**, **Expires within 30 days** and expiring later in the period.
-3. The items are listed in those groups, soonest first, each with its date, vendor, type and how long is left. Select the evidence to open it, or the vendor to open its **Evidence** tab.
-4. Ask the vendor for a current copy. When it arrives, record it as a new evidence item so the old one remains as history.
-
-Select the **Expiring files** tab (or **Expiring evidence files on any record** at the top of the page) to see evidence *files* attached to any record you can see (not only vendor evidence items), with their own expiry dates; that page links back here (see [Attachments and notifications](14-attachments-and-notifications.md)).
+To see everything that needs chasing, open **Vendors > Evidence** and the **Expiring** tab. It is the one **Expiring evidence** page: it opens on vendor evidence, and its **Source** filter also shows evidence library records and evidence files attached to any record you can see; choose how far ahead to look (30 to 365 days). Select an item to open it, ask the vendor for a current copy, and record it as a new evidence item so the old one remains as history. See [Attachments and notifications](14-attachments-and-notifications.md#expiring-evidence).
 
 ### One expiry date for the item and its file
 

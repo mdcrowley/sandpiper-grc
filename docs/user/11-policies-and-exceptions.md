@@ -215,7 +215,7 @@ Web page code typed into the text is shown as text and never run. Pictures from 
 On the document select **More actions**, then **Upload a version (Word or PDF)**, and **Choose a file**.
 
 - **A Word document (.docx)** is converted to text. The **Conversion report** says how many pictures were kept with the document and what was left out (comments, text boxes, diagrams and embedded objects; page headers and footers, where a revision, an effective date or a number found is offered). The **Converted text** beside a **Preview** can be corrected before saving. A document with tracked changes is stopped: accept or reject the changes in Word and upload it again, or select **Convert as it is** (insertions are kept, deletions left out).
-- **A PDF** becomes a file version: readers open it as a controlled copy, and its text is read for search. A scanned PDF with no text is found by its number and title only.
+- **A PDF** becomes a file version: readers open it as a controlled copy, and its text is read for search. A scanned PDF with no text layer is read by OCR (optical character recognition) on the server, with the language data that comes with the application: nothing is sent elsewhere. Its words are then found by search, with the note **Scanned: its text was read by OCR** (the text may contain reading mistakes). Only the first 50 pages are read. Where OCR is switched off or finds no text, the scan is found by its number and title only.
 - **An older Word file (.doc)** and other formats cannot be converted. They are kept as the original of a file version; save them as .docx in Word to convert them.
 
 Enter **What changed in this version** and, if you like, a **Revision label**, then select **Save draft**. The file as received is kept as the version's original either way; only people who may edit documents can download it. The draft then goes for review, approval and publication like a written one.
@@ -261,7 +261,13 @@ The owner of a document is reminded 60 and 30 days before its review and on the 
 
 ## Printing
 
-**Print or save as PDF** on a version gives a controlled copy: every page has a header with the organization, the document number, the title and the version, and a footer with the version, the effective date, the page, when and by whom it was printed, and "Uncontrolled when printed: the current version is in the document library". A draft, superseded or obsolete version is marked **DRAFT**, **SUPERSEDED** or **OBSOLETE** across the page, and a restricted document says **Restricted distribution** in the header. A version kept as a PDF is stamped with the same header and footer. Every print and download is recorded.
+**Print or save as PDF** on a version gives a controlled copy: every page has a header with the organization, the document number, the title and the version, and a footer with the version, the effective date, the page, when and by whom it was printed, and "Uncontrolled when printed: the current version is in the document library". A draft, superseded or obsolete version is marked **DRAFT**, **SUPERSEDED** or **OBSOLETE** diagonally across every page, whether it is written text or a PDF original, and a restricted document says **Restricted distribution** in the header. A version kept as a PDF is stamped with the same header and footer. Every print and download is recorded.
+
+### Paper copies
+
+Where numbered paper copies of a document are handed out (a binder at each depot, a copy in a training room, a copy for a supervisor), keep their register on the document's **Paper copies** tab. Select **Issue a copy** and name who holds it (a person with an account, or a name or place such as "North depot operations binder"), where it is kept, and the day it was issued; the copy gets the next number unless you give one. A copy is always of the version in force.
+
+When a later version takes effect, or the document is made obsolete, every copy of an earlier version still out is marked **Due for recall**. The document's owner (or, without an owner, whoever issued the copy) is told once and has each copy in **My work** under **Paper copies to recall** until it is recorded: select **Recall** on the copy, give the day it was collected (or destroyed) and a note. **Remove** takes a copy entered by mistake out of the register. Issuing, recalling and removing are recorded in the document's history. In data load mode a copy can be issued (and recalled) on past dates; the Data loads page lists copies loaded that way.
 
 ## Acknowledgment
 
@@ -375,7 +381,7 @@ With **data load mode** on (**Administration > Data loads**, see [Administration
 
 ## Settings
 
-Document controllers open **Documents > Document library**, then **Settings**:
+Document controllers open **Documents > Document library**, then **Settings** (also the **Document settings** card on the **Administration** page):
 
 - **Document numbers**: the **Pattern** new numbers follow. `{prefix}` is the type's prefix, `{dept}` the owning department's code, `{seq}` or `{seq:3}` the next number in that type and department (with at least three digits), `{year}` the year. The default is `{prefix}-{dept}-{seq:3}`, which gives numbers such as `SOP-IT-014`; a document with no department leaves the code and its dash out. An example under the field shows the effect.
 - **Department codes**: the short code of each department in numbers, such as IT or HR, 1 to 10 capital letters or digits, each used once.

@@ -1,15 +1,13 @@
 // Exercises list and the exercise record.
 import { lazy, Suspense } from 'react';
 import type { ComponentType } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Button, EmptyState, Loading, LookupChip, RecordPage, ResourceList, todayInZone, useAuth, useResource } from '../../core';
+import { EmptyState, Loading, LookupChip, RecordPage, ResourceList, todayInZone, useAuth, useResource } from '../../core';
 import { ExerciseFindings } from './ExerciseFindings';
 import { ExerciseParticipants } from './ExerciseParticipants';
 import { ExerciseSteps } from './ExerciseSteps';
 import { daysPhrase } from './shared';
 
 export function ExerciseList() {
-  const navigate = useNavigate();
   const today = todayInZone();
   return (
     <ResourceList
@@ -28,7 +26,6 @@ export function ExerciseList() {
       filters={['type', 'status', 'result', 'exercise_date', 'next_due_on', 'owner_id']}
       createFields={['title', 'type', 'status', 'exercise_date', 'scenario', 'scope', 'objectives', 'facilitator', 'owner_id']}
       bulkFields={['type', 'status', 'owner_id']}
-      actions={<Button icon="calendar" onClick={() => navigate('/exercises/calendar')}>Calendar</Button>}
     />
   );
 }

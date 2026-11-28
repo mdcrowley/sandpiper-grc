@@ -1,6 +1,6 @@
 import type { FastifyRequest } from 'fastify';
 import type { ModuleContext, Row } from '../../core/module.ts';
-import { actorOf } from '../../core/dataload.ts';
+import { actorOf, dataLoadFor } from '../../core/dataload.ts';
 import { meanings } from './lists.ts';
 import { UUID_RE } from './shared.ts';
 
@@ -214,13 +214,17 @@ export function registerSteps(ctx: ModuleContext) {
     }
     if (Object.keys(errors).length) invalid(errors);
     const resultChanged = result !== before.result;
+    // A data load keeps the time the step was done in the source (E45-55).
+    const at = body.done_at;
+    const loadedAt = typeof at === 'string' && !Number.isNaN(Date.parse(at)) && Date.parse(at) <= Date.now() + 60_000 && await dataLoadFor(db, req)
+      ? new Date(at).toISOString() : null;
     const row = (await db.one<Row>(
       `update control_test_steps set result = $2, note = $3,
          done_by = case when $4 then (case when $2::text is null then null else $5::uuid end) else done_by end,
-         done_at = case when $4 then (case when $2::text is null then null else now() end) else done_at end,
+         done_at = case when $4 then (case when $2::text is null then null else coalesce($6::timestamptz, now()) end) else done_at end,
          updated_at = now(), updated_by = $5
        where id = $1 returning ${RESULT_COLUMNS}`,
-      [before.id, result, note, resultChanged, actorOf(req).id]))!;
+      [before.id, result, note, resultChanged, actorOf(req).id, loadedAt]))!;
     if (resultChanged || note !== before.note) {
       const label = result ? (await ctx.lookups.values('control_step_result')).find((v) => v.value === result)?.label ?? result : 'no result';
       await ctx.audit(req, {

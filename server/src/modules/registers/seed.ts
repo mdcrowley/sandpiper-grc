@@ -1,8 +1,10 @@
-// Sample data (dev profile only): one register an administrator might define, with invented records.
+// Sample data (dev profile only): one register an administrator might define, the registers made from
+// the templates (wave 26), and invented records in each.
 import type { ModuleContext, Row, SeedOptions } from '../../core/module.ts';
 import { dayInZone } from '../../core/timezone.ts';
 import { checkRegister, createRegister } from './admin.ts';
 import { typeOf, type Registers } from './definitions.ts';
+import { createFromTemplate, TEMPLATES } from './templates.ts';
 
 const KEY = 'lost_property';
 
@@ -51,5 +53,49 @@ export async function seedRegisters(ctx: ModuleContext, regs: Registers, opts: S
     await ctx.db.query(`update ${type} set custom = $2::jsonb where id = $1`, [row.id, JSON.stringify(custom)]);
     made += 1;
   }
-  return `registers: 1 register, ${made} records`;
+  const fromTemplates = await seedTemplateSamples(ctx, regs);
+  return `registers: the sample register, ${fromTemplates.registers} made from templates, ${made + fromTemplates.records} records added`;
+}
+
+/** Sample records of the registers made from the templates (wave 26); invented, dates relative to today. */
+const TEMPLATE_RECORDS: Record<string, { title: string; status: string; custom: Row }[]> = {
+  labor_agreements: [
+    { title: '[Sample] Operators and mechanics agreement', status: 'in_effect', custom: {
+      bargaining_unit: 'Invented Transit Workers Local 100', parties: 'The organization\nInvented Transit Workers Local 100',
+      term_start: -500, term_end: 595, next_reopener: 230, reopener_terms: 'Wages and health contributions may be reopened at the midpoint of the term.',
+      covered_positions: 'Bus operators, rail operators, mechanics and utility workers', wage_schedule: 'Three steps; increases each July.',
+    } },
+  ],
+  real_property: [
+    { title: '[Sample] North depot', status: 'in_use', custom: {
+      address: '100 Example Way', parcel_ref: 'Parcel 000-111-222', acquired_on: -7300, acquisition_method: 'purchase', funding_source: 'Capital grant and local funds',
+      current_use: 'operations', condition: 'fair', appraised_value: 8500000, appraised_on: -400, leases_easements: 'Utility easement along the east boundary.',
+    } },
+    { title: '[Sample] Former park-and-ride lot', status: 'surplus', custom: {
+      address: '200 Example Road', parcel_ref: 'Parcel 000-333-444', acquired_on: -9000, acquisition_method: 'transfer', current_use: 'vacant', condition: 'poor',
+      appraised_value: 1200000, appraised_on: -90,
+    } },
+  ],
+};
+const DATE_KEYS = new Set(['term_start', 'term_end', 'next_reopener', 'acquired_on', 'appraised_on', 'disposed_on']);
+
+async function seedTemplateSamples(ctx: ModuleContext, regs: Registers): Promise<{ registers: number; records: number }> {
+  let registers = 0;
+  let records = 0;
+  for (const t of TEMPLATES) {
+    if (!regs.rows.has(t.key)) {
+      await createFromTemplate(ctx, regs, t, {}, null);
+      registers += 1;
+    }
+    const type = typeOf(t.key);
+    if (regs.state.get(t.key) !== 'ready' || !ctx.resources.get(type)) continue;
+    for (const r of TEMPLATE_RECORDS[t.key] ?? []) {
+      if (await ctx.db.one(`select 1 from ${type} where title = $1`, [r.title])) continue;
+      const row = await ctx.resources.create(type, { title: r.title, status: r.status }, null);
+      const custom = Object.fromEntries(Object.entries(r.custom).map(([k, v]) => [k, DATE_KEYS.has(k) ? dayInZone(Number(v)) : v]));
+      await ctx.db.query(`update ${type} set custom = $2::jsonb where id = $1`, [row.id, JSON.stringify(custom)]);
+      records += 1;
+    }
+  }
+  return { registers, records };
 }

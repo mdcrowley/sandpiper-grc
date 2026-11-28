@@ -15,7 +15,7 @@ Files follow the record they are attached to.
 | See the list of files and download them | You can open the record |
 | Attach, edit the details of, and remove files | Your role allows editing that kind of record |
 
-If you cannot open a record, you cannot see its files or find out that it has any. This includes restricted records such as risks and security incidents: without the right role, their files do not appear anywhere, including the **Expiring evidence files** page.
+If you cannot open a record, you cannot see its files or find out that it has any. This includes restricted records such as risks and security incidents: without the right role, their files do not appear anywhere, including the **Expiring evidence** page.
 
 ### Attach a file
 
@@ -99,12 +99,12 @@ The search at the top of every page finds a record by the words inside its PDF, 
 
 - The text is read in the background a minute or so after a file is attached, so a new file is not found at once. Files attached before this was added are read too, newest first.
 - What you find follows the record, exactly as the files do: you only find records you can open, and a restricted record's files only if your role lets you see restricted records.
-- A scanned PDF that holds only pictures of pages has no text to find. Files larger than 25 MB, and files that cannot be read in 30 seconds or would need too much memory to read, are not read. Only the first 300,000 characters of a file are searched.
+- A scanned PDF that holds only pictures of pages is read by OCR (optical character recognition): the pictures on its first 50 pages are read on the server, in the same separate reader with its own time limit (five minutes) and memory limit, with the English language data that comes with the application. Nothing is downloaded and nothing is sent elsewhere. OCR can make reading mistakes, so a word may be missed. An administrator can switch OCR off, or add languages, with the settings in the installation guide; where it is off, a scan has no text to find. Files larger than 25 MB, and files that cannot be read in 30 seconds or would need too much memory to read, are not read. Only the first 300,000 characters of a file are searched.
 - Each file is read apart from the rest of the application, so a damaged or deliberately harmful file cannot slow it down or stop it. A file whose reading had to be stopped is tried once more; if that fails too, it is left unread for good and is found by its name only.
 - Files a vendor sends through a response link are not read while they wait for review; their text is read once someone takes them over (see [Files from the vendor](04-vendors-and-contracts.md#files-from-the-vendor)).
 - When a file is removed its text is forgotten at once; if an administrator puts the file back, it is read again.
 - Older Word files (`.doc`), spreadsheets and presentations are found by their names only.
-- A PDF that is the original of a controlled document's effective version also makes the document itself findable by its words, a few minutes after its text has been read; a scanned PDF is marked "Scanned: no text" on its version.
+- A PDF that is the original of a controlled document's effective version also makes the document itself findable by its words, a few minutes after its text has been read; a scanned PDF read by OCR is marked as such on its version, and one with no text that OCR could read is found by its title and number only.
 
 ### Edit a file's details
 
@@ -160,16 +160,16 @@ An evidence file has an **Evidence** badge and its collection date in the list, 
 | Green, "Expires" and a date | It expires later than that |
 | Gray, **No expiry date** | No expiry date was given |
 
-### Expiring evidence files
+### Expiring evidence
 
-Open **Vendors > Evidence** and the **Expiring files** tab (shown to people who may view vendors; anyone can still open its address, `/attachments/expiring`). The page lists every evidence file, on any record you can open, that has already expired or will expire within the period you choose.
+One page lists everything used as evidence that has run out or soon will: vendor evidence, evidence library records (while the [evidence library](43-evidence-library.md) is on) and files attached to records as evidence. Open it from the **Expiring** tab of **Vendors > Evidence** or of the **Evidence library** (its address is `/attachments/expiring`; the old address `/evidence/expiring` opens it on vendor evidence). You see only what you could open anyway.
 
-1. Choose a period in **Show evidence expiring in**, from **Next 30 days** to **Next 365 days**. It starts at **Next 90 days**.
-2. The two tiles show how many files have **Already expired** and how many are expiring in the period.
-3. The table lists the files, soonest first, with the record each one is **Attached to**, the dates and a status chip.
-4. Select a file's name to download it, or the record's name to open the record and attach a current copy.
+1. Choose a **Source**: **Every source**, **Vendor evidence**, **Evidence library** or **File on a record**.
+2. Choose a period in **Show evidence expiring in**, from **Next 30 days** to **Next 365 days**. It starts at **Next 90 days**.
+3. The tiles show how much has **Already expired** and how much is expiring in the period.
+4. The table lists it soonest first, with where each item is kept, the dates and a status chip. Select an item to open it and record a current copy where the old one was.
 
-This page is separate from the **Expiring** tab of **Vendors > Evidence**, which lists vendor evidence records with the dates recorded on them; see [Vendors and contracts](04-vendors-and-contracts.md). When you can view vendors, **Expiring vendor evidence** at the top of this page opens it, and that page links back here.
+The separate **Expiring files** tab and its header links are gone: this page replaces them.
 
 The owner of the record is reminded as an evidence file's expiry date approaches: a **Reminders** notification 30 days before, 7 days before and on the day it expires, each once (only the nearest one when a file is attached with less time left). The owner is the person in the record's **Owner** field; on a record without one, the person who attached the file is told. Only someone who can open the record is told. Files on vendor evidence items are left out, because the evidence item's own expiry reminders cover them (see [Vendors and contracts](04-vendors-and-contracts.md#reminders)). Changing the file's **Expires on** date starts its reminders again.
 
@@ -335,8 +335,9 @@ Besides the notifications each part of the application sends as things happen, t
 | An overdue project milestone, or an overdue risk, issue, decision or change request in a project's register (**Due dates**) | The item's owner, or the project manager | Once for each due date that passes, while the project is active or on hold |
 | An evidence note on a framework outcome about to expire, or expired (**Reminders**) | The outcome's owner, or everyone who may edit framework outcomes | Once when the expiry is 30 days away, and once when it has passed |
 | A hazard's review date (**Reminders**) | The hazard's owner, or everyone who may edit safety records | Once when the date is 14 days away, and once when it is reached; not for closed hazards |
-| An evidence file about to expire, or expired (**Reminders**) | The owner of its record, or the person who attached it | 30 days before, 7 days before and on the day, each once; see [Expiring evidence files](#expiring-evidence-files) |
+| An evidence file about to expire, or expired (**Reminders**) | The owner of its record, or the person who attached it | 30 days before, 7 days before and on the day, each once; see [Expiring evidence](#expiring-evidence) |
 | An evidence record about to lapse (**Reminders**) | The evidence record's owner | 30 days before, 7 days before and on its "valid until" date, each once; see [Evidence library](43-evidence-library.md) |
+| A civil rights complaint time limit (acknowledgment, investigation, appeal) or monitoring report due (**Civil rights**) | The investigator (or the complaint handlers when there is none), the report owner | Once before the limit (**Remind before a complaint or report time limit**, 7 days) and once when it has passed; a program owner once 30 days before the next update is due; see [Civil rights programs](46-civil-rights-programs.md) |
 | Warranty and support end dates of assets, contract notice dates, review dates of framework outcomes, risk acceptances, policy acknowledgments and training due | As described in the guide for each part | |
 
 A date that passed more than 30 days before a reminder could be sent (for example on the day these reminders were first switched on) is not announced. Changing a due or review date starts its reminders again.
@@ -515,6 +516,11 @@ Each person adds their own under **Account security** > **Alerts by text message
 | **Remind hazard owners before the review date** | 14 days |
 | **Remind evidence owners before evidence lapses** | 30, 7 and 0 days before (shown while the [evidence library](43-evidence-library.md) is on) |
 | **Days the auditor has to verify a finding once it is ready** | 30 days (see [Audits and inspections](25-audits-and-inspections.md)) |
+| **Remind policy owners before a policy expires** | 90, 60 and 30 days before (shown while [insurance](45-insurance.md) is on) |
+| **Remind policy owners before the renewal application is due** | 14, 3 and 0 days before |
+| **Remind certificate owners before a certificate of insurance expires** | 30 and 0 days before |
+| **Remind before a complaint or report time limit** | 7 days (shown while [civil rights](46-civil-rights-programs.md) is on) |
+| **Remind the preparer before a statistical report is due** | 30, 7 and 0 days before (shown while [strategy](47-strategy-and-statistics.md) is on) |
 
 Change the values you need and select **Save changes**; **Undo changes** puts back what is saved. Each value that changed is kept in the audit log. Reminders for policies and training have their own settings in those parts of the application, and a policy or course can set its own interval; see [Policies and exceptions](11-policies-and-exceptions.md) and [Training and exercises](12-training-and-exercises.md).
 

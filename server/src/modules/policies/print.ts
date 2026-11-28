@@ -7,7 +7,8 @@
 // document library". Every page has the organization's footer and page numbers (core PdfBuilder,
 // tagged PDF/UA); a restricted document also gets the builder's restricted marking on every page.
 // Every print and download is audited. A version kept as a PDF prints as that PDF with the control block
-// stamped on every page (header, footer with page numbers, DRAFT/SUPERSEDED/OBSOLETE mark).
+// stamped on every page (header, footer with page numbers, DRAFT/SUPERSEDED/OBSOLETE mark); a text
+// version printed by the builder carries the same word diagonally on every page (E43-16).
 import type { FastifyRequest } from 'fastify';
 import { addAttachmentGuard } from '../../core/attachment-guards.ts';
 import { PDF_TYPE, PdfBuilder } from '../../core/export/pdf.ts';
@@ -32,6 +33,13 @@ export function statusMark(policy: Row, version: Row): string {
   if (version.status === 'published') return 'EFFECTIVE';
   if (version.status === 'approved') return 'APPROVED, NOT YET EFFECTIVE';
   return 'DRAFT: not approved';
+}
+
+/** The diagonal word on a printed version (E43-16): OBSOLETE, SUPERSEDED or DRAFT (not yet in force); none for the effective version. */
+export function diagonalMark(policy: Row, version: Row): 'DRAFT' | 'OBSOLETE' | 'SUPERSEDED' | null {
+  if (policy.status === 'retired' || version.status === 'withdrawn') return 'OBSOLETE';
+  if (version.status === 'superseded') return 'SUPERSEDED';
+  return READER_STATUSES.includes(version.status) ? null : 'DRAFT';
 }
 
 export function registerPrintRoutes(ctx: ModuleContext, tables: AccessTables): void {
@@ -114,6 +122,8 @@ export function registerPrintRoutes(ctx: ModuleContext, tables: AccessTables): v
         `Printed ${displayDate(dayInZone())} by ${req.user!.displayName}. Uncontrolled when printed: the current version is in the document library.`,
       ],
       watermark: restricted ? `${number ?? ''} · Restricted distribution` : null,
+      // A printed text version carries its status diagonally, as a stamped PDF original does (E43-16).
+      mark: diagonalMark(policy, version),
       appName, author: appName, branding: await printBranding(db),
     });
     // A version kept as a PDF prints as that PDF with the control block stamped on every page
@@ -122,8 +132,7 @@ export function registerPrintRoutes(ctx: ModuleContext, tables: AccessTables): v
       ? await stampedOriginal(policy, version, {
         header: [number, policy.title, vlabel].filter(Boolean).join(' · '),
         footer: `${mark.split(':')[0]} · Printed ${displayDate(dayInZone())} by ${req.user!.displayName} · Uncontrolled when printed · Page {page} of {pages}`,
-        watermark: policy.status === 'retired' || version.status === 'withdrawn' ? 'OBSOLETE'
-          : version.status === 'superseded' ? 'SUPERSEDED' : READER_STATUSES.includes(version.status) ? null : 'DRAFT',
+        watermark: diagonalMark(policy, version),
         restricted,
       })
       : null;

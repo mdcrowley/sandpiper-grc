@@ -10,6 +10,7 @@ import { isDataLoad } from '../../core/dataload.ts';
 import { accessDiffers, accessRule, audienceOutside, checkAccessInput, mayChangeAccess, isController, type AccessTables } from './access.ts';
 import { DEFAULT_REMINDER_INTERVAL, REMINDER_SETTING, reminderInterval, runPolicyReminders } from './acknowledgments.ts';
 import { registerAckRoutes } from './ackRoutes.ts';
+import { registerCopies } from './copies.ts';
 import { registerDocumentFiles } from './convert/index.ts';
 import { closeUnreadable, registerDocumentRoutes } from './documents.ts';
 import { registerExceptions, runExceptionExpiry } from './exceptions.ts';
@@ -309,6 +310,8 @@ const mod: ModuleDef = {
     registerGroups(ctx);
     registerReviews(ctx, tables);
     registerPrintRoutes(ctx, tables);
+    // The register of issued paper copies and their recall (E43-14).
+    registerCopies(ctx);
     registerDocumentMetrics(ctx);
     // Word conversion, PDF text and stamping, chunked uploads and package imports (E43-06, -07, -11).
     await registerDocumentFiles(ctx);

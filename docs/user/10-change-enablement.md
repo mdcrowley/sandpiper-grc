@@ -187,7 +187,7 @@ About a day before an approved or scheduled change is due to start, its owner an
 The **Systems and links** tab shows what a change touches and what it relates to.
 
 - **Affected systems and assets**: choose a **Type**, find the record and select **Add**. The main system and main asset are marked **Main**; change those with **Edit** on the **Change** card. Each system's own page lists the change under **Related**.
-- **Tickets, problems and projects**: choose a **Type**, find the record, choose **How it relates** (for example **This change fixes it** or **This change caused it**) and select **Add**. The link shows on both records.
+- **Incidents, tickets, problems and projects**: choose a **Type** (security incidents and safety events can be chosen too), find the record, choose **How it relates** (for example **This change fixes it** or **This change caused it**) and select **Add**. The link shows on both records. An incident, ticket or safety event linked as **This change caused it** counts the change as not successful in the change success rate.
 
 Affected systems matter: two changes conflict only when they overlap in time and share a system.
 
@@ -214,7 +214,7 @@ The name of the person and the reason are shown beside the conflict and recorded
 
 ## The change calendar
 
-Open **IT services > Changes** and the **Calendar** tab.
+Open **IT services > Changes** and the **Calendar** tab (there is no separate Calendar button on the register).
 
 - Switch between **Month** and **Week**. Use the arrows to move, and **Today** to come back.
 - To see one system, search for it in the box beside **Month** and **Week** (it shows **All systems** until you choose one). The calendar then shows only the changes that affect that system (as main system or as another affected system) and the blackout periods that apply to it. Select **Show all systems** in the notice to go back. The address can be bookmarked or sent from a system's page.
@@ -256,7 +256,7 @@ The **Actions** tab (shown when actions are in use) lists every action raised fr
 
 ### Change success rate
 
-The **Change success rate** widget on the home dashboard shows the share of changes finished in the last 90 days that succeeded. A change counts on the day of its **Actual end** (or the day its outcome was recorded). Canceled changes are left out; outcomes that need a post-implementation review (**Failed**, **Backed out**) count as not successful, and **Successful with issues** counts as successful. It is a figure, the same for everyone, and is also offered as the monthly metric **Change success rate** for indicators. Changes are not yet linked to the incidents they cause, so "caused an incident" is not counted.
+The **Change success rate** widget on the home dashboard shows the share of changes finished in the last 90 days that succeeded. A change counts on the day of its **Actual end** (or the day its outcome was recorded). Canceled changes are left out; outcomes that need a post-implementation review (**Failed**, **Backed out**) count as not successful, and **Successful with issues** counts as successful. A change that caused an incident counts as not successful too, whatever its outcome says: one linked on its **Related** tab to a ticket, security incident or safety event as **This change caused it** (or linked from the incident with the relation "caused by"); a deleted incident no longer counts. It is a figure, the same for everyone, and is also offered as the monthly metric **Change success rate** for indicators.
 
 ## History, comments and attachments
 

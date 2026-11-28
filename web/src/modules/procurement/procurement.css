@@ -1,0 +1,21 @@
+/* Procurement pages. Tokens only, so both themes work. */
+.prc-pad { padding: var(--s-3) var(--s-4); }
+.prc-small { font-size: var(--fs-sm); }
+.prc-pre { white-space: pre-wrap; margin: 0; }
+.prc-buttons { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: center; }
+.prc-two { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: var(--s-3); }
+.prc-criterion { display: grid; grid-template-columns: minmax(12rem, 1fr) 7rem 7rem auto; gap: var(--s-2); align-items: end; }
+.prc-actions { text-align: right; white-space: nowrap; }
+.prc-score { display: flex; gap: var(--s-2); align-items: center; min-width: 9rem; }
+.prc-score .rc-field { max-width: 6rem; }
+.prc-clause-status { min-width: 12rem; }
+.prc-late { margin-left: var(--s-2); }
+.prc-over { color: var(--danger-text); font-weight: 600; }
+.prc-offer { border-top: 1px solid var(--border); }
+.prc-offer-head { margin: 0; padding: var(--s-3) var(--s-4) var(--s-2); font-size: 1rem; }
+.prc-choice { border: 0; margin: 0; padding: 0; display: grid; gap: var(--s-2); }
+.prc-choice label { display: flex; gap: var(--s-2); align-items: center; }
+@media (max-width: 700px) {
+  .prc-criterion { grid-template-columns: 1fr 1fr; }
+}
+.prc-wrap td { white-space: normal; }

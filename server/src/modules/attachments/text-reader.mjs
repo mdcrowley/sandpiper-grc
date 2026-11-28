@@ -31,7 +31,7 @@ process.once('message', (job) => {
   const end = (result, code) => { if (!done) { done = true; clearInterval(watch); finish(result, code); } };
 
   const worker = new Worker(new URL('./text-worker.mjs', import.meta.url), {
-    workerData: { bytes: job.bytes, extension: job.extension, maxChars: job.maxChars, maxPages: job.maxPages, maxUnpacked: job.maxUnpacked },
+    workerData: { bytes: job.bytes, extension: job.extension, maxChars: job.maxChars, maxPages: job.maxPages, maxUnpacked: job.maxUnpacked, ocr: job.ocr ?? null },
     resourceLimits: { maxOldGenerationSizeMb: 384, maxYoungGenerationSizeMb: 64, stackSizeMb: 8 },
     stdout: true, stderr: true, // pdf.js warnings about damaged files stay out of the log
   });

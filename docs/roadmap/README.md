@@ -177,10 +177,28 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | [E40](epics/E40-production-hardening.md) | Production hardening | done | 14 / 14 |
 | [E41](epics/E41-product-gaps-wave-19.md) | Product gaps found in the wave 19 review | done | 17 / 17 |
 | [E42](epics/E42-windows-installer.md) | Windows installer, in-place updates and the update check | in progress | 7 / 8 |
-| [E43](epics/E43-document-control.md) | Document control: policies, standards, procedures, SOPs and plans | in progress | 15 / 19 |
-| [E44](epics/E44-navigation-and-usability.md) | Navigation and usability | in progress | 6 / 10 |
-| [E45](epics/E45-product-gaps-wave-24-review.md) | Product gaps found in the wave 24 review | in progress | 52 / 67 |
-| | **Total** | | **882 / 916** |
+| [E43](epics/E43-document-control.md) | Document control: policies, standards, procedures, SOPs and plans | done | 19 / 19 |
+| [E44](epics/E44-navigation-and-usability.md) | Navigation and usability | done | 10 / 10 |
+| [E45](epics/E45-product-gaps-wave-24-review.md) | Product gaps found in the wave 24 review | in progress | 66 / 67 |
+| [E46](epics/E46-wave-26-new-areas-and-remaining-gaps.md) | Wave 26: new areas and the remaining gaps | in progress | 52 / 72 |
+| | **Total** | | **956 / 988** |
+
+Wave 26 added four areas (E46): **Procurement and budgets** (solicitations with evaluation committees
+and awards, purchase orders with approval and receiving, budgets against committed and spent),
+**Insurance** (policies, conditions tracked by controls, covered records, renewals, certificates of
+insurance checked against contract requirements, restricted claims), **Civil rights** (programs with
+required elements and evidence, monitoring reports, complaints with time limits and confidential by
+default, business participation goals; off as installed) and **Strategy and performance** (the strategic
+plan, measures with targets, quarterly updates, a board scorecard, operating statistics and statistical
+submissions). Operations got defects raised from inspections, missed-inspection follow-up, governed
+vehicle retirement, a safety plan tab, indicator status and continuity plan templates. Default roles
+were given what their work needs, the Executive viewer became a leadership view with an
+organization-wide Board summary, each role has a home page, My work shows what waits and anyone can
+report a problem. It finished document control (E43: paper copies, OCR of scanned PDFs with
+tesseract.js and bundled language data, diagonal status marks, loaded versions undone one by one),
+navigation (E44-07 to E44-10) and the wave 24 review (E45-53 to E45-67 except E45-61, whose limit is
+documented), and fixed feature switches so a change applies at once to work outside a request
+(E46-52). The 21 issues not done in E45 and E46 are listed in their epics.
 
 Wave 25 built the product gaps of the wave 24 review (E45): enterprise risk stands on its own beside
 cybersecurity (risks need only `risks.view`, restriction per risk, target risk, a versioned appetite, a

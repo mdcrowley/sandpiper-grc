@@ -385,7 +385,8 @@
 .adm-dataload-controls > :first-child { flex: 0 1 18rem; min-width: 12rem; }
 .adm-dataload-buttons { display: flex; flex-wrap: wrap; gap: var(--s-2); padding-bottom: var(--s-1); }
 .adm-dataloads .num { text-align: right; white-space: nowrap; }
-.adm-dataloads-action { text-align: right; }
+.adm-dataloads-action { text-align: right; white-space: nowrap; }
+.adm-dataloads-action > * + * { margin-left: var(--s-2); }
 
 /* ---------- Administration page (/admin, E44-03) ---------- */
 .admin-hub-search { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3); }

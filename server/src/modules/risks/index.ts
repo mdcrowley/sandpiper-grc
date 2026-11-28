@@ -45,6 +45,19 @@ async function seedLookups(ctx: ModuleContext): Promise<void> {
     { value: 'transfer', label: 'Transfer', color: 'purple', sort: 30 },
     { value: 'avoid', label: 'Avoid', color: 'teal', sort: 40 },
   ], { module: 'risks' });
+  // E45-57: when a risk could happen, and how fast it would hit.
+  await ctx.lookups.ensure('risk_proximity', [
+    { value: 'imminent', label: 'Within 3 months', color: 'red', sort: 10 },
+    { value: 'near', label: '3 to 12 months', color: 'orange', sort: 20 },
+    { value: 'medium', label: '1 to 3 years', color: 'amber', sort: 30 },
+    { value: 'long', label: 'More than 3 years', color: 'gray', sort: 40 },
+  ], { module: 'risks' });
+  await ctx.lookups.ensure('risk_velocity', [
+    { value: 'very_rapid', label: 'Very rapid (hours or days)', color: 'red', sort: 10 },
+    { value: 'rapid', label: 'Rapid (weeks)', color: 'orange', sort: 20 },
+    { value: 'moderate', label: 'Moderate (months)', color: 'amber', sort: 30 },
+    { value: 'slow', label: 'Slow (a year or more)', color: 'gray', sort: 40 },
+  ], { module: 'risks' });
   await ctx.lookups.ensure('risk_status', [
     { value: 'open', label: 'Open', color: 'blue', sort: 10 },
     { value: 'in_treatment', label: 'In treatment', color: 'amber', sort: 20 },
@@ -247,6 +260,10 @@ const mod: ModuleDef = {
         target_on: { label: 'Target date', type: 'date' },
         // E45-01: a restricted risk needs access to restricted records (security.view) as well.
         restricted: { label: 'Restricted', type: 'boolean' },
+        // E45-57: when it could happen, how fast it would hit, and the strategic objective it threatens.
+        proximity: { label: 'Proximity', type: 'lookup', list: 'risk_proximity', help: 'When the risk could happen, from now.' },
+        velocity: { label: 'Velocity', type: 'lookup', list: 'risk_velocity', help: 'How fast the impact would be felt once it happens.' },
+        strategic_objective: { label: 'Strategic objective', type: 'text', personal: false, help: 'The objective of the strategic plan this risk threatens, for example "Reliable service on every route".' },
       },
       hooks: {
         beforeCreate: (req, data) => prepareRisk(req, null, data),

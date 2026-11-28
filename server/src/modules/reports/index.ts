@@ -17,7 +17,7 @@ import { describeSpecFilters, EXPORT_KINDS, FILE_TYPES, FORMAT_NAMES, renderFile
 import { AccessError, runReport } from './query.ts';
 import { defineReportResources } from './resources.ts';
 import { runDueSchedules, runSchedule } from './schedule.ts';
-import { seedStandard } from './seed.ts';
+import { refreshBoardSummary, seedStandard } from './seed.ts';
 import { makeSharing } from './sharing.ts';
 import { toCsv } from './render.ts';
 import { makeSnapshots } from './snapshots.ts';
@@ -408,6 +408,8 @@ const mod: ModuleDef = {
       return { schedules: runs.length, delivered: sum('delivered'), skipped: sum('skipped'), failed: sum('failed') };
     }, { maxAttempts: 2, backoffSeconds: 120 });
     await jobs.schedule('reports.deliver', { type: 'reports.deliver', every: 5 * 60_000, firstRunInMs: 90_000 });
+    // Wave 26: an unedited Board summary becomes the organization-wide one (safety and operations first).
+    await refreshBoardSummary(ctx);
   },
 
   async seed(ctx, opts) {

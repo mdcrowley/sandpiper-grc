@@ -58,3 +58,28 @@
   white-space: nowrap;
   border: 0;
 }
+/* Register templates (wave 26). */
+.reg-templates {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s-3);
+}
+.reg-template {
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.reg-template p { margin: 0.5rem 0 0; }
+.reg-template-head {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+.reg-template-head h3 { margin: 0; font-size: 1rem; }
+.reg-template-meta,
+.reg-template-fields { font-size: 0.875rem; }

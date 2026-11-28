@@ -2,8 +2,10 @@
 // (the core import wizard): choose "Fleet number" as the matching key to update existing vehicles.
 // The Condition tab (asset condition, E32) comes from the condition module when it is in the build
 // and its area is on; the condition columns are offered only while the server lists their fields.
-import { lazy, Suspense, type ComponentType } from 'react';
-import { Loading, PageHeader, RecordPage, ResourceList, useAuth, useResource } from '../../core';
+import { lazy, Suspense, useState, type ComponentType } from 'react';
+import { Button, Loading, PageHeader, RecordPage, ResourceList, useAuth, useResource } from '../../core';
+import type { Row } from '../../core';
+import { RetireDialog, RetirementTab } from './Retirement';
 import { EquipmentPanel } from './Equipment';
 import { SafetyEventsCard } from './SafetyEvents';
 import { FleetTabs } from './shared';
@@ -26,7 +28,8 @@ export function VehicleList() {
   const resource = useResource('vehicle');
   const bulkActions = useBulkExtensions('vehicle');
   // Columns of the condition area only while the server offers their fields (it hides them while the area is off).
-  const condition = CONDITION_COLUMNS.filter((f) => resource?.fields[f]).map((field) => ({ field, hidden: true }));
+  // Wave 26: odometer, condition and the end of useful life show by default; the asset class stays in the chooser.
+  const condition = CONDITION_COLUMNS.filter((f) => resource?.fields[f]).map((field) => ({ field, hidden: field === 'asset_class_id' }));
   // "New vehicle from this model" (E39-05): the New form opens filled with the model's values.
   const fromModel = useFromModel(MODEL_KINDS.vehicle);
   const withModel = Boolean(resource?.fields.model_id);
@@ -38,7 +41,7 @@ export function VehicleList() {
       <ResourceList
         type="vehicle"
         urlState
-        columns={['fleet_number', 'mode', 'status', 'depot_id', 'make', 'model',
+        columns={['fleet_number', 'mode', 'status', 'depot_id', { field: 'make', priority: 3 }, { field: 'model', priority: 3 },
           { field: 'model_year', label: 'Model year', sortable: true, align: 'right', render: year },
           { field: 'registration', hidden: true }, { field: 'funder_interest', hidden: true }, ...(withModel ? [{ field: 'model_id', hidden: true }] : []), ...condition]}
         filters={['mode', 'status', 'depot_id', 'model_id', 'funding_source', 'funder_interest', 'in_service_date',
@@ -52,6 +55,19 @@ export function VehicleList() {
   );
 }
 
+function RetireButton({ row, reload }: { row: Row; reload: () => void }) {
+  const { can } = useAuth();
+  const [open, setOpen] = useState(false);
+  const pending = row.retirement_request_status === 'pending' || row.retirement_request_status === 'approved';
+  if (!can('fleet.edit') || row.status === 'retired' || pending) return null;
+  return (
+    <>
+      <Button onClick={() => setOpen(true)}>Retire</Button>
+      {open && <RetireDialog vehicle={row} onClose={() => setOpen(false)} onDone={() => { setOpen(false); reload(); }} />}
+    </>
+  );
+}
+
 export function VehicleDetail() {
   const { can, areaOn } = useAuth();
   const condition = LazySection && areaOn('condition') && can('assets.view');
@@ -62,6 +78,8 @@ export function VehicleDetail() {
       type="vehicle"
       title={(row) => `Vehicle ${row.fleet_number}`}
       annotate={annotate}
+      // Wave 26: retiring a vehicle needs an approval, as disposing of an asset does.
+      actions={({ row, reload }) => <RetireButton row={row} reload={reload} />}
       summaryFields={['fleet_number', 'model_id', 'mode', 'status', 'depot_id', 'make', 'model', 'model_year', 'registration', 'in_service_date', 'capacity', 'funding_source', 'funder_interest', 'funder_interest_pct', 'notes']}
       tabs={[
         { key: 'equipment', label: 'Equipment', content: ({ row }) => <EquipmentPanel vehicleId={row.id} fleetNumber={row.fleet_number} retired={row.status === 'retired'} /> },
@@ -71,6 +89,7 @@ export function VehicleDetail() {
         }] : []),
         ...extensionTabs,
         ...(can('safety.view') ? [{ key: 'safety', label: 'Safety events', content: ({ row }: { row: { id: string } }) => <SafetyEventsCard url={`/api/vehicles/${row.id}/safety-events`} /> }] : []),
+        { key: 'retirement', label: 'Retirement', content: ({ row, reload }: { row: Row; reload: () => void }) => <RetirementTab vehicle={row} onChanged={reload} /> },
       ]}
     />
   );

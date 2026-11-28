@@ -74,6 +74,9 @@ export function requirable(name: string, f: FieldDef, statusField: string): bool
  */
 export const APPLICATION_RULES: Record<string, string[]> = {
   records_destruction: ['The status is set by the application: Submit, approval, Carried out and Cancel on the destruction page; a legal hold blocks submitting and carrying out.'],
+  purchase_order: ['The status is set by the application: submit, approval (never by the requester), issue, receipts, close and cancel on the order page.'],
+  strategic_objective: ['The status is set by the application: it follows the latest quarterly status update.'],
+  strategic_initiative: ['The status is set by the application: it follows the latest quarterly status update.'],
   cert_item: ['The status is set by the application: an item is open until it has requirements and each is verified or not applicable.'],
   access_review: ['The status is set by the application: Launch, Complete and Cancel on the review page. A completed or canceled review can only have its notes changed.'],
   ticket: [
@@ -127,6 +130,7 @@ export const APPLICATION_RULES: Record<string, string[]> = {
   ],
   vehicle: [
     'A vehicle cannot move to a retired status while equipment is installed on it.',
+    'Retired is set only by Mark as retired after an approved retirement request (wave 26); a data load may set it.',
   ],
   safety_event: [
     'A final status needs a root cause and no open corrective actions, and records the closing date.',
