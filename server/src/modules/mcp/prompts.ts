@@ -82,13 +82,14 @@ export const PROMPTS: PromptSpec[] = [
     },
     text: (a) => [
       `Help me load the controlled documents in ${a.folder || 'the folder I give you'} into Sandpiper GRC with their full version history${a.department ? `, owned by the ${a.department} department` : ''}.`,
-      '1. Inventory: list every file with its folder, name, type and size. Skip Office lock files (names starting with ~$), thumbnail caches (Thumbs.db, .DS_Store, desktop.ini) and anything that is not a document. '
+      '1. Inventory: list every file with its folder, name, type and size (with list_local_files, recursive, when the files are in a folder the server may read). Skip Office lock files (names starting with ~$), thumbnail caches (Thumbs.db, .DS_Store, desktop.ini) and anything that is not a document. '
         + 'Group the files into documents and versions (older revisions, "superseded" or "archive" folders, revision letters or dates in names), and read each Word or PDF file only as far as needed to find its number, title, revision and dates.',
       '2. Call list_record_types with type "policy" and find_documents to learn the document types and what already exists, so nothing is loaded twice (save_document updates a document with the same number).',
       '3. Propose a plan as a table and wait for my approval before changing anything: per document its number (keep the organization\'s own numbers), title, type, owner, owning department, parent document, who may read it '
         + '(everyone, or restricted to departments, roles, distribution groups or people), whether readers must acknowledge it, and per version its file, version number, label, status and approved, effective and superseded dates. Mark every guess.',
       '4. Check that data load mode is on (list_record_types says so); without it the original dates and statuses are not kept and every version is a draft. If it is off, tell me to switch it on under Administration > Settings > Data load mode, and stop.',
-      '5. For each document, after my approval: save_document with its details and access. Then for each version, oldest first: start_upload, upload_part for each part (at most 1 MB each, base64), finish_upload with the SHA-256; '
+      '5. For each document, after my approval: save_document with its details and access. Then for each version, oldest first: if list_local_files is available (local file import), give the file\'s path to convert_upload and add_document_version; '
+        + 'otherwise start_upload, upload_part for each part (at most 1 MB each, base64), finish_upload with the SHA-256; '
         + 'for a Word file call convert_upload and tell me about tracked changes, comments and left-out content before going on; then add_document_version with the upload, the version number, label, status and dates. '
         + 'A legacy .doc or a scanned PDF is kept as the original file only: say so in the report. Add links (link_document) and past reviews (record_document_review) when the files show them.',
       '6. Call check_document for every document loaded and fix what it reports, or list it for me.',
@@ -114,7 +115,7 @@ export const PROMPTS: PromptSpec[] = [
         + 'Put everyone else on the people roster (create_record with type "person", with their job title, phone and department), and name someone with neither as "name:<their name>". Never create an account I did not ask for.',
       '4. For each record: create_record for the parent with every mapped field. Give linked records by reference or exact title and people by username, email or name; read what the answer says each value was matched to, and fix any field it could not match rather than dropping it.',
       '5. Create its child records with create_record, setting their field that points at the parent to its reference, then link_records for the other related records the source names (relation in words, e.g. "depends on", "affects").',
-      '6. Attach the source files for that record (start_upload, upload_part, finish_upload, attach_file; mark certificates, signed agreements and audit proofs as evidence with their dates) or attach_link for documents kept elsewhere. Check list_attachments first so nothing is attached twice.',
+      '6. Attach the source files for that record (attach_local_file when the server may read them from its own folders, see list_local_files; otherwise start_upload, upload_part, finish_upload, attach_file; mark certificates, signed agreements and audit proofs as evidence with their dates) or attach_link for documents kept elsewhere. Check list_attachments first so nothing is attached twice.',
       '7. Add its history as comments with add_comment, one per entry, oldest first (in data load mode with created_at and "as" for the person who wrote it).',
       '8. Read "unfilled" and "related_empty" in each answer, fill what the sources give with update_record, and check one record in five with get_record.',
       '9. Report: records created with their references and links, values matched (names to records and people), fields and related types left empty and why, source content that had no place, and files not attached.',

@@ -1,6 +1,6 @@
 # E18 Quality and known defects
 
-**Status:** done (95 of 95 issues done)
+**Status:** done (97 of 97 issues done)
 
 ## Goal
 
@@ -1746,3 +1746,41 @@ exist as accounts, so they can be a ticket's requester, a comment's author, an a
 Not done: accounts have no job title or phone (those stay on the roster person), and accounts made this
 way are not listed on Administration > Data loads, so undoing a load does not remove them (disable or
 remove them on Administration > Users).
+
+### E18-96 Local file import for data loads
+
+**Status:** done · **Priority:** P1 · **Type:** feature
+
+Reported by an administrator loading historical records through Claude Desktop: the only way to attach a
+file was `start_upload`, `upload_part` and `finish_upload`, with 1 MB base64 parts the assistant must
+type out, while the sources (thousands of files, gigabytes) sat on the same machine as the server.
+
+- [x] Setting `mcp.local_import_roots` (Administration > AI assistant access > Local file import): full paths of existing folders, up to 20, empty by default (off); a signed-in session with a recent password confirmation, never a token; network paths and folders inside the server's own files refused; the page lists the server's own paths that are never read
+- [x] Routes `GET /api/data-load/local-files`, `POST /api/data-load/local-files/upload` and `POST /api/data-load/local-files/attach`: only while the caller's saves are loads, for an administrator (the owner's `admin.administer`), an assistant token that can write, or another API token with `admin.administer` in its scopes, and only with folders set
+- [x] Path guards: no control characters, UNC or device paths (`\server`, `\?\`, `\.\`), `..` segments, alternate data streams or device names; lexically inside a folder before the disk is touched, then realpath (links and junctions) and inside the resolved folder again, case-insensitive on Windows; regular files only, opened with `O_NOFOLLOW` where available and checked to be the file that was checked
+- [x] The server's own files refused even inside an allowed folder: data folder, secret key file and its retired keys (and any `*.secret.key`), backup folders (`GRC_BACKUP_DIR` and the scheduled backup folder), files named by `GRC_*_FILE` and `GRC_TLS_*` settings, the application folder
+- [x] The same intake as an upload (`uploadFromStream`: allowed types, size limit, content check, malware scanner), the record's edit rule, `as`/`on_behalf_of` and `created_at`, listed with the load; a file whose content is already on the record is not attached again (`duplicate: true`)
+- [x] Audit: `attachment.import_local` with the full path (data load), `attachment.import_local_refused` for each refusal, `attachment.upload` naming the folder
+- [x] MCP tools `list_local_files` (folder, pattern, recursive, paging; lock files, Thumbs.db, desktop.ini, .DS_Store and recycle bins left out; links not followed) and `attach_local_file`, offered only with the load, write access, a writing token and folders set (`ToolSpec.localFiles`); `convert_upload` and `add_document_version` take a `path` (`ToolSpec.localFileInput`), so a Word SOP on disk becomes a document version with its original kept in one call
+- [x] Server instructions and the `load_records_from_sources` and `load_document_package` prompts say to use them when they are offered
+- [x] Tests: `attachments/local.test.ts` (path guards on a temporary folder: junction and link escapes, `..`, UNC, streams, server files, listings, the setting), `mcp/local-files.test.ts` (setting, who is offered what, refusals and their audit, attach and dedupe, documents from a `.docx` on disk)
+
+**Implemented in:** `modules/attachments/local.ts`, `uploads.ts`, `index.ts`, `modules/mcp/tools-local.ts`, `tools-documents.ts`, `tools.ts`, `toolkit.ts`, `settings.ts`, `index.ts`, `server.ts`, `prompts.ts`, `web/src/modules/mcp/AdminPage.tsx`.
+
+Not done: network shares are refused (copy the files to a local folder); listing does not follow links
+inside a folder (a link may still be given by path when it stays inside).
+
+### E18-97 The user guide and prompts as tools
+
+**Status:** done · **Priority:** P1 · **Type:** feature
+
+Claude Desktop offers an assistant the server's tools but not its MCP prompts or resources, so
+`load_records_from_sources`, `load_document_package` and the `sandpiper://guide/<page>` pages could not be read.
+
+- [x] `read_guide` (`page?`): the list of guide pages (name, title, resource address), or one page's Markdown, the same text as its resource; a page by name, name without number, number or title
+- [x] `get_prompt` (`name?`, `args?`): the list of prompts with their arguments, or one prompt's text with its arguments filled in, the same as `prompts/get`; unknown names and arguments are errors
+- [x] Both read only and always offered (also to read-only tokens)
+- [x] Server instructions say that clients without prompts or resources can use them
+- [x] Tests: `mcp/local-files.test.ts` (same text as the resource and as `prompts/get`)
+
+**Implemented in:** `modules/mcp/tools-guide.ts`, `guide.ts`, `server.ts`, `tools.ts`.

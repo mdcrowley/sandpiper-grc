@@ -100,6 +100,7 @@ the second column is the setting as it is stored, which the body does not accept
 | `clientMetadata` | `mcp.oauth_client_metadata` | `false` | Connectors may use the `https` address of a client ID metadata document as `client_id` (also needs `integrations.outbound_enabled`) |
 | `clientMetadataHosts` | `mcp.oauth_client_metadata_hosts` | `[]` (any public host) | Hosts those addresses may be on: `host`, `host:port` or `*.domain` (up to 50) |
 | `clientMetadataApproval` | `mcp.oauth_client_metadata_approval` | `false` | A connector seen for the first time waits for an administrator's approval |
+| `localImportRoots` | `mcp.local_import_roots` | `[]` (off) | Folders on the server's own disk that a data load may read source files from (E18-96, [Local file import](#local-file-import)): full paths of existing folders, up to 20; no network (UNC) paths; a folder inside the server's data, secret key, backup or application folder is refused. **The server process reads these folders with its own account** |
 
 ## Who may connect
 
@@ -160,6 +161,8 @@ sign-offs) follow the person named (`actorOf(req)`), and `record_acknowledgment`
 through `POST /api/data-load/accounts`, with no password, link, invitation or email; the instructions
 and the `load_records_from_sources` prompt tell the assistant to use it only when asked, and to put
 everyone else on the people roster (`create_record` with type `person`) or name them with `name:`.
+With local file import set up (`mcp.local_import_roots`), `list_local_files` and `attach_local_file`
+are offered too, and `convert_upload` and `add_document_version` take a `path` (below).
 
 Evidence library records (`evidence_record`) and funders (`funder`), added in wave 25, are ordinary
 record types, so `list_record_types` and the record tools cover them while their areas are on.
@@ -223,6 +226,8 @@ token with write scopes, not only to document editors.
 | `attach_link` | `type`, `id`, `url`, `title?`, `evidence?`, `description?`, `collected_on?`, `expires_on?`, `created_at?` | Write. `POST /api/attachments/link`: http or https, no user name or password, never fetched; `as` in data load mode (the link's "added by" is the person named), and `created_at` kept as the link's added date; a link attached in a load is listed with the load, so undoing it removes the link (E46-51) |
 | `link_evidence` | `evidence`, `type`, `id`, `part?`, `relation?`, `note?` | Write. `POST /api/evidence-links`: links an evidence library record to a record (or a part of one, such as a workpaper step); offered while the evidence library is on and the caller may see it; `as` in data load mode (E45-65) |
 | `list_attachments` | `type`, `id` | `GET /api/attachments`: each file and link with kind, size, description, evidence dates, who added it and when |
+| `list_local_files` | `folder?` (full path, or relative to the only allowed folder), `pattern?` (`*` and `?`, any case), `recursive?`, `page?`, `page_size?` (≤ 1000, default 200) | Read only. Offered only with local file import on (below). `GET /api/data-load/local-files`: each file's `name`, `relative_path`, full `path`, `size_bytes`, `modified_at`, `extension` and `allowed_type`; subfolders by name when not recursive; what was left out (`skipped`: lock and system files, links, server files). Without `folder` and with several folders: the allowed folders |
+| `attach_local_file` | `path`, `type`, `id`, `evidence?`, `description?`, `collected_on?`, `expires_on?`, `created_at?`, `as?` | Write, idempotent. Offered only with local file import on. `POST /api/data-load/local-files/attach`: the server reads the file and attaches it exactly as an upload (allowed types, size limit, content check, malware scanner; "added by" the person named; listed with the load). A file whose content (SHA-256) is already on the record is not attached again: `duplicate: true` |
 
 ### Work and insight
 
@@ -281,12 +286,12 @@ else.
 | `read_document` | `document` (number, reference or id), `version?`, `max_chars?` (≤ 100,000) | Details, every version you may see with label, status, approved, effective, superseded and withdrawn dates, approval body and reference and conversion warnings; the chosen version's text (its Markdown, or for a file version the text read from its PDF original, `GET /api/documents/:id/versions/:vid/text`; a scan says it has no text); parent, children (hidden ones counted), links. `access_lists` only when you may change them |
 | `document_register_summary` | none | Figures, the same for everyone: total, effective, in review, reviews overdue and due within 90 days, obsolete, without an owner, acknowledgment completion, by type and status (`GET /api/documents/summary`, `GET /api/policies/stats?group=status`). No titles |
 | `check_document` | `document?`, `number_prefix?` | Per document: more than one effective version, gaps or overlaps between versions' dates, versions out of order or without an effective date, a file version without its original, children of obsolete documents (and an obsolete document's live children), the type tier warning, an acknowledgment audience outside the readers, no owner. Without `document`, up to 100 documents you may read. Reports progress |
-| `convert_upload` | `upload_id`, `max_chars?` | Read-only effect: the Markdown a `.docx` upload converts to and the conversion report (tracked changes, comments, left-out content, images, hints from headers and footers), nothing saved (`POST /api/documents/convert`). Any other type: the report says it is kept as the original file |
+| `convert_upload` | `upload_id` or (local file import on) `path`, `max_chars?` | Read-only effect: the Markdown a `.docx` upload converts to and the conversion report (tracked changes, comments, left-out content, images, hints from headers and footers), nothing saved (`POST /api/documents/convert`). Any other type: the report says it is kept as the original file. With `path` the server first reads the file into an upload (`POST /api/data-load/local-files/upload`) and answers its `upload_id` for `add_document_version` |
 | `start_upload` | `file_name`, `size`, `sha256?` | Write. `POST /api/attachments/uploads`: `upload_id`, `part_size` (1 MiB), `part_count` |
 | `upload_part` | `upload_id`, `part` (from 1), `data` (base64), `sha256?` | Write, idempotent. `POST /api/attachments/uploads/:id/parts/:n`; reports progress |
 | `finish_upload` | `upload_id`, `sha256?` | Write, idempotent. Joins the parts, checks the SHA-256, type and content, runs the malware scanner (`POST .../finish`). The upload is kept 24 hours and used once (`attach_file` on any record, or `add_document_version`). The three upload tools are offered to every token with write scopes (E45-47) |
 | `save_document` | `doc_number?`, `title?`, `summary?`, `type?`, `owner?` (user name, id or `me`), `owning_department?`, `parent_number?`, `approver_name?`, `approver_role?`, `review_months?`, `access?`, `access_departments?`, `access_roles?`, `access_groups?`, `access_users?`, `ack_required?`, `audience_*?`, `ack_days?`, `publisher?`, `edition?`, `published_on?`, `source_url?`, `license_note?`, `expires_on?` | Write, idempotent. Updates the document with that number (`PATCH /api/policies/:id`), or creates one (`POST /api/policies`). Setting a number by hand needs `policies.administer` except in data load mode, where the given number is kept |
-| `add_document_version` | `document`, `body_markdown` or `upload_id`, `convert?` (default true for `.docx`), `accept_as_is?`, `version?`, `version_label?`, `status?`, `approved_on?`, `effective_on?`, `superseded_on?`, `withdrawn_on?`, `approved_by_name?`, `approval_body?`, `approval_reference?`, `change_summary?`, `minor?` | Write. `POST /api/policies/:id/versions` with `source_upload_id`: a Word upload is converted (its images become files on the document); a tracked-changes file is refused before the upload is used, unless `accept_as_is`; a Word file that cannot be converted, a PDF or a legacy `.doc` becomes a file-only version with a note. The version number, status and dates are sent only in data load mode; otherwise the version is a draft and the answer says so |
+| `add_document_version` | `document`, `body_markdown` or `upload_id` or (local file import on) `path`, `convert?` (default true for `.docx`), `accept_as_is?`, `version?`, `version_label?`, `status?`, `approved_on?`, `effective_on?`, `superseded_on?`, `withdrawn_on?`, `approved_by_name?`, `approval_body?`, `approval_reference?`, `change_summary?`, `minor?` | Write. `POST /api/policies/:id/versions` with `source_upload_id`: a Word upload is converted (its images become files on the document); a tracked-changes file is refused before the upload is used, unless `accept_as_is`; a Word file that cannot be converted, a PDF or a legacy `.doc` becomes a file-only version with a note. The version number, status and dates are sent only in data load mode; otherwise the version is a draft and the answer says so |
 | `set_document_access` | `document`, `access`, `access_departments?`, `access_roles?`, `access_groups?`, `access_users?` | Write, idempotent. Replaces the distribution (owner or `policies.administer`); names are matched |
 | `link_document` | `document`, `to_type`, `to`, `relation?`, `as?` (data load mode) | Write, idempotent. `POST /api/links` with a `document_link_relation` value (default `references`); a framework outcome goes through `POST /api/policies/:id/outcomes` |
 | `record_document_review` | `document`, `result` (`no_change`, `revise`, `retire`), `reviewed_on?`, `reviewed_by_name?`, `note?`, `reason?`, `replaced_by?`, `as?` (data load mode: the reviewer) | Write. `POST /api/policies/:id/reviews`; past dates in data load mode |
@@ -296,6 +301,36 @@ In data load mode (`dataLoad.allowed`) the descriptions of `save_document`, `add
 and `record_document_review` say that the dates, statuses and numbers given are kept and that nothing
 is sent; versions may arrive out of order and superseding is worked out from their dates. Every
 document loaded is listed in `data_load_records`.
+
+### Local file import
+
+E18-96, `server/src/modules/attachments/local.ts` and `server/src/modules/mcp/tools-local.ts`. For loading
+a large set of source files (thousands of files, gigabytes) that sit on the server's own machine: the
+**server reads them from disk itself**, so the assistant does not send each file as base64 parts.
+
+- **Off by default.** An administrator lists folders in `localImportRoots` (Administration > AI assistant
+  access > Local file import; a signed-in session with a recent password confirmation). Empty the list
+  when the load is done.
+- **Who.** The tools (`list_local_files`, `attach_local_file`, and the `path` of `convert_upload` and
+  `add_document_version`) are offered only while the caller's saves are data loads (data load mode on,
+  the token's owner holds `admin.administer`, AI assistant write access on), the token can write, and
+  at least one folder is set. The server instructions then say so. The REST routes
+  (`/api/data-load/local-files...`, [API](api.md)) check all of it again on every request; an
+  administrator's ordinary API token needs `admin.administer` in its own scopes.
+- **Which files.** Only regular files inside an allowed folder, after following links and junctions
+  (realpath, compared without case on Windows). Refused: `..`, network and device paths (`\\server`,
+  `\\?\`, `\\.\`), alternate data streams (a colon after the drive letter), device names, links that
+  lead out, and the server's own files even inside an allowed folder: the data folder, the secret key
+  file and its retired keys (and any file named `*.secret.key`), the backup folders (`GRC_BACKUP_DIR`
+  and the scheduled backup folder), every file named by a `GRC_*_FILE` setting, the TLS files and the
+  application folder. Listings leave out Office lock files (`~$...`), `Thumbs.db`, `desktop.ini`,
+  `.DS_Store` and recycle bins, and do not follow links.
+- **The same intake.** A file read this way goes through the upload intake (allowed types, the size
+  limit of the File settings, content against the name, the malware scanner), is attached under the
+  record's own rules, carries the person named with `as`, and is listed with the load.
+- **Audit.** Every file read is audited as `attachment.import_local` with its full path (marked as a
+  data load), every refusal as `attachment.import_local_refused`, and the attachment as
+  `attachment.upload` naming the folder.
 
 ### Progress notifications
 
@@ -333,6 +368,18 @@ arrive.
 The server instructions (`server.ts`, `COMPLETENESS`) tell every assistant the same: fill every field the
 source supports, set reference and person fields, create child records and links, attach the source
 files, keep history as comments and report what it could not place.
+
+The two loading prompts also say to use `list_local_files`, `attach_local_file` and a `path` for document
+versions when local file import is on, and the upload tools otherwise.
+
+**Clients without prompts or resources** (E18-97, `server/src/modules/mcp/tools-guide.ts`). Some clients
+(Claude Desktop among them) offer the server's tools to the assistant but not its prompts or resources.
+Two read-only tools, always offered, give the same text, and the server instructions point to them:
+
+| Tool | Input | Output |
+|---|---|---|
+| `read_guide` | `page?` (its name such as `21-ai-assistants-and-mcp`, the name without the number, the number, or the title) | Without `page`: every page's name, title and resource address. With: the page's Markdown, exactly the text of `sandpiper://guide/<page>` |
+| `get_prompt` | `name?`, `args?` (an object of the prompt's arguments) | Without `name`: every prompt with its description and arguments. With: the prompt's text with the arguments filled in, exactly what `prompts/get` answers; an unknown name or argument is an error |
 
 ## OAuth for remote connectors
 

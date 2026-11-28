@@ -6,6 +6,8 @@ import { ACCOUNT_TOOLS } from './tools-accounts.ts';
 import { APPROVAL_TOOLS } from './tools-approvals.ts';
 import { DOCUMENT_TOOLS } from './tools-documents.ts';
 import { FILE_TOOLS } from './tools-files.ts';
+import { GUIDE_TOOLS } from './tools-guide.ts';
+import { LOCAL_FILE_TOOLS } from './tools-local.ts';
 import { PROGRAM_TOOLS } from './tools-programs.ts';
 import { RECORD_TOOLS } from './tools-records.ts';
 import { MODEL_TOOLS } from './tools-models.ts';
@@ -15,7 +17,9 @@ import { WORK_TOOLS } from './tools-work.ts';
  * Every tool the server knows, in the order they are listed. The one delete tool, delete_record, is
  * offered only while data load mode is on, for records a load created (E18-70).
  */
-export const ALL_TOOLS: ToolSpec[] = [...RECORD_TOOLS, ...FILE_TOOLS, ...MODEL_TOOLS, ...WORK_TOOLS, ...APPROVAL_TOOLS, ...PROGRAM_TOOLS, ...DOCUMENT_TOOLS, ...ACCOUNT_TOOLS];
+export const ALL_TOOLS: ToolSpec[] = [
+  ...RECORD_TOOLS, ...FILE_TOOLS, ...LOCAL_FILE_TOOLS, ...MODEL_TOOLS, ...WORK_TOOLS, ...APPROVAL_TOOLS, ...PROGRAM_TOOLS, ...DOCUMENT_TOOLS, ...ACCOUNT_TOOLS, ...GUIDE_TOOLS,
+];
 
 export function availability(ctx: ModuleContext, permissions: string[]): Availability {
   const user = { permissions } as SessionUser;
@@ -37,7 +41,18 @@ export function toolState(tool: ToolSpec, settings: McpSettings, a: Availability
   if (session && tool.write && !hasWriteScope(session.permissions)) return { offered: false, reason: 'The token has no create or edit permissions.' };
   if (a && tool.available && !tool.available(a)) return { offered: false, reason: 'Needs a part of the application or a permission this caller does not have.' };
   if (tool.dataLoadOnly && !session?.dataLoad?.allowed) return { offered: false, reason: 'Only while data load mode is on, for administrators (Administration > Settings).' };
+  if (tool.localFiles && !settings.localImportRoots?.length) return { offered: false, reason: 'No folders are set for local file import (Administration > AI assistant access).' };
+  if (tool.localFiles && !(session && localImportOn(settings, session))) return { offered: false, reason: 'Only in a data load, with a token that can write.' };
   return { offered: true, reason: null };
+}
+
+/**
+ * Whether this caller may have the server read files from its own folders (E18-96): its saves are
+ * loads (data load mode on, owner holds admin.administer, AI assistant write access on), the token
+ * can write, and an administrator has set at least one folder. The REST routes check the same.
+ */
+export function localImportOn(settings: McpSettings, session: Session): boolean {
+  return session.dataLoad?.allowed === true && settings.writeEnabled && hasWriteScope(session.permissions) && (settings.localImportRoots?.length ?? 0) > 0;
 }
 
 /**

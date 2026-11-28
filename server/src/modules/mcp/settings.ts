@@ -1,4 +1,5 @@
 import type { ModuleContext } from '../../core/module.ts';
+import { LOCAL_ROOTS_KEY } from '../attachments/local.ts';
 
 /**
  * Settings for AI assistant access (MCP). All off until an administrator switches them on under
@@ -30,6 +31,11 @@ export interface McpSettings {
   clientMetadataHosts: string[];
   /** A connector seen for the first time waits until an administrator approves it. */
   clientMetadataApproval: boolean;
+  /**
+   * Folders on the server's own disk an administrator's data load may read source files from (E18-96,
+   * attachments/local.ts): absolute paths. Empty (the default) = local file import is off.
+   */
+  localImportRoots: string[];
 }
 
 export const KEYS = {
@@ -45,12 +51,13 @@ export const KEYS = {
   clientMetadata: 'mcp.oauth_client_metadata',
   clientMetadataHosts: 'mcp.oauth_client_metadata_hosts',
   clientMetadataApproval: 'mcp.oauth_client_metadata_approval',
+  localImportRoots: LOCAL_ROOTS_KEY,
 } as const;
 
 export const DEFAULTS: McpSettings = {
   enabled: false, writeEnabled: false, allowedTools: null, ratePerMinute: 120, allowedOrigins: [],
   allowedRoles: null, roleTools: {}, oauthEnabled: false, oauthRegistration: false,
-  clientMetadata: false, clientMetadataHosts: [], clientMetadataApproval: false,
+  clientMetadata: false, clientMetadataHosts: [], clientMetadataApproval: false, localImportRoots: [],
 };
 
 const strings = (v: unknown) => (Array.isArray(v) ? v.map(String) : null);
@@ -73,6 +80,7 @@ export async function readSettings(ctx: ModuleContext): Promise<McpSettings> {
     clientMetadata: (await s.get<unknown>(KEYS.clientMetadata, false)) === true,
     clientMetadataHosts: strings(await s.get<unknown>(KEYS.clientMetadataHosts, [])) ?? [],
     clientMetadataApproval: (await s.get<unknown>(KEYS.clientMetadataApproval, false)) === true,
+    localImportRoots: strings(await s.get<unknown>(KEYS.localImportRoots, [])) ?? [],
   };
 }
 

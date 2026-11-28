@@ -16,7 +16,8 @@ import { featureState, ownedOff } from '../../core/features.ts';
 import { UUID_RE } from '../../core/errors.ts';
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
 import { checkSources, issueToken, scopeCovered, tokenScopes } from '../../core/tokens.ts';
-import { dataLoadFor, readDataLoad } from '../../core/dataload.ts';
+import { dataLoadFor, mayLoad, readDataLoad } from '../../core/dataload.ts';
+import { checkRoots, protectedPaths } from '../attachments/local.ts';
 import { reviewerSql } from '../../core/reviewers.ts';
 import { registerEndpoint } from './http.ts';
 import { oauthBase, registerOAuth, secureBase } from './oauth.ts';
@@ -101,7 +102,8 @@ const mod: ModuleDef = {
           const s = await readDataLoad(db, ctx.audit);
           return { on: s.on, until: s.until, allowed: s.on && await dataLoadFor(db, req, ctx.audit) };
         })(),
-        settings,
+        // The folders of local file import (E18-96) are told only to a token whose owner may load.
+        settings: mayLoad(req) ? settings : { ...settings, localImportRoots: [] },
       };
     });
     ctx.describeRoute({ method: 'GET', path: '/api/mcp/session', summary: 'Who an MCP token acts as, and whether it is accepted at /mcp (tokens only)', tag: 'AI assistants' });
@@ -272,6 +274,8 @@ const mod: ModuleDef = {
       const roles = (await db.query<Row>('select key, name, enabled from roles order by name')).filter((r) => !off(r.key));
       return {
         settings, days, activeTokens: tokens, roles,
+        // Local file import (E18-96): the server's own paths, never read even inside an allowed folder.
+        localImport: { protected: await protectedPaths(ctx), platform: process.platform },
         tools: installedTools(ctx).map((t) => ({
           name: t.name, title: t.title, group: t.group, write: !!t.write, description: t.description,
           allowed: !settings.allowedTools || settings.allowedTools.includes(t.name),
@@ -354,6 +358,11 @@ const mod: ModuleDef = {
           if (!fields.roleTools) next.roleTools = out;
         }
       }
+      if (b.localImportRoots !== undefined) {
+        const r = await checkRoots(b.localImportRoots, await protectedPaths(ctx));
+        if ('error' in r) fields.localImportRoots = r.error;
+        else next.localImportRoots = r.roots;
+      }
       if (Object.keys(fields).length) ctx.fail(400, 'validation', 'Check the highlighted fields.', fields);
       const changed = (Object.keys(next) as (keyof typeof KEYS)[]).filter((k) => JSON.stringify(next[k]) !== JSON.stringify(current[k as keyof McpSettings]));
       if (changed.length) {
@@ -364,7 +373,8 @@ const mod: ModuleDef = {
     });
     ctx.describeRoute({
       method: 'PUT', path: '/api/mcp/admin/settings', summary: 'Change AI assistant access (needs a recent password confirmation)', permission: ADMIN, tag: 'AI assistants',
-      body: '{ enabled?, writeEnabled?, allowedTools?: string[] | null, ratePerMinute?, allowedOrigins?: string[], allowedRoles?: string[] | null, roleTools?: { [role]: string[] | null }, oauthEnabled?, oauthRegistration?, clientMetadata?, clientMetadataHosts?: string[], clientMetadataApproval? }',
+      body: '{ enabled?, writeEnabled?, allowedTools?: string[] | null, ratePerMinute?, allowedOrigins?: string[], allowedRoles?: string[] | null, roleTools?: { [role]: string[] | null }, oauthEnabled?, oauthRegistration?, clientMetadata?, clientMetadataHosts?: string[], clientMetadataApproval?, localImportRoots?: string[] }',
+      description: '`localImportRoots` (E18-96): absolute paths of existing folders on the server that a data load may read source files from (empty: off); a folder inside the server\'s own data, secret key, backup or application folder is refused.',
     });
   },
 };

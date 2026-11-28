@@ -247,11 +247,26 @@ export async function claimUpload(
  * archive): the same intake as any upload, owned by the person whose request it is.
  */
 export async function uploadFromBytes(ctx: ModuleContext, req: FastifyRequest, fileName: string, bytes: Buffer): Promise<Row> {
+  return uploadFromStream(ctx, req, fileName, Readable.from([bytes]), bytes.length);
+}
+
+/**
+ * The same from a stream the server opened itself (a file read from a local import folder, E18-96,
+ * local.ts): the same intake as any upload (allowed types, size limit, content against the name,
+ * malware scanner), owned by the person whose request it is. A refused file leaves nothing behind.
+ */
+export async function uploadFromStream(ctx: ModuleContext, req: FastifyRequest, fileName: string, body: Readable, size: number): Promise<Row> {
   const prepared = await prepareFile(ctx, fileName);
-  if (!prepared.ok) ctx.fail(prepared.refusal.status, prepared.refusal.code, prepared.refusal.message);
+  if (!prepared.ok) {
+    body.destroy();
+    ctx.fail(prepared.refusal.status, prepared.refusal.code, prepared.refusal.message);
+  }
   const p = (prepared as { ok: true; file: Parameters<typeof receiveFile>[1] }).file;
-  const received = await receiveFile(ctx, p, Readable.from([bytes]), bytes.length);
-  if (!received.ok) ctx.fail(received.refusal.status, received.refusal.code, received.refusal.message);
+  const received = await receiveFile(ctx, p, body, size);
+  if (!received.ok) {
+    body.destroy();
+    ctx.fail(received.refusal.status, received.refusal.code, received.refusal.message);
+  }
   const file = (received as { ok: true; file: Received }).file;
   const row = (await ctx.db.one<Row>(
     `insert into uploads_pending (user_id, token_id, file_name, extension, size, sha256, part_size, part_count, parts_driver, status, file, storage_key, finished_at, expires_at)
@@ -259,6 +274,15 @@ export async function uploadFromBytes(ctx: ModuleContext, req: FastifyRequest, f
     [req.user!.id, req.apiToken?.id ?? null, file.fileName, file.extension, file.size, file.sha256, UPLOAD_PART_BYTES, file.driver, JSON.stringify(file), file.key, UPLOAD_HOURS],
   ))!;
   return presentUpload(row);
+}
+
+/** Removes one finished upload that was never attached, with its bytes (a duplicate a caller decided not to keep). */
+export async function dropUnusedUpload(ctx: ModuleContext, id: string): Promise<void> {
+  const u = await ctx.db.one<Row>(`select * from uploads_pending where id = $1 and status <> 'used'`, [id]);
+  if (!u) return;
+  await dropParts(ctx, u);
+  if (u.status === 'ready' && u.file) await discardReceived(ctx, u.file as Received);
+  await ctx.db.query('delete from uploads_pending where id = $1', [u.id]);
 }
 
 /** Removes expired uploads with their bytes (parts, and the file of a finished upload never used). */

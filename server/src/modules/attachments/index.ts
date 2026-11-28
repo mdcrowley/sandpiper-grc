@@ -28,6 +28,7 @@ import { auditAddress, isLink, linkChange, registerLinkRoutes } from './links.ts
 import { insertAttachment, prepareFile, receiveFile, sandboxDownload, sendStoredFile, type Refusal } from './intake.ts';
 import { queueFileTexts, registerFileText } from './text.ts';
 import { registerUploads } from './uploads.ts';
+import { registerLocalImport } from './local.ts';
 import { makeScannerRegistry } from './scanner.ts';
 import {
   formatBytes, present, readSettings, SETTING_EXTENSIONS, SETTING_MAX_BYTES, validateDescriptive, validateSettings,
@@ -346,6 +347,8 @@ const mod: ModuleDef = {
     registerLinkRoutes(ctx, { needParent, needAttachment });
     // Chunked uploads (E43-07, uploads.ts): parts of at most 1 MB, attached on first use under the record's rules.
     await registerUploads(ctx, { needParent });
+    // Local file import (E18-96, local.ts): in a data load, the server reads files from folders an administrator allowed.
+    registerLocalImport(ctx, { needParent });
 
     app.delete('/api/attachments/:id', async (req) => {
       const { att, parent } = await needAttachment(req, 'edit');

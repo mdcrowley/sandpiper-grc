@@ -152,7 +152,7 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | [E15](epics/E15-self-service-portal.md) | Self-service portal | done | 14 / 14 |
 | [E16](epics/E16-hosting-operations-and-hardening.md) | Hosting, operations and hardening | in progress | 35 / 39 |
 | [E17](epics/E17-documentation.md) | Documentation | done | 14 / 14 |
-| [E18](epics/E18-quality-and-known-defects.md) | Quality and known defects | done | 95 / 95 |
+| [E18](epics/E18-quality-and-known-defects.md) | Quality and known defects | done | 97 / 97 |
 | [E19](epics/E19-fleet-and-services.md) | Fleet and services | done | 14 / 14 |
 | [E20](epics/E20-safety-management.md) | Safety management | done | 15 / 15 |
 | [E21](epics/E21-mcp-server.md) | MCP server (AI assistant access) | done | 25 / 25 |
@@ -181,11 +181,15 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | [E44](epics/E44-navigation-and-usability.md) | Navigation and usability | done | 10 / 10 |
 | [E45](epics/E45-product-gaps-wave-24-review.md) | Product gaps found in the wave 24 review | done | 67 / 67 |
 | [E46](epics/E46-wave-26-new-areas-and-remaining-gaps.md) | Wave 26: new areas and the remaining gaps | done | 74 / 74 |
-| | **Total** | | **981 / 992** |
+| | **Total** | | **983 / 994** |
 
 Wave 27 finished every open issue that could be built in code (E46-53 to E46-74, E45-61, E40-15).
 After it, a data load can create disabled accounts used only to name employees and vendor contacts in
-loaded history, with nothing ever sent to them (E18-95, MCP `create_account`).
+loaded history, with nothing ever sent to them (E18-95, MCP `create_account`). In a load, the server
+can read source files from folders an administrator allowed instead of receiving them in parts, with
+strict path guards and an audit of every file read (E18-96, MCP `list_local_files` and
+`attach_local_file`), and clients that cannot use MCP prompts or resources get them as the tools
+`read_guide` and `get_prompt` (E18-97).
 Enterprise risk: an appetite change can go through an approval workflow. Dashboards: the change
 success gauge reads the changes module's rate, the Board summary shows the safety indicators, and a
 widget shows one strategic measure. Funder review readiness counts the previous review's open

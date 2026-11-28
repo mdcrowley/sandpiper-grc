@@ -77,6 +77,13 @@ export interface ToolSpec {
   dataLoadNote?: string;
   /** Arguments offered only while this caller's saves are loads (E18-71: `as`, the person written for). */
   dataLoadInput?: ZodRawShape;
+  /**
+   * Reads files from the server's own folders (E18-96): offered only while this caller's saves are
+   * loads, the token can write, and an administrator has set local import folders.
+   */
+  localFiles?: boolean;
+  /** Arguments offered only while local file import is on for this caller (a `path` on disk, E18-96). */
+  localFileInput?: ZodRawShape;
   /** Repeating the call with the same input has no further effect. */
   idempotent?: boolean;
   /** Short group name for the administrators' screen. */

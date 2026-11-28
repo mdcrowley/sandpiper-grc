@@ -5,6 +5,7 @@ import { fileOnlyReport } from '../policies/convert/docx.ts';
 import { qs, ToolError } from './caller.ts';
 import { fail, isUuid, plural, type ToolContext, type ToolResult, type ToolSpec } from './toolkit.ts';
 import { AS_INPUT, named } from './tools-records.ts';
+import { PATH_ARG, uploadFromPath } from './tools-local.ts';
 
 // Document control tools (E43-10): find, read and check controlled documents, the register figures,
 // and, with write access, load a whole document package: chunked upload of the originals, Word
@@ -277,24 +278,31 @@ const convertUpload: ToolSpec = {
   description: 'Converts a finished upload of a Word file (.docx) to Markdown and returns it with the conversion report (tracked changes, comments, left-out content, images, '
     + 'hints from headers and footers such as a revision label or effective date) without saving anything, so you can check it before add_document_version. '
     + 'A PDF or a legacy .doc is not converted: the report says it will be kept as the original file.',
+  localFileInput: { path: PATH_ARG.optional().describe('Instead of upload_id (local file import, E18-96): a file in a folder the server may read. The server reads it into an upload, converts it, and answers its upload_id for add_document_version.') },
   input: {
-    upload_id: z.string().min(1),
+    upload_id: z.string().min(1).optional().describe('A finished upload (finish_upload).'),
     max_chars: z.number().int().min(500).max(100_000).optional().describe('Most characters of Markdown returned (default 20,000).'),
   },
   async run(args, t) {
-    const r = await t.api.post<Json>('/api/documents/convert', { upload_id: args.upload_id });
+    if (!args.upload_id && !args.path) fail('Give an upload_id.', 'validation', { upload_id: 'Required.' });
+    if (args.upload_id && args.path) fail('Give either upload_id or path, not both.');
+    // A file on disk (E18-96) becomes a finished upload first; it is not used until add_document_version.
+    const local = args.path ? await uploadFromPath(t, args.path) : null;
+    const uploadId = local ? local.id : args.upload_id;
+    const r = await t.api.post<Json>('/api/documents/convert', { upload_id: uploadId });
     const max = args.max_chars ?? 20_000;
     const md = String(r.markdown ?? '');
     const rep = r.report ?? {};
     return {
       text: [
+        local ? `Read ${local.path} into upload ${local.id}: give upload_id ${local.id} to add_document_version (kept for 24 hours).` : '',
         rep.status === 'file_only' ? `Not converted: ${rep.note}` : `Converted ${rep.file_name}: ${md.length} characters, ${plural(r.images?.length ?? 0, 'image')}.`,
         rep.warnings?.length ? `Warnings:\n${rep.warnings.map((w: string) => `- ${w}`).join('\n')}` : '',
         rep.suggested && Object.keys(rep.suggested).length ? `Found in headers or footers: ${Object.entries(rep.suggested).map(([k, v]) => `${k} ${v}`).join(', ')}.` : '',
         rep.tracked_changes ? 'It has tracked changes: add_document_version refuses it unless accept_as_is is true (insertions kept, deletions left out).' : '',
         md ? `\n${md.slice(0, max)}${md.length > max ? '\n…' : ''}` : '',
       ].filter(Boolean).join('\n'),
-      data: { markdown: md.slice(0, max), truncated: md.length > max, report: rep, images: r.images ?? [] },
+      data: { markdown: md.slice(0, max), truncated: md.length > max, report: rep, images: r.images ?? [], ...(local ? { upload_id: local.id, path: local.path } : {}) },
     };
   },
 };
@@ -381,6 +389,7 @@ const addDocumentVersion: ToolSpec = {
     + 'Outside data load mode the version is a draft, to be sent for review and approved in the application. Load history oldest version first.',
   dataLoadNote: `${DATA_LOAD_NOTE} You may give the version number (versions may arrive out of order), its status (draft to superseded or withdrawn) and its approved, effective, superseded and withdrawn dates; superseding is worked out from the dates when not given, and the document's status follows its newest version. Give "as" for the person who wrote the version.`,
   dataLoadInput: AS_INPUT,
+  localFileInput: { path: PATH_ARG.optional().describe('Instead of upload_id or body_markdown (local file import, E18-96): a file in a folder the server may read, which becomes the version\'s original in this one call (a Word file is converted as with an upload).') },
   input: {
     document: docArg,
     body_markdown: z.string().max(200_000).optional().describe('The version\'s text in Markdown (instead of upload_id).'),
@@ -397,11 +406,13 @@ const addDocumentVersion: ToolSpec = {
     minor: z.boolean().optional().describe('A minor change (typo, formatting): no new acknowledgment requests when published.'),
   },
   async run(args, t) {
-    if (!args.body_markdown && !args.upload_id) fail('Give body_markdown or an upload_id.', 'validation', { body_markdown: 'Text or a file is needed.' });
-    if (args.body_markdown && args.upload_id) fail('Give either body_markdown or an upload_id, not both.');
+    if (!args.body_markdown && !args.upload_id && !args.path) fail('Give body_markdown or an upload_id.', 'validation', { body_markdown: 'Text or a file is needed.' });
+    if ([args.body_markdown, args.upload_id, args.path].filter(Boolean).length > 1) fail('Give only one of body_markdown, upload_id and path.');
     const d = await findDocument(t, args.document);
     const load = loading(t);
     const who = await named(t, args.as);
+    // A file on disk (E18-96): read by the server into an upload, then used as any upload is.
+    if (args.path) args = { ...args, upload_id: (await uploadFromPath(t, args.path)).id };
     const body: Json = who ? { on_behalf_of: who.send } : {};
     for (const k of ['version_label', 'approved_by_name', 'approval_body', 'approval_reference', 'change_summary', 'minor']) if (args[k] !== undefined) body[k] = args[k];
     if (load) for (const k of ['version', 'status', 'approved_on', 'effective_on', 'superseded_on', 'withdrawn_on']) if (args[k] !== undefined) body[k] = args[k];

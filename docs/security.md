@@ -1010,6 +1010,36 @@ records with their original dates.
   gets a placeholder at `no-email.invalid`, a domain that can never receive mail. An account that
   already has the email address or username is answered as it is and never changed. Audited as
   `user.create` "(data load)". Roles given stay inactive while it is disabled.
+- **Local file import: what the server may read (E18-96).** `server/src/modules/attachments/local.ts`.
+  Off by default. An administrator lists folders in `mcp.local_import_roots` (Administration > AI
+  assistant access; a signed-in session with a recent password confirmation, never a token). The
+  server process then reads files in those folders **with its own operating-system account**, so list
+  only the folders holding a load's source files and empty the list afterward. Guards, on every request
+  (`/api/data-load/local-files`, `.../upload`, `.../attach`, and the MCP tools on top of them):
+  - who: the person or the token's owner holds `admin.administer`, the caller's saves are loads (data
+    load mode on; an assistant token also needs `mcp.write_enabled` and create or edit scopes; any other
+    API token needs `admin.administer` in its own scopes), and at least one folder is set. The folder
+    list is told only to callers who may load (`GET /api/mcp/session` blanks it for anyone else);
+  - the path's text: no control characters, no network or device paths (`\\server\share`, `\\?\`,
+    `\\.\`, `//`), no `..` segment, no colon except a drive letter's (no alternate data streams), no
+    device names (`CON`, `NUL`, `COM1`, ...); a relative path only when exactly one folder is set;
+  - the place: lexically inside an allowed folder before the disk is touched (so nothing outside reveals
+    whether it exists), then resolved with `realpath` (links and junctions followed) and inside the
+    resolved folder again, comparing without case on Windows and by whole path segments; a link that
+    leads out is refused;
+  - the server's own files are refused even inside an allowed folder, both as given and as resolved:
+    the data folder, the secret key file and its `.previous` file (`GRC_SECRET_KEY_FILE` or the default
+    beside the data folder) and any file named `*.secret.key`, `GRC_BACKUP_DIR` (or the default
+    `backups` folder) and the scheduled backup folder, every file named by a `GRC_*_FILE` or `GRC_TLS_*`
+    setting and `GRC_DATABASE_SSL_CA`, and the application folder itself. A folder inside any of them
+    cannot be saved as an allowed folder;
+  - the file: a regular file only, opened with `O_NOFOLLOW` where the system has it, and only when the
+    opened file is the one checked (same device and inode); listings do not follow links;
+  - the content: the same intake as an upload (allowed types, the size limit, content against the name,
+    the malware scanner), then the record's own edit rule;
+  - the audit: each file read is `attachment.import_local` with its full path (a data load event),
+    each refusal `attachment.import_local_refused` with the path given, and the attachment
+    `attachment.upload` naming the folder.
 - **Disabled accounts are never emailed.** Notifications, the email digest, text messages and push
   go to active accounts only; email to a user id skips a disabled account, and email to an address
   skips an address that belongs to a disabled account, when queued and again when sent (a link to

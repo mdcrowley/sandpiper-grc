@@ -1,34 +1,19 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { ModuleContext } from '../../core/module.ts';
 import { ToolError } from './caller.ts';
+import { guidePages, guideText } from './guide.ts';
 import { PROMPTS } from './prompts.ts';
 import type { McpSettings } from './settings.ts';
 import type { ToolContext, ToolResult, ToolSpec } from './toolkit.ts';
 import { RECORD_TOOLS } from './tools-records.ts';
-import { offeredTools } from './tools.ts';
+import { localImportOn, offeredTools } from './tools.ts';
+
+export { guidePages } from './guide.ts';
 
 export const SERVER_NAME = 'sandpiper-grc';
 export const SERVER_VERSION = '1.0.0';
-
-const GUIDE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../../../../docs/user');
-
-/** The user guide pages, read once: { slug, title, file }. */
-let guide: { slug: string; title: string; file: string }[] | null = null;
-export function guidePages() {
-  if (guide) return guide;
-  guide = existsSync(GUIDE_DIR)
-    ? readdirSync(GUIDE_DIR).filter((f) => /^\d+-.+\.md$/.test(f)).sort().map((f) => {
-      const text = readFileSync(join(GUIDE_DIR, f), 'utf8');
-      return { slug: f.replace(/\.md$/, ''), title: /^#\s+(.+)$/m.exec(text)?.[1]?.trim() ?? f, file: join(GUIDE_DIR, f) };
-    })
-    : [];
-  return guide;
-}
 
 /** What the SDK passes a tool handler besides its arguments (the parts used here). */
 interface ToolExtra {
@@ -46,7 +31,7 @@ export const COMPLETENESS = 'When you create or update records from sources (fil
   + 'call list_record_types for the type first, then fill every field the source supports (people, dates, categories, statuses, linked records, custom fields) instead of writing those facts into the description or notes; '
   + 'set reference and person fields directly (a linked record by its reference or exact title, a person by username, email or name; the answer says what each was matched to); '
   + 'create the child records list_record_types names as related types (contacts, line items, tasks and so on) and link related records with link_records; '
-  + 'attach the source files (start_upload, upload_part, finish_upload, then attach_file) or links (attach_link); '
+  + 'attach the source files (start_upload, upload_part, finish_upload, then attach_file; or attach_local_file when the server may read them from its own folders) or links (attach_link); '
   + 'add the record\'s history as comments (add_comment), one per entry; '
   + 'read "unfilled" and "related_empty" in each create_record and update_record answer, and finish by reporting what you could not place and why. The prompt load_records_from_sources walks through this.';
 
@@ -55,6 +40,8 @@ const INSTRUCTIONS = 'Sandpiper GRC: governance, risk and compliance for a trans
   + 'Every call acts as the person who owns the access token, with no more rights than they have; records they may not see do not exist for you. '
   + 'Start with list_record_types or search; use my_work for "what should I do". Cite references (e.g. TKT-00012) and the url of each record you mention. '
   + `${COMPLETENESS} `
+  + 'A client that cannot read MCP prompts or resources can use the tools read_guide (the user guide pages, the same text as the sandpiper://guide/<page> resources) '
+  + 'and get_prompt (the text of each ready-made prompt, such as load_records_from_sources and load_document_package, with its arguments filled in). '
   + 'Nothing can be deleted through this connection.';
 
 /** What the assistant is told while its saves are data loads (E18-70). */
@@ -68,6 +55,11 @@ export const DATA_LOAD_INSTRUCTIONS = 'Data load mode is on for you: create_reco
   + 'Load each record whole: its original dates and statuses, its people (disabled accounts may be named in person fields), its child and linked records, its files, '
   + 'and its history as comments in order, each with created_at (when it was written) and "as" (who wrote it). '
   + 'delete_record deletes a record created in data load mode. Other records cannot be deleted.';
+
+/** Added while this caller may also have the server read files from the folders an administrator allowed (E18-96). */
+export const LOCAL_FILES_INSTRUCTIONS = 'Local file import is on: the server itself reads source files from the folders an administrator allowed, so nothing has to be sent in parts. '
+  + 'Use list_local_files to see a folder\'s files (sizes and modified times) and attach_local_file to attach one to a record; give "path" to convert_upload and add_document_version '
+  + 'to make a document version from a file on disk. Use start_upload, upload_part and finish_upload only for files outside those folders.';
 
 function errorResult(err: unknown) {
   if (err instanceof ToolError) {
@@ -85,8 +77,11 @@ function errorResult(err: unknown) {
 /** One MCP server for one HTTP request (stateless): only the tools this caller is offered are registered. */
 export function buildServer(ctx: ModuleContext, settings: McpSettings, t: ToolContext, req: FastifyRequest, log: CallLog): McpServer {
   const loading = t.session.dataLoad?.allowed === true;
+  // Local file import (E18-96): only in a load, by a caller who may write, with folders set.
+  const localFiles = loading && localImportOn(settings, t.session);
   const instructions = loading
-    ? INSTRUCTIONS.replace('Nothing can be deleted through this connection.', `${DATA_LOAD_INSTRUCTIONS} It ends ${t.session.dataLoad!.until}.`)
+    ? INSTRUCTIONS.replace('Nothing can be deleted through this connection.',
+      `${DATA_LOAD_INSTRUCTIONS} It ends ${t.session.dataLoad!.until}.${localFiles ? ` ${LOCAL_FILES_INSTRUCTIONS}` : ''}`)
     : INSTRUCTIONS;
   const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION, title: 'Sandpiper GRC' }, { instructions });
 
@@ -125,7 +120,8 @@ export function buildServer(ctx: ModuleContext, settings: McpSettings, t: ToolCo
       title: tool.title,
       description: loading && tool.dataLoadNote ? `${tool.description} ${tool.dataLoadNote}` : tool.description,
       // Arguments for loads (E18-71) are offered only while this caller's saves are loads.
-      inputSchema: loading && tool.dataLoadInput ? { ...tool.input, ...tool.dataLoadInput } : tool.input,
+      // and a local file path (E18-96) only while local file import is on for this caller.
+      inputSchema: { ...tool.input, ...(loading && tool.dataLoadInput ? tool.dataLoadInput : {}), ...(localFiles && tool.localFileInput ? tool.localFileInput : {}) },
       annotations: {
         title: tool.title,
         readOnlyHint: !tool.write,
@@ -142,7 +138,7 @@ export function buildServer(ctx: ModuleContext, settings: McpSettings, t: ToolCo
     server.registerResource(page.slug, `sandpiper://guide/${page.slug}`, { title: `User guide: ${page.title}`, description: `The "${page.title}" page of the Sandpiper GRC user guide.`, mimeType: 'text/markdown' },
       async (uri) => {
         await log('read_resource', true, null, 0);
-        return { contents: [{ uri: uri.href, mimeType: 'text/markdown', text: readFileSync(page.file, 'utf8') }] };
+        return { contents: [{ uri: uri.href, mimeType: 'text/markdown', text: guideText(page) }] };
       });
   }
 

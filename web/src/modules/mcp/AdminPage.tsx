@@ -15,11 +15,18 @@ interface Settings {
   enabled: boolean; writeEnabled: boolean; allowedTools: string[] | null; ratePerMinute: number; allowedOrigins: string[];
   allowedRoles: string[] | null; roleTools: Record<string, string[]>; oauthEnabled: boolean; oauthRegistration: boolean;
   clientMetadata: boolean; clientMetadataHosts: string[]; clientMetadataApproval: boolean;
+  localImportRoots: string[];
 }
 interface Tool { name: string; title: string; group: string; write: boolean; description: string; allowed: boolean; offered: boolean }
 interface Usage { token_id: string; token_name: string; user_name: string | null; calls: number; errors: number; last_at: string; active: boolean | null; tools: Record<string, number> }
 interface Call { id: number; at: string; token_name: string; user_name: string | null; tool: string; ok: boolean; error: string | null; duration_ms: number; request_id: string | null }
-interface AdminData { settings: Settings; days: number; activeTokens: number; tools: Tool[]; usage: Usage[]; recent: Call[]; roles: Role[]; oauth: OAuthView }
+interface AdminData {
+  settings: Settings; days: number; activeTokens: number; tools: Tool[]; usage: Usage[]; recent: Call[]; roles: Role[]; oauth: OAuthView;
+  localImport: { protected: string[]; platform: string };
+}
+
+/** The lines of a text area, trimmed, without empty ones. */
+const lines = (text: string) => text.split('\n').map((s) => s.trim()).filter(Boolean);
 
 export function AdminAssistantsPage() {
   const toast = useToast();
@@ -28,12 +35,14 @@ export function AdminAssistantsPage() {
   const [allowed, setAllowed] = useState<Set<string>>(new Set());
   const [rate, setRate] = useState<number | null>(null);
   const [origins, setOrigins] = useState('');
+  const [roots, setRoots] = useState('');
 
   useEffect(() => {
     if (!data) return;
     setAllowed(new Set(data.tools.filter((t) => t.allowed).map((t) => t.name)));
     setRate(data.settings.ratePerMinute);
     setOrigins(data.settings.allowedOrigins.join('\n'));
+    setRoots((data.settings.localImportRoots ?? []).join('\n'));
   }, [data]);
 
   const save = async (what: string, body: Partial<Settings> | Record<string, unknown>, done: string) => {
@@ -175,6 +184,34 @@ export function AdminAssistantsPage() {
                 </ul>
               </details>
             )}
+          </Card>
+
+          <Card
+            title="Local file import"
+            actions={<StatusChip color={data.settings.localImportRoots?.length ? 'amber' : 'gray'} label={data.settings.localImportRoots?.length ? 'On' : 'Off'} />}
+          >
+            <div className="stack">
+              <Notice>
+                For loading historical records: while data load mode is on, an administrator&apos;s assistant may have <strong>the server itself read files</strong> from
+                the folders listed here, to attach them to records or make document versions from them, instead of sending each file in parts.
+                The server process reads these folders with its own account, so list only folders that hold the source files of a load, and empty the list when the load is done.
+              </Notice>
+              <TextArea
+                label="Folders the server may read" rows={3} value={roots} onChange={setRoots}
+                placeholder={data.localImport.platform === 'win32' ? 'D:\\Imports\\Records' : '/srv/imports/records'}
+                hint="One full path per line, of a folder on the server (network paths are not accepted). Empty: off. Used only in data load mode, by administrators whose token can write; every file read is audited."
+              />
+              {data.localImport.protected.length > 0 && (
+                <details className="mcp-fold">
+                  <summary>Never read, even inside these folders</summary>
+                  <ul className="mcp-calls">{data.localImport.protected.map((p) => <li key={p}><code>{p}</code></li>)}</ul>
+                </details>
+              )}
+              <div>
+                <Button loading={busy === 'roots'} disabled={lines(roots).join('\n') === (data.settings.localImportRoots ?? []).join('\n')}
+                  onClick={() => void save('roots', { localImportRoots: lines(roots) }, 'Local import folders saved.')}>Save folders</Button>
+              </div>
+            </div>
           </Card>
 
           <Card title="Browser origins">

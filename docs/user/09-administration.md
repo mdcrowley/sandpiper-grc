@@ -800,6 +800,16 @@ Some people must appear by account in the loaded history (as a ticket's requeste
 
 An account that already has that email address or user name is left exactly as it is, so creating the same people again is safe. Each account created is in the audit log ("created for attribution only ... (data load)"). It shows on **Administration > Users** as disabled; enabling it later works as for any account without a password (it waits for its set-up link). People who need no account at all stay on the people roster.
 
+### Files from a folder on the server
+
+When a load's source files sit on the same computer as Sandpiper GRC, the server can read them from a folder itself instead of having each file sent to it. This is **off** until an administrator lists the folders:
+
+1. Open **Administration > AI assistant access** and go to **Local file import**.
+2. Under **Folders the server may read**, write the full path of each folder, one per line (for example `D:\Imports\Records`). Network paths (`\\server\share`) are not accepted, and a folder inside the application's own data, secret key, backup or program folder is refused.
+3. Select **Save folders** and confirm your password. **Never read, even inside these folders** shows the server's own folders and files, which are refused even when a listed folder contains them.
+
+The **server process reads these folders with the account it runs as**, so list only folders that hold the files of a load, and empty the list (then **Save folders**) when the load is done. The folders are used only while data load mode is on, and only by an administrator: in the browser through the API (`/api/data-load/local-files`), with an API token that carries the `admin.administer` permission, or with an AI assistant's read-and-write connection while write access for assistants is on (see [AI assistants and MCP](21-ai-assistants-and-mcp.md#loading-files-from-a-folder-on-the-server)). Each file read goes through the same checks as an upload (allowed file types, the largest file, content and malware scanning), and each read, and each refused path, is in the audit log with the file's full path.
+
 ### Undoing a load
 
 Every record created in data load mode is listed on **Administration > Data loads**, grouped by the day it was loaded and its record type (files and links added to records in a load are listed as **Files**), with how many were created, how many are still there and who loaded them.

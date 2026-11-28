@@ -26,6 +26,8 @@ The **Call log** shows, for the last 30 days, each assistant token with its owne
 
 **Browser origins** is normally left empty: requests that come from a web page are refused, so that a page cannot use someone's token. List an origin only for a browser-based MCP client you trust.
 
+**Local file import** is off until you list folders in it. See [Loading files from a folder on the server](#loading-files-from-a-folder-on-the-server).
+
 ### Sign-in for remote connectors (administrators)
 
 Some assistants connect from the provider's cloud instead of from someone's computer, for example Claude's **custom connectors**. They do not take a pasted token: the person is sent to Sandpiper GRC to sign in and approve the connector (OAuth). This is off until you switch it on, and it works only when Sandpiper GRC is reached over **HTTPS** at an address the connector can reach (set the public address under **Settings** first).
@@ -117,6 +119,8 @@ With a read and write connection and the right to write documents, it can also *
 
 Assistants also offer ready-made requests: **Weekly risk and action review**, **Prepare a board summary**, **Triage open tickets**, **Incident status update**, **Load a document package** and **Load records from source files**.
 
+Some assistants (Claude Desktop among them) use the tools but do not show the ready-made requests or the user guide pages. Ask the assistant to use them through its tools instead: **get_prompt** lists the ready-made requests and gives the text of one, with the details you name filled in ("use get_prompt for load_records_from_sources with record type vendor and the vendor list as the source, then follow it"), and **read_guide** lists the pages of this guide and reads one to the assistant. Both only read, and every connection has them.
+
 ## Loading historical records
 
 To load past records from source documents (for example a service desk's old tickets), an administrator switches on [data load mode](09-administration.md#data-load-mode) under **Administration > Settings**, for a few days. Then, for an administrator's **read and write** connection, while write access for assistants is on:
@@ -132,6 +136,24 @@ To load past records from source documents (for example a service desk's old tic
 The person named is recorded everywhere the application keeps who did something, not only as the author of a record: who approved a document version, decided an access review account or a change, wrote an incident log entry or a project status report, entered an indicator value or a contract score, attested an obligation period, checked an asset out or in, verified a corrective action, recorded a training completion or a roster acknowledgment, and so on. Where the act has its own time (for example `decided_at` on an access review decision, `checked_out_at` and `checked_in_at` on an asset, `applied_at` on a meeting decision, a notification's time, a verification date), the time given in the load is kept instead of now. The usual rules apply to the person named: an access review decision is recorded only for the system's named reviewer, and the person who asked for an approval cannot decide it. Someone named only by `name:` has no account, so where the application needs an account (an approval decision, a disposal request) the load is refused for them.
 
 Nothing is sent for loaded records: no notifications, email, webhooks or approvals. Every record loaded is listed under **Administration > Data loads**, where an administrator can delete everything one load created. For anyone who is not an administrator, and once data load mode ends, the assistant works as before.
+
+### Loading files from a folder on the server
+
+When the source files are many (thousands of files, gigabytes) and sit on the same computer as Sandpiper GRC, the assistant does not have to send each one in parts: the **server reads them from the folder itself**.
+
+1. Copy the files to a folder on the server, for example `D:\Imports\Records`. Network paths (`\\server\share`) are not accepted.
+2. Open **Administration > AI assistant access**. Under **Local file import**, write the full path of the folder (one per line), then select **Save folders** and confirm your password.
+3. Switch on [data load mode](09-administration.md#data-load-mode) and connect with your **read and write** connection while write access for assistants is on.
+
+The assistant then has:
+
+- **list_local_files**: the files of the folder or one of its subfolders (or of every subfolder), with each file's size and date, page by page. Office lock files (names starting with `~$`), `Thumbs.db`, `desktop.ini` and recycle bins are left out;
+- **attach_local_file**: reads one file and attaches it to a record, exactly as an upload would be (the allowed file types, the largest file, the content check and the malware scanner all apply), with `as` for the person who added it and `created_at` for when. A file already on that record is not attached twice, so the assistant can safely run a load again;
+- a **path** on **convert_upload** and **add_document_version**: a Word procedure on disk becomes a document version, with its original kept, in one call.
+
+For example: *"List the files under D:\Imports\Records\Contracts, then attach each signed agreement to its contract, as evidence, with the date in its file name."*
+
+Only administrators can use it, only while data load mode is on, and only from the folders listed. The server never reads its own data, its secret key, its backups or its program folder, even when they are inside a folder you listed, and it does not follow shortcuts that lead out of the folder. Every file read is recorded in the audit log with its full path. The server reads the folders with the account it runs as, so list only the folders that hold the files to load, and clear the list when the load is done.
 
 ### Loading records from source files
 
@@ -152,7 +174,7 @@ An assistant such as Claude Desktop can load a whole set of controlled documents
 1. lists the files, leaving out Office lock files (names starting with `~$`) and thumbnail caches, and groups them into documents and versions;
 2. proposes, for your approval, each document's number, title, type, owner, department, parent document and readers, and each version's label, status and dates, marking what it had to guess;
 3. checks that data load mode is on (without it, dates and statuses are not kept and every version is a draft);
-4. creates each document, then adds its versions oldest first: it uploads each original in parts, shows you what a Word file converts to (tracked changes, comments and anything left out, such as text boxes or SmartArt) and adds the version with its dates;
+4. creates each document, then adds its versions oldest first: it uploads each original in parts (or, with [local file import](#loading-files-from-a-folder-on-the-server), has the server read it from its folder), shows you what a Word file converts to (tracked changes, comments and anything left out, such as text boxes or SmartArt) and adds the version with its dates;
 5. checks every document it loaded and reports what it loaded, which files were kept only as originals and why, and any problems left.
 
 What happens to each kind of file:
