@@ -207,6 +207,10 @@ export function makeMail(ctx: ModuleContext, jobs: JobQueue) {
       to = user.email;
     }
     if (!EMAIL_RE.test(to)) return giveUp('skipped', 'No valid email address.');
+    // E18-95: a disabled account is never emailed, at its address alone either (as the accounts are now).
+    if (!user && !p.test && await db.one(`select 1 from users where status = 'disabled' and deleted_at is null and lower(email) = lower($1)`, [to])) {
+      return giveUp('skipped', 'The address belongs to a disabled account.');
+    }
 
     let template: string = p.template ?? 'message';
     let data: Row = { ...(p.data ?? {}) };
@@ -379,7 +383,12 @@ export function makeMail(ctx: ModuleContext, jobs: JobQueue) {
         [addresses],
       ) : [];
       for (const k of known) if (!users.some((u) => u.id === k.id)) users.push({ id: k.id, email: k.email });
-      const outside = addresses.filter((a) => !known.some((k) => k.email === a));
+      // E18-95: the address of a disabled account gets nothing, not even as an outside address.
+      const disabled = new Set(addresses.length ? (await db.query<{ email: string }>(
+        `select lower(email) as email from users where status = 'disabled' and deleted_at is null and lower(email) = any($1::text[])`,
+        [addresses],
+      )).map((r) => r.email) : []);
+      const outside = addresses.filter((a) => !known.some((k) => k.email === a) && !disabled.has(a));
       // An outside address cannot be checked against a record: it gets nothing about a restricted one.
       let outsideAllowed = outside;
       if (input.record && outside.length) {
@@ -389,7 +398,7 @@ export function makeMail(ctx: ModuleContext, jobs: JobQueue) {
       const logIds: string[] = [];
       for (const u of users) logIds.push(await queueOne(input, { userId: u.id, to: u.email }));
       for (const to of outsideAllowed) logIds.push(await queueOne(input, { to }));
-      return { queued: logIds.length, skipped: skipped + (outside.length - outsideAllowed.length) + ((input.to ?? []).length - addresses.length), enabled: true, logIds };
+      return { queued: logIds.length, skipped: skipped + disabled.size + (outside.length - outsideAllowed.length) + ((input.to ?? []).length - addresses.length), enabled: true, logIds };
     } catch (err) {
       console.error('[mail] sendMail failed:', err);
       return none(true);

@@ -155,6 +155,11 @@ the user guide, chapter 21): the tools resolve it with `POST /api/data-load/pers
 The argument is part of the input schema only while the caller's saves are loads (`ToolSpec.dataLoadInput`).
 Module columns that record who did something (approvals, decisions, log entries, figures entered,
 sign-offs) follow the person named (`actorOf(req)`), and `record_acknowledgment` is offered.
+`create_account` (E18-95) is offered too: it creates a disabled account used only to name a person
+(an employee or vendor contact who must appear as requester, author, assignee, owner or `as`)
+through `POST /api/data-load/accounts`, with no password, link, invitation or email; the instructions
+and the `load_records_from_sources` prompt tell the assistant to use it only when asked, and to put
+everyone else on the people roster (`create_record` with type `person`) or name them with `name:`.
 
 Evidence library records (`evidence_record`) and funders (`funder`), added in wave 25, are ordinary
 record types, so `list_record_types` and the record tools cover them while their areas are on.
@@ -175,6 +180,7 @@ Linking an evidence record to other records (`/api/evidence-links`) has no tool 
 | `update_record` | `type`, `id`, `changes` | Write. Values resolved as for `create_record`; `PATCH {path}/:id`. Answers `resolved`, `unfilled` and `related_empty` |
 | `link_records` | `from_type`, `from_id`, `to_type`, `to_id`, `relation?` | Write. `POST /api/links` |
 | `delete_record` | `type`, `id` | Write, `destructiveHint: true`. Offered only while data load mode is on and the token's saves are loads; deletes a record created in data load mode (`DELETE /api/data-load/records/:type/:id`); refused under a legal hold |
+| `create_account` | `name`, `email?`, `username?` (default: made from the email address or the name, made unique), `department?` (name or id), `roles?` (role keys, default none), `person?` (roster person: id, reference, exact name, email or employee number) | Write, idempotent. Offered only while data load mode is on and the token's saves are loads (E18-95). `POST /api/data-load/accounts`: a **disabled** account for attribution only, with no password, set-up link, invitation or email (without an email address, a placeholder at `no-email.invalid`); audited `user.create` "(data load)". An account with that email address or username (or, with neither, the made username and the same name) is returned as it is with `existing: true`, never changed. Links the roster person named, or else the one roster person with the same email and no account (`PATCH /api/people/:id`). Accounts have no job title or phone: those go on the roster person. Answer: `user_id`, `username`, `email`, `status`, `roles`, `existing`, `linked_person`, `warnings` |
 | `decide_approval` | `step_id` (from `my_approvals`), `decision` (`approve` or `reject`), `comment?` (required to reject) | Write. `POST /api/workflows/steps/:id/decision`; refuses a step not waiting for you, including your own request |
 
 **Values resolved** (E45-46, `server/src/modules/mcp/resolve.ts`). `create_record` and `update_record` turn the

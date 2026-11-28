@@ -2,6 +2,7 @@ import type { ModuleContext, SessionUser } from '../../core/module.ts';
 import type { McpSettings } from './settings.ts';
 import { hasWriteScope } from './settings.ts';
 import type { Availability, Session, ToolSpec } from './toolkit.ts';
+import { ACCOUNT_TOOLS } from './tools-accounts.ts';
 import { APPROVAL_TOOLS } from './tools-approvals.ts';
 import { DOCUMENT_TOOLS } from './tools-documents.ts';
 import { FILE_TOOLS } from './tools-files.ts';
@@ -14,7 +15,7 @@ import { WORK_TOOLS } from './tools-work.ts';
  * Every tool the server knows, in the order they are listed. The one delete tool, delete_record, is
  * offered only while data load mode is on, for records a load created (E18-70).
  */
-export const ALL_TOOLS: ToolSpec[] = [...RECORD_TOOLS, ...FILE_TOOLS, ...MODEL_TOOLS, ...WORK_TOOLS, ...APPROVAL_TOOLS, ...PROGRAM_TOOLS, ...DOCUMENT_TOOLS];
+export const ALL_TOOLS: ToolSpec[] = [...RECORD_TOOLS, ...FILE_TOOLS, ...MODEL_TOOLS, ...WORK_TOOLS, ...APPROVAL_TOOLS, ...PROGRAM_TOOLS, ...DOCUMENT_TOOLS, ...ACCOUNT_TOOLS];
 
 export function availability(ctx: ModuleContext, permissions: string[]): Availability {
   const user = { permissions } as SessionUser;

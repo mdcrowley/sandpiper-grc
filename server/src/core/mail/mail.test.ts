@@ -224,6 +224,22 @@ describe('sending through the queue', () => {
     expect(m.body).toContain('route,riders');
   });
 
+  it('never emails a disabled account, also when only its address is given (E18-95)', async () => {
+    const id = (await t.db.one<{ id: string }>(
+      `insert into users (username, email, display_name, status) values ('i.attrib', 'i.attrib@example.test', 'Invented Attribution', 'disabled') returning id`))!.id;
+    const before = sink.messages.length;
+    expect(await t.app.sendMail({ userIds: [id], data: { subject: 'x', message: 'y' } })).toMatchObject({ queued: 0, skipped: 1 });
+    expect(await t.app.sendMail({ to: ['I.Attrib@example.test'], subject: 'Hello', text: 'Hi' })).toMatchObject({ queued: 0, skipped: 1 });
+    expect((await t.db.query(`select 1 from mail_log where lower(to_address) = 'i.attrib@example.test'`)).length).toBe(0);
+    // Queued to an outside address that then becomes a disabled account's: checked again when sending.
+    const later = await t.app.sendMail({ to: ['later.attrib@example.test'], subject: 'Hello', text: 'Hi' });
+    expect(later.queued).toBe(1);
+    await t.db.query(`insert into users (username, email, display_name, status) values ('l.attrib', 'later.attrib@example.test', 'Invented Later', 'disabled')`);
+    await run();
+    expect(await log(later.logIds[0])).toMatchObject({ status: 'skipped', error: expect.stringMatching(/disabled account/) });
+    expect(sink.messages.length).toBe(before);
+  });
+
   it('stops sending when email is switched off', async () => {
     const agent = await t.as('agent');
     const res = await t.app.sendMail({ userIds: [agent.userId], data: { subject: 'x', message: 'y' } });

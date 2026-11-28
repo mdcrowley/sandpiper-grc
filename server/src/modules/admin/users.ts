@@ -3,6 +3,7 @@ import { revokeAllPasskeys } from '../../core/webauthn/index.ts';
 import { revokedSummary, revokeProgramAccess } from '../../core/tokens.ts';
 import { dropAdminProvisioningPermits, notifyEmailChange } from '../../core/identity/accounts.ts';
 import { pageOf } from '../../core/api/conventions.ts';
+import { asDataLoad, dataLoadFor, mayLoad } from '../../core/dataload.ts';
 import type { Queryable } from '../../core/db.ts';
 import { UUID_RE } from '../../core/errors.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
@@ -78,6 +79,30 @@ export async function deactivateUser(
 const USERNAME_RE = /^[A-Za-z0-9._-]{3,64}$/;
 const EMAIL_RE = /^[^@\s]+@[^@\s]+$/;
 export const LINK_HOURS = 24;
+
+/** The address an attribution account without one gets (E18-95): `.invalid` can never receive mail (RFC 2606). */
+export const PLACEHOLDER_DOMAIN = 'no-email.invalid';
+const placeholderEmail = (username: string) => `${username.toLowerCase()}@${PLACEHOLDER_DOMAIN}`;
+
+/**
+ * A username made from an email address's local part or a name (E18-95): lower case, letters,
+ * numbers, dots, dashes and underscores, words joined by dots ("Invented Person" → "invented.person").
+ */
+export function usernameBase(from: string): string {
+  const plain = from.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  let s = plain.replace(/[^a-z0-9._-]+/g, '.').replace(/\.{2,}/g, '.').replace(/^[._-]+|[._-]+$/g, '').slice(0, 56);
+  if (s.length < 3) s = `${s || 'user'}.account`.replace(/^\./, '');
+  return s;
+}
+
+/** `base`, or `base2`, `base3`, ... the first no account has. */
+async function freeUsername(db: Queryable, base: string): Promise<string> {
+  const taken = new Set((await db.query<{ u: string }>(
+    `select lower(username) as u from users where deleted_at is null and (lower(username) = $1 or lower(username) like $2)`,
+    [base, `${base.replace(/[\\%_]/g, '\\$&')}%`])).map((r) => r.u));
+  if (!taken.has(base)) return base;
+  for (let n = 2; ; n += 1) if (!taken.has(`${base}${n}`)) return `${base}${n}`;
+}
 
 export function registerUsers(ctx: ModuleContext) {
   const { db } = ctx;
@@ -232,6 +257,89 @@ export function registerUsers(ctx: ModuleContext) {
     });
     reply.code(201);
     return { user: await shownUser(id), setupLink: link.link, expiresAt: link.expiresAt, warnings };
+  });
+
+  // ---------- accounts for attribution only, in a data load (E18-95) ----------
+
+  /**
+   * An account a data load uses only to name a person (requester, author, assignee, owner, `as`): made
+   * disabled, with no password, no set-up link, no invitation and nothing sent. For administrators and
+   * their API and AI assistant tokens (the owner must hold admin.administer; an assistant token also
+   * needs AI assistant write access), only while the caller's saves are loads. Needs no password
+   * confirmation: the account gives no access (it cannot sign in, and enabling it later needs one).
+   * Idempotent: an account that already has the email address or username is answered as it is.
+   */
+  ctx.app.post('/api/data-load/accounts', async (req, reply) => {
+    if (!mayLoad(req)) ctx.fail(403, 'forbidden', 'Only an administrator can create accounts in a data load.');
+    if (!(await dataLoadFor(db, req, ctx.audit))) {
+      ctx.fail(409, 'data_load_off', 'Data load mode is off (or AI assistant write access is off), so accounts for attribution cannot be created this way.');
+    }
+    req.dataLoad = true; // the audit event carries "(data load)"
+    const b = body(req);
+    const fields: Record<string, string> = {};
+    const displayName = String(b.displayName ?? '').trim();
+    if (!displayName || displayName.length > 120) fields.displayName = 'Enter a name of up to 120 characters.';
+    const email = b.email === undefined || b.email === null ? '' : String(b.email).trim();
+    const username = b.username === undefined || b.username === null ? '' : String(b.username).trim();
+    if (email && (!EMAIL_RE.test(email) || email.length > 254)) fields.email = 'Enter an email address.';
+    if (username && !USERNAME_RE.test(username)) fields.username = 'Use 3 to 64 letters, numbers, dots, dashes or underscores.';
+    if (Object.keys(fields).length) invalid(fields);
+
+    // Already there (any status): answered as it is, never changed.
+    const found = (email && await db.one<{ id: string }>('select id from users where deleted_at is null and lower(email) = lower($1)', [email]))
+      || (username && await db.one<{ id: string }>('select id from users where deleted_at is null and lower(username) = lower($1)', [username]))
+      || (!email && !username && await db.one<{ id: string }>(
+        'select id from users where deleted_at is null and lower(username) = lower($1) and lower(display_name) = lower($2)', [usernameBase(displayName), displayName]));
+    if (found) return { user: await shownUser(found.id), existing: true, warnings: [] };
+
+    const chosen = username || await freeUsername(db, usernameBase(email ? email.split('@')[0] : displayName));
+    let departmentId: string | null = null;
+    if (b.department !== undefined && b.department !== null && String(b.department).trim()) {
+      const d = String(b.department).trim();
+      const row = UUID_RE.test(d)
+        ? await db.one<{ id: string }>('select id from departments where id = $1 and deleted_at is null', [d])
+        : await db.one<{ id: string }>('select id from departments where lower(name) = lower($1) and deleted_at is null', [d]);
+      if (!row) fields.department = `"${d}" is not in the department list.`;
+      else departmentId = row.id;
+    }
+    const { out, fields: profile } = await cleanProfile({ username: chosen, email: email || placeholderEmail(chosen), displayName });
+    Object.assign(fields, profile);
+    const warnings: string[] = [];
+    const roles = await roleIds(b.roles ?? [], fields, [], warnings);
+    if (Object.keys(fields).length) invalid(fields);
+
+    const id = await asDataLoad(async () => {
+      const made = await db.tx(async (tx) => {
+        const row = await tx.one<{ id: string }>(
+          `insert into users (username, email, display_name, department_id, status, created_by, updated_by)
+           values ($1,$2,$3,$4,'disabled',$5,$5) returning id`,
+          [out.username, out.email, out.display_name, departmentId, req.user!.id],
+        );
+        for (const r of roles) await tx.query('insert into user_roles (user_id, role_id) values ($1,$2)', [row!.id, r.id]);
+        return row!.id;
+      });
+      await ctx.audit(req, {
+        action: 'user.create', recordType: 'user', recordId: made,
+        summary: `User ${out.username} created for attribution only (disabled: no sign-in, no password, no link, nothing sent)`,
+        after: {
+          username: out.username, email: out.email, display_name: out.display_name, department_id: departmentId,
+          roles: roles.map((r) => r.key).sort(), status: 'disabled', attribution_only: true,
+        },
+      });
+      return made;
+    });
+    reply.code(201);
+    return { user: await shownUser(id), existing: false, warnings };
+  });
+  ctx.describeRoute({
+    method: 'POST', path: '/api/data-load/accounts', permission: 'admin.administer', tag: 'Users',
+    summary: 'Create a disabled account used only to name a person in a data load (no sign-in, nothing sent)',
+    body: '{ displayName, email?, username?, department? (id or name), roles?: [roleKey] }',
+    response: '{ user, existing: boolean, warnings: [string] }',
+    description: 'Only while the caller\'s saves are data loads (409 data_load_off otherwise); for administrators and their API and AI assistant tokens. '
+      + 'The account is disabled, has no password and gets no set-up link, invitation or email. Without a username one is made from the email address or the name; '
+      + `without an email address it gets a placeholder at ${PLACEHOLDER_DOMAIN}, which can never receive mail. An account that already has the email address or username `
+      + '(or, with neither given, the made username and the same name) is answered as it is with existing: true, and is not changed.',
   });
 
   // ---------- update (profile, status, roles) ----------

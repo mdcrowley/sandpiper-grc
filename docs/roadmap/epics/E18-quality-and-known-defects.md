@@ -1,6 +1,6 @@
 # E18 Quality and known defects
 
-**Status:** done (94 of 94 issues done)
+**Status:** done (95 of 95 issues done)
 
 ## Goal
 
@@ -115,6 +115,7 @@ has never been checked, so nobody relies on something untested.
 | E18-92 | British wording in sample data | done | P2 |
 | E18-93 | User guide contradictions | done | P2 |
 | E18-94 | Module actor columns follow the named person in a load | done | P2 |
+| E18-95 | Accounts for attribution only in a data load (MCP `create_account`) | done | P2 |
 
 ---
 
@@ -1720,3 +1721,28 @@ Policy acknowledgments (users and roster people), change approvals, access revie
 **Implemented in:** `modules/policies/ackRoutes.ts`, `personAcks.ts`, `versions.ts`, `exceptions.ts`, `modules/mcp/tools-documents.ts`, `modules/workflows/service.ts` (requester), and one-line swaps in changes, accessreviews, secincidents, projects, risks, safety, vendors, governance, inventory, controls, training, continuity, funding, recordsretention, condition, tags, records, tickets, holds, fleet, attachments; tests `*/actors-load.test.ts`, `mcp/record-acknowledgment.test.ts`.
 
 Deliberately left as the caller: configuration and administration, print and export footers, upload sessions, file imports and approval-workflow decisions (already named through `decide_approval`/`on_behalf_of`, E18-71). Follow-ups: [E45-53, E45-54 and E45-55](E45-product-gaps-wave-24-review.md).
+
+### E18-95 Accounts for attribution only in a data load
+
+**Status:** done · **Priority:** P2 · **Type:** feature
+
+Loading history through an AI assistant needs employees and vendor contacts from the contact lists to
+exist as accounts, so they can be a ticket's requester, a comment's author, an assignee, an owner or
+`as`, without ever signing in or being emailed. Everyone else stays a roster person (people module).
+
+- [x] `POST /api/data-load/accounts`: only while the caller's saves are loads, for an administrator or their token (the owner's `admin.administer`); no password confirmation, since the account gives no access
+- [x] The account is disabled, with no password, set-up link, invitation, notification or email; without an email address it gets a placeholder at `no-email.invalid`
+- [x] Display name required; email, username (made from the email address or the name and made unique otherwise), department and roles (none by default) optional; checked with the admin users rules
+- [x] Idempotent: an account with that email address or username (or, with neither, the made username and the same name) is answered as it is (`existing: true`), never changed
+- [x] Audited as `user.create` "(data load)", and as `mcp.write` naming the tool and token
+- [x] MCP tool `create_account` (`dataLoadOnly`), which links the roster person named, or the one with the same email and no account
+- [x] Disabled accounts get no email outside a load either: an address that belongs to a disabled account is skipped when queued and again when sent (notifications, the digest, texts and push already went to active accounts only)
+- [x] The account resolves in person fields of `create_record` and `update_record` and in `as` during a load, and in neither outside one
+- [x] Server instructions and the `load_records_from_sources` prompt say when to make an account and when a roster person
+- [x] Tests: `mcp/create-account.test.ts`, `core/mail/mail.test.ts`
+
+**Implemented in:** `modules/admin/users.ts`, `modules/mcp/tools-accounts.ts`, `tools.ts`, `server.ts`, `prompts.ts`, `core/mail/service.ts`.
+
+Not done: accounts have no job title or phone (those stay on the roster person), and accounts made this
+way are not listed on Administration > Data loads, so undoing a load does not remove them (disable or
+remove them on Administration > Users).

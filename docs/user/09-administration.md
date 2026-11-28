@@ -789,6 +789,17 @@ The person named is also recorded wherever an area keeps its own "who did it": a
 
 An acknowledgment of a document version by a reader can be loaded with its date: `POST /api/policies/:id/versions/:version/acknowledgments`, or `record_acknowledgment` from an AI assistant.
 
+### Accounts for attribution only
+
+Some people must appear by account in the loaded history (as a ticket's requester, a comment's author, an assignee or an owner) without ever signing in: for example the employees and vendor contacts on your contact lists. While data load mode is on, an administrator can create such an account with `POST /api/data-load/accounts`, or an AI assistant with `create_account` (see [AI assistants and MCP](21-ai-assistants-and-mcp.md#loading-historical-records)). The account:
+
+- is **disabled**: it has no password, no set-up link is made and it cannot sign in;
+- is **never sent anything**: no invitation, welcome email, notification, text message or email digest, during the load or afterwards. Email is not sent to its address at all, even by an area that writes to an address directly (for example a reply to the requester of an emailed ticket);
+- has the name, email address, user name, department and roles you give (no roles by default; roles give no access while it is disabled). Without a user name, one is made from the email address or the name; without an email address it gets a placeholder ending in `@no-email.invalid`, which can never receive mail;
+- is linked to the person on the people roster with the same email address (or the roster person you name), when that person has no account yet.
+
+An account that already has that email address or user name is left exactly as it is, so creating the same people again is safe. Each account created is in the audit log ("created for attribution only ... (data load)"). It shows on **Administration > Users** as disabled; enabling it later works as for any account without a password (it waits for its set-up link). People who need no account at all stay on the people roster.
+
 ### Undoing a load
 
 Every record created in data load mode is listed on **Administration > Data loads**, grouped by the day it was loaded and its record type (files and links added to records in a load are listed as **Files**), with how many were created, how many are still there and who loaded them.

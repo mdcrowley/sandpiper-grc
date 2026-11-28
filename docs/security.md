@@ -1001,6 +1001,19 @@ records with their original dates.
   who-did-it columns too (approvals, decisions, sign-offs, verifications, files' "added by"; E18-94);
   the audit log keeps the real actor and token. Files attached in a load are listed with the load,
   so undoing it removes them too.
+- **Accounts for attribution only (E18-95).** `POST /api/data-load/accounts` (the MCP tool
+  `create_account`) creates an account a load uses only to name a person (requester, comment author,
+  assignee, owner, `as`): only while the caller's saves are loads, for an administrator or their
+  token (the owner's grants decide). It is created **disabled**, with no password, set-up link,
+  invitation or email, so it cannot sign in; it needs no password confirmation because it gives no
+  access (enabling it later does, and it then waits for a set-up link). Without an email address it
+  gets a placeholder at `no-email.invalid`, a domain that can never receive mail. An account that
+  already has the email address or username is answered as it is and never changed. Audited as
+  `user.create` "(data load)". Roles given stay inactive while it is disabled.
+- **Disabled accounts are never emailed.** Notifications, the email digest, text messages and push
+  go to active accounts only; email to a user id skips a disabled account, and email to an address
+  skips an address that belongs to a disabled account, when queued and again when sent (a link to
+  set a password never goes to a disabled account either). This holds in and out of data load mode.
 
 ### AI assistant access (MCP)
 

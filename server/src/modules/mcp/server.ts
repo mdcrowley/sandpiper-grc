@@ -63,6 +63,8 @@ export const DATA_LOAD_INSTRUCTIONS = 'Data load mode is on for you: create_reco
   + 'To write in the name of the real people (history must show who wrote or did each thing), give "as" on create_record, update_record, add_comment, link_records, attach_file, attach_link, link_evidence and decide_approval: '
   + 'a user id, username or email (disabled accounts too), a roster person ("person:<id, reference or email>"), or "name:<their name>" for someone with neither. '
   + 'An unknown person is an error, never you. The audit log still records you and your token, adding "on behalf of" the person. '
+  + 'When I ask for people from contact lists (employees, vendor contacts) to have accounts for attribution, create each with create_account (a disabled account: no sign-in, nothing sent; an existing one is returned as it is) before loading the records that name them; '
+  + 'everyone else goes on the people roster (create_record with type "person"), or is named with "name:" when they need neither. '
   + 'Load each record whole: its original dates and statuses, its people (disabled accounts may be named in person fields), its child and linked records, its files, '
   + 'and its history as comments in order, each with created_at (when it was written) and "as" (who wrote it). '
   + 'delete_record deletes a record created in data load mode. Other records cannot be deleted.';
