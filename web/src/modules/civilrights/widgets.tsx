@@ -20,7 +20,7 @@ function CivilRightsPanel() {
   const { data, error, reload } = useSummary();
   return (
     <Card title="Civil rights" className="home-panel"
-      actions={<Link className="home-more" to="/civil-rights" aria-label="Open civil rights">Programs<Icon name="arrow-right" size={14} /></Link>}>
+      actions={<Link className="home-more" to="/civil-rights" aria-label="Open civil rights programs">Programs<Icon name="arrow-right" size={14} /></Link>}>
       {error ? <ErrorState error={error} onRetry={reload} />
         : !data ? <Loading lines={3} />
         : data.programs.total === 0 && data.complaints.open === 0 && !data.goal ? <EmptyState icon="scale" title="No civil rights programs yet" />
