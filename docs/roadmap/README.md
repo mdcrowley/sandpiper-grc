@@ -201,6 +201,10 @@ integration now checks what changed (E40-15): `grc ci` and GitHub run only the t
 browser suites a change needs (everything nightly and on tags, one required check), and test databases
 start from a migrated template. The 11 issues not done need a person, hardware or outside accounts
 (see [Next up](#next-up)).
+The first GitHub run after the change-based CI turned up three fixes: mobile tests resolve the
+shared code's Babel helpers from the app's own packages (the job no longer installs the root), the
+route tour waits briefly for the heading after a redirect, and warning notices use the amber colors
+so their titles and secondary text meet 4.5:1 in both themes.
 
 Wave 26 added four areas (E46): **Procurement and budgets** (solicitations with evaluation committees
 and awards, purchase orders with approval and receiving, budgets against committed and spent),

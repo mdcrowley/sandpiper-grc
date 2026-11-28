@@ -588,7 +588,7 @@ export function Notice({ tone = 'info', title, children, icon, onClose, classNam
       withCloseButton={Boolean(onClose)}
       onClose={onClose}
       closeButtonLabel="Close"
-      className={cx('ui-notice', className)}
+      className={cx('ui-notice', `ui-notice-${tone}`, className)}
     >
       {children}
     </MAlert>

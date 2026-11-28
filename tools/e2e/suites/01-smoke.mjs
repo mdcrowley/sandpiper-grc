@@ -13,7 +13,14 @@ const tour = (theme, width) => ({
     t.log(`   ${visit.length} routes; not visited (no sample record or public): ${skipped.join(' ')}`);
     for (const { path, pattern } of visit) {
       await t.page.goto(path);
-      const f = await pageFacts(t.page);
+      let f = await pageFacts(t.page);
+      // A redirect (an old address) can still be rendering when the page settles: give the heading
+      // a few seconds before calling it missing, as a person would.
+      if (!f.h1) {
+        await t.page.waitFor('main h1, h1', { timeout: 5000 }).catch(() => {});
+        await t.page.settled();
+        f = await pageFacts(t.page);
+      }
       const problems = [
         ...t.page.takeProblems(),
         ...(f.h1 ? [] : ['no page heading']),
@@ -57,7 +64,14 @@ const navTitles = {
     for (const { path, label } of links.filter((l) => !EXEMPT[l.path])) {
       if (!(await routeAllowed(t.page, path))) continue; // an area filter (run.mjs --affected): its pages only
       await t.page.goto(path);
-      const f = await pageFacts(t.page);
+      let f = await pageFacts(t.page);
+      // A redirect (an old address) can still be rendering when the page settles: give the heading
+      // a few seconds before calling it missing, as a person would.
+      if (!f.h1) {
+        await t.page.waitFor('main h1, h1', { timeout: 5000 }).catch(() => {});
+        await t.page.settled();
+        f = await pageFacts(t.page);
+      }
       t.page.takeProblems();
       if (same(label, f.h1)) t.log(`   ok  ${path} [${label}]`);
       else t.soft(false, `${path}: navigation says "${label}", the page title is "${f.h1}"`);

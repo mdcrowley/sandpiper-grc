@@ -882,3 +882,11 @@ a.ui-menu-item { text-decoration: none; }
 @media (forced-colors: active) {
   .chip, .btn, .stat, .step-marker, .card { border: 1px solid; }
 }
+
+/* Warning notices: Mantine's yellow title (#e67700 on #fff3bf) is 2.7:1; the amber tokens meet
+   4.5:1 in both themes. */
+.ui-notice-warning .mantine-Alert-title,
+.ui-notice-warning .mantine-Alert-icon { color: var(--c-amber-fg); }
+/* Secondary text inside a notice keeps the notice's own text color: the page's muted gray sits
+   below 4.5:1 on the tinted notice backgrounds in the dark theme. */
+.ui-notice .muted { color: inherit; }
