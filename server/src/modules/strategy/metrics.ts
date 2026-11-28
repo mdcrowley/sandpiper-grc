@@ -4,7 +4,6 @@ import { defineMetric } from '../../core/metrics.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { todayInZone } from '../../core/timezone.ts';
 import { monthEndOf } from '../../../../shared/dates.ts';
-import { quarterOf } from './periods.ts';
 
 /** The end of the month, or today for the month still running. */
 const asOf = (monthStart: string) => {
@@ -21,9 +20,9 @@ async function objectivesWith(ctx: ModuleContext, monthStart: string, status: st
        select distinct on (u.objective_id) u.status from strategy_updates u
        join strategy_objectives o on o.id = u.objective_id and o.deleted_at is null
        join strategy_plans p on p.id = o.plan_id and p.deleted_at is null and p.status = 'adopted'
-       where u.deleted_at is null and u.period <= $2 and coalesce(u.reported_on, u.created_at::date) <= $1::date
-       order by u.objective_id, u.period desc, u.reported_on desc nulls last, u.created_at desc) x
-     where x.status = $3`, [end, quarterOf(end), status]);
+       where u.deleted_at is null and u.period_start <= $1::date and coalesce(u.reported_on, u.created_at::date) <= $1::date
+       order by u.objective_id, u.period_start desc nulls last, u.period desc, u.reported_on desc nulls last, u.created_at desc) x
+     where x.status = $2`, [end, status]);
   return Number(r?.n ?? 0);
 }
 

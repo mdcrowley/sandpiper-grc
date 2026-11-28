@@ -14,7 +14,7 @@ import './mywork.css';
 
 const ROWS = 5;
 // The Overview's lists shown here. Notifications stay on the bell.
-const LISTS = ['my-tickets', 'my-actions', 'my-approvals', 'my-due-work', 'my-training', 'my-acknowledgments'];
+const LISTS = ['my-tickets', 'my-actions', 'my-approvals', 'my-due-work', 'my-training', 'my-acknowledgments', 'my-certifications'];
 
 interface MineReview { review_id: string; ref: string | null; title: string; due_on: string | null; system_id: string; system_name: string | null; signed_off_at: string | null; total: number; decided: number }
 

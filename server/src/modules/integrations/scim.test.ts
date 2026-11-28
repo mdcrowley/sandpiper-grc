@@ -385,6 +385,24 @@ describe('groups and roles', () => {
     }
   });
 
+  it('warns when a group is mapped to a role that gives no access (E46-69)', async () => {
+    const g = await scim('POST', `${B}/Groups`, { schemas: ['urn:ietf:params:scim:schemas:core:2.0:Group'], displayName: 'Depot clerks (sample)', members: [] });
+    await t.db.query(`insert into roles (key, name, description, enabled) values ('scim_off_probe', 'Invented off role', '', false)`);
+    const off = await t.api.put(`/api/admin/scim/groups/${g.body.id}/roles`, { roleKeys: ['scim_off_probe'] });
+    expect(off.status, JSON.stringify(off.body)).toBe(200);
+    expect(off.body.role_keys).toEqual(['scim_off_probe']);
+    expect(off.body.warnings).toEqual(["Invented off role is switched off under Roles: the group's members get no access from it until switched on."]);
+    expect((await t.api.put(`/api/admin/scim/groups/${g.body.id}/roles`, { roleKeys: ['agent'] })).body.warnings).toEqual([]);
+    await t.api.patch('/api/admin/features', { features: { safety: false } });
+    try {
+      const area = await t.api.put(`/api/admin/scim/groups/${g.body.id}/roles`, { roleKeys: ['agent', 'safety_manager'] });
+      expect(area.status).toBe(200);
+      expect(area.body.warnings).toEqual(['"safety_manager" belongs to an area that is switched off: the mapping gives no access from it until the area is switched on under Administration > Features.']);
+    } finally {
+      await t.api.patch('/api/admin/features', { features: { safety: true } });
+    }
+  });
+
   it('lists recent provisioning activity for administrators', async () => {
     const rows = (await t.api.get('/api/admin/scim/activity')).body;
     expect(rows.length).toBeGreaterThan(5);

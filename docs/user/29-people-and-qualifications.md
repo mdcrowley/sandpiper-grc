@@ -101,6 +101,10 @@ Certifications (`CRT-` numbers) are recorded under **People and training > Quali
 
 Certifications that expire within 90, 60 and 30 days, or have expired, without a renewal are reminded to the person and their supervisor once at each step. **Expiring** on the certifications list shows them all.
 
+Each certification carries its holder's **Position** and **Department** from the roster, so the certifications list and **Expiring** can be filtered by either (for example every rail operator's track access permits). They are copied when the certification is recorded and follow the person: change a person's position or department and all their certifications follow at once.
+
+Everyone on the roster whose account is linked to their person sees their own certifications and when each expires, with what their position still needs, under **My work > Training** (**My certifications**) and on the **My certifications** card of **My work**, without any training permission; see [My certifications](12-training-and-exercises.md#my-certifications).
+
 ## Training for people without an account
 
 - An assignment rule by **position** gives a course to everyone on the roster in that position, with or without an account (see [Training and exercises](12-training-and-exercises.md#assign-a-course)).

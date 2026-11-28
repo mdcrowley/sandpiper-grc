@@ -244,6 +244,8 @@ export async function seedAudits(ctx: ModuleContext, opts: SeedOptions): Promise
       const answers = new Map((await ctx.db.query<Row>(`select item_id, answer from checklist_responses where parent_type = 'inspection' and parent_id = $1`, [row.id])).map((r) => [r.item_id, r]));
       const s = scoreOf(tpl.items, answers);
       await ctx.resources.update('inspection', row.id, { status: 'complete', result: s.result, score_pct: s.score_pct, performed_on: performed }, null);
+      // The defects completing it raised (defects.ts, titled after the checklist item) are sample data too.
+      await ctx.db.query(`update defects set title = left('[Sample] ' || title, 200) where inspection_id = $1 and title not like '[Sample]%'`, [row.id]);
       for (const i of s.failed) {
         const f = await ctx.resources.create('audit_finding', {
           title: i.prompt, source_type: 'inspection', source_id: row.id, rating: i.critical ? 'major_nonconformity' : 'minor_nonconformity',

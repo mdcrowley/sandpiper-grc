@@ -384,10 +384,10 @@ const DEV_VENDORS: DevVendor[] = [
     ],
   },
   {
-    name: 'Harbour Signal Systems', services: 'Operations and scheduling software', criticality: 'critical',
+    name: 'Harbor Signal Systems', services: 'Operations and scheduling software', criticality: 'critical',
     remote: 'Standing site-to-site VPN',
     contact: { name: 'Tomasz Zielinski', role: 'Support lead', email: 'support@harboursignal.example', phone: '555-0102' },
-    contract: { title: 'Harbour Signal support and license agreement', type: 'agreement', renewal: 'option', startOffset: -400, endOffset: 110, noticeDays: 90, term: '2 years with three one-year options', total: 1250000, resolution: '2099-02', hosting: 'Vendor cloud' },
+    contract: { title: 'Harbor Signal support and license agreement', type: 'agreement', renewal: 'option', startOffset: -400, endOffset: 110, noticeDays: 90, term: '2 years with three one-year options', total: 1250000, resolution: '2099-02', hosting: 'Vendor cloud' },
     clauses: {
       breach_notice: ['present', 'Within 24 hours of discovery.'],
       data_ownership: ['partial', 'Customer owns its data; return on exit not covered.'],

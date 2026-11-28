@@ -103,11 +103,13 @@ A closed-session (executive session) item is read in full only by the committee'
 
 ### Board book
 
-The **Board book** tab makes the board book: one PDF with a cover, the agenda (with presenters, time allotted and session), then each item with its details, notes and papers. Documents and Word, Markdown and text papers are printed in the book; PDF papers are appended at the end, in order, after an **Appendices** page listing on which pages of the file each starts.
+The **Board book** tab makes the board book: one PDF with a cover, the agenda (with presenters, time allotted and session), then each item with its details, notes and papers. Documents and Word, Markdown and text papers are printed in the book; PDF papers are appended at the end, in order, after an **Appendices** page listing on which pages of the file each starts and whether it is **Tagged** for screen readers.
+
+A tagged PDF paper (one made accessible by the program that wrote it, for example a word processor's accessible PDF export) keeps its tags in the book: its headings, paragraphs, lists, tables and pictures with their descriptions become part of the book's own structure, under a part named after its appendix and in its own language, so a screen reader reads the whole book, papers included. Small faults in a paper's tags are put right on the way: custom tag names are mapped to standard ones, a skipped heading level is closed up, a picture with no description is described as such, and drawing that was not tagged is marked as page decoration. A paper that is not tagged (a scan, or a PDF saved without tags), or whose tags cannot be merged, is appended as it was supplied: its pages are not described, and **Text only** prints its text instead.
 
 - **Public version** leaves closed-session items out, and with them restricted records and documents with restricted distribution.
 - **Members' version** includes closed-session items, marked on every page as for committee members only. It is offered to the chair, the secretary and the people who prepare meetings; members get it in their reading view.
-- **Text only** prints the text read from each PDF paper in place of its pages. Use it with a screen reader: the book's own pages are tagged for accessibility (PDF/UA), but the pages of appended PDF papers are kept as they were supplied and are not described.
+- **Text only** prints the text read from each PDF paper in place of its pages. Use it with a screen reader when some papers are not tagged: the book and its tagged papers meet the accessibility standard (PDF/UA), but the pages of an untagged paper are kept as they were supplied and are not described.
 
 Each book is made from the papers as they are at that moment, with your own access: a paper you may not see is left out and named as such. A PDF paper that is protected by a password, damaged or too large is not appended; the book says so. Every book made is recorded in the meeting's history.
 

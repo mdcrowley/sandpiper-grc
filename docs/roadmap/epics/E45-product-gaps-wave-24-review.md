@@ -1,6 +1,6 @@
 # E45 Product gaps found in the wave 24 review
 
-**Status:** in progress (66 of 67 issues done)
+**Status:** done (67 of 67 issues done)
 
 ## Goal
 
@@ -11,7 +11,7 @@ the awards, controls and evidence they cover. Internal audit has a risk-ranked p
 verification of fixes. Committees get a board book, structured minutes and motions with votes. The
 service desk, vulnerability, framework, system and vendor screens join up the IT workflows. An AI
 assistant can build complete records. Wave 25 built most of the issues marked done; wave 26 built E45-53 to
-E45-60 and E45-62 to E45-67. E45-61 stays open with its limit documented.
+E45-60 and E45-62 to E45-67, and wave 27 E45-61.
 
 ## Scope notes
 
@@ -86,7 +86,7 @@ E45-60 and E45-62 to E45-67. E45-61 stays open with its limit documented.
 | E45-58 | Funder review readiness view and package export | done | P3 |
 | E45-59 | Outside reviewer sees library evidence linked to the review | done | P3 |
 | E45-60 | Recused votes and conflict-of-interest declarations | done | P3 |
-| E45-61 | Merge the structure of tagged PDF papers into the board book | open | P3 |
+| E45-61 | Merge the structure of tagged PDF papers into the board book | done | P3 |
 | E45-62 | Agenda posting deadline per committee and annual work plan | done | P3 |
 | E45-63 | Workpaper reference numbering and time budget | done | P3 |
 | E45-64 | Audit plan approval through a committee decision | done | P3 |
@@ -481,7 +481,7 @@ In a load an attachment keeps the `created_at` it is given, and it is listed in 
 
 ## Wave 26 follow-ups (data load, risk, funding, committees, audits)
 
-All done in wave 26 except E45-61, which stays open with the limit documented.
+All done in wave 26, except E45-61, done in wave 27.
 
 ### E45-53 Audits: inspection inspector and finding owner defaults follow the named person
 
@@ -554,16 +554,19 @@ Done in wave 26: a vote may be "recused"; members declare an interest per agenda
 
 ### E45-61 Merge the structure of tagged PDF papers into the board book
 
-**Status:** open · **Priority:** P3
+**Status:** done · **Priority:** P3 · **Implemented in:** `server/src/modules/governance/book-structure.mjs`, `book-worker.mjs`, `book-sandbox.ts`, `book.ts`, `web/src/modules/governance/Board.tsx` (test `governance/book-structure.test.ts`).
 
 Appended PDF pages are marked as artifacts today; their tag structure could be merged so the book stays
 fully accessible.
 
-Wave 26 looked at it and documents the limit instead (kept open): merging another file's structure means
-rewriting its StructTreeRoot, ParentTree and every page's StructParents and marked-content ids into the
-book's tree and role-mapping its custom tags; pdf-lib has no support for it, and a half-merged tree fails
-PDF/UA worse than artifacts do. The book stays fully tagged for its own pages, appended papers stay
-artifacts, and **Text only** prints their text for screen readers (user guide page 28, known gaps).
+Done in wave 27: a tagged paper's structure tree is copied, in the board book sandbox, under a Part
+element (named after its appendix, with the paper's language) of the book's Document element: types
+resolved through its RoleMap, heading levels evened out, table and list children wrapped as the standard
+requires, figures without alternative text described as such; every page's content made tagged or
+artifact (untagged drawing and unreferenced marked-content ids become artifacts); /Pg and the ParentTree
+rebuilt for the copied pages. The merged book passes the PDF/UA check. A paper whose tags point into form
+XObjects, or an untagged paper, is appended as artifacts as before; the Appendices page says which papers
+are tagged.
 
 ### E45-62 Agenda posting deadline per committee and annual work plan
 

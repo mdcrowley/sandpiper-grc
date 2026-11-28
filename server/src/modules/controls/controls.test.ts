@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { ModuleDef } from '../../core/module.ts';
 import { dayInZone } from '../../core/timezone.ts';
 import { testApp } from '../../test/helpers.ts';
@@ -52,7 +52,9 @@ let riskId: string;
 let hazardId: string;
 let testId: string;
 
-const today = dayInZone();
+let today = dayInZone();
+// Worked out again before each test, so a run that crosses midnight compares with the day the server uses.
+beforeEach(() => { today = dayInZone(); });
 
 beforeAll(async () => {
   process.env.GRC_MODULES = 'controls,safety,notifications';

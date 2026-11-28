@@ -8,6 +8,7 @@ import { describeSpecFilters } from './files.ts';
 import { htmlDocument, toCsv, type DocInput, type DocSection } from './render.ts';
 import { SpecError, type GlobalFilters, type ReportSpec } from './spec.ts';
 import { runWidget, type Widget } from './widgets.ts';
+import { measureSentence } from '../strategy/widget.ts';
 
 export interface BuiltDocument {
   title: string;
@@ -107,7 +108,7 @@ export function makeDocuments(ctx: ModuleContext, loadReport: (user: SessionUser
       if (w.kind === 'countdown' && !cfg.spec) { sections.push({ title, note: cfg.deadline ? `Deadline: ${String(cfg.deadline).slice(0, 10)}` : 'No deadline set.' }); continue; }
       const data = await runWidget(ctx, user, w, { globals: opts.globals, now, loadReport: (id) => loadReport(user, id), loadFigure: async (id, months) => (await loadFigure(user, id, months))?.result ?? null });
       if (data.status !== 'ok' || !data.result) { sections.push({ title, note: data.message ?? 'Not available.' }); continue; }
-      const extra = data.denominator !== undefined && data.denominator !== null ? `Out of ${data.denominator}.` : data.trend
+      const extra = data.measure ? measureSentence(data.measure as Parameters<typeof measureSentence>[0]) : data.denominator !== undefined && data.denominator !== null ? `Out of ${data.denominator}.` : data.trend
         ? `${data.trend.current} in the last ${data.trend.days} days; ${data.trend.previous} in the ${data.trend.days} days before.` : null;
       sections.push({ title, description: extra, result: data.result, chart: (data.chart as Row | undefined)?.kind });
     }

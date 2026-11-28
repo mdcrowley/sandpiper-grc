@@ -68,7 +68,7 @@ Select **Complaints**, then **New** (or **Create > Civil rights complaint**). A 
 | **Received on** and **Received by** | The day it arrived (today when left empty) and how: in person, phone, email, letter, web form, referral (your own list) |
 | **Anonymous** | The complainant did not give a name: no name or contact is kept |
 | **Complainant**, **Complainant contact**, **Language or format needed** | Who complained and how to reach them, and the language or accessible format their letters need |
-| **Basis** | What the complaint says the treatment was based on (your own list, **Civil rights complaint basis**) |
+| **Bases** | Every basis the complaint names: what it says the treatment was based on (your own list, **Civil rights complaint basis**). Choose as many as apply; the first is also kept as the **First basis** for grouped figures; the list's **Bases** filter finds a complaint by any of them |
 | **Program** | The program the complaint falls under |
 | **Route or service**, **Vehicle**, **Site**, **Employee involved**, **Happened on** | What it is about, linked to the records of the fleet, sites and people areas while they are on |
 | **What happened** | The complainant's account |
@@ -77,13 +77,15 @@ Select **Complaints**, then **New** (or **Create > Civil rights complaint**). A 
 
 ### Time limits
 
-Three time limits are worked out from the dates, using the days set under **Settings**:
+Three time limits are worked out from the dates, using the days set under **Settings**, each counted in **calendar days** (as installed) or in **working days**:
 
 - **Acknowledge by**: the day received plus the acknowledgment days (10 as installed).
 - **Investigation due**: the day received plus the investigation days (90 as installed).
 - **Appeal decision due**: the day an appeal is received plus the appeal days (30 as installed).
 
-The list's **Next due** column shows the next limit still open (red once it has passed); the complaint's **Time limits** tab shows each limit as **Open**, **Due soon**, **Overdue**, **Met**, **Met late** or **Stopped** (closed). These defaults are only a starting point: set the limits of your own procedure. A change applies to complaints received from then on.
+Working days are those of the organization's working calendar: the open weekdays of the business-hours calendar, less its holidays (Monday to Friday with no holidays when there is none), the same calendar records requests are counted on. The first day counted is the day after the complaint (or appeal) arrived, so a complaint received on a Friday with 1 working day to acknowledge is due on the Monday, or on the Tuesday when that Monday is a holiday. A holiday added later does not move dates already worked out.
+
+The list's **Next due** column shows the next limit still open (red once it has passed); the complaint's **Time limits** tab shows each limit as **Open**, **Due soon**, **Overdue**, **Met**, **Met late** or **Stopped** (closed), with the days left (working days for a limit counted in working days). These defaults are only a starting point: set the limits of your own procedure. A change applies to complaints received from then on.
 
 Moving the status fills in the dates it means: **Acknowledged** sets **Acknowledged on**, **Findings issued** needs the findings and sets **Findings issued on**, **Appealed** sets **Appeal received on**, **Closed** needs an **Outcome**, and **Closed** or **Withdrawn** set **Closed on**. You can also type the dates yourself.
 
@@ -125,7 +127,7 @@ Which firms count as certified, and how a goal is set, are up to your organizati
 
 **Civil rights > Settings** holds:
 
-- **Complaint time limits**: the days to acknowledge, to finish an investigation and to decide an appeal, and how many days ahead reminders are sent (7 as installed). Changing them needs `civilrights.administer`.
+- **Complaint time limits**: the days to acknowledge, to finish an investigation and to decide an appeal, each counted in **Calendar days** or **Working days** (on the working calendar named on the page), and how many calendar days ahead reminders are sent (7 as installed). Changing them needs `civilrights.administer`. A change applies to complaints received from then on.
 - **Complaint handlers**: the people who see every confidential complaint. Each must be active and able to see civil rights; adding someone asks you to confirm your password. Name as few people as you can.
 
 ## Figures, dashboards and indicators

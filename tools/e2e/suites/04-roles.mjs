@@ -61,6 +61,9 @@ function tour(role) {
   return {
     name: `${role}: every page`,
     as: role,
+    // Split over several machines (run.mjs --shard), every machine also tours as the administrator:
+    // the other roles' pages are compared with what the administrator is offered.
+    everyShard: role === 'administrator',
     async run(t) {
       await setup(t);
       const state = await t.api(role).must('GET', '/api/auth/state');

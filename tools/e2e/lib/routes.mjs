@@ -2,6 +2,49 @@
 // application registers (window.__grcRoutes), with ":id" filled in from the first record the
 // signed-in user can see, using /api/meta to match a route to its record type.
 import { sleep } from './browser.mjs';
+import { CORE_ROUTES } from '../suite-map.mjs';
+
+// The area filter (wave 27): with E2E_AREAS set (run.mjs --affected or --areas), the tours visit
+// only the routes owned by those areas' web modules (window.__grcRouteModules) plus the core routes
+// (the overview, with the shell around it), and only those areas' record types (E2E_TYPES).
+const listEnv = (name) => (process.env[name] ? new Set(process.env[name].split(',').map((s) => s.trim()).filter(Boolean)) : null);
+
+/** The affected areas when the run is filtered, else null (every route). */
+export function areaFilter() {
+  return listEnv('E2E_AREAS');
+}
+
+/** True when the run visits record type `type` (always, unless filtered). */
+export function typeAllowed(type) {
+  const types = listEnv('E2E_TYPES');
+  return !areaFilter() || !!types?.has(type);
+}
+
+let owners = null;
+async function routeOwners(page) {
+  if (!owners) owners = (await page.eval(`window.__grcRouteModules ?? null`)) ?? {};
+  return owners;
+}
+
+/** The route pattern that matches a concrete path ("/risks/12" -> "/risks/:id"), from the owners table. */
+function patternOf(table, path) {
+  const clean = path.split(/[?#]/)[0];
+  if (table[clean]) return clean;
+  const parts = clean.split('/');
+  return Object.keys(table).find((p) => {
+    const q = p.split('/');
+    return q.length === parts.length && q.every((s, i) => s.startsWith(':') || s === parts[i]);
+  }) ?? clean;
+}
+
+/** True when the run visits this route pattern or concrete path (always, unless filtered). */
+export async function routeAllowed(page, pathOrPattern) {
+  const areas = areaFilter();
+  if (!areas) return true;
+  const table = await routeOwners(page);
+  const pattern = patternOf(table, pathOrPattern);
+  return CORE_ROUTES.includes(pattern) || areas.has(table[pattern]);
+}
 
 /** Every route path the application registers (after "/" has loaded). */
 export async function registeredRoutes(page) {
@@ -28,7 +71,14 @@ export async function resourceMeta(api) {
  * Returns { visit: [{ path, pattern, type? }], skipped: [pattern] }.
  */
 export async function concreteRoutes(page, api, { publicPrefixes = ['/redeem', '/portal/', '/oauth/', '/sign-in/'] } = {}) {
-  const patterns = await registeredRoutes(page);
+  let patterns = await registeredRoutes(page);
+  if (areaFilter()) {
+    const all = patterns.length;
+    const kept = [];
+    for (const p of patterns) if (await routeAllowed(page, p)) kept.push(p);
+    patterns = kept;
+    console.log(`      area filter ${[...areaFilter()].join(',')}: ${kept.length} of ${all} routes`);
+  }
   const resources = await resourceMeta(api);
   const byRoute = new Map(Object.entries(resources).filter(([, r]) => r.route).map(([type, r]) => [r.route, { type, ...r }]));
   const firstId = new Map();

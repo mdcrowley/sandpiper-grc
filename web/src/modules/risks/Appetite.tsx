@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { SegmentedControl } from '@mantine/core';
 import {
   api, ApiError, Badge, Button, Card, DateField, ErrorState, errorMessage, formatDate, formatDateTime, Loading, NumberField, PageHeader, Select,
-  RecordPicker, StatusChip, Switch, TableWrap, TextArea, TextField, useAuth, useFetch, useMeta, useToast, useUnsavedChanges,
+  Notice, RecordPicker, StatusChip, Switch, TableWrap, TextArea, TextField, useAuth, useFetch, useMeta, useToast, useUnsavedChanges,
 } from '../../core';
 import type { ColorName } from '../../core';
 import { RiskTabs } from './RiskTabs';
@@ -11,7 +12,9 @@ import { RiskTabs } from './RiskTabs';
 // residual rating it tolerates; a risk above it is flagged "Above appetite" in the register,
 // outlined on the heat map and listed in the report. E45-04: everyone who may see risks reads it; a
 // change is a new version, recorded by someone who administers risks, with who approved it, when,
-// in which body and why. Earlier versions are kept and listed under each category.
+// in which body and why. Earlier versions are kept and listed under each category. E46-53: a change may
+// instead be sent for approval through the "Risk appetite change" workflow; approval records it as the
+// next version, and the card shows the request while it waits.
 
 export interface AppetiteCategory {
   category: string; label: string; color: string; scale_key: string | null; scale_name: string | null;
@@ -20,8 +23,14 @@ export interface AppetiteCategory {
   approved_on: string | null; approved_by_name: string | null; approval_body?: string | null; reference: string | null;
   version?: number | null; reason?: string | null; changed_at?: string | null; changed_by_name?: string | null; versions?: number;
   open: number; breaches: number;
+  /** E46-53: the change of this category waiting for approval. */
+  request?: AppetiteRequest | null;
 }
-export interface AppetiteData { categories: AppetiteCategory[] }
+export interface AppetiteRequest {
+  id: string; ref: string; statement: string | null; max_rating: string | null; max_rating_label: string | null; max_score: number | null;
+  remove_appetite: boolean; reason: string | null; requested_by: string | null; requested_by_name: string | null; requested_at: string; workflow: string | null;
+}
+export interface AppetiteData { categories: AppetiteCategory[]; workflow_available?: boolean }
 
 interface AppetiteVersion {
   id: string; category: string; version: number; statement: string | null; max_rating: string | null; max_score: number | null;
@@ -84,8 +93,45 @@ function History({ category, ratings }: { category: string; ratings: AppetiteCat
   );
 }
 
+type Mode = 'workflow' | 'record';
+
+/** "Highest acceptable: Medium, score 9", or the removal, for a change asked for. */
+function proposalLine(r: AppetiteRequest): string {
+  if (r.remove_appetite) return 'Remove the appetite';
+  return `Highest acceptable: ${r.max_rating_label ?? 'no limit'}${r.max_score !== null ? `, score ${r.max_score}` : ''}`;
+}
+
+/** E46-53: the change of a category waiting for approval, with a way to withdraw it. */
+function WaitingRequest({ r, onChanged }: { r: AppetiteRequest; onChanged: () => void }) {
+  const { can, user } = useAuth();
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const withdraw = async () => {
+    setBusy(true);
+    try {
+      await api.post(`/api/risks/appetite/changes/${r.id}/withdraw`, {});
+      toast.success(`${r.ref} withdrawn. The appetite stays as it is.`);
+      onChanged();
+    } catch (e) { toast.error(errorMessage(e)); } finally { setBusy(false); }
+  };
+  return (
+    <Notice tone="warning" icon="clock" title={<>Change waiting for approval: <Link to={`/risks/appetite/changes/${r.id}`}>{r.ref}</Link></>}>
+      <div className="stack rk-appetite-request">
+        {r.statement && <span>{r.statement}</span>}
+        <span>{proposalLine(r)}</span>
+        <span className="muted">
+          Asked for by {r.requested_by_name ?? 'someone'} on {formatDate(r.requested_at)}{r.workflow ? ` · ${r.workflow}` : ''}{r.reason ? ` · “${r.reason}”` : ''}
+        </span>
+        {(can('risks.administer') || r.requested_by === user?.id) && (
+          <span className="row"><Button size="sm" variant="ghost" loading={busy} onClick={() => void withdraw()}>Withdraw the request</Button></span>
+        )}
+      </div>
+    </Notice>
+  );
+}
+
 /** One category: the appetite in force, its history, and (for administrators) a new version. */
-function CategoryCard({ c, onSaved }: { c: AppetiteCategory; onSaved: () => void }) {
+function CategoryCard({ c, workflow, onSaved }: { c: AppetiteCategory; workflow: boolean; onSaved: () => void }) {
   const { can } = useAuth();
   const { resources } = useMeta();
   const toast = useToast();
@@ -93,11 +139,15 @@ function CategoryCard({ c, onSaved }: { c: AppetiteCategory; onSaved: () => void
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [history, setHistory] = useState(false);
+  // E46-53: with an approval workflow, a change is sent for approval unless an approval given elsewhere is recorded.
+  const [mode, setMode] = useState<Mode>('workflow');
   const unsaved = useUnsavedChanges(!!draft && JSON.stringify(draft) !== JSON.stringify(draftOf(c)));
   const set = (patch: Partial<Draft>) => setDraft((d) => (d ? { ...d, ...patch } : d));
   const err = (k: string) => errors[`categories.0.${k}`] ?? errors[k];
   const max = c.ratings.find((r) => r.key === c.max_rating);
   const has = !!(c.statement || c.max_rating || c.max_score !== null);
+  // Asking needs a workflow and no other request waiting for the category.
+  const asking = workflow && !c.request && mode === 'workflow';
 
   const save = async (remove = false) => {
     if (!draft) return;
@@ -106,12 +156,21 @@ function CategoryCard({ c, onSaved }: { c: AppetiteCategory; onSaved: () => void
     try {
       const { reason, ...rest } = draft;
       const { decision_id: decisionId, ...fields } = rest;
-      const body = remove ? { category: c.category } : decisionId
-        ? { category: c.category, statement: fields.statement, max_rating: fields.max_rating, max_score: fields.max_score, decision_id: decisionId }
-        : { category: c.category, ...fields };
-      await api.put('/api/risks/appetite', { reason, categories: [body] });
-      unsaved.release();
-      toast.success(remove ? 'Appetite removed. The change is kept as a version.' : 'New version recorded. Every risk has been checked against it.');
+      if (asking) {
+        const body = remove
+          ? { category: c.category, remove_appetite: true, reason }
+          : { category: c.category, statement: fields.statement, max_rating: fields.max_rating, max_score: fields.max_score, reason };
+        const r = await api.post<{ ref: string }>('/api/risks/appetite/changes', body);
+        unsaved.release();
+        toast.success(`${r.ref} sent for approval. The appetite in force stays until it is approved.`);
+      } else {
+        const body = remove ? { category: c.category } : decisionId
+          ? { category: c.category, statement: fields.statement, max_rating: fields.max_rating, max_score: fields.max_score, decision_id: decisionId }
+          : { category: c.category, ...fields };
+        await api.put('/api/risks/appetite', { reason, categories: [body] });
+        unsaved.release();
+        toast.success(remove ? 'Appetite removed. The change is kept as a version.' : 'New version recorded. Every risk has been checked against it.');
+      }
       setDraft(null);
       onSaved();
     } catch (e) {
@@ -136,6 +195,15 @@ function CategoryCard({ c, onSaved }: { c: AppetiteCategory; onSaved: () => void
     >
       {draft ? (
         <div className="form">
+          {workflow && !c.request && (
+            <SegmentedControl
+              aria-label="How the change is approved" fullWidth value={mode} onChange={(v) => { setMode(v as Mode); setErrors({}); }}
+              data={[{ value: 'workflow', label: 'Send for approval' }, { value: 'record', label: 'Record an approval given' }]}
+            />
+          )}
+          {workflow && c.request && (
+            <p className="field-hint" style={{ margin: 0 }}>A change of this category is waiting for approval ({c.request.ref}). A version recorded here overtakes it.</p>
+          )}
           <TextArea label="Appetite statement" rows={2} value={draft.statement ?? ''} onChange={(v) => set({ statement: v || null })} error={err('statement')} hint="In plain words: how much of this kind of risk is acceptable." />
           <div className="form-grid">
             <Select
@@ -145,12 +213,12 @@ function CategoryCard({ c, onSaved }: { c: AppetiteCategory; onSaved: () => void
               hint="Residual rating, or inherent while a risk has no residual score."
             />
             <NumberField label="Highest acceptable score" value={draft.max_score} min={0} step={1} onChange={(v) => set({ max_score: v })} error={err('max_score')} hint="Optional, on the register's score." />
-            {resources.meeting_decision && (
+            {!asking && resources.meeting_decision && (
               <RecordPicker className="form-cell-wide" label="Approved by a committee decision (optional)" type="meeting_decision" value={draft.decision_id ?? null}
                 onChange={(id) => set({ decision_id: id })} error={err('decision_id')}
                 hint="A carried decision of a committee meeting: the committee becomes the approver, the meeting's date the approval date and its resolution the reference." />
             )}
-            {!draft.decision_id && (
+            {!asking && !draft.decision_id && (
               <>
                 <DateField label="Approved on" required value={draft.approved_on ?? ''} onChange={(v) => set({ approved_on: v || null })} error={err('approved_on')} />
                 <TextField label="Approved by" required value={draft.approved_by_name ?? ''} onChange={(v) => set({ approved_by_name: v || null })} error={err('approved_by_name')} hint="The person who signed off, for example the chair." />
@@ -159,10 +227,13 @@ function CategoryCard({ c, onSaved }: { c: AppetiteCategory; onSaved: () => void
               </>
             )}
           </div>
-          <TextArea label="Why it is changing" required rows={2} value={draft.reason ?? ''} onChange={(v) => set({ reason: v || null })} error={err('reason')} hint="Kept with the version, beside your name." />
+          {err('remove_appetite') && <p className="form-error" role="alert">{err('remove_appetite')}</p>}
+          <TextArea label="Why it is changing" required rows={2} value={draft.reason ?? ''} onChange={(v) => set({ reason: v || null })} error={err('reason')}
+            hint={asking ? 'The approvers see it; it is kept with the version once approved.' : 'Kept with the version, beside your name.'} />
+          {asking && <p className="field-hint" style={{ margin: 0 }}>The approval workflow decides. Once approved, the approver, the date and the request's number are recorded with the version, and every risk is checked against it.</p>}
           <div className="form-actions">
-            <Button variant="primary" loading={saving} onClick={() => void save()}>Record new version</Button>
-            {has && <Button variant="danger" disabled={saving} onClick={() => void save(true)}>Remove the appetite</Button>}
+            <Button variant="primary" loading={saving} onClick={() => void save()}>{asking ? 'Send for approval' : 'Record new version'}</Button>
+            {has && <Button variant="danger" disabled={saving} onClick={() => void save(true)}>{asking ? 'Ask to remove the appetite' : 'Remove the appetite'}</Button>}
             <Button variant="ghost" disabled={saving} onClick={() => { setDraft(null); setErrors({}); }}>Cancel</Button>
           </div>
         </div>
@@ -183,8 +254,13 @@ function CategoryCard({ c, onSaved }: { c: AppetiteCategory; onSaved: () => void
               </p>
             </>
           ) : <p className="muted" style={{ margin: 0 }}>No appetite set for this category.</p>}
+          {c.request && <WaitingRequest r={c.request} onChanged={onSaved} />}
           <div className="row">
-            {can('risks.administer') && <Button size="sm" icon="edit" onClick={() => { setDraft(draftOf(c)); setErrors({}); }}>{has ? 'Record a new version' : 'Set the appetite'}</Button>}
+            {can('risks.administer') && (
+              <Button size="sm" icon="edit" onClick={() => { setDraft(draftOf(c)); setErrors({}); setMode(workflow && !c.request ? 'workflow' : 'record'); }}>
+                {workflow && !c.request ? 'Change the appetite' : has ? 'Record a new version' : 'Set the appetite'}
+              </Button>
+            )}
             {(c.versions ?? 0) > 0 && (
               <Button size="sm" variant="ghost" icon={history ? 'chevron-up' : 'chevron-down'} aria-expanded={history} onClick={() => setHistory((h) => !h)}>
                 {history ? 'Hide earlier versions' : `Versions (${c.versions})`}
@@ -198,15 +274,47 @@ function CategoryCard({ c, onSaved }: { c: AppetiteCategory; onSaved: () => void
   );
 }
 
+interface ChangeRow { id: string; ref: string; title: string; status: string; created_at: string; decided_on: string | null; version: number | null; _display?: Record<string, string> }
+
+/** E46-53: the latest changes asked for through the approval workflow, whatever became of them. */
+function RecentRequests() {
+  const { data } = useFetch<{ rows: ChangeRow[]; total: number }>('/api/risks/appetite/changes?pageSize=8&sort=created_at&dir=desc');
+  const { lookups } = useMeta();
+  if (!data || data.total === 0) return null;
+  const status = (v: string) => (lookups.risk_appetite_change_status ?? []).find((s) => s.value === v);
+  return (
+    <Card title="Changes sent for approval" flush>
+      <TableWrap label="Changes sent for approval">
+        <table className="table">
+          <thead><tr><th scope="col">Request</th><th scope="col">Asked on</th><th scope="col">Status</th><th scope="col">Decided</th></tr></thead>
+          <tbody>
+            {data.rows.map((r) => (
+              <tr key={r.id}>
+                <td><span className="rk-two-line"><Link to={`/risks/appetite/changes/${r.id}`}>{r.ref}</Link><span className="muted">{r.title}</span></span></td>
+                <td>{formatDate(r.created_at)}</td>
+                <td><StatusChip color={(status(r.status)?.color ?? 'gray') as ColorName} label={status(r.status)?.label ?? r._display?.status ?? r.status} /></td>
+                <td>{r.decided_on ? `${formatDate(r.decided_on)}${r.version ? ` · version ${r.version}` : ''}` : <span className="muted">—</span>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </TableWrap>
+    </Card>
+  );
+}
+
 export function Appetite() {
   const { can } = useAuth();
   const { data, error, reload } = useFetch<AppetiteData>('/api/risks/appetite');
+  const workflow = data?.workflow_available === true;
   const header = (
     <>
       <PageHeader
         title="Risk appetite"
         subtitle={can('risks.administer')
-          ? 'How much risk the organization is willing to accept in each category. A change is recorded as a new version with its approval and reason; earlier versions are kept.'
+          ? workflow
+            ? 'How much risk the organization is willing to accept in each category. Send a change for approval, or record one approved elsewhere; each approved change is a new version, and earlier versions are kept.'
+            : 'How much risk the organization is willing to accept in each category. A change is recorded as a new version with its approval and reason; earlier versions are kept.'
           : 'How much risk the organization is willing to accept in each category, as approved. Risks rated above it are flagged in the register, on the heat map and in the risk report.'}
       />
       <RiskTabs active="appetite" />
@@ -217,7 +325,8 @@ export function Appetite() {
   return (
     <div className="stack">
       {header}
-      {data.categories.map((c) => <CategoryCard key={c.category} c={c} onSaved={reload} />)}
+      {data.categories.map((c) => <CategoryCard key={c.category} c={c} workflow={workflow} onSaved={reload} />)}
+      <RecentRequests key={data.categories.map((c) => c.request?.id ?? '').join(',') + String(data.categories.map((c) => c.version).join(','))} />
       <CategoryRestriction />
     </div>
   );

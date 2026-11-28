@@ -4,6 +4,11 @@
 //   answered, evidence linked and no open deficiency; and the document requests answered (evidence or
 //   a status of provided or accepted) or overdue. The checks met give a readiness percentage. Counts
 //   are figures (every evidence link counts, whoever asks); no evidence is named here.
+//   E46-55: also the previous review's deficiencies still open (the review carried forward from, or
+//   else the latest earlier review of the same funder): each area must have none left open from it,
+//   and those of areas this review does not have are one check of their own; and the obligations of
+//   the awards under review (reporting and close-out, E27-04): each one is a check, unmet while overdue
+//   (its next due date has passed). Figures again: every deficiency and obligation counts, never named.
 // - Package: a ZIP for the funder or the reviewer: an index PDF (the review, its areas with their
 //   self-assessment and answers, the evidence of each area and request, the requests) and the files of
 //   the evidence records the caller may see, by area and request. A restricted evidence record the
@@ -15,6 +20,7 @@ import { PdfBuilder } from '../../core/export/pdf.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { printBranding } from '../../core/organization.ts';
 import { dayInZone, displayDate } from '../../core/timezone.ts';
+import { CONDITION_OF } from './awards.ts';
 import { idParam } from './shared.ts';
 
 const EVIDENCE_TYPE = 'evidence_record';
@@ -28,7 +34,27 @@ interface Readiness {
   review: { id: string; ref: string | null; title: string; status: string };
   areas: { area_code: string; title: string; owner: boolean; assessed: boolean; self_assessment: string; questions: number; answered: number; evidence: number; open_deficiencies: number; ready: boolean; gaps: string[] }[];
   requests: { total: number; answered: number; open: number; overdue: number };
+  /** E46-55: the previous review and how many of its deficiencies are still open (`elsewhere`: in areas this review does not have). */
+  previous: { id: string; ref: string | null; title: string; open_deficiencies: number; elsewhere: number } | null;
+  /** E46-55: the obligations of the awards under review, and how many are overdue (null while obligations are not part of this installation). */
+  obligations: { awards: number; total: number; overdue: number } | null;
   checks: { met: number; total: number }; ready_pct: number | null;
+}
+
+/** The review a review follows on from: the one it was carried forward from, else the latest earlier review of the same funder. */
+async function previousOf(ctx: ModuleContext, review: Row): Promise<Row | undefined> {
+  if (review.previous_review_id) {
+    const p = await ctx.db.one<Row>('select id, ref, title from compliance_reviews where id = $1 and deleted_at is null', [review.previous_review_id]);
+    if (p) return p;
+  }
+  if (!review.funder_id) return undefined;
+  const created = String(review.created_at instanceof Date ? review.created_at.toISOString() : review.created_at ?? dayInZone()).slice(0, 10);
+  return ctx.db.one<Row>(
+    `select id, ref, title from compliance_reviews
+     where funder_id = $1 and id <> $2 and deleted_at is null
+       and coalesce(site_visit_on, created_at::date) < coalesce($3::date, $4::date)
+     order by coalesce(site_visit_on, created_at::date) desc, created_at desc limit 1`,
+    [review.funder_id, review.id, day(review.site_visit_on), created]);
 }
 
 export async function readinessOf(ctx: ModuleContext, review: Row): Promise<Readiness> {
@@ -44,6 +70,12 @@ export async function readinessOf(ctx: ModuleContext, review: Row): Promise<Read
     `select area_code, count(*)::int as n from review_deficiencies where review_id = $1 and deleted_at is null and not (coalesce(status, '') = any($2::text[])) group by 1`,
     [review.id, closedDef.length ? closedDef : ['closed']]);
   const openDefs = new Map(defs.map((d) => [String(d.area_code ?? ''), Number(d.n)]));
+  // E46-55: the previous review's deficiencies, open and all, by area.
+  const prev = await previousOf(ctx, review);
+  const prevDefs = prev ? await db.query<Row>(
+    `select coalesce(area_code, '') as area_code, count(*)::int as n, count(*) filter (where not (coalesce(status, '') = any($2::text[])))::int as open
+     from review_deficiencies where review_id = $1 and deleted_at is null group by 1`, [prev.id, closedDef.length ? closedDef : ['closed']]) : [];
+  const prevOpen = new Map(prevDefs.map((d) => [String(d.area_code), Number(d.open)]));
   let met = 0;
   let total = 0;
   const out = areas.map((a) => {
@@ -53,12 +85,14 @@ export async function readinessOf(ctx: ModuleContext, review: Row): Promise<Read
     const na = a.self_assessment === 'not_applicable';
     const ev = evidence.get(`area:${a.area_code}`) ?? 0;
     const open = openDefs.get(String(a.area_code)) ?? 0;
+    const earlier = prevOpen.get(String(a.area_code)) ?? 0;
     const checks: [boolean, string][] = [
       [Boolean(a.owner_id), 'no owner'],
       [a.self_assessment !== 'not_assessed', 'not self-assessed'],
       [na || answered >= questions, `${questions - answered} of ${questions} questions unanswered`],
       [na || !evidenceOn || ev > 0, 'no evidence linked'],
       [open === 0, `${open} open deficienc${open === 1 ? 'y' : 'ies'}`],
+      ...(prev ? [[earlier === 0, `${earlier} deficienc${earlier === 1 ? 'y' : 'ies'} from ${prev.ref ?? 'the previous review'} still open`] as [boolean, string]] : []),
     ];
     for (const [ok] of checks) { total += 1; if (ok) met += 1; }
     return {
@@ -76,9 +110,36 @@ export async function readinessOf(ctx: ModuleContext, review: Row): Promise<Read
   };
   total += reqs.length;
   met += answeredReq.length;
+
+  // The previous review's deficiencies in areas this review does not have: one check for them all.
+  const codes = new Set(areas.map((a) => String(a.area_code)));
+  const outside = prevDefs.filter((d) => !codes.has(String(d.area_code)));
+  const elsewhere = outside.reduce((n, d) => n + Number(d.open), 0);
+  if (outside.length) { total += 1; if (elsewhere === 0) met += 1; }
+  const previous = prev ? {
+    id: String(prev.id), ref: prev.ref ?? null, title: String(prev.title),
+    open_deficiencies: prevDefs.reduce((n, d) => n + Number(d.open), 0), elsewhere,
+  } : null;
+
+  // The awards' obligations: each is a check, unmet while its next due date has passed.
+  const obligationDef = ctx.resources.get('obligation');
+  let obligations: Readiness['obligations'] = null;
+  if (obligationDef) {
+    const o = (await db.one<Row>(
+      `select count(distinct ra.award_id)::int as awards, count(distinct o.id)::int as total,
+              count(distinct o.id) filter (where o.next_due_on < $3::date)::int as overdue
+       from compliance_review_awards ra
+       join funding_awards w on w.id = ra.award_id and w.deleted_at is null
+       left join record_links l on l.to_type = 'funding_award' and l.to_id = ra.award_id and l.from_type = 'obligation' and l.relation = $2
+       left join ${obligationDef.table} o on o.id = l.from_id and o.deleted_at is null
+       where ra.review_id = $1`, [review.id, CONDITION_OF, today]))!;
+    obligations = { awards: Number(o.awards), total: Number(o.total), overdue: Number(o.overdue) };
+    total += obligations.total;
+    met += obligations.total - obligations.overdue;
+  }
   return {
     review: { id: String(review.id), ref: review.ref ?? null, title: String(review.title), status: String(review.status ?? '') },
-    areas: out, requests, checks: { met, total }, ready_pct: total ? Math.round((met / total) * 100) : null,
+    areas: out, requests, previous, obligations, checks: { met, total }, ready_pct: total ? Math.round((met / total) * 100) : null,
   };
 }
 
@@ -91,8 +152,8 @@ export function registerReviewPackage(ctx: ModuleContext) {
   ctx.describeRoute({
     method: 'GET', path: '/api/compliance-reviews/:id/readiness', tag: 'Funding', permission: 'funding.view',
     summary: 'How ready a funder review is: per area the owner, self-assessment, questions answered, evidence and open deficiencies, and the document requests answered or overdue',
-    description: 'A figure: evidence is counted for everyone, never named. `ready_pct` is the share of checks met (five per area, one per request).',
-    response: '{ review, areas: [{ area_code, title, owner, assessed, self_assessment, questions, answered, evidence, open_deficiencies, ready, gaps }], requests: { total, answered, open, overdue }, checks: { met, total }, ready_pct }',
+    description: 'A figure: evidence, deficiencies and obligations are counted for everyone, never named. `ready_pct` is the share of checks met: five per area (six with a previous review: none of its deficiencies in the area still open), one per request, one for the previous review\'s deficiencies in areas this review does not have, and one per obligation of the awards under review (unmet while overdue). The previous review is the one this was carried forward from, else the latest earlier review of the same funder.',
+    response: '{ review, areas: [{ area_code, title, owner, assessed, self_assessment, questions, answered, evidence, open_deficiencies, ready, gaps }], requests: { total, answered, open, overdue }, previous: { id, ref, title, open_deficiencies, elsewhere } | null, obligations: { awards, total, overdue } | null, checks: { met, total }, ready_pct }',
   });
 
   app.get('/api/compliance-reviews/:id/package', { preHandler: ctx.requirePerm('funding.export') }, async (req, reply) => {
@@ -149,6 +210,8 @@ export function registerReviewPackage(ctx: ModuleContext) {
       subtitle: review.ref ?? null,
       meta: [
         `Readiness ${readiness.ready_pct ?? 0}% (${readiness.checks.met} of ${readiness.checks.total} checks met)`,
+        ...(readiness.previous ? [`Previous review ${readiness.previous.ref ?? readiness.previous.title}: ${readiness.previous.open_deficiencies} deficienc${readiness.previous.open_deficiencies === 1 ? 'y' : 'ies'} still open`] : []),
+        ...(readiness.obligations?.total ? [`Award obligations: ${readiness.obligations.overdue} of ${readiness.obligations.total} overdue`] : []),
         `Prepared ${displayDate(dayInZone())} by ${req.user!.displayName}`,
         ...(hiddenCount ? [`${hiddenCount} evidence ${hiddenCount === 1 ? 'link is' : 'links are'} to records you may not see: counted, not included.`] : []),
       ],

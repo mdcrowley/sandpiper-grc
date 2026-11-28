@@ -55,7 +55,7 @@ Vehicles (on their **Condition** tab), assets and sites (under their summary) sh
 Select **Edit condition details** to choose the **Asset class** and the facts the useful life counts from:
 
 - an asset's **In service since** (its **Purchase date** stands in when it is empty);
-- a vehicle's **In service since** (its **Model year** stands in), on the vehicle's **Details**, and its **Odometer (miles)**;
+- a vehicle's **In service since** (its **Model year** stands in), on the vehicle's **Details**, and its **Odometer (miles)**. The odometer is the vehicle's latest reading: a new odometer here is also kept as a reading in its mileage history, cannot be lower than an earlier reading, and a reading recorded on the vehicle's **Maintenance** tab updates it (see [Planned maintenance](19-fleet-and-services.md#planned-maintenance));
 - a site's **Year built**, with its **Kind of site** and whether it is still **In use**;
 - the **Replacement project**: the project that will replace it.
 
@@ -109,6 +109,6 @@ The `dev` sample profile loads nine invented classes (40-foot bus, cutaway, ligh
 
 ## Not available yet
 
-- Maintenance work orders and planned maintenance intervals for vehicles and facilities: they belong in a maintenance management system (not planned). Inspections and defects of vehicles, sites and assets are kept under **Safety and emergency management > Inspections**, and each vehicle, site and asset page shows its own (see [Audits and inspections](25-audits-and-inspections.md#defects)).
+- Maintenance work orders, and planned maintenance intervals for assets and facilities: they belong in a maintenance management system (not planned). Planned maintenance intervals for vehicles, by vehicle model or asset class, are part of Fleet and services (see [Planned maintenance](19-fleet-and-services.md#planned-maintenance)). Inspections and defects of vehicles, sites and assets are kept under **Safety and emergency management > Inspections**, and each vehicle, site and asset page shows its own (see [Audits and inspections](25-audits-and-inspections.md#defects)).
 - Condition history drawn as a chart on a record: the assessments are listed instead.
 - Useful life of a class that changes over time: a class has one benchmark, and changing it recomputes every member.

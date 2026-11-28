@@ -75,6 +75,8 @@ export function requirable(name: string, f: FieldDef, statusField: string): bool
 export const APPLICATION_RULES: Record<string, string[]> = {
   records_destruction: ['The status is set by the application: Submit, approval, Carried out and Cancel on the destruction page; a legal hold blocks submitting and carrying out.'],
   purchase_order: ['The status is set by the application: submit, approval (never by the requester), issue, receipts, close and cancel on the order page.'],
+  purchase_invoice: ['The status is set by the application: send for approval, approval (never by the person who entered the invoice; a reason when it does not match the order and receipts), payment and void on the invoice page.'],
+  risk_appetite_change: ['The status is set by the application: approval through the "Risk appetite change" workflow (never by the person who asked), reject, withdraw, or superseded when a version is recorded directly.'],
   strategic_objective: ['The status is set by the application: it follows the latest quarterly status update.'],
   strategic_initiative: ['The status is set by the application: it follows the latest quarterly status update.'],
   cert_item: ['The status is set by the application: an item is open until it has requirements and each is verified or not applicable.'],

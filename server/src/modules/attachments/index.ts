@@ -16,6 +16,7 @@ import { scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleDef, ResourceDef, Row } from '../../core/module.ts';
 import { todayInZone } from '../../core/timezone.ts';
 import { registerFileAdmin } from './admin.ts';
+import { registerOcrAdmin } from './ocr-admin.ts';
 import { registerBackgroundFileJobs } from './background.ts';
 import { registerBackups } from './backups.ts';
 import { clamdScanner } from './clamd.ts';
@@ -63,6 +64,8 @@ const mod: ModuleDef = {
     await registerBackups(ctx);
     // The text inside PDF, Word and plain-text files, for search (E41-16, text.ts).
     await registerFileText(ctx);
+    // The languages scans are read in (E46-56, Administration > File settings > Reading scans).
+    registerOcrAdmin(ctx);
 
     // Daily: files of records deleted for good are marked removed, and removed files past the
     // purge period are deleted from storage. A job-queue schedule (Administration > Background jobs).

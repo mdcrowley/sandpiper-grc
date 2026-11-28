@@ -8,6 +8,7 @@
 // pick?, verify(after, before), open? (the page to open the dialog on, when it is not the record page) }. Openers: { button } (a text, or several to try), { menu, item }, { tab }.
 import { sleep } from '../lib/browser.mjs';
 import { controls, fillRequired, invalidControls } from '../lib/forms.mjs';
+import { routeAllowed } from '../lib/routes.mjs';
 
 const SCOPE = '[data-e2e-dialog="1"]';
 
@@ -278,6 +279,8 @@ function dialogTest(c) {
       const api = t.api();
       const stamp = Date.now().toString(36);
       const path = await t.step('find or make the record', () => c.find(api, stamp));
+      // With an area filter (run.mjs --affected), only dialogs on the affected areas' pages.
+      if (!(await routeAllowed(page, c.open ?? path))) { t.log(`   (${c.open ?? path} is not in the affected areas: skipped)`); return; }
       // The record's API address, from the record type whose web route the page is under.
       const resources = Object.values((await api.must('GET', '/api/meta')).resources);
       const res = resources.filter((r) => path.startsWith(`${r.route}/`)).sort((a, b) => b.route.length - a.route.length)[0];
@@ -350,6 +353,7 @@ function dialogTest(c) {
 /** E02-18: changing where a personal API token may be used from, on Account security. */
 const tokenSources = {
   name: 'API token: change the allowed source addresses',
+  areas: ['account-keys', 'admin'], // with an area filter, only when one of these is affected
   async run(t) {
     const { page } = t;
     const api = t.api();

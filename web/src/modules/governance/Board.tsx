@@ -546,8 +546,9 @@ export function BookCard({ meeting }: { meeting: Row }) {
     <Card title="Board book">
       <div className="stack">
         <p className="muted">
-          One PDF with a cover, the agenda and each item's papers: documents, Word, Markdown and text papers are printed in it; PDF papers are appended at the end.
-          The public version leaves closed-session items out. The text-only version prints the text of PDF papers instead of appending their pages, for screen readers.
+          One PDF with a cover, the agenda and each item's papers: documents, Word, Markdown and text papers are printed in it; PDF papers are appended at the end,
+          and a tagged PDF paper keeps its tags, so screen readers read it in the book. The public version leaves closed-session items out.
+          The text-only version prints the text of PDF papers instead of appending their pages, for papers that are not tagged.
         </p>
         <div className="row">
           <a className="btn btn-sm btn-primary" href={base} download>Public version</a>

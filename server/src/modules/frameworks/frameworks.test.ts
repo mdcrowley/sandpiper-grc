@@ -148,11 +148,11 @@ describe('evidence and cross-mappings', () => {
     expect((await t.api.post(`/api/framework-outcomes/${id}/mappings`, { reference: '1.2' })).status).toBe(400);
     const a = await t.api.post(`/api/framework-outcomes/${id}/mappings`, { framework_name: 'PCI DSS', reference: '12.1' });
     expect(a.status).toBe(201);
-    await t.api.post(`/api/framework-outcomes/${id}/mappings`, { framework_name: 'Harbour Privacy Rule', reference: '164.308' });
+    await t.api.post(`/api/framework-outcomes/${id}/mappings`, { framework_name: 'Harbor Privacy Rule', reference: '164.308' });
     await t.api.post(`/api/framework-outcomes/${id}/mappings`, { framework_name: 'Insurer conditions' });
     expect((await t.api.post(`/api/framework-outcomes/${id}/mappings`, { framework_name: 'pci dss', reference: '12.1' })).status).toBe(400);
     const list = await t.api.get(`/api/framework-outcomes/${id}/mappings`);
-    expect(list.body.map((m: any) => m.framework_name)).toEqual(['Harbour Privacy Rule', 'Insurer conditions', 'PCI DSS']);
+    expect(list.body.map((m: any) => m.framework_name)).toEqual(['Harbor Privacy Rule', 'Insurer conditions', 'PCI DSS']);
     expect((await t.api.get('/api/framework-mappings/names')).body).toContain('PCI DSS');
     expect((await t.api.del(`/api/framework-outcomes/${id}/mappings/${a.body.id}`)).status).toBe(200);
     expect((await t.api.get(`/api/framework-outcomes/${id}/mappings`)).body.length).toBe(2);

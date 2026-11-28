@@ -1,3 +1,4 @@
+// ci: every module (tools/ci/plan.mjs runs this for a change to any server module)
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { ModuleDef } from '../module.ts';
 import { testApp } from '../../test/helpers.ts';

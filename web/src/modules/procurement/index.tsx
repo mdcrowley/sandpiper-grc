@@ -1,10 +1,12 @@
 // Procurement and budgets (E46): solicitations from planning to award (offers, evaluation committee,
-// scores, award, protests, the resulting contract), purchase orders with approval and receiving, and
-// operating and capital budgets against committed and spent. Committee members score from their own
+// scores, award, protests, the resulting contract), purchase orders with approval and receiving, vendor
+// invoices with the three-way match, approval and payment (E46-66), and operating and capital budgets
+// against committed and spent, kept as versions: adopted, then amended (E46-67). Committee members score from their own
 // pages (/procurement/evaluate/:id) without a procurement role. The Overview panel is HomeWidget.tsx.
 import type { ModuleDef } from '../../core';
-import { BudgetDetail, BudgetLineDetail, BudgetLineList, BudgetList } from './Budgets';
+import { BudgetDetail, BudgetLineDetail, BudgetLineList, BudgetList, BudgetVersionDetail, BudgetVersionList } from './Budgets';
 import { EvaluatePage, MyEvaluations } from './Evaluate';
+import { InvoiceDetail, InvoiceLineRedirect, InvoiceList } from './Invoices';
 import { OrderDetail, OrderLineRedirect, OrderList } from './Orders';
 import './procurement.css';
 import { ProcurementSettings } from './Settings';
@@ -17,8 +19,9 @@ const mod: ModuleDef = {
   nav: [
     { group: 'Vendors', label: 'Procurement', path: '/procurement', icon: 'clipboard', permission: view, order: 40, tabs: 'Solicitations' },
     { group: 'Vendors', label: 'Purchase orders', path: '/procurement/purchase-orders', icon: 'box', permission: view, order: 41, menu: false, parent: '/procurement', tab: 'Purchase orders' },
+    { group: 'Vendors', label: 'Invoices', path: '/procurement/invoices', icon: 'file-text', permission: view, order: 41.5, menu: false, parent: '/procurement', tab: 'Invoices' },
     { group: 'Vendors', label: 'Budgets', path: '/procurement/budgets', icon: 'chart', permission: view, order: 42, menu: false, parent: '/procurement', tab: 'Budgets' },
-    { group: 'Vendors', label: 'Procurement settings', path: '/procurement/settings', icon: 'settings', permission: 'procurement.administer', order: 43, menu: false, parent: '/procurement', tab: 'Settings', hub: 'Area settings', hint: 'Methods and their limits, the required clauses and the standard evaluation criteria.' },
+    { group: 'Vendors', label: 'Procurement settings', path: '/procurement/settings', icon: 'settings', permission: 'procurement.administer', order: 43, menu: false, parent: '/procurement', tab: 'Settings', hub: 'Area settings', hint: 'Methods and their limits, the required clauses, the standard evaluation criteria and the invoice match tolerance.' },
   ],
   routes: [
     { path: '/procurement', element: <SolicitationList />, permission: view },
@@ -29,6 +32,11 @@ const mod: ModuleDef = {
     { path: '/procurement/purchase-orders', element: <OrderList />, permission: view },
     { path: '/procurement/purchase-orders/:id', element: <OrderDetail />, permission: view },
     { path: '/procurement/purchase-order-lines/:id', element: <OrderLineRedirect />, permission: view },
+    { path: '/procurement/invoices', element: <InvoiceList />, permission: view },
+    { path: '/procurement/invoices/:id', element: <InvoiceDetail />, permission: view },
+    { path: '/procurement/invoice-lines/:id', element: <InvoiceLineRedirect />, permission: view },
+    { path: '/procurement/budget-versions', element: <BudgetVersionList />, permission: view },
+    { path: '/procurement/budget-versions/:id', element: <BudgetVersionDetail />, permission: view },
     { path: '/procurement/budgets', element: <BudgetList />, permission: view },
     { path: '/procurement/budgets/:id', element: <BudgetDetail />, permission: view },
     { path: '/procurement/budget-lines', element: <BudgetLineList />, permission: view },

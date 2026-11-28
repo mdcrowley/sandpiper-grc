@@ -4,7 +4,7 @@
 // SamlFields.tsx, the directory parts in LdapFields.tsx.
 import { useState, type FormEvent } from 'react';
 import {
-  api, ApiError, Button, Checkbox, ChoicesField, Drawer, errorMessage, IconButton, Select, TextArea, TextField,
+  api, ApiError, Button, Checkbox, ChoicesField, Drawer, errorMessage, IconButton, Select, TextArea, TextField, useToast,
 } from '../../core';
 import { Notice } from './common';
 import { redirectAddress, type Provider, type ProviderConfig, type ProvidersResponse, type TestResult } from './Providers';
@@ -49,6 +49,7 @@ export function ProviderEditor({ provider, data, onClose, onSaved }: {
   const ldap = type === 'ldap';
   const [name, setName] = useState(provider?.name ?? '');
   const [key, setKey] = useState(provider?.key ?? '');
+  const toast = useToast();
   const [enabled, setEnabled] = useState(provider?.enabled ?? false);
   const [isDefault, setIsDefault] = useState(provider?.isDefault ?? false);
   const [issuer, setIssuer] = useState(c?.issuer ?? 'https://');
@@ -157,8 +158,10 @@ export function ProviderEditor({ provider, data, onClose, onSaved }: {
     if (saml && renewKey) body.newServiceProviderKey = true;
     setBusy(true);
     try {
-      if (provider) await adminApi.patch(`/api/admin/identity-providers/${provider.id}`, body);
-      else await adminApi.post('/api/admin/identity-providers', body);
+      const saved = provider
+        ? await adminApi.patch<{ warnings?: string[] }>(`/api/admin/identity-providers/${provider.id}`, body)
+        : await adminApi.post<{ warnings?: string[] }>('/api/admin/identity-providers', body);
+      for (const w of saved?.warnings ?? []) toast.info(w); // E46-69: a rule naming a switched-off role
       onSaved();
     } catch (error) {
       const fields = error instanceof ApiError ? error.fields : {};
@@ -338,6 +341,15 @@ export function ProviderEditor({ provider, data, onClose, onSaved }: {
                   </div>
                 ))}
                 {err('mappings') && <p className="field-error" role="alert">{err('mappings')}</p>}
+                {(() => {
+                  // E46-69: a rule that gives a role switched off under Roles gives no access.
+                  const off = data.roles.filter((r) => !r.enabled && mappings.some((m) => m.role === r.key));
+                  return off.length > 0 && (
+                    <p className="field-hint" role="status">
+                      {off.map((r) => r.name).join(', ')} {off.length === 1 ? 'is' : 'are'} switched off under Roles: people given {off.length === 1 ? 'it' : 'them'} through this mapping get no access from {off.length === 1 ? 'it' : 'them'} until {off.length === 1 ? 'it is' : 'they are'} switched on.
+                    </p>
+                  );
+                })()}
                 <div><Button size="sm" icon="plus" onClick={() => setMappings((all) => [...all, { value: '', role: '' }])}>Add rule</Button></div>
               </div>
             </>

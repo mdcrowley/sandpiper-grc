@@ -160,15 +160,15 @@ content, which belongs in a document tool (E25-13, E29-11, E32-06, E34-09).
   work-tracker, log-forwarder and object-store secrets is written down but was proven by unit tests
   only, not carried out against those systems.
 - **Windows installer (E42)**: the installer is unsigned (SmartScreen warns; check the SHA-256 in
-  the release's SHA256SUMS.txt). It has been tested silently on a Windows 11 workstation (GitHub's
-  Windows Server runner workflow added, first run pending), not yet on a real Windows Server across
-  a restart or through its pages by hand (E42-07). Only Windows has an installer. An installation
+  the release's SHA256SUMS.txt). It has been tested silently on a Windows 11 workstation and passes on GitHub's
+  Windows Server runner, not yet on a real Windows Server across a restart or through its pages by
+  hand (E42-07). Only Windows has an installer. An installation
   made outside Program Files before wave 23 cannot be proven untampered (the old inherited Modify
   permission let other users change files); reinstall it rather than upgrade.
 - **Vehicle and asset models (E39)**: a model change saves each member on its own, not in one
   database transaction; a member refused by its own rules is listed on the model and takes the value
   at its next save unless overridden. Inherited custom fields are marked on the model lists, not under
-  Administration > Custom fields. Models carry no maintenance schedules or parts (E32-06).
+  Administration > Custom fields. Models carry no parts lists; their vehicles' maintenance intervals are kept in Fleet (E46-71).
 - **Models and references**: a background model change (E39) runs with the full permissions of the
   person who saved the model, even when they saved it with a personal access token of narrower
   scope. Deleting a model does not lock out a member being given that model at the same moment: such a
@@ -222,64 +222,56 @@ content, which belongs in a document tool (E25-13, E29-11, E32-06, E34-09).
   checklist tick times follow the person and time a load names. A loaded comment is not listed on the Data loads page and is not removed by
   undoing a load (it disappears from view with its record when that record was loaded). Approval
   decisions keep the time they are recorded.
-- **Enterprise risk (wave 25)**: a change to the risk appetite can be tied to a committee decision but
-  not routed through an approval workflow (E46-53). The fields each category shows are still set in the
-  category list's meta.
+- **Enterprise risk (wave 25)**: the fields each category shows are still set in the category list's
+  meta.
 - **Evidence library (wave 25)**: an uploaded file is not checked against existing evidence for
-  duplicates (no content hash). A funder review's readiness does not count the previous review's open
-  deficiencies or the award's overdue obligations (E46-55).
+  duplicates (no content hash).
 - **Audits (wave 25)**: the audit plan's factor columns show only on wide screens (no column chooser
   on that table); control tests of a restricted audit are not themselves restricted; a workpaper
   step's files are chosen from the audit's attachments, not uploaded from the step.
-- **Committees and meetings (wave 25)**: board book: appended PDF papers are marked as artifacts; their
-  own tags are not merged into the book (use **Text only** with a screen reader), and a paper without
-  embedded fonts makes the merged book fall short of PDF/UA (E45-61, a documented limit: pdf-lib cannot
-  merge structure trees). No electronic approval of minutes by members; no personal notes in the member
-  view; no rich text in minutes.
-- **IT figures (wave 25)**: the home dashboard's standard report gauge **Change success rate**
-  (`reports/standard.ts`, outcome filter) still counts outcomes only; the Overview widget
-  (`/api/changes/success-rate`) counts changes that caused an incident (E46-54). The IT leadership overview's new chart and gauges are not added to
-  that dashboard on an existing installation (standard dashboards are added once, never updated).
+- **Committees and meetings (wave 25)**: board book: a tagged PDF paper's structure is merged into the
+  book (E45-61); an untagged paper, or one whose tags point into form XObjects, is appended as
+  artifacts (use **Text only** with a screen reader); a paper's links and form fields are not kept; a
+  paper without embedded fonts makes the book fall short of PDF/UA. No electronic approval of minutes
+  by members; no personal notes in the member view; no rich text in minutes.
+- **IT figures (wave 25)**: the IT leadership overview's new chart and gauges are not added to that
+  dashboard on an existing installation (standard dashboards are added once, never updated; an
+  unedited **Change success rate** gauge already there is upgraded).
 - **Search inside files (E41-16)** covers PDF, .docx and plain text only; .doc, spreadsheets and
-  presentations are found by name only. OCR of scanned PDFs (E43-15) reads English only unless other
-  language data is supplied (`GRC_OCR_LANGS`, `GRC_OCR_LANG_DIR`; E46-56), reads pictures embedded in
-  PDFs (not vector-drawn text without a text layer) and the first 50 pages. File previews cover images and
-  PDFs (first 30 pages).
+  presentations are found by name only. OCR of scanned PDFs (E43-15) reads the languages chosen in
+  Administration (English and Spanish are bundled; others need their data in `GRC_OCR_LANG_DIR`),
+  reads pictures embedded in PDFs (not vector-drawn text without a text layer) and the first 50 pages.
+  File previews cover images and PDFs (first 30 pages).
   File text reading: the memory cap is checked every 20 ms, so a single very large allocation can
   briefly push the reader process past 768 MB before it ends; only the reader process is affected,
   not the server. The cap is resident memory (the working set on Windows) and is not configurable.
   Text reading starts one Node process per file (about 100 ms each); acceptable for hourly batches
   of 25 but not pooled. In the compliance calendar's area filter, retention items (E41-15) are listed under
   Records requests and privacy (they share its permissions).
-- **Procurement and budgets (wave 26)**: invoices and payments are not recorded, so "spent" is what
-  was received (E46-66); budget amendments are not kept as versions (E46-67); outside evaluators
-  without accounts are recorded by the buyer in a data load.
-- **Insurance (wave 26)**: claim payments are totals, not one by one (E46-62); the contract page does
-  not list its insurance requirements (E46-63); no premium allocation or property schedule of values
-  (E46-64); certificates are not requested from vendors by email (E46-65); the register template dialog
-  is not covered by a browser test.
+- **Procurement and budgets (wave 26)**: outside evaluators without accounts are recorded by the buyer
+  in a data load.
+- **Insurance (wave 26)**: the register template dialog is not covered by a browser test.
 - **Civil rights (wave 26)**: eligibility for accessible services (for example paratransit
-  eligibility, which holds individual medical data) is not part of the area. Complaint time limits are
-  calendar days only and a complaint has one basis (E46-61); participation attainment counts the firm
-  amounts recorded (committed and paid are not told apart).
-- **Strategy and performance (wave 26)**: quarters follow the calendar year (E46-58); a measure cannot
-  take its values from a statistics series (E46-59); no dashboard widget for one measure (E46-60);
-  values pulled from a metric are recorded as system work (no person); a measure fed by a figure over
-  time copies values for people who may not hold `reports.view` (figures only, no restricted detail).
-- **Operations (wave 26)**: no planned maintenance intervals or mileage history (E46-71); certifications
-  cannot be filtered by position or department (E46-72); there is no "My certifications" page for
-  employees (E46-70); defects raised from a dev-seed inspection take the checklist prompt as title
-  (no "[Sample]" prefix). Safety indicators are not on the Board summary (E46-68), and the "indicators
-  off target" widget uses the latest complete month.
-- **Roles (wave 26)**: a switched-off role can still be assigned without a warning (E46-69). The four new
-  roles and the new grants of existing roles reach an installation only through "Sync default grants".
-- **Paper copies (E43-14)**: the copy number is not printed on the controlled-copy PDF (E46-57).
+  eligibility, which holds individual medical data) is not part of the area. Participation attainment
+  counts the firm amounts recorded (committed and paid are not told apart).
+- **Strategy and performance (wave 26)**: values pulled from a metric are recorded as system work (no
+  person); a measure fed by a figure over time copies values for people who may not hold
+  `reports.view` (figures only, no restricted detail). A period still running counts what its source
+  holds so far.
+- **Operations (wave 26)**: planned maintenance covers vehicles only (not assets or facilities), and
+  keeps no work orders, labor or parts (E32-06). The "indicators off target" widget uses the latest
+  complete month.
+- **Roles (wave 26)**: the four new roles and the new grants of existing roles reach an installation
+  only through "Sync default grants".
 
 ## Verification status
 
 - The full unit test suite (server and web) passes on Windows, and again with the clock
-  on UTC; `.\grc.ps1 ci` runs it both ways, with the typecheck, a production build and the
-  dependency audit (skipped without a network).
+  on UTC; `.\grc.ps1 ci -Full` runs it both ways, with the typecheck, a production build and the
+  dependency audit (skipped without a network), and `.\grc.ps1 ci` runs what a change needs.
+  GitHub runs everything nightly and on a version tag, and what a change needs on every push.
+  The change-based selection relies on the import graph and the area map (`tools/ci`): code
+  reached only through a string (a module loaded by name, a table used by another module
 - The browser suite (`npm run test:e2e`, 145 tests in 21 suites) covers every route as an
   administrator in the light theme at 1440px and the dark theme at 820px, every default
   role, the create and edit form of every record type, the hand-written dialogs (submitted

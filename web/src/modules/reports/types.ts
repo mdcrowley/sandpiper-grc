@@ -65,7 +65,7 @@ export interface ReportDefinition extends Shared {
   id: string; name: string; description: string | null; record_type: string; spec: ReportSpec; chart: ChartSpec; updated_at: string;
 }
 
-export type WidgetKind = 'report' | 'number' | 'gauge' | 'progress' | 'chart' | 'table' | 'list' | 'countdown' | 'calendar' | 'text' | 'figure';
+export type WidgetKind = 'report' | 'number' | 'gauge' | 'progress' | 'chart' | 'table' | 'list' | 'countdown' | 'calendar' | 'text' | 'figure' | 'measure';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type WidgetConfig = Record<string, any>;
 export interface Widget { id: string; kind: WidgetKind; title: string; x: number; y: number; w: number; h: number; config: WidgetConfig }
@@ -77,10 +77,14 @@ export interface Dashboard extends Shared {
   id: string; name: string; description: string | null; widgets: Widget[]; filters: GlobalFilterDef[]; refresh_seconds: number | null; updated_at: string;
 }
 
+import type { MeasureWidgetMeasure } from '../strategy/MeasureWidget';
+
 export interface WidgetData {
   status: 'ok' | 'unavailable' | 'forbidden' | 'error';
   message?: string; result?: ReportResult; chart?: ChartSpec; report?: { id: string; name: string };
   value?: number | null; denominator?: number | null; trend?: { current: number; previous: number; days: number };
+  /** measure (E46-60): one strategic measure with its latest actual against target (strategy/MeasureWidget.tsx). */
+  measure?: MeasureWidgetMeasure;
 }
 
 export type PackSection = { kind: 'text'; title: string; body: string } | { kind: 'report'; reportId: string; title?: string } | { kind: 'figure'; figureId: string; title?: string; months?: number };

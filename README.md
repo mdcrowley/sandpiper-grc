@@ -55,19 +55,24 @@ regulator, and nothing in it is specific to one organization.
   everything due across every area: evidence requests, control tests, verifications, inspections,
   attestations, reassessments and certifications
 - **Procurement and budgets**: solicitations from planning to award with evaluation committees and
-  conflict-of-interest declarations, purchase orders with approval and receiving, budgets against
-  committed and spent
+  conflict-of-interest declarations, purchase orders with approval and receiving, vendor invoices
+  with a three-way match, approval and payment, budgets against committed and paid, with the adoption
+  and each amendment kept as a version
 - **Insurance**: policies with conditions tracked by controls, covered assets, vehicles and sites,
-  renewals, certificates of insurance checked against contract requirements, and claims
+  renewals, certificates of insurance checked against contract requirements (and asked for from
+  vendors by email with an upload link), claims with each payment and recovery, premium allocation
+  and a property schedule of values; contracts show their insurance
 - **Civil rights programs** (off until switched on): required elements with evidence, public notices,
-  language assistance, monitoring reports with a submission log; complaints with time limits,
-  confidential by default; business participation goals and attainment
+  language assistance, monitoring reports with a submission log; complaints with time limits in
+  calendar or working days and several bases, confidential by default; business participation goals and attainment
 - **Strategy and performance**: the strategic plan with goals, objectives, measures against targets,
-  initiatives and quarterly status updates, a board scorecard PDF, operating statistics and the log of
+  initiatives and quarterly status updates on the organization's fiscal year, measures fed by
+  operating statistics, a dashboard widget per measure, a board scorecard PDF, and the log of
   statistical reports submitted to outside bodies
 - **Operations**: defects raised from inspections (out of service until repaired), missed
-  inspections followed up, vehicle retirement through an approval, a safety plan tab and continuity
-  plan templates; a home page per role, a count of what waits on My work, and Report a problem for
+  inspections followed up, vehicle retirement through an approval, planned maintenance intervals by
+  miles, hours or days with mileage history, "My certifications" for every employee, a safety plan tab
+  and continuity plan templates; a home page per role, a count of what waits on My work, and Report a problem for
   everyone
 - **Registers**: administrators define their own kinds of record (lost property, keys issued,
   visitors) with fields, numbering, permissions and a switch, or start from a template (labor

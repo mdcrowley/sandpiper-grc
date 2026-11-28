@@ -356,12 +356,14 @@ export function registerIndicators(ctx: ModuleContext) {
   // Wave 26 (E46): where every indicator stands, for the indicator list: the latest complete month
   // against its target, the month before it (the trend) and the last twelve complete months (a
   // sparkline). The current month is month to date, so it is given apart and never judged.
-  app.get('/api/safety/indicator-status', { preHandler: ctx.requirePerm('safety.view') }, async (req) => {
+  // E46-68: the same, for active indicators only, is what the Board summary shows (reports module,
+  // widget-sources.ts), asked for through the `safetyIndicatorStatus` decorator. A figure: every event counts.
+  async function indicatorStatus(activeOnly = false) {
     const periods = monthsBack(13);
-    const indicators = await db.query<Row>(`select * from safety_indicators where deleted_at is null order by sort, name`);
+    const indicators = await db.query<Row>(`select * from safety_indicators where deleted_at is null${activeOnly ? ' and active' : ''} order by sort, name`);
     const rows = [];
     for (const ind of indicators) {
-      const pts = await trend(ind, req.user, periods);
+      const pts = await trend(ind, null, periods);
       const complete = pts.filter((p) => !p.partial);
       const withValue = complete.filter((p) => p.value !== null);
       const latest = withValue.at(-1) ?? null;
@@ -374,16 +376,18 @@ export function registerIndicators(ctx: ModuleContext) {
       }
       const now = pts.find((p) => p.partial) ?? null;
       rows.push({
-        id: ind.id, latest, previous: previous ? { period: previous.period, value: previous.value } : null, direction,
+        id: ind.id, name: ind.name, latest, previous: previous ? { period: previous.period, value: previous.value } : null, direction,
         month_to_date: now ? { period: now.period, value: now.value } : null,
         spark: complete.slice(-12).map((p) => p.value),
       });
     }
     return { today: dayInZone(), rows, off_target: rows.filter((r) => r.latest?.met === false).length, on_target: rows.filter((r) => r.latest?.met === true).length };
-  });
+  }
+  app.get('/api/safety/indicator-status', { preHandler: ctx.requirePerm('safety.view') }, async () => indicatorStatus());
+  if (!app.hasDecorator('safetyIndicatorStatus')) app.decorate('safetyIndicatorStatus', (opts?: { activeOnly?: boolean }) => indicatorStatus(opts?.activeOnly === true));
   ctx.describeRoute({
     method: 'GET', path: '/api/safety/indicator-status', summary: 'Where every indicator stands: its latest complete month against the target, the trend and the last twelve months', permission: 'safety.view',
-    response: '{ today, off_target, on_target, rows: [{ id, latest: { period, value, target, direction, met } | null, previous, direction: "better" | "worse" | "same" | null, month_to_date, spark: (number | null)[] }] }',
+    response: '{ today, off_target, on_target, rows: [{ id, name, latest: { period, value, target, direction, met } | null, previous, direction: "better" | "worse" | "same" | null, month_to_date, spark: (number | null)[] }] }',
   });
 }
 

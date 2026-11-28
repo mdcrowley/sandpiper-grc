@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { dayInZone } from '../../core/timezone.ts';
 import { testApp } from '../../test/helpers.ts';
 import { addDays, addMonths } from './dates.ts';
@@ -18,7 +18,9 @@ type Client = Awaited<ReturnType<typeof t.as>>;
 let lead: Client;      // audit lead: audits.*, controls.*, actions.*
 let second: Client;    // another audit lead, the reviewer
 let compliance: Client; // compliance officer: controls.*, audits.view only
-const today = dayInZone();
+let today = dayInZone();
+// Worked out again before each test, so a run that crosses midnight compares with the day the server uses.
+beforeEach(() => { today = dayInZone(); });
 const loadMode = (on: boolean) => (on
   ? t.db.query(`insert into settings (key, value) values ('data_load.mode', $1::jsonb) on conflict (key) do update set value = excluded.value`,
     [JSON.stringify({ until: new Date(Date.now() + 86_400_000).toISOString() })])

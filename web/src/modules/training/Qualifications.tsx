@@ -116,28 +116,47 @@ export function QualificationMatrix() {
 interface Expiring {
   today: string; days: number;
   counts: { expired: number; within30: number; within60: number; within90: number };
-  rows: { id: string; ref: string; person_id: string; person: string | null; position: string | null; certification_type: string; expires_on: string; days_left: number }[];
+  rows: { id: string; ref: string; person_id: string; person: string | null; position: string | null; department: string | null; certification_type: string; expires_on: string; days_left: number }[];
 }
 
 function ExpiringCard() {
   const [days, setDays] = useState('90');
-  const { data, error, reload } = useFetch<Expiring>(`/api/training/certifications/expiring?days=${days}`);
+  // E46-72: by the holder's position or department on the roster.
+  const [position, setPosition] = useState('');
+  const [department, setDepartment] = useState('');
+  const positions = useFetch<{ rows: { id: string; name: string }[] }>('/api/positions?pageSize=500&sort=name');
+  const departments = useFetch<{ id: string; name: string }[]>('/api/people/departments');
+  const qs = new URLSearchParams(Object.entries({ days, position, department }).filter(([, v]) => v)).toString();
+  const { data, error, reload } = useFetch<Expiring>(`/api/training/certifications/expiring?${qs}`, { keepPrevious: true });
+  const filters = (
+    <Card>
+      <div className="trn-filters">
+        <Select label="Within" value={days} onChange={(v) => setDays(v || '90')}
+          options={[{ value: '30', label: '30 days' }, { value: '60', label: '60 days' }, { value: '90', label: '90 days' }, { value: '180', label: '180 days' }]} />
+        <Select label="Position" value={position} onChange={setPosition} placeholder="Every position"
+          options={[{ value: '', label: 'Every position' }, ...(positions.data?.rows ?? []).map((p) => ({ value: p.id, label: p.name }))]} />
+        <Select label="Department" value={department} onChange={setDepartment} placeholder="Every department"
+          options={[{ value: '', label: 'Every department' }, ...(departments.data ?? []).map((d) => ({ value: d.id, label: d.name }))]} />
+      </div>
+    </Card>
+  );
   let body;
   if (error) body = <ErrorState error={error} onRetry={reload} />;
   else if (!data) body = <Loading lines={3} />;
   else if (!data.rows.length) body = <EmptyState icon="check-circle" title="Nothing expiring" message={`No certification has expired or expires within ${days} days without a renewal.`} />;
   else {
     body = (
-      <TableWrap label="Certifications expired or expiring">
+      <TableWrap label="Certifications expired or expiring" fit>
         <table className="table">
           <caption className="sr-only">Certifications expired or expiring</caption>
-          <thead><tr><th scope="col">Certification</th><th scope="col">Person</th><th scope="col">Position</th><th scope="col">Expires</th><th scope="col" className="num">Days left</th></tr></thead>
+          <thead><tr><th scope="col">Certification</th><th scope="col" data-priority="1">Person</th><th scope="col" data-priority="2">Position</th><th scope="col" data-priority="3">Department</th><th scope="col" data-priority="1">Expires</th><th scope="col" className="num" data-priority="1">Days left</th></tr></thead>
           <tbody>
             {data.rows.map((r) => (
               <tr key={r.id}>
                 <td><Link to={`/training/certifications/${r.id}`}>{r.ref}</Link> <LookupChip list="certification_type" value={r.certification_type} /></td>
                 <td>{r.person ? <Link to={`/people/${r.person_id}`}>{r.person}</Link> : '–'}</td>
                 <td>{r.position ?? '–'}</td>
+                <td>{r.department ?? '–'}</td>
                 <td>{formatDate(r.expires_on)}</td>
                 <td className="num">{r.days_left < 0 ? <span className="trn-late">Expired {-r.days_left} days ago</span> : r.days_left}</td>
               </tr>
@@ -148,16 +167,17 @@ function ExpiringCard() {
     );
   }
   return (
-    <Card title="Expired or expiring, not renewed" flush={!!data?.rows.length}
-      actions={<Select label="Within" value={days} onChange={(v) => setDays(v || '90')}
-        options={[{ value: '30', label: '30 days' }, { value: '60', label: '60 days' }, { value: '90', label: '90 days' }, { value: '180', label: '180 days' }]} />}>
-      {data && (
-        <p className="muted trn-more">
-          {data.counts.expired} expired, {data.counts.within30} within 30 days, {data.counts.within60} within 60 days, {data.counts.within90} within 90 days.
-        </p>
-      )}
-      {body}
-    </Card>
+    <>
+      {filters}
+      <Card title="Expired or expiring, not renewed" flush={!!data?.rows.length}>
+        {data && (
+          <p className="muted trn-more">
+            {data.counts.expired} expired, {data.counts.within30} within 30 days, {data.counts.within60} within 60 days, {data.counts.within90} within 90 days.
+          </p>
+        )}
+        {body}
+      </Card>
+    </>
   );
 }
 
@@ -194,9 +214,11 @@ export function CertificationList() {
       // Wave 26: who, what and when it expires come first, soonest expiry first; expired and expiring ones stand out.
       columns={['person_id', 'certification_type',
         { field: 'expires_on', label: 'Expires', sortable: true, priority: 1, render: (r) => <ExpiryCell date={r.expires_on} /> },
-        'status', { field: 'ref', hidden: true }, { field: 'number', hidden: true }, { field: 'issuing_body', hidden: true }, { field: 'issued_on', hidden: true }]}
+        'status', { field: 'position_id', priority: 3 }, { field: 'department_id', priority: 3 },
+        { field: 'ref', hidden: true }, { field: 'number', hidden: true }, { field: 'issuing_body', hidden: true }, { field: 'issued_on', hidden: true }]}
       defaultSort={{ field: 'expires_on', dir: 'asc' }}
-      filters={['certification_type', 'status', 'person_id', 'expires_on']}
+      // E46-72: by the holder's position or department on the roster.
+      filters={['certification_type', 'status', 'person_id', 'position_id', 'department_id', 'expires_on']}
       createFields={['person_id', 'certification_type', 'number', 'issuing_body', 'issued_on', 'expires_on', 'status', 'notes']}
       bulkFields={['status']}
       actions={can('people.view') ? <Link className="btn btn-secondary" to="/training/certifications?view=expiring">Expiring</Link> : undefined}
@@ -210,7 +232,7 @@ export function CertificationDetail() {
       type="certification"
       title={(row) => `${row._display?.certification_type ?? 'Certification'} of ${row._display?.person_id ?? 'a person'}`}
       evidence
-      summaryFields={['person_id', 'certification_type', 'number', 'issuing_body', 'issued_on', 'expires_on', 'status', 'notes']}
+      summaryFields={['person_id', 'certification_type', 'number', 'issuing_body', 'issued_on', 'expires_on', 'status', 'position_id', 'department_id', 'notes']}
     />
   );
 }

@@ -3,8 +3,9 @@ import { dayInZone } from '../../core/timezone.ts';
 import { DEFAULT_CRITERIA } from './settings.ts';
 
 /**
- * Dev profile only, all invented: this year's budget with operating and capital lines, two solicitations
- * (one being evaluated, one awarded) and purchase orders at several steps. Vendors are named in plain text:
+ * Dev profile only, all invented: this year's budget with operating and capital lines, adopted and then
+ * amended once, two solicitations (one being evaluated, one awarded), purchase orders at several steps and
+ * their invoices (one paid, one awaiting approval, one that does not match). Vendors are named in plain text:
  * the vendors module seeds after this one. Records are found again by title, so a second run adds nothing.
  */
 export async function seedProcurement(ctx: ModuleContext, opts: SeedOptions): Promise<string> {
@@ -22,14 +23,29 @@ export async function seedProcurement(ctx: ModuleContext, opts: SeedOptions): Pr
 
   const year = dayInZone().slice(0, 4);
   const budget = await once('budget', 'budgets', 'name', {
-    name: `[Sample] Operating and capital budget ${year}`, fiscal_year: `FY ${year}`, starts_on: `${year}-01-01`, ends_on: `${year}-12-31`, status: 'adopted', owner_id: owner,
+    name: `[Sample] Operating and capital budget ${year}`, fiscal_year: `FY ${year}`, starts_on: `${year}-01-01`, ends_on: `${year}-12-31`, status: 'draft', owner_id: owner,
     notes: 'Invented sample budget.',
   });
   const line = async (title: string, kind: string, account: string, amount: number) => once('budget_line', 'budget_lines', 'title', { budget_id: budget.id, title, kind, account, amount });
   const parts = await line('[Sample] Bus parts and supplies', 'operating', '50-4100', 420000);
   const it = await line('[Sample] Software subscriptions and support', 'operating', '50-6200', 185000);
-  await line('[Sample] Depot bus wash replacement', 'capital', '70-1200', 650000);
-  await line('[Sample] Fare collection upgrade', 'capital', '70-3100', 900000);
+  const versioned = await db.one('select 1 from budget_versions where budget_id = $1 and deleted_at is null', [budget.id]);
+  if (!versioned) {
+    await line('[Sample] Depot bus wash replacement', 'capital', '70-1200', 650000);
+    await line('[Sample] Fare collection upgrade', 'capital', '70-3100', 900000);
+    await ctx.resources.create('budget_version', {
+      budget_id: budget.id, kind: 'adopted', approved_on: `${year}-01-02` > dayInZone() ? dayInZone() : `${year}-01-02`, decision: '[Sample] Board resolution adopting the budget',
+      reason: 'Annual budget as adopted.',
+    }, null);
+    // An amendment part way through the year: more for software support, and a new capital line.
+    const on = dayInZone(-20);
+    await ctx.resources.create('budget_version', {
+      budget_id: budget.id, kind: 'amendment', approved_on: on, effective_on: on, decision: '[Sample] Board resolution amending the budget',
+      reason: 'Help desk licenses added for the new depot; bus stop signage funded by a grant.',
+      changes: [{ budget_line_id: it.id, change: 25000 }, { title: '[Sample] Bus stop signage', kind: 'capital', account: '70-4100', amount: 120000 }],
+    }, null);
+    made += 2;
+  }
 
   const evaluating = await once('procurement', 'procurements', 'title', {
     title: '[Sample] Scheduling and dispatch software', method: 'competitive_proposals', solicitation_type: 'rfp', status: 'evaluation',
@@ -98,6 +114,24 @@ export async function seedProcurement(ctx: ModuleContext, opts: SeedOptions): Pr
     [['Annual subscription, 25 agents', 1, 21500]]);
   await order('[Sample] Shop safety supplies', 'draft', { vendor_name: '[Sample] Harbor Industrial Supply', order_date: dayInZone(0) },
     [['Safety glasses, box of 12', 20, 38], ['Nitrile gloves, case', 15, 64]]);
+
+  // Invoices: the received order paid, the partly received one awaiting approval, and one billing more than received.
+  const invoice = async (poTitle: string, number: string, status: string, lines: (po: Row, ls: Row[]) => Row[], extra: Row = {}) => {
+    const po = await find('purchase_orders', 'title', poTitle);
+    if (!po || await db.one('select 1 from purchase_invoices where purchase_order_id = $1 and invoice_number = $2 and deleted_at is null', [po.id, number])) return;
+    const ls = await db.query<Row>('select * from purchase_order_lines where purchase_order_id = $1 and deleted_at is null order by line_no', [po.id]);
+    const inv = await ctx.resources.create('purchase_invoice', { purchase_order_id: po.id, invoice_number: number, invoice_date: dayInZone(-8), due_on: dayInZone(22), entered_by: owner }, null);
+    for (const l of lines(po, ls)) await ctx.resources.create('purchase_invoice_line', { invoice_id: inv.id, ...l }, null);
+    if (status !== 'draft') await ctx.resources.update('purchase_invoice', inv.id, { status, submitted_at: `${dayInZone(-7)}T10:00:00Z`, ...extra }, null);
+    made += 1;
+  };
+  await invoice('[Sample] Wiper blades and mirrors', '[Sample] RFS-20417', 'paid',
+    (_po, ls) => ls.map((l) => ({ po_line_id: l.id, quantity: Number(l.quantity) })),
+    { approved_by_name: '[Sample] Finance approver', approved_at: `${dayInZone(-6)}T10:00:00Z`, paid_on: dayInZone(-3), payment_reference: '[Sample] EFT 004512', payment_method: 'electronic' });
+  await invoice('[Sample] Brake pads and rotors, first release', '[Sample] NBP-8810', 'pending_approval',
+    (_po, ls) => [{ po_line_id: ls[0].id, quantity: Number(ls[0].received_quantity) }]);
+  await invoice('[Sample] Brake pads and rotors, first release', '[Sample] NBP-8811', 'draft',
+    (_po, ls) => [{ po_line_id: ls[1].id, quantity: 10, unit_price: 425 }]);
 
   return `procurement sample records ${made}`;
 }

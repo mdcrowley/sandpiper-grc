@@ -279,8 +279,9 @@ function MapDialog({ group, roles, onClose, onSaved }: { group: ScimGroup; roles
     e.preventDefault();
     setBusy(true);
     try {
-      await withReauth(() => api.put(`/api/admin/scim/groups/${group.id}/roles`, { roleKeys: chosen }));
+      const res = await withReauth(() => api.put<{ warnings?: string[] }>(`/api/admin/scim/groups/${group.id}/roles`, { roleKeys: chosen }));
       toast.success(`Group "${group.display_name}" mapped. Its members' roles were brought in step.`);
+      for (const w of res?.warnings ?? []) toast.info(w); // E46-69: mapped roles that give no access
       onSaved();
     } catch (err) {
       setError(err instanceof ApiError && err.fields.roleKeys ? err.fields.roleKeys : errorMessage(err));
@@ -292,7 +293,7 @@ function MapDialog({ group, roles, onClose, onSaved }: { group: ScimGroup; roles
         <ChoicesField label="Roles" value={chosen} onChange={setChosen} options={options} placeholder="No roles" error={error} />
         <p className="field-hint">
           Members get these roles, and lose them when they leave the group or the mapping changes. Roles given by hand under <Link to="/admin/users">Users</Link> are
-          never taken away. Roles that can administer are not offered: give those by hand. Saving asks for your password.
+          never taken away. Roles that can administer are not offered: give those by hand. A role switched off under Roles can be mapped, but gives no access until it is switched on again. Saving asks for your password.
         </p>
         <div className="form-actions">
           <Button onClick={onClose}>Cancel</Button>

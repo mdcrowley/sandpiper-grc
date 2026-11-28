@@ -46,18 +46,24 @@ function run<T>(task: 'inspect' | 'merge', payload: Record<string, unknown>, opt
 
 const bytesOf = (b: Buffer) => new Uint8Array(b.buffer, b.byteOffset, b.byteLength);
 
-/** Pages of each PDF, or why it cannot be appended (encrypted, unreadable, too large). */
-export async function inspectPdfs(files: Buffer[]): Promise<({ ok: true; pages: number } | { ok: false; code: string; error: string })[]> {
+/** One PDF paper: its pages and whether its structure is merged into the book (tagged; else why not), or why it cannot be appended. */
+export type Inspected = { ok: true; pages: number; tagged: boolean; untagged?: string } | { ok: false; code: string; error: string };
+
+/** Pages of each PDF and whether its tags are merged, or why it cannot be appended (encrypted, unreadable, too large). */
+export async function inspectPdfs(files: Buffer[]): Promise<Inspected[]> {
   if (!files.length) return [];
-  const r = await run<({ ok: true; pages: number } | { ok: false; code: string; error: string })[]>('inspect', { files: files.map(bytesOf), maxPages: BOOK_MAX_PAGES });
+  const r = await run<Inspected[]>('inspect', { files: files.map(bytesOf), maxPages: BOOK_MAX_PAGES });
   if (!r.ok) return files.map(() => ({ ok: false as const, code: r.code ?? 'failed', error: r.error }));
   return r.result;
 }
 
-/** The book with the files' pages appended (their drawing marked as artifacts). Throws when it cannot be made. */
-export async function appendPdfs(book: Buffer, files: Buffer[]): Promise<Buffer> {
+/**
+ * The book with the files' pages appended: a tagged paper's structure merged under a Part element named
+ * by its title (E45-61), an untagged paper's drawing marked as artifacts. Throws when it cannot be made.
+ */
+export async function appendPdfs(book: Buffer, files: Buffer[], titles: string[] = []): Promise<Buffer> {
   if (!files.length) return book;
-  const r = await run<{ bytes: Uint8Array; pages: number }>('merge', { book: bytesOf(book), files: files.map(bytesOf), maxPages: BOOK_MAX_PAGES });
+  const r = await run<{ bytes: Uint8Array; pages: number; tagged: boolean[] }>('merge', { book: bytesOf(book), files: files.map(bytesOf), titles, maxPages: BOOK_MAX_PAGES });
   if (!r.ok) throw new Error(`The papers could not be appended to the book (${r.error}).`);
   return Buffer.from(r.result.bytes.buffer, r.result.bytes.byteOffset, r.result.bytes.byteLength);
 }

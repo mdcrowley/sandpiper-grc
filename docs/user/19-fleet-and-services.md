@@ -1,6 +1,6 @@
 # Fleet and services
 
-The fleet pages record the vehicles you run, the equipment fitted to each one, the services (routes and lines) you operate and the systems each service needs. Together they answer two everyday questions: which vehicles are missing working equipment, and which vehicles and services are affected when a system fails. Open them from **Assets > Vehicles**: **Vehicles**, **Vehicle models**, **Services**, **Equipment coverage** and **What is affected** are tabs along the top of each of the five pages, so you can move between them directly. Lists and record pages work as described in [Getting started](01-getting-started.md).
+The fleet pages record the vehicles you run, the equipment fitted to each one, the services (routes and lines) you operate and the systems each service needs. Together they answer two everyday questions: which vehicles are missing working equipment, and which vehicles and services are affected when a system fails. Open them from **Assets > Vehicles**: **Vehicles**, **Vehicle models**, **Planned maintenance**, **Services**, **Equipment coverage** and **What is affected** are tabs along the top of each of the six pages, so you can move between them directly. Lists and record pages work as described in [Getting started](01-getting-started.md).
 
 If your organization does not manage vehicles here, an administrator can switch **Fleet and services** off under **Administration > Features** (see [Administration](09-administration.md#features)). Vehicles, vehicle models and services then disappear everywhere, including the impact panels on system pages, the relationship map and the **Affected** tab of security incidents. Records are kept and return when it is switched back on.
 
@@ -34,6 +34,8 @@ The **Details** card holds the facts above; select **Edit** to change them. When
 - **Required equipment**: each kind of equipment this vehicle should carry (what its mode requires and what its vehicle model adds, with how many and where each requirement comes from), marked **Working**, **Not working** (installed, but the asset's status is not **In use**, for example **In repair**) or **Missing**. The card's heading says how many gaps there are, or **Fully equipped**.
 - **Installed now**: the equipment on the vehicle, with its type, the asset's status and when it was installed.
 - **Earlier installations**: equipment that has been removed, with when and why.
+
+The **Maintenance** tab shows when the vehicle is next due for each service interval of its model or asset class, the services done on it and its odometer and hour-meter readings (its mileage history), with **New maintenance record** and **New vehicle reading**; see [Planned maintenance](#planned-maintenance).
 
 Where safety management is in use, a **Safety events** tab lists the safety events recorded against the vehicle.
 
@@ -97,6 +99,7 @@ The model's tabs:
 
 - **Vehicles**: how many vehicles use the model by status, which shared values some of them keep as their own, and the vehicles themselves.
 - **Equipment**: what the model adds to the equipment its vehicles' mode requires (see below).
+- **Maintenance intervals**: the service intervals of the model's vehicles, with **New maintenance interval** (see [Planned maintenance](#planned-maintenance)).
 - **Model changes**: every change applied to the vehicles and every time the model was given to vehicles: when, by whom, which fields, how many changed, how many kept their own value, and which refused.
 
 ### Equipment a model adds
@@ -114,6 +117,52 @@ The vehicle's **Equipment** tab and **Equipment coverage** then show each requir
 ### Inherited custom fields
 
 An administrator selects **Inherited custom fields** on the vehicle model list and checks the custom fields of vehicles that should come from the model. Each checked field then appears on every vehicle model (in the **Inherited custom fields** card, changed with **Edit**) and is inherited with overrides like the built-in shared values. A value on the model is checked as it would be on a vehicle (a number must be a number, a choice must be on its list), and a reference must name a record you can see. See [Administration](09-administration.md#custom-fields).
+
+## Planned maintenance
+
+Open **Planned maintenance** (the tab beside **Vehicle models**). It works out when each vehicle is next due for each of its service intervals, from the services done and its odometer and hour-meter readings. Its own tabs are **Due**, **Intervals**, **Services done** and **Readings**. The same fleet permissions apply: `fleet.view` to see it, `fleet.create` and `fleet.edit` to record intervals, services and readings.
+
+### Maintenance intervals
+
+An interval (`PMI-` numbers) says what is done how often for the vehicles of one **Vehicle model** or one **Asset class** (where asset condition is in use; give one or the other, not both). Select **New maintenance interval** on the **Intervals** tab, or on a vehicle model's **Maintenance intervals** tab, and give:
+
+- the **Name** (for example "A inspection") and **What is done**;
+- **Every (miles)**, **Every (engine hours)** and **Every (days)**: give any of them, at least one. The first one reached counts, so "6,000 miles or 45 days" is due at whichever comes first;
+- **Due soon within** miles, hours or days: when the service shows as due soon. Leave them empty for a tenth of the interval;
+- the **Planner**: the person who plans the work. The interval's due and overdue services are in the planner's **My work** and on the **Calendar**;
+- **Active**: an inactive interval is kept for the record but no longer falls due.
+
+An interval's page has a **Vehicles** tab with each of its vehicles and when it is next due.
+
+### Readings: the mileage history
+
+A reading (`RDG-` numbers) is a vehicle's **Odometer (miles)**, its **Engine hours**, or both, on a day (**Read on**), with where it came from (**Source**: **Entered by hand**, **Fueling or charging**, **Telematics**, **Inspection**, **Service** or **Vehicle record**). Record one with **New vehicle reading** on the **Readings** tab or on the vehicle's **Maintenance** tab, or **Create** then **Vehicle reading**; import many from a file with **Import** on the readings list (see [Importing and exporting](17-importing-and-exporting.md)).
+
+- A reading never goes backwards: it must be at least every reading of an earlier day (or of the same day) and at most every reading of a later day, and it cannot be in the future. To correct a wrong reading, edit or delete it.
+- The vehicle's own **Odometer** is always its latest odometer reading. Changing the odometer on the vehicle (its **Condition** tab, where asset condition is in use) adds a reading with the source **Vehicle record**, and cannot lower it either.
+- Each reading records who **Recorded by**. The vehicle's **Maintenance** tab says how far the vehicle has run over the readings shown and about how many miles a day.
+
+### Services done
+
+A maintenance record (`PMR-` numbers) is a service done: the **Vehicle**, the **Interval** (leave it empty for unplanned work), **Done on**, the **Odometer (miles)** and **Engine hours** then, and the **Work order** number in the maintenance shop's own system. The interval must be one of the vehicle's model or asset class. The odometer and hours given are also kept as a reading (source **Service**), under the same rule that readings never go backwards. Record one with **New maintenance record** on the **Services done** tab or the vehicle's **Maintenance** tab, or **Create** then **Maintenance record**.
+
+### What is due
+
+The **Due** tab lists every vehicle (not retired) against every active interval of its model or asset class:
+
+- The next service is due from the latest service of that interval on the vehicle: its miles, hours and date plus the interval's. With no service recorded, it counts from zero miles and hours and the day the vehicle entered service (or was added), so a vehicle whose services were never recorded shows as overdue until one is.
+- **Overdue**: any of the miles, hours or days is passed. **Due soon**: within the warning. **In date**: the rest.
+- **Left** says how many miles, hours and days are left (or how far over). **Expected by** is the day it falls due: the interval's date, or the day the vehicle is expected to reach the miles or hours at the rate it has run over its readings of the last year, whichever is first.
+
+The tiles count **Overdue**, **Due soon** and **In date**. **Show** picks overdue and due soon (the default), one of them, in date only or everything; filter by **Vehicle model** and **Depot or garage**.
+
+### My work and the calendar
+
+Overdue services, services due soon and those expected within the next 30 days are in the interval planner's **My work** (under **My due work**, kind **Planned maintenance**), in the mobile app's **My work**, and on the **Calendar** on the day each is expected (overdue ones on the day they fell due). On the calendar, anyone who may see the fleet can show everyone's planned maintenance or one person's. Each item opens the vehicle's **Maintenance** tab.
+
+### Loading history
+
+In data load mode (see [Administration](09-administration.md#data-load-mode)), readings and services from before the application can be loaded with their own dates, and with the person who recorded them (`on_behalf_of`); the vehicle's odometer still follows its latest reading. A service loaded with an odometer adds its reading as usual.
 
 ## Equipment coverage
 
@@ -167,7 +216,7 @@ The answer is only as good as the equipment installed on vehicles and the depend
 
 ## Sample data
 
-The `dev` sample profile loads an invented operator: 40 buses at two depots and 8 light-rail vehicles at the rail yard, each with its equipment, a few deliberate gaps, one replaced router in the history of bus 1203, and twelve services with the systems they depend on. Every vehicle has one of four sample vehicle models (one of which adds a second camera and a passenger information display, so its two buses show gaps), bus 1205 keeps its own passenger capacity as an override, and a fifth model is inactive.
+The `dev` sample profile loads an invented operator: 40 buses at two depots and 8 light-rail vehicles at the rail yard, each with its equipment, a few deliberate gaps, one replaced router in the history of bus 1203, and twelve services with the systems they depend on. Every vehicle has one of four sample vehicle models (one of which adds a second camera and a passenger information display, so its two buses show gaps), bus 1205 keeps its own passenger capacity as an override, and a fifth model is inactive. Six sample maintenance intervals (A inspections, engine oil by miles or engine hours, a yearly battery and air-conditioning check, and light-rail truck and brake inspections) belong to the sample models; each vehicle has a year of readings and one earlier service of each interval, so some services are overdue, some due soon and most in date.
 
 When the application is set up, the person installing it can load your own vehicles and services from two files in the private seed folder, `vehicles.psv` and `services.psv` (the `pilot` profile; their columns are described in the installation guide). Running it again updates the vehicles and services by fleet number and route rather than adding them twice. After set-up, use **Import** on the lists instead.
 
@@ -175,5 +224,6 @@ When the application is set up, the person installing it can load your own vehic
 
 - Vehicle blocks and daily assignments of vehicles to services.
 - Individual vehicles on the relationship map: they are drawn as groups by depot and mode. Open a group's vehicle list to see each one.
-- Mileage logs, planned maintenance intervals and maintenance work orders; these belong in a fleet maintenance system, whose work order number can be recorded on a defect. Only the latest odometer reading is kept, for the useful life. Inspections and defects of vehicles are kept under **Safety and emergency management > Inspections** (see [Audits and inspections](25-audits-and-inspections.md#inspections)) and shown on the vehicle's **Inspections and defects** tab.
-- Maintenance schedules and parts on a vehicle model (planned separately, E32-06). A model never creates vehicles by itself.
+- Maintenance work orders, labor and parts: they belong in a fleet maintenance system, whose work order number can be recorded on a service done or on a defect. Inspections and defects of vehicles are kept under **Safety and emergency management > Inspections** (see [Audits and inspections](25-audits-and-inspections.md#inspections)) and shown on the vehicle's **Inspections and defects** tab.
+- Planned maintenance of assets and facilities (lifts, escalators, substations): intervals are for vehicles only.
+- Parts lists on a vehicle model. A model never creates vehicles by itself.

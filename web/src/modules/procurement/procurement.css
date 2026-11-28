@@ -19,3 +19,11 @@
   .prc-criterion { grid-template-columns: 1fr 1fr; }
 }
 .prc-wrap td { white-space: normal; }
+/* E46-67: a new line in an amendment, and an amount that changed from the version before. */
+.prc-newline { display: grid; grid-template-columns: minmax(10rem, 2fr) minmax(7rem, 1fr) minmax(6rem, 1fr); gap: var(--s-2); min-width: 22rem; }
+.prc-changed { font-weight: 600; color: var(--text); }
+@media (max-width: 700px) {
+  .prc-newline { grid-template-columns: 1fr; min-width: 12rem; }
+}
+.prc-tolerance { display: flex; gap: var(--s-3); align-items: end; flex-wrap: wrap; }
+.prc-tolerance .rc-field { max-width: 12rem; }

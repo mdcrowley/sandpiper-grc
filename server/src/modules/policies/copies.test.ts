@@ -91,6 +91,42 @@ describe('register of paper copies (E43-14)', () => {
   });
 });
 
+describe('printing an issued paper copy (E46-57)', () => {
+  it('prints the copy number and holder on every page, for editors only, and not once recalled or superseded', async () => {
+    const d = (await writer.post('/api/policies', { title: 'Invented yard safety rule', document_type: 'sop', owner_id: writer.userId })).body;
+    await publish(d.id, `# Invented rule\n\n${'Invented paragraph of the yard safety rule. '.repeat(40)}\n\n`.repeat(6));
+    const copy = (await writer.post(`/api/policies/${d.id}/copies`, { holder_name: 'Invented east yard binder', location: 'Invented yard office' })).body;
+    const { createSession } = await import('../../core/auth.ts');
+    const get = async (userId: string, url: string) => t.app.inject({ method: 'GET', url, headers: { cookie: `grc_session=${await createSession(t.db, userId)}` } });
+    const res = await get(writer.userId, `/api/policies/${d.id}/copies/${copy.id}/pdf`);
+    expect(res.statusCode, res.body.slice(0, 200)).toBe(200);
+    expect(res.headers['content-disposition']).toMatch(/-copy1\.pdf"/);
+    const text = pdfText(res.rawPayload);
+    expect(text).toContain('Controlled copy 1, issued to Invented east yard binder (Invented yard office)');
+    expect(text).not.toContain('Uncontrolled when printed');
+    // The line is at the top of every page.
+    const pages = (await checkPdfUa(res.rawPayload)).pages;
+    expect(pages).toBeGreaterThan(1);
+    expect(text.split('Controlled copy 1 · Invented east yard binder (Invented yard office)').length - 1).toBe(pages);
+    expect((await checkPdfUa(res.rawPayload)).failures).toEqual([]);
+    // The ordinary print still says it is uncontrolled.
+    const v = (await writer.get(`/api/policies/${d.id}/copies`)).body.rows[0].version_id;
+    expect(pdfText((await get(writer.userId, `/api/policies/${d.id}/versions/${v}/pdf`)).rawPayload)).toContain('Uncontrolled when printed');
+    // Readers cannot print a copy; a copy of another document is not found.
+    expect((await get(readerId, `/api/policies/${d.id}/copies/${copy.id}/pdf`)).statusCode).toBe(403);
+    expect((await get(writer.userId, `/api/policies/${d.id}/copies/00000000-0000-4000-8000-000000000001/pdf`)).statusCode).toBe(404);
+    const audit = await t.db.one<Row>(`select summary from audit_events where record_id = $1 and action = 'policy.copy_print'`, [d.id]);
+    expect(audit?.summary).toMatch(/Paper copy 1 of .*printed for Invented east yard binder/);
+    // A new version takes effect: the copy is due for recall and is not printed again; once recalled, neither.
+    await publish(d.id, 'Version two, invented.');
+    expect((await get(writer.userId, `/api/policies/${d.id}/copies/${copy.id}/pdf`)).statusCode).toBe(409);
+    await writer.post(`/api/policies/${d.id}/copies/${copy.id}/recall`, {});
+    const again = await get(writer.userId, `/api/policies/${d.id}/copies/${copy.id}/pdf`);
+    expect(again.statusCode).toBe(409);
+    expect(again.json().error.code).toBe('recalled');
+  });
+});
+
 describe('diagonal status mark (E43-16)', () => {
   it('prints the word diagonally on every page and keeps PDF/UA', async () => {
     const pdf = new PdfBuilder({ title: 'Invented procedure', mark: 'superseded' });

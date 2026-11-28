@@ -1,8 +1,9 @@
 // The widget library (what can be put on a dashboard) and the editor for one widget.
 import { useEffect, useState } from 'react';
 import {
-  Button, DateTimeField, Drawer, EmptyState, Icon, Modal, NumberField, Select, Switch, TextArea, TextField, useFetch,
+  Button, DateTimeField, Drawer, EmptyState, Icon, Modal, NumberField, Select, Switch, TextArea, TextField, useFetch, useResource,
 } from '../../core';
+import { MeasureWidgetSettings } from '../strategy/MeasureWidget';
 import type { IconName, ListResult } from '../../core';
 import { ChartPicker } from './BuilderParts';
 import { completeFilters } from './FilterEditor';
@@ -20,6 +21,7 @@ export const WIDGET_LIBRARY: { kind: WidgetKind; label: string; hint: string; ic
   { kind: 'countdown', label: 'Countdown clock', hint: 'Time left to a date you set, or to the next dates on records.', icon: 'clock', w: 4, h: 3 },
   { kind: 'calendar', label: 'Calendar', hint: 'A month showing how many records fall on each day.', icon: 'calendar', w: 6, h: 5 },
   { kind: 'figure', label: 'Figure over time', hint: 'A figure recorded at each month end, such as open risks by level, month by month.', icon: 'chart', w: 6, h: 4 },
+  { kind: 'measure', label: 'Strategic measure', hint: 'One measure of the strategic plan: its latest actual against target, and its trend.', icon: 'target', w: 6, h: 4 },
   { kind: 'text', label: 'Text', hint: 'A heading, a note or instructions.', icon: 'edit', w: 4, h: 2 },
 ];
 
@@ -34,12 +36,15 @@ export function newWidget(kind: WidgetKind, widgets: Widget[], extra: Partial<Wi
 export function WidgetLibrary({ open, onClose, onAdd }: { open: boolean; onClose: () => void; onAdd: (kind: WidgetKind, report?: ReportDefinition) => void }) {
   const reports = useFetch<ListResult<ReportDefinition>>(open ? '/api/reports?pageSize=200&sort=name' : null);
   const [q, setQ] = useState('');
+  // A strategic measure widget only while the strategy area is on and the person may view it.
+  const measures = useResource('strategic_measure');
+  const library = WIDGET_LIBRARY.filter((l) => l.kind !== 'measure' || Boolean(measures));
   const shown = (reports.data?.rows ?? []).filter((r) => r.name.toLowerCase().includes(q.trim().toLowerCase()));
   return (
     <Modal open={open} title="Add a widget" onClose={onClose} size="lg">
       <h3 className="rp-lib-title">Build a new widget</h3>
       <ul className="rp-lib-grid">
-        {WIDGET_LIBRARY.map((l) => (
+        {library.map((l) => (
           <li key={l.kind}>
             <button type="button" className="rp-lib-item" onClick={() => onAdd(l.kind)}>
               <span className="rp-lib-icon"><Icon name={l.icon} size={20} /></span>
@@ -64,7 +69,7 @@ export function WidgetLibrary({ open, onClose, onAdd }: { open: boolean; onClose
 }
 
 const KIND_NEEDS: Record<WidgetKind, { type: boolean; group?: number; totals?: 'one' | 'many'; columns?: boolean; chart?: boolean; filters?: boolean; sort?: boolean }> = {
-  report: { type: false }, text: { type: false }, figure: { type: false },
+  report: { type: false }, text: { type: false }, figure: { type: false }, measure: { type: false },
   number: { type: true, totals: 'one', filters: true },
   gauge: { type: true, totals: 'one', filters: true },
   progress: { type: true, totals: 'one', filters: true },
@@ -75,6 +80,12 @@ const KIND_NEEDS: Record<WidgetKind, { type: boolean; group?: number; totals?: '
   calendar: { type: true, filters: true },
 };
 
+/** What a widget with figures from a module shows (wave 27, server reports/widget-sources.ts). */
+const SOURCE_HINTS: Record<string, string> = {
+  change_success: 'The change success rate, the same figure as on the home page: of the changes finished in the dates of the dashboard (or the last 90 days), the share not failed or backed out and not linked to an incident they caused.',
+  safety_indicators: 'Where each safety performance indicator shown on the safety dashboard stands in its latest complete month against its target. Indicators are set up on the safety indicators page.',
+};
+
 export function WidgetEditor({ widget, types, onClose, onSave }: { widget: Widget | null; types: CatalogType[]; onClose: () => void; onSave: (w: Widget) => void }) {
   const [w, setW] = useState<Widget | null>(widget);
   const reports = useFetch<ListResult<ReportDefinition>>(widget?.kind === 'report' ? '/api/reports?pageSize=200&sort=name' : null);
@@ -83,9 +94,12 @@ export function WidgetEditor({ widget, types, onClose, onSave }: { widget: Widge
   if (!w) return <Drawer open={false} title="Widget" onClose={onClose}><span /></Drawer>;
 
   const cfg = w.config ?? {};
-  const needs = KIND_NEEDS[w.kind];
+  // Wave 27: a widget whose figures come from a module (`source`: the change success rate, the safety
+  // indicators) has no records, filters or columns to choose; only its title (and a gauge's target).
+  const sourced = typeof cfg.source === 'string';
+  const needs = sourced ? KIND_NEEDS.text : KIND_NEEDS[w.kind];
   const spec = cfg.spec as ReportSpec | undefined;
-  const type = types.find((t) => t.type === spec?.type);
+  const type = sourced ? undefined : types.find((t) => t.type === spec?.type);
   const setCfg = (patch: Record<string, unknown>) => setW({ ...w, config: { ...cfg, ...patch } });
   const setSpec = (next: ReportSpec) => setCfg({ spec: next });
   const dateFields = (type?.fields ?? []).filter((f) => (f.type === 'date' || f.type === 'datetime') && !f.via);
@@ -113,6 +127,13 @@ export function WidgetEditor({ widget, types, onClose, onSave }: { widget: Widge
       <form className="form rp-widget-form" onSubmit={(e) => { e.preventDefault(); save(); }}>
         <TextField label="Title" value={w.title} onChange={(title) => setW({ ...w, title })} placeholder={lib?.label} />
 
+        {sourced && (
+          <>
+            <p className="rp-section-hint">{SOURCE_HINTS[String(cfg.source)] ?? 'The figures of this widget are worked out by the application.'}</p>
+            {w.kind === 'gauge' && <NumberField label="Target (%)" value={cfg.target ?? null} onChange={(target) => setCfg({ target: target ?? undefined })} />}
+          </>
+        )}
+
         {w.kind === 'report' && (
           <Select label="Saved report" required searchable value={String(cfg.reportId ?? '')} options={(reports.data?.rows ?? []).map((r) => ({ value: r.id, label: r.name }))}
             onChange={(reportId) => setW({ ...w, title: w.title || reports.data?.rows.find((r) => r.id === reportId)?.name || '', config: { ...cfg, reportId } })}
@@ -136,6 +157,10 @@ export function WidgetEditor({ widget, types, onClose, onSave }: { widget: Widge
             </>
           );
         })()}
+
+        {w.kind === 'measure' && (
+          <MeasureWidgetSettings config={cfg} title={w.title} onChange={(config, title) => setW({ ...w, config, title: title ?? w.title })} />
+        )}
 
         {w.kind === 'text' && (
           <>

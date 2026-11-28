@@ -385,7 +385,7 @@ export function SettingsPage() {
           <Group id="elsewhere" title="Elsewhere" text="Settings that have a page of their own.">
             <Card>
               <ul className="adm-plain-list adm-elsewhere">
-                <li><Link to="/admin/attachments">File settings</Link>: the largest file, allowed file types, malware scanning and where files are kept.</li>
+                <li><Link to="/admin/attachments">File settings</Link>: the largest file, allowed file types, malware scanning, the languages scanned documents are read in, and where files are kept.</li>
                 <li><Link to="/admin/data-loads">Data loads</Link>: what data load mode created, and undoing a load.</li>
                 {auth.can('people.view') && <li><Link to="/people/departments">Departments</Link>: the list used to group people and records.</li>}
                 <li><Link to="/admin/retention">Retention</Link>: how long each kind of record is kept.</li>

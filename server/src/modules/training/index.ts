@@ -6,7 +6,7 @@ import { registerExerciseSteps } from './exerciseSteps.ts';
 import { registerImport } from './importer.ts';
 import { notifyTraining, TRAINING_REMINDER_SETTING, trainingReminderInterval } from './notify.ts';
 import { setRoster } from './people.ts';
-import { adoptRosterRecords, registerQualifications, runCertificationReminders, seedQualificationDefaults } from './qualifications.ts';
+import { adoptRosterRecords, registerQualifications, runCertificationReminders, seedQualificationDefaults, syncCertificationRoster } from './qualifications.ts';
 import { registerRecords } from './records.ts';
 import { seedTraining } from './seed.ts';
 import { registerSummary } from './summary.ts';
@@ -131,9 +131,10 @@ const mod: ModuleDef = {
 
     registerRecords(ctx);
     registerQualifications(ctx);
+    await syncCertificationRoster(ctx); // E46-72: certifications from before wave 27 take their holder's position and department
     // A roster person's earlier records (kept by email, or by their account) become theirs.
     ctx.resources.onChange?.(async ({ action, def, row }) => {
-      if (def.type === 'person' && (action === 'create' || action === 'update')) await adoptRosterRecords(ctx, row);
+      if (def.type === 'person' && (action === 'create' || action === 'update')) { await adoptRosterRecords(ctx, row); await syncCertificationRoster(ctx, row.id); }
     });
     registerSummary(ctx);
     registerImport(ctx);

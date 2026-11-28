@@ -1300,7 +1300,9 @@ published agendas and minutes; closed-session items, papers and decisions are sh
 the chair, the secretary and `governance.edit` only. Papers are downloaded through the attachments
 module's checks (`sendStoredFile`, `sandboxDownload`). PDF papers appended to the board book are
 read in a forked process with time and memory limits (`governance/book-sandbox.ts`), never in the
-server process.
+server process. Merging the structure of tagged papers into the book (E45-61) reads the papers'
+structure trees and content streams only inside that sandbox (`book-worker.mjs`,
+`book-structure.mjs`); nothing a paper contains is run.
 
 ### Calendar feeds, work-tracker bridge and evidence links
 
@@ -1442,9 +1444,17 @@ A file whose reading was stopped by time, memory or a server crash is tried once
 failed and never read again automatically. Files a vendor sent through a response link are not read
 until staff take them over. A PDF with no text layer is read again by OCR in the same separate process
 (wave 26, `attachments/ocr.ts`, tesseract.js compiled to WebAssembly) with longer limits (5 minutes,
-1 GB, the first 50 pages). The language data is bundled (`attachments/tessdata`, with its source and
-SHA-256 in `NOTICE.txt`) and the engine is given a local folder with caching off, so nothing is
-downloaded and no outside request is made; `GRC_OCR=off` stops it.
+1 GB, the first 50 pages). The language data is bundled (`attachments/tessdata`: English and Spanish,
+with their source and SHA-256 in `NOTICE.txt`) and the engine is given a local folder with caching
+off, so nothing is downloaded and no outside request is made; `GRC_OCR=off` stops it. An
+administrator chooses the languages from the files present (E46-56); a language without its file
+cannot be chosen, so nothing is downloaded.
+
+A vendor asked for certificates of insurance (E46-65) gets a personal upload link by email. Its
+secret is in the address fragment and sent in a header, so it never appears in a request line or a
+log; the server keeps a SHA-256 hash, and the secret sealed with the secret key only so a reminder
+can carry the same link. The upload routes are rate limited, the link expires, files go through the
+full intake, and a certificate sent this way waits as "to review" until staff accept it.
 
 Previews are
 served inline only for PNG, JPEG, GIF, WebP, BMP and PDF, under their fixed type, with

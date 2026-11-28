@@ -1,6 +1,7 @@
 // The register of issued paper copies (E43-14): who holds each numbered controlled copy, of which
 // version, and the recalls. Copies of a version no longer in force are flagged "Recall"; they are in the
-// document owner's My work until each is recorded as recalled.
+// document owner's My work until each is recorded as recalled. A copy still out of the version in force
+// can be printed for its holder, with its number and holder on every page (E46-57).
 import { useState } from 'react';
 import {
   api, ApiError, Button, Card, DateField, EmptyState, ErrorState, errorMessage, formatDate, Loading, Modal, Notice, StatusChip,
@@ -29,7 +30,7 @@ function IssueDialog({ docId, next, onClose, onDone }: { docId: string; next: nu
         holder_user_id: form.holder_user_id || undefined, holder_name: form.holder_name.trim() || undefined, location: form.location.trim() || undefined,
         issued_on: form.issued_on || undefined, notes: form.notes.trim() || undefined, copy_number: form.copy_number ? Number(form.copy_number) : undefined,
       });
-      toast.success(`Copy ${c.copy_number} issued to ${c.holder_name}.`);
+      toast.success(`Copy ${c.copy_number} issued to ${c.holder_name}. Print it from the register: its number and holder are on every page.`);
       onDone();
     } catch (err) {
       if (err instanceof ApiError && Object.keys(err.fields).length) setErrors(err.fields);
@@ -140,6 +141,10 @@ export function CopiesPanel({ docId }: { docId: string }) {
                     </td>
                     {data.can_edit && (
                       <td className="doc-copies-actions">
+                        {!c.recalled_on && !c.recall_due && (
+                          <Button size="sm" variant="secondary" onClick={() => window.open(`/api/policies/${docId}/copies/${c.id}/pdf`, '_blank', 'noopener')}
+                            aria-label={`Print copy ${c.copy_number} for ${c.holder_name}`}>Print</Button>
+                        )}
                         {!c.recalled_on && <Button size="sm" variant="secondary" onClick={() => setRecalling(c)} aria-label={`Record the recall of copy ${c.copy_number}`}>Recall</Button>}
                         {!c.recalled_on && <Button size="sm" variant="ghost" onClick={() => void remove(c)} aria-label={`Take copy ${c.copy_number} out of the register (entered by mistake)`}>Remove</Button>}
                       </td>

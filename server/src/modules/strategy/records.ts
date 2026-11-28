@@ -6,8 +6,20 @@ import { actorOf, isDataLoad } from '../../core/dataload.ts';
 import { metricsAvailable } from '../../core/metrics.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { todayInZone } from '../../core/timezone.ts';
-import { FREQUENCIES, measureState, normalizePeriod, periodRange } from './periods.ts';
-import { refreshMeasure, refreshStatus } from './service.ts';
+import { FREQUENCIES, measureState, normalizePeriod, periodRange, type FiscalYear } from './periods.ts';
+import { AGGREGATIONS, followSeries, pullMeasure, refreshMeasure, refreshStatus, valueRowFor } from './service.ts';
+import { readFiscalYear } from './settings.ts';
+
+/** What to type for a period of a frequency, on the organization's year. */
+export function periodHint(frequency: string | null | undefined, fy: FiscalYear): string {
+  const fiscal = fy.startMonth > 1;
+  if (frequency === 'monthly') return 'Give the month as YYYY-MM.';
+  if (frequency === 'yearly') return fiscal ? 'Give the fiscal year as FYYYYY (or YYYY), or a date inside it.' : 'Give the year as YYYY.';
+  return fiscal ? 'Give the fiscal quarter as FYYYYY-Q1 to FYYYYY-Q4 (or YYYY-Q1), or a date inside it.' : 'Give the quarter as YYYY-Q1 to YYYY-Q4.';
+}
+
+/** Coarse to fine: a measure can take its values from a series of the same or a finer frequency. */
+const GRAIN: Record<string, number> = { monthly: 1, quarterly: 2, yearly: 3 };
 
 export const T = {
   plan: 'strategic_plan', goal: 'strategic_goal', objective: 'strategic_objective', measure: 'strategic_measure',
@@ -135,9 +147,25 @@ export function registerRecords(ctx: ModuleContext) {
       const figure = m.figure_id && UUID.test(String(m.figure_id)) && ctx.resources.get('report_definition')
         ? await db.one('select id from tracked_figures where id = $1 and deleted_at is null', [m.figure_id]).catch(() => undefined) : undefined;
       if (!figure) errors.figure_id = 'Choose a figure recorded over time.';
+    } else if (source === 'series') {
+      // A statistics series (E46-59): of the same or a finer frequency, with one of its breakdowns or the total.
+      const series = await one('strategy_stat_series', m.series_id);
+      if (!series) errors.series_id = 'Choose a statistics series.';
+      else {
+        if ((GRAIN[series.frequency] ?? 1) > (GRAIN[m.frequency ?? 'quarterly'] ?? 2)) {
+          errors.series_id = `This series is kept ${series.frequency === 'yearly' ? 'by year' : 'by quarter'}: give the measure the same or a longer frequency, or choose a series kept more often.`;
+        }
+        const b = String(m.series_breakdown ?? '').trim();
+        const match = breakdownsOf(series.breakdowns).find((x) => x.toLowerCase() === b.toLowerCase());
+        if (b && !match) errors.series_breakdown = `Choose one of the series' breakdowns (${breakdownsOf(series.breakdowns).join(', ') || 'it has none'}), or leave it empty for the total.`;
+        else if ('series_breakdown' in patch || 'series_id' in patch) patch.series_breakdown = match ?? null;
+      }
+      if (!m.series_aggregation) patch.series_aggregation = 'sum';
+      else if (!(AGGREGATIONS as readonly string[]).includes(String(m.series_aggregation))) errors.series_aggregation = 'Choose sum, average, latest, lowest or highest.';
     }
     if (Object.keys(errors).length) invalid(errors);
     if (source === 'manual' && ('source' in patch)) { patch.metric_key = null; patch.figure_id = null; }
+    if (source !== 'series' && ('source' in patch)) { patch.series_id = null; patch.series_breakdown = null; patch.series_aggregation = null; }
     if (!existing && !m.owner_id && req) patch.owner_id = actor(req).id;
     return patch;
   }
@@ -160,9 +188,12 @@ export function registerRecords(ctx: ModuleContext) {
       frequency: { label: 'Frequency', type: 'lookup', list: 'stat_frequency', default: 'quarterly', required: true },
       baseline_value: { label: 'Baseline', type: 'number' },
       baseline_period: { label: 'Baseline period', type: 'text', help: 'The period the baseline is from, for example 2025.' },
-      source: { label: 'Data source', type: 'lookup', list: 'measure_source', default: 'manual', help: 'Entered by hand, or taken from a metric or a figure recorded over time.' },
+      source: { label: 'Data source', type: 'lookup', list: 'measure_source', default: 'manual', help: 'Entered by hand, or taken from a metric, a figure recorded over time or a statistics series.' },
       metric_key: { label: 'Metric', type: 'text', help: 'With data source Metric: the key of a metric of GET /api/metrics, for example actions.overdue.' },
       figure_id: { label: 'Figure over time', type: 'text', help: 'With data source Figure over time: the id of a figure under Reports > Figures over time.' },
+      series_id: { label: 'Statistics series', type: 'ref', to: T.series, help: 'With data source Statistics series: the series under Strategy > Statistics whose values give the actual, kept as often as the measure or more often (a monthly series for a quarterly measure).' },
+      series_breakdown: { label: 'Breakdown', type: 'text', help: 'With a statistics series: one of its breakdown values, for example Bus; empty for the total (the total entered, or else the breakdowns added up).' },
+      series_aggregation: { label: 'Combine the series\' values by', type: 'lookup', list: 'measure_aggregation', help: 'With a statistics series: how its values within one of the measure\'s periods make the actual: sum (the default), average, latest, lowest or highest.' },
       owner_id: { label: 'Owner', type: 'user' },
       latest_period: { label: 'Latest period', type: 'text', readOnly: true },
       latest_value: { label: 'Latest actual', type: 'number', readOnly: true },
@@ -172,22 +203,41 @@ export function registerRecords(ctx: ModuleContext) {
     hooks: {
       beforeCreate: (req, data) => measureRules(req, null, data),
       beforeUpdate: (req, existing, patch) => measureRules(req, existing, patch),
+      // A measure that takes its values from a series fills in every period the series has values for.
+      afterCreate: async (_req, row) => { if (row.source === 'series') await backfillFromSeries(row); },
+      afterUpdate: async (_req, before, after) => {
+        if (after.source === 'series' && (before.source !== 'series' || before.series_id !== after.series_id || before.series_breakdown !== after.series_breakdown
+          || before.series_aggregation !== after.series_aggregation || before.frequency !== after.frequency)) await backfillFromSeries(after);
+      },
     },
   });
+
+  /** Takes the actual of each of the measure's periods (at most 120) that its series has values in. */
+  async function backfillFromSeries(measure: Row): Promise<void> {
+    if (!measure.series_id) return;
+    const fy = await readFiscalYear(ctx);
+    const starts = await db.query<Row>(
+      `select distinct period_start from strategy_stat_values where series_id = $1 and deleted_at is null and period_start is not null
+       order by period_start desc limit 1000`, [measure.series_id]);
+    const periods = [...new Set(starts.map((r) => normalizePeriod(measure.frequency ?? 'quarterly', day(r.period_start), fy)).filter((p): p is string => Boolean(p)))].slice(0, 120);
+    for (const p of periods) await pullMeasure(ctx, measure, p, fy);
+  }
 
   async function valueRules(req: FastifyRequest | null, existing: Row | null, patch: Row): Promise<Row> {
     const m = { ...(existing ?? {}), ...patch };
     const measure = await one('strategy_measures', m.measure_id);
     if (!measure) invalid({ measure_id: 'Choose the measure.' });
     const errors: Record<string, string> = {};
-    if ('period' in patch || 'measure_id' in patch || !existing) {
-      const period = normalizePeriod(measure!.frequency ?? 'quarterly', m.period);
-      if (!period) errors.period = measure!.frequency === 'monthly' ? 'Give the month as YYYY-MM.' : measure!.frequency === 'yearly' ? 'Give the year as YYYY.' : 'Give the quarter as YYYY-Q1 to YYYY-Q4.';
+    // A period kept as it was (a calendar quarter entered before the fiscal year was set) stays as it is.
+    const samePeriod = existing && patch.period === existing.period && (!('measure_id' in patch) || patch.measure_id === existing.measure_id);
+    if (('period' in patch || 'measure_id' in patch || !existing) && !samePeriod) {
+      const fy = await readFiscalYear(ctx);
+      const period = normalizePeriod(measure!.frequency ?? 'quarterly', m.period, fy);
+      if (!period) errors.period = periodHint(measure!.frequency, fy);
       else {
-        const clash = await db.one('select id from strategy_measure_values where measure_id = $1 and period = $2 and deleted_at is null and id <> coalesce($3::uuid, gen_random_uuid())',
-          [measure!.id, period, existing?.id ?? null]);
-        if (clash) errors.period = 'This period has a value already: change that one.';
-        const r = periodRange(period)!;
+        const r = periodRange(period, fy)!;
+        // The same days under the other kind of year count as the same period.
+        if (await valueRowFor(db, String(measure!.id), period, r, existing?.id ?? null)) errors.period = 'This period has a value already: change that one.';
         Object.assign(patch, { period, period_start: r.start, period_end: r.end });
       }
     }
@@ -210,7 +260,7 @@ export function registerRecords(ctx: ModuleContext) {
     defaultSort: { field: 'period_start', dir: 'desc' },
     fields: {
       measure_id: { label: 'Measure', type: 'ref', to: T.measure, required: true },
-      period: { label: 'Period', type: 'text', required: true, help: 'After the measure\'s frequency: YYYY, YYYY-Q1 to YYYY-Q4, or YYYY-MM.' },
+      period: { label: 'Period', type: 'text', required: true, help: 'After the measure\'s frequency: YYYY, YYYY-Q1 to YYYY-Q4, or YYYY-MM; on a fiscal year (Strategy > Settings) FYYYYY or FYYYYY-Q1 to FYYYYY-Q4. A date inside the period is accepted too.' },
       period_start: { label: 'Period from', type: 'date', readOnly: true },
       period_end: { label: 'Period to', type: 'date', readOnly: true },
       target: { label: 'Target', type: 'number' },
@@ -292,11 +342,15 @@ export function registerRecords(ctx: ModuleContext) {
       }
     }
     if (!existing && !m.reported_on && !isDataLoad(req)) patch.reported_on = todayInZone();
-    if ('period' in patch || !existing) {
-      const given = m.period ?? patch.reported_on ?? m.reported_on ?? todayInZone();
-      const period = normalizePeriod('quarterly', given);
-      if (!period) errors.period = 'Give the quarter as YYYY-Q1 to YYYY-Q4.';
-      else patch.period = period;
+    if (('period' in patch || !existing) && !(existing && patch.period === existing.period)) {
+      const fy = await readFiscalYear(ctx);
+      const given = m.period || (patch.reported_on ?? m.reported_on ?? todayInZone());
+      const period = normalizePeriod('quarterly', given instanceof Date ? day(given) : given, fy);
+      if (!period) errors.period = periodHint('quarterly', fy);
+      else {
+        const r = periodRange(period, fy)!;
+        Object.assign(patch, { period, period_start: r.start, period_end: r.end });
+      }
     }
     if (Object.keys(errors).length) invalid(errors);
     if (!existing) {
@@ -318,12 +372,14 @@ export function registerRecords(ctx: ModuleContext) {
     type: T.update, table: 'strategy_updates', module: 'strategy', label: 'Status update', plural: 'Status updates',
     path: '/api/strategy/updates', route: '/strategy/updates', titleField: 'period',
     searchable: ['narrative', 'period'],
-    defaultSort: { field: 'period', dir: 'desc' },
+    defaultSort: { field: 'period_start', dir: 'desc' },
     fields: {
       objective_id: { label: 'Objective', type: 'ref', to: T.objective, help: 'The objective reported on (or give an initiative instead).' },
       initiative_id: { label: 'Initiative', type: 'ref', to: T.initiative, help: 'The initiative reported on (or give an objective instead).' },
       plan_id: { label: 'Plan', type: 'ref', to: T.plan, readOnly: true },
-      period: { label: 'Quarter', type: 'text', help: 'YYYY-Q1 to YYYY-Q4; the quarter of the report date when left out.' },
+      period: { label: 'Quarter', type: 'text', help: 'YYYY-Q1 to YYYY-Q4 (FYYYYY-Q1 to FYYYYY-Q4 on a fiscal year set under Strategy > Settings); the quarter of the report date when left out.' },
+      period_start: { label: 'Quarter from', type: 'date', readOnly: true },
+      period_end: { label: 'Quarter to', type: 'date', readOnly: true },
       status: { label: 'Status', type: 'lookup', list: 'strategy_rag', required: true },
       narrative: { label: 'Narrative', type: 'longtext', help: 'What was done, what is in the way and what happens next.' },
       reported_on: { label: 'Reported on', type: 'date' },
@@ -394,19 +450,23 @@ export function registerRecords(ctx: ModuleContext) {
       if (b && !match) errors.breakdown = allowed.length ? `Choose one of: ${allowed.join(', ')}; or leave it empty for the total.` : 'This series has no breakdowns: leave it empty.';
       patch.breakdown = match ?? '';
     }
-    if ('period' in patch || 'series_id' in patch || !existing) {
-      const period = normalizePeriod(series!.frequency, m.period);
-      if (!period) errors.period = series!.frequency === 'monthly' ? 'Give the month as YYYY-MM.' : series!.frequency === 'yearly' ? 'Give the year as YYYY.' : 'Give the quarter as YYYY-Q1 to YYYY-Q4.';
+    const samePeriod = existing && patch.period === existing.period && (!('series_id' in patch) || patch.series_id === existing.series_id);
+    if (('period' in patch || 'series_id' in patch || !existing) && !samePeriod) {
+      const fy = await readFiscalYear(ctx);
+      const period = normalizePeriod(series!.frequency, m.period, fy);
+      if (!period) errors.period = periodHint(series!.frequency, fy);
       else {
-        const r = periodRange(period)!;
+        const r = periodRange(period, fy)!;
         Object.assign(patch, { period, period_start: r.start, period_end: r.end });
       }
     }
     if (m.value === null || m.value === undefined || m.value === '' || !Number.isFinite(Number(m.value))) errors.value = 'Give the value as a number.';
     if (!errors.period && !errors.breakdown) {
       const after = { ...m, ...patch };
-      const clash = await db.one('select id from strategy_stat_values where series_id = $1 and period = $2 and breakdown = $3 and deleted_at is null and id <> coalesce($4::uuid, gen_random_uuid())',
-        [series!.id, after.period, after.breakdown ?? '', existing?.id ?? null]);
+      // The same days under the other kind of year count as the same period.
+      const clash = await db.one(`select id from strategy_stat_values where series_id = $1 and breakdown = $3 and deleted_at is null and id <> coalesce($4::uuid, gen_random_uuid())
+          and (period = $2 or (period_start = $5::date and period_end = $6::date))`,
+        [series!.id, after.period, after.breakdown ?? '', existing?.id ?? null, day(after.period_start), day(after.period_end)]);
       if (clash) errors.period = 'A value for this period (and breakdown) is entered already: change that one.';
     }
     if (Object.keys(errors).length) invalid(errors);
@@ -437,6 +497,12 @@ export function registerRecords(ctx: ModuleContext) {
     hooks: {
       beforeCreate: (req, data) => statRules(req, null, data),
       beforeUpdate: (req, existing, patch) => statRules(req, existing, patch),
+      // Measures taking their values from the series follow at once (E46-59).
+      afterCreate: async (_req, row) => followSeries(ctx, String(row.series_id), row.period_start),
+      afterUpdate: async (_req, before, after) => {
+        await followSeries(ctx, String(after.series_id), after.period_start);
+        if (before.series_id !== after.series_id || day(before.period_start) !== day(after.period_start)) await followSeries(ctx, String(before.series_id), before.period_start);
+      },
     },
   });
 
@@ -485,5 +551,6 @@ export function registerRecords(ctx: ModuleContext) {
     if (action !== 'delete' && action !== 'purge') return;
     if (def.type === T.update) await refreshSubjects(row);
     if (def.type === T.value) await refreshMeasure(db, String(row.measure_id));
+    if (def.type === T.stat) await followSeries(ctx, String(row.series_id), row.period_start);
   });
 }

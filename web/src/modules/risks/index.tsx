@@ -12,6 +12,7 @@ import { RiskReviews } from './RiskReviews';
 import { ScaleEditor } from './ScaleEditor';
 import './risks.css';
 import { Appetite } from './Appetite';
+import { AppetiteChangeDetail, AppetiteChangeList } from './AppetiteChange';
 import { KriDetail, KriList } from './KriPages';
 import { RegulatoryChangeDetail, RegulatoryChangeList } from './RegulatoryChanges';
 
@@ -50,6 +51,8 @@ const mod: ModuleDef = {
     { path: '/kris', element: <KriList />, permission: 'risks.view' },
     { path: '/kris/:id', element: <KriDetail />, permission: 'risks.view' },
     { path: '/risks/appetite', element: <Appetite />, permission: 'risks.view' },
+    { path: '/risks/appetite/changes', element: <AppetiteChangeList />, permission: 'risks.view' },
+    { path: '/risks/appetite/changes/:id', element: <AppetiteChangeDetail />, permission: 'risks.view' },
   ],
   create: [
     { label: 'Risk', path: '/risks?new=1', permission: 'risks.create' },

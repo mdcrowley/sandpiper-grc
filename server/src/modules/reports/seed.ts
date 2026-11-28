@@ -5,7 +5,7 @@
 import { addMonths } from '../../../../shared/dates.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { todayInZone } from '../../core/timezone.ts';
-import { BOARD_SUMMARY_BEFORE, STANDARD_DASHBOARDS, STANDARD_FIGURES, STANDARD_PACK, STANDARD_REPORTS } from './standard.ts';
+import { BOARD_SUMMARY_EARLIER, CHANGE_SUCCESS_GAUGE_BEFORE, STANDARD_DASHBOARDS, STANDARD_FIGURES, STANDARD_PACK, STANDARD_REPORTS } from './standard.ts';
 
 export async function seedStandard(ctx: ModuleContext, profile: 'pilot' | 'dev' = 'pilot'): Promise<string> {
   const exists = async (table: string, key: string) => ctx.db.one<{ id: string }>(`select id from ${table} where key = $1`, [key]);
@@ -109,17 +109,37 @@ function stable(v: unknown): string {
 }
 
 /**
- * Brings an unedited Board summary up to the current standard one (wave 26: safety and operations first).
- * Only while its widgets and description still read exactly as they shipped before; an edited board is left
- * alone. Runs at every start (the module's register), and changes the record through the registry, so it is audited.
+ * Brings an unedited Board summary up to the current standard one (wave 26: safety and operations first;
+ * wave 27: the safety performance indicators, E46-68). Only while its widgets and description still read
+ * exactly as one earlier version shipped; an edited board is left alone. Runs at every start (the module's
+ * register), and changes the record through the registry, so it is audited.
  */
 export async function refreshBoardSummary(ctx: ModuleContext): Promise<boolean> {
   // While the reports area is switched off its types are not in the registry: try again at the next start.
   if (!ctx.resources.get('dashboard')) return false;
   const board = await ctx.db.one<Row>(`select id, description, widgets from dashboards where key = 'board_summary' and deleted_at is null`);
   if (!board) return false;
-  if (board.description !== BOARD_SUMMARY_BEFORE.description || stable(board.widgets) !== stable(BOARD_SUMMARY_BEFORE.widgets)) return false;
+  if (!BOARD_SUMMARY_EARLIER().some((b) => board.description === b.description && stable(board.widgets) === stable(b.widgets))) return false;
   const now = STANDARD_DASHBOARDS.find((d) => d.key === 'board_summary')!;
   await ctx.resources.update('dashboard', board.id, { description: now.description, widgets: now.widgets }, null, { via: 'the standard Board summary of this version' });
+  return true;
+}
+
+/**
+ * Wave 27 (E46-54): the IT leadership overview's change success gauge counted outcomes only. A gauge that
+ * still reads exactly as it shipped becomes the one from the changes module's success rate, which also
+ * counts a change that caused an incident as not successful. Any other widget, or an edited gauge, is
+ * left alone. Runs at every start, through the registry (audited).
+ */
+export async function refreshChangeSuccessGauge(ctx: ModuleContext): Promise<boolean> {
+  if (!ctx.resources.get('dashboard')) return false;
+  const board = await ctx.db.one<Row>(`select id, widgets from dashboards where key = 'cio_overview' and deleted_at is null`);
+  if (!board || !Array.isArray(board.widgets)) return false;
+  const before = stable(CHANGE_SUCCESS_GAUGE_BEFORE);
+  const i = (board.widgets as Row[]).findIndex((w) => stable(w) === before);
+  if (i < 0) return false;
+  const now = STANDARD_DASHBOARDS.find((d) => d.key === 'cio_overview')!.widgets.find((w) => w.id === CHANGE_SUCCESS_GAUGE_BEFORE.id)!;
+  const widgets = (board.widgets as Row[]).map((w, k) => (k === i ? now : w));
+  await ctx.resources.update('dashboard', board.id, { widgets }, null, { via: 'the change success rate of this version' });
   return true;
 }

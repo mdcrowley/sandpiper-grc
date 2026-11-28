@@ -166,7 +166,7 @@ export function ProgramDetail() {
           key: 'complaints', label: 'Complaints',
           content: ({ row }) => (
             <ResourceList type="civil_rights_complaint" baseFilter={{ program_id: String(row.id) }} urlState={false}
-              columns={['ref', 'subject', 'received_on', 'basis', 'status', 'next_due_on']} />
+              columns={['ref', 'subject', 'received_on', 'bases', 'status', 'next_due_on']} />
           ),
         },
       ]}

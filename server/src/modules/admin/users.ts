@@ -132,9 +132,11 @@ export function registerUsers(ctx: ModuleContext) {
   /**
    * Turns role keys into ids, rejecting unknown keys, and refusing to hand out a role that is switched
    * off (Administration > Roles): it grants nothing, so the person would silently have no access
-   * (E18-78). A switched-off role the person already `held` is kept.
+   * (E18-78). A switched-off role the person already `held` is kept. E46-69: what is kept or accepted
+   * without giving access is said in `warnings`: a switched-off role kept from before, and a role of a
+   * switched-off area given through the API (named by the key the caller sent; the area is not named).
    */
-  async function roleIds(keys: unknown, fields: Record<string, string>, held: string[] = []): Promise<{ id: string; key: string }[]> {
+  async function roleIds(keys: unknown, fields: Record<string, string>, held: string[] = [], warnings: string[] = []): Promise<{ id: string; key: string }[]> {
     if (!Array.isArray(keys) || keys.some((k) => typeof k !== 'string')) {
       fields.roles = 'Choose roles from the list.';
       return [];
@@ -150,6 +152,14 @@ export function registerUsers(ctx: ModuleContext) {
     const off = rows.filter((r) => !r.enabled && !held.includes(r.key) && !ownedOff(features, 'role', r.key));
     if (off.length && !fields.roles) {
       fields.roles = `${off.map((r) => r.name).join(', ')} ${off.length === 1 ? 'is' : 'are'} switched off and would give no access. Switch ${off.length === 1 ? 'it' : 'them'} on under Roles first.`;
+    }
+    const kept = rows.filter((r) => !r.enabled && held.includes(r.key) && !ownedOff(features, 'role', r.key));
+    if (kept.length) {
+      warnings.push(`${kept.map((r) => r.name).join(', ')} ${kept.length === 1 ? 'is' : 'are'} switched off under Roles: kept, but ${kept.length === 1 ? 'it gives' : 'they give'} no access until switched on again.`);
+    }
+    const areaOff = rows.filter((r) => ownedOff(features, 'role', r.key) && !held.includes(r.key));
+    if (areaOff.length) {
+      warnings.push(`${areaOff.map((r) => `"${r.key}"`).join(', ')} ${areaOff.length === 1 ? 'belongs' : 'belong'} to an area that is switched off: kept, but ${areaOff.length === 1 ? 'it gives' : 'they give'} no access until the area is switched on under Administration > Features.`);
     }
     return rows.map(({ id, key }) => ({ id, key }));
   }
@@ -199,7 +209,8 @@ export function registerUsers(ctx: ModuleContext) {
     const b = body(req);
     const { out, fields } = await cleanProfile(b);
     // Least privilege: a new user holds only the roles the administrator picks (none by default).
-    const roles = await roleIds(b.roles ?? [], fields);
+    const warnings: string[] = [];
+    const roles = await roleIds(b.roles ?? [], fields, [], warnings);
     if (Object.keys(fields).length) invalid(fields);
     // Creating a user hands out roles and issues a one-time link.
     await sensitive(ctx, req, 'creating a user');
@@ -220,7 +231,7 @@ export function registerUsers(ctx: ModuleContext) {
       after: { username: out.username, email: out.email, display_name: out.display_name, department_id: out.department_id ?? null, roles: roles.map((r) => r.key).sort() },
     });
     reply.code(201);
-    return { user: await shownUser(id), setupLink: link.link, expiresAt: link.expiresAt };
+    return { user: await shownUser(id), setupLink: link.link, expiresAt: link.expiresAt, warnings };
   });
 
   // ---------- update (profile, status, roles) ----------
@@ -229,8 +240,9 @@ export function registerUsers(ctx: ModuleContext) {
     const before = await getUser(id);
     const { out, fields } = await cleanProfile(b, id);
     let roles: { id: string; key: string }[] | null = null;
+    const warnings: string[] = [];
     if (b.roles !== undefined) {
-      roles = await roleIds(b.roles, fields, (before.roles as { key: string }[]).map((r) => r.key));
+      roles = await roleIds(b.roles, fields, (before.roles as { key: string }[]).map((r) => r.key), warnings);
       // Roles of switched-off areas are not shown, so they are not in the list sent: the person keeps them.
       const s = await featureState(db);
       const keep = (before.roles as { key: string }[]).map((r) => r.key).filter((k) => ownedOff(s, 'role', k) && !roles!.some((r) => r.key === k));
@@ -308,7 +320,8 @@ export function registerUsers(ctx: ModuleContext) {
     }
     // W17-0: the old address is told, as for a change by provisioning (password-reset links now go to the new one).
     if (changed.includes('email')) await notifyEmailChange(ctx.app, { username: String(after.username), oldEmail: String(pb.email ?? ''), newEmail: String(pa.email ?? ''), by: req.user!.displayName || req.user!.username });
-    return shown(after);
+    // E46-69: roles kept or given that give no access are said, so the change is not mistaken for access given.
+    return { ...(await shown(after)), warnings };
   }
 
   adminRoute(ctx, 'PATCH', '/api/admin/users/:id', async (req) => updateUser(req, idParam(req, 'User'), body(req)));

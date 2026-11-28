@@ -5,14 +5,18 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   api, Button, Card, ConfirmDialog, currency, EmptyState, ErrorState, errorMessage, formatCurrency, formatDate, Loading, LookupChip, Modal,
-  Notice, PageHeader, RecordPage, RecordPicker, ResourceList, Select, Stat, TableWrap, TextField, useAuth, useFetch, useToast, useUnsavedChanges,
+  Notice, PageHeader, RecordPage, RecordPicker, ResourceList, Select, Stat, TableWrap, TextField, useAuth, useFetch, useToast, useUnsavedChanges, withReauth,
 } from '../../core';
 import type { ColumnDef, RecordContext, Row } from '../../core';
+import { PolicyAllocation } from './Allocation';
+import { ClaimPayments } from './Payments';
+import { cannotSend, useRequestSettings } from './Requests';
+import { PolicySchedule } from './Schedule';
 
 interface Summary {
   today: string; expiring_days: number;
   policies: { in_force: number; expiring: number; lapsed: number; applications_overdue: number; premium: number };
-  certificates: { expired: number; expiring: number; short: number; requirements_unmet: number };
+  certificates: { expired: number; expiring: number; short: number; requirements_unmet: number; to_review: number; requests_open: number };
   claims: { open: number; open_reserves: number; paid: number; recovered: number };
   conditions: { not_met: number };
 }
@@ -276,11 +280,13 @@ export function PolicyDetail() {
     <RecordPage
       type="insurance_policy"
       actions={(rec) => <RenewButton {...rec} />}
-      summaryFields={POLICY_CREATE.concat(['replaces_id'])}
+      summaryFields={POLICY_CREATE.concat(['replaces_id', 'allocation_method', 'allocation_measure'])}
       tabs={[
         { key: 'conditions', label: 'Conditions', content: (rec) => <Conditions {...rec} /> },
         { key: 'covered', label: 'Covered records', content: (rec) => <Covered {...rec} /> },
         { key: 'claims', label: 'Claims', content: (rec) => <PolicyClaims {...rec} /> },
+        { key: 'allocation', label: 'Premium allocation', content: (rec) => <PolicyAllocation {...rec} /> },
+        { key: 'schedule', label: 'Schedule of values', content: (rec) => <PolicySchedule {...rec} /> },
       ]}
     />
   );
@@ -310,9 +316,11 @@ const CERT_CREATE = [
 
 export function CertificateList() {
   const { data: s, error } = useSummary();
+  const { can } = useAuth();
   return (
     <div className="stack">
-      <PageHeader title="Certificates of insurance" subtitle="Certificates received from vendors and contractors, each checked against the insurance its contract requires." />
+      <PageHeader title="Certificates of insurance" subtitle="Certificates received from vendors and contractors, each checked against the insurance its contract requires."
+        actions={can('insurance.create') ? <Link className="btn btn-secondary" to="/insurance/certificate-requests?new=1">Ask a vendor</Link> : undefined} />
       {s ? (
         <div className="grid-stats">
           <Stat label="Expired" value={s.certificates.expired} icon="alert" color={s.certificates.expired ? 'red' : undefined} hint="Still on file, coverage ended"
@@ -322,6 +330,8 @@ export function CertificateList() {
             to="/insurance/certificates?f.check_result=short" />
           <Stat label="Contract requirements not met" value={s.certificates.requirements_unmet} icon="file-text" color={s.certificates.requirements_unmet ? 'amber' : undefined}
             hint="Missing, expired or short" to="/insurance/requirements?f.state=missing,expired,short" />
+          <Stat label="Sent by vendors, to review" value={s.certificates.to_review} icon="check-square" color={s.certificates.to_review ? 'amber' : undefined}
+            hint={`${s.certificates.requests_open} request${s.certificates.requests_open === 1 ? '' : 's'} waiting for the vendor`} to="/insurance/certificates?f.status=to_review" />
         </div>
       ) : error ? null : <Loading lines={2} label="Loading the figures" />}
       <ResourceList type="insurance_certificate" urlState columns={CERT_COLUMNS} filters={CERT_FILTERS} createFields={CERT_CREATE} />
@@ -368,6 +378,13 @@ function ContractCheck({ row }: RecordContext) {
 }
 
 function CheckBanner({ row }: RecordContext) {
+  if (row.status === 'to_review') {
+    return (
+      <Notice tone="warning" title="Sent by the vendor, to review">
+        Check the details against the file on the Evidence files tab, then set the status to Accepted (the certificate is then checked against the contract) or Rejected.
+      </Notice>
+    );
+  }
   if (row.check_result === 'short') return <Notice tone="warning" title="Short of the contract's requirement">{String(row.check_notes ?? '')}</Notice>;
   if (row.check_result === 'expired') return <Notice tone="warning" title="This certificate has expired">Ask the vendor for a current certificate and add it; this one is then superseded.</Notice>;
   return null;
@@ -378,7 +395,7 @@ export function CertificateDetail() {
     <RecordPage
       type="insurance_certificate"
       banner={(rec) => <CheckBanner {...rec} />}
-      summaryFields={[...CERT_CREATE, 'check_result', 'check_notes']}
+      summaryFields={[...CERT_CREATE, 'check_result', 'check_notes', 'request_id']}
       tabs={[{ key: 'contract', label: 'Contract requirements', content: (rec) => <ContractCheck {...rec} /> }]}
     />
   );
@@ -414,14 +431,14 @@ export function RequirementDetail() {
 
 const CLAIM_CREATE = [
   'title', 'claim_kind', 'direction', 'policy_id', 'status', 'incident_on', 'reported_on', 'claimant_name', 'carrier_claim_number', 'adjuster_name', 'description',
-  'safety_event_id', 'security_incident_id', 'asset_id', 'vehicle_id', 'site_id', 'reserve', 'paid', 'recovered', 'closed_on', 'owner_id', 'restricted', 'notes',
+  'safety_event_id', 'security_incident_id', 'asset_id', 'vehicle_id', 'site_id', 'reserve', 'closed_on', 'owner_id', 'restricted', 'notes',
 ];
 
 export function ClaimList() {
   const { data: s, error } = useSummary();
   return (
     <div className="stack">
-      <PageHeader title="Insurance claims" subtitle="Claims under the organization's policies and against it, with reserves, payments and recoveries. Claims that hold personal or security details are restricted." />
+      <PageHeader title="Insurance claims" subtitle="Claims under the organization's policies and against it, with reserves and each payment and recovery. Claims that hold personal or security details are restricted." />
       {s ? (
         <div className="grid-stats">
           <Stat label="Open claims" value={s.claims.open} icon="alert" to="/insurance/claims?f.status=open,investigating,litigation" />
@@ -443,7 +460,13 @@ export function ClaimList() {
 }
 
 export function ClaimDetail() {
-  return <RecordPage type="insurance_claim" summaryFields={CLAIM_CREATE} />;
+  return (
+    <RecordPage
+      type="insurance_claim"
+      summaryFields={[...CLAIM_CREATE.slice(0, CLAIM_CREATE.indexOf('reserve') + 1), 'paid', 'recovered', ...CLAIM_CREATE.slice(CLAIM_CREATE.indexOf('reserve') + 1)]}
+      tabs={[{ key: 'payments', label: 'Payments', content: (rec) => <ClaimPayments {...rec} /> }]}
+    />
+  );
 }
 
 // ---------- the renewal calendar ----------
@@ -501,16 +524,18 @@ export function RenewalCalendar() {
 // ---------- settings ----------
 
 interface SettingRow { key: string; label: string; max: number; default: number[]; value: number[] }
-type SettingsAnswer = Record<'renewal' | 'application' | 'certificate', SettingRow>;
+type SettingsAnswer = Record<'renewal' | 'application' | 'certificate' | 'request', SettingRow>;
 const SETTING_HINT: Record<keyof SettingsAnswer, string> = {
   renewal: 'Days before a policy expires, for example 90, 60, 30. Reminders stop once the renewal is bound or the policy is not being renewed.',
   application: 'Days before the renewal application is due, for example 14, 3, 0 (on the day).',
   certificate: 'Days before a vendor\'s certificate of insurance expires, for example 30, 0.',
+  request: 'Days before the upload link of a certificate request expires that the vendor is emailed a reminder with the same link, for example 7, 2.',
 };
 const LISTS: [string, string][] = [
   ['insurance_line', 'Lines of coverage'], ['insurer_kind', 'Placed with'], ['insurance_policy_status', 'Policy statuses'], ['insurance_renewal_status', 'Renewal steps'],
   ['insurance_condition_status', 'Condition assessments'], ['insurance_certificate_status', 'Certificate statuses'], ['insurance_claim_status', 'Claim statuses'],
-  ['insurance_claim_kind', 'Claim kinds'], ['insurance_claim_direction', 'Claim directions'],
+  ['insurance_claim_kind', 'Claim kinds'], ['insurance_claim_direction', 'Claim directions'], ['insurance_payment_kind', 'Claim payment kinds'],
+  ['insurance_allocation_method', 'Premium split methods'], ['insurance_valuation_basis', 'Valuation bases'], ['insurance_request_status', 'Certificate request statuses'],
 ];
 
 export function InsuranceSettings() {
@@ -552,6 +577,7 @@ export function InsuranceSettings() {
             </form>
           )}
         </Card>
+        <RequestLinks />
         <Card title="Lists">
           <p className="muted">Each list can be changed under Administration &gt; Lists: add values, rename them or put them in another order.</p>
           <ul className="ins-links">
@@ -560,5 +586,48 @@ export function InsuranceSettings() {
         </Card>
       </div>
     </div>
+  );
+}
+
+/** Insurance > Settings: whether vendors may be asked for certificates through an upload link (E46-65). */
+function RequestLinks() {
+  const { data, error, reload } = useRequestSettings();
+  const toast = useToast();
+  const [days, setDays] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  if (error) return <Card title="Certificate requests to vendors"><ErrorState error={error} onRetry={reload} /></Card>;
+  if (!data) return <Card title="Certificate requests to vendors"><Loading lines={3} /></Card>;
+  const save = async (body: Record<string, unknown>) => {
+    setBusy(true); setErrors({});
+    try {
+      await withReauth(() => api.put('/api/insurance/certificate-requests/settings', body));
+      toast.success('Saved.'); setDays(null); reload();
+    } catch (err) {
+      const fields = (err as { fields?: Record<string, string> }).fields;
+      if (fields && Object.keys(fields).length) setErrors(fields); else toast.error(errorMessage(err));
+    } finally { setBusy(false); }
+  };
+  const why = data.enabled ? cannotSend(data) : null;
+  return (
+    <Card title="Certificate requests to vendors">
+      <div className="stack">
+        <p className="muted">
+          Staff can email a vendor a request for its certificates of insurance with a personal upload link. The vendor sends each certificate without
+          an account; it arrives on the Certificates tab to review. Switching this off stops every link at once.
+        </p>
+        {why && <Notice tone="info">{why}</Notice>}
+        <p>{data.enabled ? 'Requests are switched on.' : 'Requests are switched off.'}</p>
+        {data.can_administer && (
+          <form className="form" noValidate onSubmit={(e) => { e.preventDefault(); void save({ days: Number(days) }); }}>
+            <TextField label="A new link works for (days)" inputMode="numeric" value={days ?? String(data.days)} onChange={setDays} error={errors.days} hint={`From 1 to ${data.max_days}.`} />
+            <div className="form-actions">
+              <Button type="button" loading={busy} onClick={() => void save({ enabled: !data.enabled })}>{data.enabled ? 'Switch off' : 'Switch on'}</Button>
+              <Button type="submit" variant="primary" disabled={days === null} loading={busy}>Save</Button>
+            </div>
+          </form>
+        )}
+      </div>
+    </Card>
   );
 }

@@ -10,6 +10,7 @@ import type { ModuleContext, Row } from '../../core/module.ts';
 import { dayInZone, todayInZone } from '../../core/timezone.ts';
 import { addDays } from '../../../../shared/dates.ts';
 import { budgetTotals, currentBudgetIds } from './budgets.ts';
+import { INVOICE, INVOICE_KIND } from './invoices.ts';
 import { PO, PO_KIND } from './orders.ts';
 import { body, idParam, invalid } from './shared.ts';
 import { openStatuses, PROCUREMENT } from './solicitations.ts';
@@ -32,11 +33,18 @@ export async function procurementSummary(ctx: ModuleContext) {
             count(*) filter (where status in ('approved', 'issued', 'partially_received'))::int as open_orders,
             count(*) filter (where status = 'draft')::int as drafts
      from purchase_orders where deleted_at is null`))!;
+  const i = (await db.one<Row>(
+    `select count(*) filter (where status = 'pending_approval')::int as awaiting_approval,
+            count(*) filter (where status in ('draft', 'pending_approval') and match_status = 'exception')::int as exceptions,
+            count(*) filter (where status = 'approved')::int as to_pay,
+            count(*) filter (where status = 'approved' and due_on < $1::date)::int as overdue
+     from purchase_invoices where deleted_at is null`, [today]))!;
   const budget = await budgetTotals(ctx, await currentBudgetIds(ctx));
   return {
     today,
     solicitations: { open: s.open, due_soon: s.due_soon, awaiting_award: s.awaiting_award },
     orders: { awaiting_approval: p.awaiting_approval, open: p.open_orders, drafts: p.drafts },
+    invoices: { awaiting_approval: i.awaiting_approval, exceptions: i.exceptions, to_pay: i.to_pay, overdue: i.overdue },
     budget,
   };
 }
@@ -47,8 +55,8 @@ export function registerWork(ctx: ModuleContext) {
   app.get('/api/procurement/summary', { preHandler: ctx.requirePerm('procurement.view') }, async () => procurementSummary(ctx));
   ctx.describeRoute({
     method: 'GET', path: '/api/procurement/summary', tag: 'Procurement', permission: 'procurement.view',
-    summary: 'Procurement figures, the same for every viewer: open solicitations, orders awaiting approval, and the budgets in force against committed and spent',
-    response: '{ today, solicitations: { open, due_soon, awaiting_award }, orders: { awaiting_approval, open, drafts }, budget: { amount, committed, spent, remaining, used_pct } }',
+    summary: 'Procurement figures, the same for every viewer: open solicitations, orders and invoices awaiting approval, invoices to pay, and the budgets in force against committed and spent',
+    response: '{ today, solicitations: { open, due_soon, awaiting_award }, orders: { awaiting_approval, open, drafts }, invoices: { awaiting_approval, exceptions, to_pay, overdue }, budget: { amount, committed, spent, remaining, used_pct } }',
   });
 
   // ---------- calendars and My work ----------
@@ -119,6 +127,50 @@ export function registerWork(ctx: ModuleContext) {
     },
   });
 
+  // E46-66: invoices waiting for the reader's approval (My work), and approved invoices falling due.
+  defineCalendarSource(app, {
+    key: 'procurement.invoice_approvals', label: 'Invoices to approve', kind: 'Invoices to approve',
+    recordType: INVOICE, permission: 'procurement.view', work: true,
+    async events(c, user, from, to) {
+      const rows = await c.db.query<Row>(
+        `select t.id, t.ref, t.invoice_number, t.vendor_name, t.entered_by, coalesce(t.submitted_at, t.updated_at)::date::text as d from purchase_invoices t
+         where t.deleted_at is null and t.status = 'pending_approval' and ${c.resources.visibleWhere(INVOICE, user, 't')}
+           and coalesce(t.submitted_at, t.updated_at)::date <= $2::date
+           and (coalesce(t.submitted_at, t.updated_at)::date >= $1::date or coalesce(t.submitted_at, t.updated_at)::date < $3::date)
+         order by 6, t.id limit 500`, [from, to, dayInZone()]);
+      const eng = approvalEngine(app);
+      const waiting = new Set(eng ? await eng.waiting(INVOICE_KIND, user.id) : []);
+      const mayApprove = c.can(user, 'procurement.approve');
+      const out = [];
+      for (const r of rows) {
+        const running = eng ? await eng.running(INVOICE_KIND, r.id) : null;
+        const mine = running ? waiting.has(r.id) : mayApprove && r.entered_by !== user.id;
+        if (!mine) continue;
+        out.push({
+          uid: `procurement.invoice_approvals:${r.id}`, title: `Approve invoice: ${r.invoice_number} ${String(r.vendor_name ?? '').slice(0, 100)} (${r.ref ?? ''})`.replace(/s+/g, ' '),
+          start: ymd(r.d), allDay: true, url: `/procurement/invoices/${r.id}`, recordType: INVOICE, recordId: r.id, ref: r.ref ?? null, personId: user.id,
+        });
+      }
+      return out;
+    },
+  });
+
+  defineCalendarSource(app, {
+    key: 'procurement.invoices_due', label: 'Invoices due for payment', kind: 'Invoices due',
+    recordType: INVOICE, permission: 'procurement.view', anyone: true,
+    async events(c, user, from, to, scope) {
+      const rows = await c.db.query<Row>(
+        `select t.id, t.ref, t.invoice_number, t.vendor_name, t.due_on::text as d, t.entered_by as p from purchase_invoices t
+         where t.deleted_at is null and t.status = 'approved' and t.due_on is not null and ${c.resources.visibleWhere(INVOICE, user, 't')}
+           and ($1::uuid is null or t.entered_by = $1) and t.due_on >= $2::date and t.due_on <= $3::date
+         order by t.due_on, t.id limit 2000`, [whoFor(user, scope), from, to]);
+      return rows.map((r) => ({
+        uid: `procurement.invoices_due:${r.id}`, title: `Invoice due: ${r.invoice_number} ${String(r.vendor_name ?? '').slice(0, 100)} (${r.ref ?? ''})`.replace(/s+/g, ' '),
+        start: ymd(r.d), allDay: true, url: `/procurement/invoices/${r.id}`, recordType: INVOICE, recordId: r.id, ref: r.ref ?? null, personId: r.p ?? null,
+      }));
+    },
+  });
+
   // ---------- metrics ----------
 
   defineMetric(app, {
@@ -148,7 +200,7 @@ export function registerWork(ctx: ModuleContext) {
   });
   defineMetric(app, {
     key: 'procurement.budget_used_pct', label: 'Budget used', unit: 'percent', recordType: 'budget',
-    description: 'Committed and spent as a share of the budgets in force (adopted or amended, and today within their year). Only the current month has a figure.',
+    description: 'Committed and spent (paid invoices) as a share of the budgets in force (adopted or amended, and today within their year). Only the current month has a figure.',
     async compute(c, monthStart) {
       if (monthStart.slice(0, 7) !== dayInZone().slice(0, 7)) return null;
       return (await budgetTotals(ctx, await currentBudgetIds(ctx))).used_pct;

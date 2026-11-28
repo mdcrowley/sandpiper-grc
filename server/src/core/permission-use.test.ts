@@ -1,3 +1,4 @@
+// ci: every module (tools/ci/plan.mjs runs this for a change to any server module)
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';

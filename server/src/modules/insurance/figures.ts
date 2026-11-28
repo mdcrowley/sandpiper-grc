@@ -38,7 +38,8 @@ export function registerFigures(ctx: ModuleContext) {
     const c = (await db.one<Row>(
       `select count(*) filter (where ${CERT_LIVE} and expires_on < $1::date)::int as expired,
               count(*) filter (where ${CERT_LIVE} and expires_on between $1::date and $2::date)::int as expiring,
-              count(*) filter (where ${CERT_LIVE} and check_result = 'short')::int as short
+              count(*) filter (where ${CERT_LIVE} and check_result = 'short')::int as short,
+              count(*) filter (where status = 'to_review')::int as to_review
        from insurance_certificates where deleted_at is null`, [today, addDays(today, 30)]))!;
     const r = ctx.resources.get('contract') ? (await db.one<Row>(
       `select count(*) filter (where r.state in ('missing', 'expired', 'short'))::int as unmet from insurance_requirements r
@@ -48,13 +49,15 @@ export function registerFigures(ctx: ModuleContext) {
               coalesce(sum(reserve) filter (where ${CLAIM_OPEN}), 0)::float8 as open_reserves,
               coalesce(sum(paid), 0)::float8 as paid, coalesce(sum(recovered), 0)::float8 as recovered
        from insurance_claims where deleted_at is null`))!;
+    const q = (await db.one<Row>(
+      `select count(*) filter (where status = 'sent' and submitted_at is null)::int as open from insurance_certificate_requests where deleted_at is null`))!;
     const n = (await db.one<Row>(
       `select count(*)::int as not_met from insurance_conditions c join insurance_policies p on p.id = c.policy_id
        where c.deleted_at is null and p.deleted_at is null and p.status in ${OPEN_POLICY} and c.status in ('not_met', 'partly')`))!;
     return {
       today, expiring_days: EXPIRING_DAYS,
       policies: { in_force: p.in_force, expiring: p.expiring, lapsed: p.lapsed, applications_overdue: p.applications_overdue, premium: Number(p.premium) },
-      certificates: { expired: c.expired, expiring: c.expiring, short: c.short, requirements_unmet: Number(r.unmet) },
+      certificates: { expired: c.expired, expiring: c.expiring, short: c.short, requirements_unmet: Number(r.unmet), to_review: c.to_review, requests_open: Number(q.open) },
       claims: { open: k.open_claims, open_reserves: Number(k.open_reserves), paid: Number(k.paid), recovered: Number(k.recovered) },
       conditions: { not_met: n.not_met },
     };
@@ -62,7 +65,7 @@ export function registerFigures(ctx: ModuleContext) {
   ctx.describeRoute({
     method: 'GET', path: '/api/insurance/summary', tag: 'Insurance', permission: 'insurance.view',
     summary: 'Figures of the insurance program, the same for every viewer: policies in force and expiring, certificates expired or short, open claims and reserves',
-    response: '{ today, expiring_days, policies: { in_force, expiring, lapsed, applications_overdue, premium }, certificates: { expired, expiring, short, requirements_unmet }, claims: { open, open_reserves, paid, recovered }, conditions: { not_met } }',
+    response: '{ today, expiring_days, policies: { in_force, expiring, lapsed, applications_overdue, premium }, certificates: { expired, expiring, short, requirements_unmet, to_review, requests_open }, claims: { open, open_reserves, paid, recovered }, conditions: { not_met } }',
   });
 
   // ---------- the renewal calendar: a list, so only what the viewer may open ----------

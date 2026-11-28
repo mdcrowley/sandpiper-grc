@@ -1,6 +1,7 @@
 import { metricsAvailable } from '../../core/metrics.ts';
 import type { ModuleContext, Row, SeedOptions } from '../../core/module.ts';
 import { dayInZone } from '../../core/timezone.ts';
+import { TYPE as APPETITE_CHANGE } from './appetite-requests.ts';
 import { makeEnterprise, runKriCheck } from './enterprise.ts';
 import { addMonths, frequencyMonths, periodEndingOn } from './obligations.ts';
 import { AFFECTS } from './regulatory-change.ts';
@@ -126,6 +127,28 @@ async function seedAppetite(ctx: ModuleContext): Promise<number> {
   return added;
 }
 
+/**
+ * E46-53: one invented change of the third-party appetite waiting in the "Risk appetite change" approval
+ * workflow, so the appetite page and the approvals page show one. Only when the workflow is there and no
+ * change was ever asked for.
+ */
+async function seedAppetiteChange(ctx: ModuleContext, owner: string | null): Promise<number> {
+  if (!ctx.resources.get(APPETITE_CHANGE) || (await ctx.db.one('select 1 from risk_appetite_changes limit 1'))) return 0;
+  if (!(await ctx.lookups.values('risk_category')).some((c) => c.value === 'third_party')) return 0;
+  try {
+    await ctx.resources.create(APPETITE_CHANGE, {
+      category: 'third_party', max_rating: 'low', requested_by: owner,
+      statement: '[Sample] Invented example: very low appetite for depending on one supplier for a system that keeps vehicles in service.',
+      reason: '[Sample] Invented example: two suppliers of depot systems were bought by the same company this year.',
+    }, null);
+    return 1;
+  } catch (err) {
+    // No active workflow (an administrator removed it): nothing to show.
+    if ((err as { code?: string }).code === 'no_workflow') return 0;
+    throw err;
+  }
+}
+
 async function seedParents(ctx: ModuleContext, owner: string | null): Promise<number> {
   const parents: [Row, string[]][] = [
     [{ title: '[Sample] Major disruption to scheduled service', category: 'enterprise', description: 'Invented example of an enterprise risk that department risks roll up under.', inherent_likelihood: 3, inherent_impact: 5, residual_likelihood: 3, residual_impact: 4, treatment: 'mitigate', status: 'in_treatment', review_on: day(60) },
@@ -190,6 +213,7 @@ export async function seedCompliance(ctx: ModuleContext, opts: SeedOptions): Pro
   const kris = await seedKris(ctx, owner);
   // The sample risks were saved before the appetite existed.
   if (appetite) await makeEnterprise(ctx, makeScales(ctx)).refreshBreaches();
-  if (!o.added && !o.periods && !changes && !appetite && !parents && !kris) return null;
-  return `${o.added} recurring obligations added with ${o.periods} attested periods, ${changes} regulatory changes, appetite for ${appetite} categories, ${parents} parent risks, ${kris} key risk indicators`;
+  const asked = await seedAppetiteChange(ctx, owner);
+  if (!o.added && !o.periods && !changes && !appetite && !parents && !kris && !asked) return null;
+  return `${o.added} recurring obligations added with ${o.periods} attested periods, ${changes} regulatory changes, appetite for ${appetite} categories, ${parents} parent risks, ${kris} key risk indicators${asked ? ', 1 appetite change awaiting approval' : ''}`;
 }

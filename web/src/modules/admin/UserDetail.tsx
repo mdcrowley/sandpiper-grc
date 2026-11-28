@@ -226,8 +226,10 @@ function RolesCard({ user, isSelf, onSaved }: { user: AdminUser; isSelf: boolean
   const save = async () => {
     setBusy(true);
     try {
-      await adminApi.patch(`/api/admin/users/${user.id}`, { roles: picked });
+      const res = await adminApi.patch<{ warnings?: string[] }>(`/api/admin/users/${user.id}`, { roles: picked });
       toast.success('Roles saved.');
+      // E46-69: a role kept that gives no access is said once more after saving.
+      for (const w of res?.warnings ?? []) toast.info(w);
       onSaved();
     } catch (err) {
       toast.error(errorMessage(err));
@@ -243,6 +245,15 @@ function RolesCard({ user, isSelf, onSaved }: { user: AdminUser; isSelf: boolean
         : (
           <div className="stack">
             {isSelf && <p className="muted">This is your own account. You cannot remove your own administrator access.</p>}
+            {(() => {
+              // E46-69: a switched-off role the person still holds gives no access; say so beside the choice.
+              const off = roles.data.roles.filter((r) => !r.enabled && picked.includes(r.key));
+              return off.length > 0 && (
+                <Notice tone="caution" role="status">
+                  {off.map((r) => r.name).join(', ')} {off.length === 1 ? 'is' : 'are'} switched off under <Link to="/admin/roles">Roles</Link>. {user.display_name} keeps {off.length === 1 ? 'it' : 'them'}, but {off.length === 1 ? 'it gives' : 'they give'} no access until switched on again.
+                </Notice>
+              );
+            })()}
             {roles.data.roles.map((r) => (
               <Checkbox
                 key={r.key}

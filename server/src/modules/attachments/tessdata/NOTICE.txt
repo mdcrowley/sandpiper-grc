@@ -1,9 +1,16 @@
-Language data for reading scanned PDFs (OCR, E43-15)
+Language data for reading scanned PDFs (OCR, E43-15, E46-56)
 
-eng.traineddata.gz is eng.traineddata from the tessdata_fast repository of the Tesseract OCR project
-(https://github.com/tesseract-ocr/tessdata_fast), compressed with gzip and unchanged otherwise.
-SHA-256 of the uncompressed file: 7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2
+These files are from the tessdata_fast repository of the Tesseract OCR project
+(https://github.com/tesseract-ocr/tessdata_fast), each compressed with gzip and unchanged otherwise.
+They are the languages the application itself is offered in (English and Spanish).
 
-It is distributed under the Apache License, Version 2.0 (https://www.apache.org/licenses/LICENSE-2.0).
-The application reads it from this folder only; it never downloads language data. To read other
-languages, put their <lang>.traineddata.gz files in a folder and set GRC_OCR_LANG_DIR and GRC_OCR_LANGS.
+  eng.traineddata.gz  English  SHA-256 of the uncompressed file:
+                               7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2
+  spa.traineddata.gz  Spanish  SHA-256 of the uncompressed file:
+                               6f2e04d02774a18f01bed44b1111f2cd7f3ba7ac9dc4373cd3f898a40ea6b464
+
+They are distributed under the Apache License, Version 2.0 (https://www.apache.org/licenses/LICENSE-2.0).
+The application reads them from this folder only; it never downloads language data. The languages
+used are chosen under Administration > File settings > Reading scans. To offer other languages, put
+their <lang>.traineddata.gz files (with eng and spa if they are wanted) in a folder and set
+GRC_OCR_LANG_DIR to it.

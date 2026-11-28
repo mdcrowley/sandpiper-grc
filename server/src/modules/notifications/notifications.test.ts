@@ -122,12 +122,12 @@ describe('the notify service', () => {
       `select distinct u.id from users u join user_roles ur on ur.user_id = u.id join roles r on r.id = ur.role_id and r.enabled
        join role_permissions rp on rp.role_id = r.id where u.status = 'active' and rp.permission in ('*', 'projects.*', 'projects.approve')`,
     )).length;
-    const res = await t.app.notify({ permission: 'projects.approve', kind: 'approval', title: 'Gate decision requested: Harbour upgrade', route: '/projects' });
+    const res = await t.app.notify({ permission: 'projects.approve', kind: 'approval', title: 'Gate decision requested: Harbor upgrade', route: '/projects' });
     expect(res.sent).toBe(holders);
-    expect(await titles(pm)).toContain('Gate decision requested: Harbour upgrade');
-    expect(await titles(t.api)).toContain('Gate decision requested: Harbour upgrade'); // the administrator holds "*"
-    expect(await titles(agent)).not.toContain('Gate decision requested: Harbour upgrade');
-    expect(await titles(viewer)).not.toContain('Gate decision requested: Harbour upgrade');
+    expect(await titles(pm)).toContain('Gate decision requested: Harbor upgrade');
+    expect(await titles(t.api)).toContain('Gate decision requested: Harbor upgrade'); // the administrator holds "*"
+    expect(await titles(agent)).not.toContain('Gate decision requested: Harbor upgrade');
+    expect(await titles(viewer)).not.toContain('Gate decision requested: Harbor upgrade');
     expect((await mine(pm)).rows[0]).toMatchObject({ route: '/projects', record_type: null });
 
     // Named users and a permission are combined, without duplicates.

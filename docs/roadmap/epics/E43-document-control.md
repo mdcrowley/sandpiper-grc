@@ -173,7 +173,7 @@ Done in wave 26: the **Paper copies** tab records numbered copies of the version
 Read the text of image-only PDFs with a free OCR engine (for example tesseract.js) in the sandbox, so
 scanned older documents are found by their words, not only their title and number.
 
-Done in wave 26: a PDF with no text layer is read again in the same sandboxed reader process with tesseract.js and the bundled English language data (`eng.traineddata.gz` from tessdata_fast, Apache-2.0): no download and no outside request; limits of 5 minutes, 1 GB and 50 pages. A version read this way is noted "read by OCR". `GRC_OCR=off` stops it; `GRC_OCR_LANGS` and `GRC_OCR_LANG_DIR` choose other languages (E46-56 for choosing them in Administration).
+Done in wave 26: a PDF with no text layer is read again in the same sandboxed reader process with tesseract.js and the bundled English language data (`eng.traineddata.gz` from tessdata_fast, Apache-2.0): no download and no outside request; limits of 5 minutes, 1 GB and 50 pages. A version read this way is noted "read by OCR". `GRC_OCR=off` stops it; `GRC_OCR_LANGS` and `GRC_OCR_LANG_DIR` choose other languages (chosen in Administration since wave 27, E46-56; Spanish data bundled too).
 
 ### E43-16 A diagonal status mark on printed text versions
 

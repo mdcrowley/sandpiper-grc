@@ -1,4 +1,4 @@
-// Procurement settings: the standard evaluation criteria, and where the area's lists are edited (methods
+// Procurement settings: the standard evaluation criteria, the invoice match tolerance (E46-66), and where the area's lists are edited (methods
 // with the organization's own limits, statuses, the required clauses template).
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -18,7 +18,11 @@ const LISTS: [string, string, string][] = [
   ['evaluator_role', 'Evaluation committee role', 'Roles on an evaluation committee'],
   ['protest_status', 'Procurement protest status', 'Protest statuses'],
   ['po_status', 'Purchase order status', 'Purchase order statuses (their names and colors; the steps are fixed)'],
+  ['invoice_status', 'Invoice status', 'Invoice statuses (their names and colors; the steps are fixed)'],
+  ['invoice_match', 'Invoice match result', 'How an invoice matches its order and what was received'],
+  ['payment_method', 'Invoice payment method', 'How invoices are paid'],
   ['budget_status', 'Budget status', 'Budget statuses'],
+  ['budget_version_kind', 'Budget version kind', 'The adopted budget and its amendments'],
   ['budget_kind', 'Budget line kind', 'Kinds of budget line'],
 ];
 
@@ -88,13 +92,45 @@ function CriteriaTemplate() {
   );
 }
 
+/** E46-66: how far an invoice may go over the order's price or the value received and still match. */
+function InvoiceTolerance() {
+  const toast = useToast();
+  const { can } = useAuth();
+  const { data, error, reload } = useFetch<{ invoice_tolerance_pct: number }>('/api/procurement/settings');
+  const [value, setValue] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { if (data) setValue(data.invoice_tolerance_pct ?? 0); }, [data]);
+  const dirty = data !== undefined && data !== null && value !== (data.invoice_tolerance_pct ?? 0);
+  const unsaved = useUnsavedChanges(dirty);
+  const editable = can('procurement.administer');
+  const save = async () => {
+    setBusy(true);
+    try { await api.put('/api/procurement/settings', { invoice_tolerance_pct: value ?? 0 }); unsaved.release(); toast.success('Invoice match tolerance saved.'); reload(); }
+    catch (err) { toast.error(errorMessage(err)); } finally { setBusy(false); }
+  };
+  return (
+    <Card title="Invoice match">
+      {error ? <ErrorState error={error} onRetry={reload} /> : !data ? <Loading lines={2} /> : (
+        <div className="stack">
+          <p className="muted">An invoice matches when it bills no more than was received, at no more than the order's price. A tolerance lets small differences (rounding, freight) match too; 0 means none.</p>
+          <div className="prc-tolerance">
+            <NumberField label="Tolerance (percent)" min={0} max={25} decimals={1} value={value} disabled={!editable} onChange={setValue} />
+            {editable && <Button variant="primary" loading={busy} disabled={!dirty} onClick={save}>Save</Button>}
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 export function ProcurementSettings() {
   const { can } = useAuth();
   return (
     <div className="stack">
-      <PageHeader title="Procurement settings" subtitle="Methods and their limits, the required clauses and the standard evaluation criteria. No jurisdiction's thresholds are built in: enter your own." />
+      <PageHeader title="Procurement settings" subtitle="Methods and their limits, the required clauses, the standard evaluation criteria and the invoice match tolerance. No jurisdiction's thresholds are built in: enter your own." />
       <Methods />
       <CriteriaTemplate />
+      <InvoiceTolerance />
       <Card title="Lists" flush>
         <TableWrap label="Procurement lists"><table className="table prc-wrap">
           <thead><tr><th scope="col">List</th><th scope="col">What it holds</th></tr></thead>

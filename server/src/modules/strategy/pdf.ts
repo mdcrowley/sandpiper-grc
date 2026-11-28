@@ -73,7 +73,8 @@ export async function scorecardPdf(ctx: ModuleContext, req: FastifyRequest, plan
 
   if (grid.rows.length && grid.quarters.length) {
     pdf.heading('Status by quarter', 1);
-    pdf.paragraph('Each objective and initiative with the status of its update in each quarter. A dash means no update was made that quarter.', { muted: true });
+    const fiscal = grid.fiscal_year.start_month > 1;
+    pdf.paragraph(`Each objective and initiative with the status of its update in each quarter${fiscal ? ` of the fiscal year (${grid.quarters.slice(-6).map((q) => `${periodLabel(q)}: ${grid.spans[q]}`).join('; ')})` : ''}. A dash means no update was made that quarter.`, { muted: true });
     // At most six quarters fit across a page: the latest ones.
     const qs = grid.quarters.slice(-6);
     pdf.table(

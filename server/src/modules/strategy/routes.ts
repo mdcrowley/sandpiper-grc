@@ -4,7 +4,7 @@ import { UUID_RE } from '../../core/errors.ts';
 import { metricsAvailable } from '../../core/metrics.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { scorecardPdf } from './pdf.ts';
-import { matrix, pullMeasure, scorecard, seriesValues, summary } from './service.ts';
+import { AUTOMATIC_SOURCES, matrix, pullMeasure, scorecard, seriesValues, summary } from './service.ts';
 import { readSettings, writeSettings } from './settings.ts';
 
 const TAG = 'Strategy';
@@ -40,13 +40,17 @@ export function registerRoutes(ctx: ModuleContext) {
   app.get('/api/strategy/plans/:id/matrix', { preHandler: view }, async (req) => {
     const plan = await findPlan(req);
     const q = req.query as Row;
-    return matrix(ctx, plan, q.from ? String(q.from) : null, q.to ? String(q.to) : null);
+    return matrix(ctx, plan, { from: q.from ? String(q.from) : null, to: q.to ? String(q.to) : null, year: q.year ? String(q.year) : null });
   });
   ctx.describeRoute({
     method: 'GET', path: '/api/strategy/plans/:id/matrix', tag: TAG, permission: 'strategy.view',
-    summary: 'The action-item matrix of a plan: each objective and initiative by quarter, with the status of that quarter\'s update',
-    query: { from: 'First quarter, YYYY-Qn (default: the plan\'s start)', to: 'Last quarter, YYYY-Qn (default: today or the plan\'s end); at most 12 quarters' },
-    response: '{ quarters: [YYYY-Qn], rows: [{ kind: "objective" | "initiative", id, ref, code, title, goal, cells: { [quarter]: { status, narrative, reported_on, reported_by } | null } }] }',
+    summary: 'The action-item matrix of a plan: each objective and initiative by quarter of the organization\'s fiscal year, with the status of that quarter\'s update',
+    description: 'On a fiscal year that starts in a month other than January, quarters are written FYYYYY-Qn. An update entered on the calendar year shows in the column of the quarter its own quarter ends in.',
+    query: {
+      year: 'One year of the plan as `years` lists it (YYYY, or FYYYYY on a fiscal year): its four quarters',
+      from: 'First quarter, YYYY-Qn or FYYYYY-Qn (default: the plan\'s start)', to: 'Last quarter (default: today or the plan\'s end); at most 12 quarters',
+    },
+    response: '{ quarters: [period], spans: { [quarter]: "July to September 2026" }, years: [{ key, quarters }], year, fiscal_year: { start_month, named_for }, rows: [{ kind: "objective" | "initiative", id, ref, code, title, goal, cells: { [quarter]: { status, narrative, reported_on, reported_by, period } | null } }] }',
   });
 
   app.get('/api/strategy/plans/:id/scorecard.pdf', { preHandler: [view, ctx.requirePerm('strategy.export')] }, async (req, reply) => {
@@ -71,27 +75,29 @@ export function registerRoutes(ctx: ModuleContext) {
     const figures = ctx.resources.get('report_definition') && ctx.can(req.user, 'reports.view')
       ? (await db.query<Row>(`select id, name from tracked_figures where deleted_at is null order by sort, name`).catch(() => [])).map((f) => ({ id: f.id, name: f.name }))
       : [];
-    return { metrics, figures };
+    const series = (await db.query<Row>('select id, code, name, unit, frequency, breakdown_label, breakdowns, active from strategy_stat_series where deleted_at is null order by active desc, sort, name'))
+      .map((r) => ({ id: r.id, code: r.code, name: r.name, unit: r.unit, frequency: r.frequency, breakdown_label: r.breakdown_label, active: r.active, breakdowns: String(r.breakdowns ?? '').split('\n').filter(Boolean) }));
+    return { metrics, figures, series };
   });
   ctx.describeRoute({
     method: 'GET', path: '/api/strategy/measure-sources', tag: TAG, permission: 'strategy.view',
-    summary: 'What a measure can take its values from: the metrics the caller may read, and the figures recorded over time (for callers who may view reports)',
-    response: '{ metrics: [{ key, label, unit, description }], figures: [{ id, name }] }',
+    summary: 'What a measure can take its values from: the metrics the caller may read, the figures recorded over time (for callers who may view reports) and the statistics series',
+    response: '{ metrics: [{ key, label, unit, description }], figures: [{ id, name }], series: [{ id, code, name, unit, frequency, breakdown_label, active, breakdowns: [string] }] }',
   });
 
   app.post('/api/strategy/measures/:id/pull', { preHandler: ctx.requirePerm('strategy.edit') }, async (req) => {
     const id = idOf(req);
     const measure = UUID_RE.test(id) ? await ctx.resources.find('strategic_measure', id, req.user) : undefined;
     if (!measure) ctx.fail(404, 'not_found', 'Measure not found.');
-    if (!['metric', 'figure'].includes(String(measure!.source))) ctx.fail(400, 'validation', 'Check the highlighted fields.', { source: 'This measure is entered by hand.' });
+    if (!AUTOMATIC_SOURCES.includes(String(measure!.source))) ctx.fail(400, 'validation', 'Check the highlighted fields.', { source: 'This measure is entered by hand.' });
     const b = (req.body ?? {}) as Row;
     const { value, row } = await pullMeasure(ctx, measure!, String(b.period ?? ''));
     return { value, value_id: row?.id ?? null };
   });
   ctx.describeRoute({
     method: 'POST', path: '/api/strategy/measures/:id/pull', tag: TAG, permission: 'strategy.edit',
-    summary: 'Takes the actual of a measure for one period from its metric or figure over time and stores it (a daily job does this for the current and previous period)',
-    body: '{ period: "YYYY" | "YYYY-Qn" | "YYYY-MM" }', response: '{ value: number | null, value_id }',
+    summary: 'Takes the actual of a measure for one period from its metric, figure over time or statistics series and stores it (a daily job does this for the current and previous period, and a series\' measures follow each value entered)',
+    body: '{ period: "YYYY" | "YYYY-Qn" | "FYYYYY" | "FYYYYY-Qn" | "YYYY-MM" | a date inside the period }', response: '{ value: number | null, value_id }',
   });
 
   app.get('/api/strategy/stat-series/:id/values', { preHandler: view }, async (req) => {
@@ -111,13 +117,14 @@ export function registerRoutes(ctx: ModuleContext) {
   app.get('/api/strategy/settings', { preHandler: view }, async () => readSettings(ctx));
   ctx.describeRoute({
     method: 'GET', path: '/api/strategy/settings', tag: TAG, permission: 'strategy.view',
-    summary: 'The strategy area\'s settings: reminder steps before a statistical submission is due, and the "due soon" window',
-    response: '{ submission_reminder_days: number[], due_soon_days }',
+    summary: 'The strategy area\'s settings: reminder steps before a statistical submission is due, the "due soon" window, and the organization\'s fiscal year',
+    response: '{ submission_reminder_days: number[], due_soon_days, fiscal_year_start_month: 1-12, fiscal_year_named_for: "end" | "start", fiscal_year_text, fiscal_periods_in_use }',
   });
   app.put('/api/strategy/settings', { preHandler: ctx.requirePerm('strategy.administer') }, async (req) => writeSettings(ctx, req, (req.body ?? {}) as Row));
   ctx.describeRoute({
     method: 'PUT', path: '/api/strategy/settings', tag: TAG, permission: 'strategy.administer',
-    summary: 'Changes the strategy area\'s settings (audited)', body: '{ submission_reminder_days?: number[], due_soon_days?: number }',
-    response: '{ submission_reminder_days, due_soon_days }',
+    summary: 'Changes the strategy area\'s settings and the organization\'s fiscal year (audited)',
+    description: 'The fiscal year cannot change while measure values, statistics or updates are kept on its fiscal periods (FY...); periods on the calendar year are never affected.',
+    body: '{ submission_reminder_days?: number[], due_soon_days?: number, fiscal_year_start_month?: 1-12, fiscal_year_named_for?: "end" | "start" }', response: 'as GET',
   });
 }

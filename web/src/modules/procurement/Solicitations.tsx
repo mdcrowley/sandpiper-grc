@@ -25,7 +25,7 @@ export function SolicitationList() {
   const { data: s } = useFetch<Summary>('/api/procurement/summary');
   return (
     <div className="stack">
-      <PageHeader title="Procurement" subtitle="Solicitations from planning to award, the purchase orders that follow, and the budgets they are charged to." />
+      <PageHeader title="Procurement" subtitle="Solicitations from planning to award, the purchase orders and invoices that follow, and the budgets they are charged to." />
       {s ? <SummaryTiles s={s} /> : <Loading lines={2} label="Loading the figures" />}
       <ResourceList type="procurement" urlState columns={COLUMNS} filters={FILTERS} createFields={CREATE} />
     </div>

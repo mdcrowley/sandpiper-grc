@@ -215,7 +215,7 @@ function PullButton({ row, onDone }: { row: Row; onDone: () => void }) {
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   const { can } = useAuth();
-  if (!can('strategy.edit') || !['metric', 'figure'].includes(String(row.source))) return null;
+  if (!can('strategy.edit') || !['metric', 'figure', 'series'].includes(String(row.source))) return null;
   const pull = async () => {
     setBusy(true);
     try {
@@ -227,21 +227,28 @@ function PullButton({ row, onDone }: { row: Row; onDone: () => void }) {
   return <Button loading={busy} onClick={() => void pull()}>Take the current value</Button>;
 }
 
-interface Sources { metrics: { key: string; label: string; unit: string; description: string }[]; figures: { id: string; name: string }[] }
+interface SeriesSource { id: string; code: string | null; name: string; unit: string | null; frequency: string; breakdown_label: string | null; active: boolean; breakdowns: string[] }
+interface Sources { metrics: { key: string; label: string; unit: string; description: string }[]; figures: { id: string; name: string }[]; series?: SeriesSource[] }
 
-/** Choose where a measure's actuals come from: entered by hand, a metric, or a figure recorded over time. */
+const GRAIN: Record<string, number> = { monthly: 1, quarterly: 2, yearly: 3 };
+
+/** Choose where a measure's actuals come from: entered by hand, a metric, a figure recorded over time, or a statistics series. */
 function SourceDialog({ row, onClose, onSaved }: { row: Row; onClose: () => void; onSaved: () => void }) {
   const toast = useToast();
   const { data, error, reload } = useFetch<Sources>('/api/strategy/measure-sources');
   const [source, setSource] = useState<string>(String(row.source ?? 'manual'));
   const [metric, setMetric] = useState<string>(String(row.metric_key ?? ''));
   const [figure, setFigure] = useState<string>(String(row.figure_id ?? ''));
+  const [series, setSeries] = useState<string>(String(row.series_id ?? ''));
+  const [breakdown, setBreakdown] = useState<string>(String(row.series_breakdown ?? ''));
+  const [aggregation, setAggregation] = useState<string>(String(row.series_aggregation ?? 'sum'));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const save = async () => {
     setBusy(true);
     try {
-      await api.patch(`/api/strategy/measures/${row.id}`, { source, ...(source === 'metric' ? { metric_key: metric } : {}), ...(source === 'figure' ? { figure_id: figure } : {}) });
+      await api.patch(`/api/strategy/measures/${row.id}`, { source, ...(source === 'metric' ? { metric_key: metric } : {}), ...(source === 'figure' ? { figure_id: figure } : {}),
+        ...(source === 'series' ? { series_id: series || null, series_breakdown: breakdown || null, series_aggregation: aggregation } : {}) });
       toast.success('Data source saved.');
       onSaved();
     } catch (err) {
@@ -250,6 +257,10 @@ function SourceDialog({ row, onClose, onSaved }: { row: Row; onClose: () => void
     } finally { setBusy(false); }
   };
   const chosen = data?.metrics.find((m) => m.key === metric);
+  const frequency = String(row.frequency ?? 'quarterly');
+  // A series kept as often as the measure or more often (a monthly series for a quarterly measure).
+  const usable = (data?.series ?? []).filter((x) => (GRAIN[x.frequency] ?? 1) <= (GRAIN[frequency] ?? 2));
+  const pickedSeries = usable.find((x) => x.id === series);
   return (
     <Modal open title="Data source" onClose={onClose}
       footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" loading={busy} disabled={!data} onClick={() => void save()}>Save</Button></>}>
@@ -263,7 +274,22 @@ function SourceDialog({ row, onClose, onSaved }: { row: Row; onClose: () => void
           {source === 'figure' && (data.figures.length
             ? <Select label="Figure over time" required searchable value={figure} onChange={setFigure} error={errors.figure_id} options={data.figures.map((f) => ({ value: f.id, label: f.name }))} />
             : <p className="muted">No figures over time are available to you. They are kept under Reports.</p>)}
-          {source !== 'manual' && <p className="muted">The actual of the current and the previous period is taken from it each day.</p>}
+          {source === 'series' && (usable.length ? (
+            <>
+              <Select label="Statistics series" required searchable value={series} onChange={(v) => { setSeries(v); setBreakdown(''); }} error={errors.series_id}
+                hint={`Series kept ${frequency === 'monthly' ? 'monthly' : frequency === 'quarterly' ? 'monthly or quarterly' : 'monthly, quarterly or yearly'}, like this ${frequency} measure or more often.`}
+                options={usable.map((x) => ({ value: x.id, label: `${x.name}${x.unit ? ` (${x.unit})` : ''}${x.active ? '' : ' (inactive)'}` }))} />
+              {pickedSeries && pickedSeries.breakdowns.length > 0 && (
+                <Select label={pickedSeries.breakdown_label ? `${pickedSeries.breakdown_label}` : 'Breakdown'} value={breakdown} onChange={setBreakdown} error={errors.series_breakdown}
+                  options={[{ value: '', label: 'The total' }, ...pickedSeries.breakdowns.map((b) => ({ value: b, label: b }))]}
+                  hint="The total is the total entered for a period, or else its breakdowns added up." />
+              )}
+              <LookupSelect label="Combine the series' values in each period by" list="measure_aggregation" required value={aggregation} onChange={setAggregation} error={errors.series_aggregation}
+                hint="Sum for counts such as trips or miles; average or latest for rates and levels such as vehicles in service." />
+            </>
+          ) : <p className="muted">No statistics series suit this {frequency} measure. They are defined under Strategy {'>'} Settings and must be kept as often as the measure or more often.</p>)}
+          {source === 'series' && <p className="muted">Every period the series has values for is filled in when you save, and the actual follows each value entered in the series.</p>}
+          {source !== 'manual' && source !== 'series' && <p className="muted">The actual of the current and the previous period is taken from it each day.</p>}
         </div>
       )}
     </Modal>
@@ -296,7 +322,7 @@ export function MeasureDetail() {
           <SourceButton row={row} onDone={reload} />
         </>
       )}
-      summaryFields={[...fields, 'source', 'metric_key', 'figure_id', 'plan_id', 'latest_period', 'latest_target', 'latest_value', 'latest_state']}
+      summaryFields={[...fields, 'source', 'metric_key', 'figure_id', 'series_id', 'series_breakdown', 'series_aggregation', 'plan_id', 'latest_period', 'latest_target', 'latest_value', 'latest_state']}
       tabs={[{
         key: 'values', label: 'Targets and actuals',
         content: ({ row }) => (

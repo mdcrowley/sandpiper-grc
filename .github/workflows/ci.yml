@@ -1,52 +1,94 @@
 name: CI
 
-# Type check, tests and a production build of the web application, on every push and
-# pull request; the tests again through the PostgreSQL server driver; installation on macOS
-# and Linux with tools/install-node.sh and grc.sh, and on Windows with tools/install-node.ps1 and
-# grc.ps1; the container image, built and started,
-# and compose.yaml run with both databases; the browser suite. On pushes to main and on
-# version tags, once the checks pass, the image is published to ghcr.io for amd64 and arm64, with a
-# software bill of materials and signed build provenance. The dependency audit fails only on a
-# vulnerability someone can fix; a released migration may never change.
-# Nothing here needs the private seed/ folder or any secret other than the built-in token.
-
-# A change to documentation only (the roadmap, the developer and operator guides, the top-level
-# Markdown files) runs nothing. The user guide in docs/user is bundled into the in-app Help and
-# tested, so a change there still runs everything. Later patterns win: docs/user is put back last.
+# Checks what a change needs (wave 27). The first job, "What changed", compares the commit with the
+# merge base of a pull request's target branch, or with the commit before a push (the merge base
+# with main for the first push of a branch or after a force push), and works out from the import
+# graph and the area map (tools/ci/plan.mjs) which unit tests, browser suites and jobs are needed.
+# The run page's summary says which areas were affected and what was skipped. Everything runs:
+# nightly, on a version tag, on a manual run with "full" ticked, and when this workflow or the
+# selection rules (tools/ci) change.
+#
+# Jobs: the typecheck and the chosen unit tests on Linux (in parts) and Windows, and through the
+# PostgreSQL server driver (pglite-socket and PostgreSQL 17); installation on macOS and Linux with
+# tools/install-node.sh and grc.sh, and on Windows with tools/install-node.ps1 and grc.ps1 (a smoke
+# check of the commands, not the tests again); the container image, built and started, and
+# compose.yaml with both databases; the browser suites, shared out over several machines and, for
+# an ordinary change, only over the affected areas' pages; the accessibility audit; the API client
+# and the mobile app. On pushes to main and on version tags, once the checks pass, the image is
+# published to ghcr.io for amd64 and arm64, with a software bill of materials and signed build
+# provenance. The dependency audit fails only on a vulnerability someone can fix; a released
+# migration may never change. Nothing here needs the private seed/ folder or any secret other than
+# the built-in token.
+#
+# Branch protection: require only "CI result" (the last job). It passes when every job that ran
+# passed and the skipped ones were not needed; the other jobs' names change with their parts.
 on:
   push:
-    paths:
-      - '**'
-      - '!docs/**'
-      - '!*.md'
-      - 'docs/user/**'
   pull_request:
-    paths:
-      - '**'
-      - '!docs/**'
-      - '!*.md'
-      - 'docs/user/**'
+  schedule:
+    # Every night at 03:17 UTC: everything, so nothing goes untested for long.
+    - cron: '17 3 * * *'
   workflow_dispatch:
+    inputs:
+      full:
+        description: Run everything, not only what the changes need
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # A newer push to the same branch or pull request cancels the run it makes out of date.
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'schedule' }}
 
 jobs:
+  changes:
+    name: What changed
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      full: ${{ steps.plan.outputs.full }}
+      base: ${{ steps.plan.outputs.base }}
+      typecheck: ${{ steps.plan.outputs.typecheck }}
+      unit: ${{ steps.plan.outputs.unit }}
+      unit_any: ${{ steps.plan.outputs.unit_any }}
+      database_server: ${{ steps.plan.outputs.database_server }}
+      browser: ${{ steps.plan.outputs.browser }}
+      browser_any: ${{ steps.plan.outputs.browser_any }}
+      browser_args: ${{ steps.plan.outputs.browser_args }}
+      browser_postgres: ${{ steps.plan.outputs.browser_postgres }}
+      areas: ${{ steps.plan.outputs.areas }}
+      accessibility: ${{ steps.plan.outputs.accessibility }}
+      web_build: ${{ steps.plan.outputs.web_build }}
+      container: ${{ steps.plan.outputs.container }}
+      install: ${{ steps.plan.outputs.install }}
+      mobile: ${{ steps.plan.outputs.mobile }}
+      api_client: ${{ steps.plan.outputs.api_client }}
+      audit: ${{ steps.plan.outputs.audit }}
+    steps:
+      - name: Check out (with history, to compare)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: tools/node-version.txt
+
+      - name: Work out what the change needs
+        id: plan
+        # Plain Node, no packages: tools/ci/github.mjs writes the outputs and the run summary.
+        run: node tools/ci/github.mjs
+
   check:
-    name: Check (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest, ubuntu-latest]
-    env:
-      # Tests use an in-memory database and never read seed/; point at a folder that does not exist to prove it.
-      GRC_SEED_DIR: ${{ github.workspace }}/no-seed-folder
+    name: Typecheck, audit and web build
+    needs: changes
+    if: needs.changes.outputs.typecheck == 'true' || needs.changes.outputs.audit == 'true' || needs.changes.outputs.web_build == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -66,6 +108,7 @@ jobs:
         # Fails on a known high or critical vulnerability in a production package when a fixed
         # version exists; one that nobody can fix yet is listed without failing (E16-13). Exit 3
         # means the registry could not be reached, which is a warning here.
+        if: needs.changes.outputs.audit == 'true'
         shell: bash
         run: |
           code=0
@@ -73,21 +116,90 @@ jobs:
           if [ "$code" = 3 ]; then echo "::warning::The dependency audit could not reach the npm registry."; exit 0; fi
           exit $code
 
-      - name: Type check (server and web)
-        run: npm run typecheck
+      - name: Keep the typecheck's incremental state
+        if: needs.changes.outputs.typecheck == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: node_modules/.cache/tsc
+          key: tsc-${{ runner.os }}-${{ hashFiles('package-lock.json', 'server/tsconfig.json', 'web/tsconfig.json') }}-${{ github.sha }}
+          restore-keys: tsc-${{ runner.os }}-${{ hashFiles('package-lock.json', 'server/tsconfig.json', 'web/tsconfig.json') }}-
 
-      - name: Tests
-        run: npm test
+      - name: Type check (server and web)
+        if: needs.changes.outputs.typecheck == 'true'
+        run: |
+          npx tsc --noEmit -p server --incremental --tsBuildInfoFile node_modules/.cache/tsc/server.tsbuildinfo
+          npx tsc --noEmit -p web --incremental --tsBuildInfoFile node_modules/.cache/tsc/web.tsbuildinfo
 
       - name: Build the web application
+        if: needs.changes.outputs.web_build == 'true'
         run: npm run build
+        env:
+          GRC_WEB_DIST: ${{ github.workspace }}/e2e-web
 
-  # The whole test suite through the PostgreSQL server driver (pg), so both drivers stay
+      - name: Keep the web build for the browser jobs
+        if: needs.changes.outputs.web_build == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: web-build
+          path: e2e-web
+          retention-days: 2
+
+  unit:
+    # The chosen unit tests (every test on a full run), shared out with Vitest's --shard.
+    name: Unit tests (${{ matrix.os }}, part ${{ matrix.part }} of ${{ matrix.of }})
+    needs: changes
+    if: needs.changes.outputs.unit_any == 'true'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.changes.outputs.unit) }}
+    env:
+      # Tests use an in-memory database and never read seed/; point at a folder that does not exist to prove it.
+      GRC_SEED_DIR: ${{ github.workspace }}/no-seed-folder
+    steps:
+      - name: Check out (with history, to compare)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: tools/node-version.txt
+          cache: npm
+
+      - name: Install packages
+        run: npm ci --no-audit --no-fund
+
+      - name: Keep test timings and the migrated template database
+        # Vitest starts the slowest files first when it knows their times (node_modules/.vite);
+        # the template is remade when a migration changes (server/src/test/global-setup.ts).
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            node_modules/.vite/vitest
+            node_modules/.cache/grc-test-db
+          key: vitest-${{ runner.os }}-${{ hashFiles('**/migrations/*.sql', 'package-lock.json') }}-${{ github.sha }}
+          restore-keys: vitest-${{ runner.os }}-
+
+      - name: Tests
+        shell: bash
+        env:
+          BASE: ${{ needs.changes.outputs.base }}
+          FULL: ${{ needs.changes.outputs.full }}
+        run: |
+          if [ "$(node tools/ci/github.mjs --unit-list "$RUNNER_TEMP/tests.txt")" != all ]; then export GRC_TEST_LIST="$RUNNER_TEMP/tests.txt"; fi
+          npx vitest run --passWithNoTests --shard=${{ matrix.part }}/${{ matrix.of }}
+
+  # The chosen tests through the PostgreSQL server driver (pg), so both drivers stay
   # interchangeable (E16-05):
   # - pglite-socket: every test database is an embedded PostgreSQL served over the wire protocol
   # - postgres-17: every test database is a fresh database on a real PostgreSQL server
   database-server:
     name: Tests on a database server (${{ matrix.target }})
+    needs: changes
+    if: needs.changes.outputs.database_server == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -113,8 +225,10 @@ jobs:
       GRC_SEED_DIR: ${{ github.workspace }}/no-seed-folder
       GRC_DATABASE_POOL_MAX: '5'
     steps:
-      - name: Check out
+      - name: Check out (with history, to compare)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -124,6 +238,13 @@ jobs:
 
       - name: Install packages
         run: npm ci --no-audit --no-fund
+
+      - name: The tests to run
+        env:
+          BASE: ${{ needs.changes.outputs.base }}
+          FULL: ${{ needs.changes.outputs.full }}
+        run: |
+          if [ "$(node tools/ci/github.mjs --unit-list "$RUNNER_TEMP/tests.txt")" != all ]; then echo "GRC_TEST_LIST=$RUNNER_TEMP/tests.txt" >> "$GITHUB_ENV"; fi
 
       - name: Tests through the wire protocol (pglite-socket)
         if: matrix.target == 'pglite-socket'
@@ -191,11 +312,15 @@ jobs:
           echo "Every migration released in $tag is unchanged."
 
   # macOS and Linux installation as a person would do it: the pinned Node.js fetched by
-  # tools/install-node.sh, then grc.sh for everything (the counterpart of grc.ps1).
+  # tools/install-node.sh, then grc.sh for everything (the counterpart of grc.ps1). A smoke check of
+  # the commands, not the tests again (those run in "Unit tests"). When the install scripts, grc.sh,
+  # the operations code or the packages change, and nightly.
   unix-install:
     name: Install and run with grc.sh (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.install == 'true'
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -215,8 +340,8 @@ jobs:
       - name: Install packages
         run: ./grc.sh install
 
-      - name: Local continuous integration (typecheck, tests, tests on UTC, web build)
-        run: ./grc.sh ci
+      - name: grc ci works (plan only; the tests run in "Unit tests")
+        run: ./grc.sh ci --plan
 
       - name: Start, health, sample data, backup, stop
         run: |
@@ -314,6 +439,8 @@ jobs:
   # runs as its own powershell.exe -File process, as typed in a window, so its exit code counts.
   windows-install:
     name: Install and run with grc.ps1 (windows-latest)
+    needs: changes
+    if: needs.changes.outputs.install == 'true'
     runs-on: windows-latest
     timeout-minutes: 40
     defaults:
@@ -352,6 +479,11 @@ jobs:
         run: |
           powershell -NoProfile -ExecutionPolicy Bypass -File .\grc.ps1 install
           if ($LASTEXITCODE -ne 0) { throw "grc.ps1 install failed ($LASTEXITCODE)" }
+
+      - name: grc ci works (plan only; the tests run in "Unit tests")
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\grc.ps1 ci -Plan
+          if ($LASTEXITCODE -ne 0) { throw "grc.ps1 ci -Plan failed ($LASTEXITCODE)" }
 
       - name: Start, health, sample data, backup, stop
         run: |
@@ -418,8 +550,11 @@ jobs:
 
   # Builds the container image and proves it starts and answers its health check (E16-06), then
   # runs compose.yaml as the quick start describes, with the embedded database and with PostgreSQL.
+  # When the image, compose files, packages or start-up change; nightly and on tags.
   container:
     name: Container image and compose
+    needs: changes
+    if: needs.changes.outputs.container == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -551,8 +686,8 @@ jobs:
   # checks have passed: "edge" for every push to main; x.y.z, x.y and latest for a version tag vX.Y.Z.
   publish:
     name: Publish the container image
-    needs: [check, container]
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    needs: [result]
+    if: always() && needs.result.result == 'success' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
@@ -634,16 +769,62 @@ jobs:
           push-to-registry: true
 
   browser:
-    # End to end the browser suites take over an hour, so they run as parallel parts. The "rest"
-    # part skips only the suites that have a part of their own, so a new suite is always covered.
-    # The "PostgreSQL" part runs some suites again on a PostgreSQL server instead of the embedded
-    # database (E40-08): tools/e2e creates a fresh database per run from E2E_DATABASE_URL.
-    name: Browser tests (${{ matrix.part }})
+    # The browser suites, shared out over several machines (tools/e2e/run.mjs --shard, by the
+    # minutes in tools/e2e/suite-map.mjs). For an ordinary change only the suites of the affected
+    # areas run, and the tours over every page (smoke, roles, record journeys, dialogs, keyboard,
+    # features off) visit only the affected areas' pages, plus sign-in and the overview.
+    name: Browser tests (part ${{ matrix.part }} of ${{ matrix.of }})
+    needs: [changes, check]
+    if: needs.changes.outputs.browser_any == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.changes.outputs.browser) }}
+    steps:
+      - name: Check out (with history, to compare)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: tools/node-version.txt
+          cache: npm
+
+      - name: Install packages
+        run: npm ci --no-audit --no-fund
+
+      - name: Fetch the web build
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: web-build
+          path: e2e-web
+
+      - name: Browser tests
+        run: npm run test:e2e -- ${{ needs.changes.outputs.browser_args }} --shard ${{ matrix.part }}/${{ matrix.of }}
+        env:
+          E2E_WEB_DIST: ${{ github.workspace }}/e2e-web
+
+      - name: Keep the logs and screenshots of a failed run
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: browser-test-output-${{ matrix.part }}
+          path: tools/e2e/out
+
+  browser-postgres:
+    # Some suites again on a PostgreSQL server instead of the embedded database (E40-08):
+    # tools/e2e creates a fresh database per run from E2E_DATABASE_URL. On a full run, and when
+    # the database code, the operations code or a migration changes.
+    name: Browser tests (PostgreSQL)
+    needs: [changes, check]
+    if: needs.changes.outputs.browser_postgres == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     services:
       postgres:
-        # Started for every part (a service cannot be made conditional); only the PostgreSQL part uses it.
         image: postgres:17-bookworm@sha256:837bed18782820fe967067cb5328b02b0d9992c1be9a37ee0c9c492cfc03af3b
         env:
           POSTGRES_USER: grc
@@ -656,21 +837,6 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - part: roles
-            args: --only roles
-          - part: smoke, sign-in, features off
-            args: --only smoke,auth,features-off
-          - part: rest
-            args: --skip roles,smoke,auth,features-off
-          - part: accessibility
-            args: ''
-          - part: PostgreSQL
-            args: --only 01-smoke,16-records,23-portal
-            database: postgres
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -684,40 +850,99 @@ jobs:
       - name: Install packages
         run: npm ci --no-audit --no-fund
 
-      - name: Build the web application
-        run: npm run build
-        env:
-          GRC_WEB_DIST: ${{ github.workspace }}/e2e-web
+      - name: Fetch the web build
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: web-build
+          path: e2e-web
 
-      - name: Browser tests
-        if: matrix.part != 'accessibility'
-        run: npm run test:e2e -- ${{ matrix.args }}
+      - name: Browser tests on PostgreSQL 17
+        run: npm run test:e2e -- --only 01-smoke,16-records,23-portal
         env:
           E2E_WEB_DIST: ${{ github.workspace }}/e2e-web
           # The account may create databases; each run makes its own and drops it (tools/e2e/lib/instance.mjs).
-          E2E_DATABASE_URL: ${{ matrix.database == 'postgres' && 'postgres://grc:grc-ci-only@127.0.0.1:5432/grc' || '' }}
-
-      - name: Accessibility audit
-        if: matrix.part == 'accessibility'
-        run: npm run test:a11y -- --quick
-        env:
-          E2E_WEB_DIST: ${{ github.workspace }}/e2e-web
+          E2E_DATABASE_URL: postgres://grc:grc-ci-only@127.0.0.1:5432/grc
 
       - name: Keep the logs and screenshots of a failed run
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: browser-test-output-${{ strategy.job-index }}
-          path: |
-            tools/e2e/out
-            tools/a11y/out
+          name: browser-test-output-postgres
+          path: tools/e2e/out
+
+  accessibility:
+    # The accessibility audit: every page on a full run, the affected areas' pages otherwise.
+    name: Accessibility audit
+    needs: [changes, check]
+    if: needs.changes.outputs.accessibility == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: tools/node-version.txt
+          cache: npm
+
+      - name: Install packages
+        run: npm ci --no-audit --no-fund
+
+      - name: Fetch the web build
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: web-build
+          path: e2e-web
+
+      - name: Accessibility audit
+        run: npm run test:a11y -- --quick
+        env:
+          E2E_WEB_DIST: ${{ github.workspace }}/e2e-web
+          # Empty on a full run (every page); otherwise the affected areas (tools/e2e/lib/routes.mjs).
+          E2E_AREAS: ${{ needs.changes.outputs.areas }}
+
+      - name: Keep the report of a failed run
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: accessibility-output
+          path: tools/a11y/out
+
+  api-client:
+    # Fails when packages/api-client/src/schema.ts would change: run
+    # `npx tsx packages/api-client/generate.ts` and commit the result. Whenever server code changes.
+    name: API client up to date
+    needs: changes
+    if: needs.changes.outputs.api_client == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: tools/node-version.txt
+          cache: npm
+
+      - name: Install packages
+        run: npm ci --no-audit --no-fund
+
+      - name: API client is up to date with the server's OpenAPI description
+        run: npx tsx packages/api-client/generate.ts --check
 
   mobile:
-    # The mobile app (mobile/, E38-01): on Linux the API client freshness check, the typecheck, Jest
-    # and an Android release build (an unsigned APK, kept as an artifact: sign it with the release key
-    # kept outside the repository, docs/mobile.md); on macOS an unsigned iPhone build for the simulator
-    # and for devices. No paid build service, no signing secrets, nothing sent anywhere (telemetry off).
+    # The mobile app (mobile/, E38-01): on Linux the typecheck, Jest and an Android release build (an
+    # unsigned APK, kept as an artifact: sign it with the release key kept outside the repository,
+    # docs/mobile.md); on macOS an unsigned iPhone build for the simulator and for devices. No paid
+    # build service, no signing secrets, nothing sent anywhere (telemetry off). When mobile/,
+    # packages/api-client/ or shared/ change; nightly and on tags.
     name: Mobile app (${{ matrix.platform }})
+    needs: changes
+    if: needs.changes.outputs.mobile == 'true'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 75
     strategy:
@@ -743,16 +968,6 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             mobile/package-lock.json
-
-      - name: Install the server's packages (for the API client check)
-        if: matrix.platform == 'android'
-        run: npm ci --no-audit --no-fund
-
-      - name: API client is up to date with the server's OpenAPI description
-        # Fails when packages/api-client/src/schema.ts would change: run
-        # `npx tsx packages/api-client/generate.ts` and commit the result.
-        if: matrix.platform == 'android'
-        run: npx tsx packages/api-client/generate.ts --check
 
       - name: Install the app's packages
         working-directory: mobile
@@ -818,3 +1033,23 @@ jobs:
           xcodebuild -workspace SandpiperGRC.xcworkspace -scheme SandpiperGRC -configuration Release
           -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build
           CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' build
+
+  result:
+    # The one check branch protection should require. A job skipped because the change does not
+    # need it counts as passed; a failed or cancelled one fails this.
+    name: CI result
+    needs: [changes, check, unit, database-server, released-migrations, unix-install, windows-install, container, browser, browser-postgres, accessibility, api-client, mobile]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every needed job passed
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS" | node -e '
+            const needs = JSON.parse(require("fs").readFileSync(0, "utf8"));
+            const bad = Object.entries(needs).filter(([, j]) => !["success", "skipped"].includes(j.result));
+            for (const [name, j] of Object.entries(needs)) console.log(`${j.result.padEnd(9)} ${name}`);
+            if (bad.length) { console.log(`Failed: ${bad.map(([n]) => n).join(", ")}`); process.exit(1); }
+          '

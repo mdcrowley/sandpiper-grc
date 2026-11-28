@@ -174,14 +174,33 @@ status `done`; issues in progress, open or blocked are counted in the total only
 | [E37](epics/E37-asset-tags.md) | Asset tags: values, printing and lookup | in progress | 9 / 10 |
 | [E38](epics/E38-mobile-apps.md) | Mobile apps for iPhone and Android | in progress | 11 / 15 |
 | [E39](epics/E39-vehicle-and-asset-models.md) | Vehicle and asset models | done | 7 / 7 |
-| [E40](epics/E40-production-hardening.md) | Production hardening | done | 14 / 14 |
+| [E40](epics/E40-production-hardening.md) | Production hardening | done | 15 / 15 |
 | [E41](epics/E41-product-gaps-wave-19.md) | Product gaps found in the wave 19 review | done | 17 / 17 |
 | [E42](epics/E42-windows-installer.md) | Windows installer, in-place updates and the update check | in progress | 7 / 8 |
 | [E43](epics/E43-document-control.md) | Document control: policies, standards, procedures, SOPs and plans | done | 19 / 19 |
 | [E44](epics/E44-navigation-and-usability.md) | Navigation and usability | done | 10 / 10 |
-| [E45](epics/E45-product-gaps-wave-24-review.md) | Product gaps found in the wave 24 review | in progress | 66 / 67 |
-| [E46](epics/E46-wave-26-new-areas-and-remaining-gaps.md) | Wave 26: new areas and the remaining gaps | in progress | 52 / 72 |
-| | **Total** | | **956 / 988** |
+| [E45](epics/E45-product-gaps-wave-24-review.md) | Product gaps found in the wave 24 review | done | 67 / 67 |
+| [E46](epics/E46-wave-26-new-areas-and-remaining-gaps.md) | Wave 26: new areas and the remaining gaps | done | 74 / 74 |
+| | **Total** | | **980 / 991** |
+
+Wave 27 finished every open issue that could be built in code (E46-53 to E46-74, E45-61, E40-15).
+Enterprise risk: an appetite change can go through an approval workflow. Dashboards: the change
+success gauge reads the changes module's rate, the Board summary shows the safety indicators, and a
+widget shows one strategic measure. Funder review readiness counts the previous review's open
+deficiencies and overdue award obligations. Documents: OCR languages are chosen in Administration
+(Spanish data bundled), an issued paper copy prints its copy number, and the board book merges the
+structure of tagged PDF papers. Strategy follows the organization's fiscal year and takes measures
+from statistics series. Civil rights limits count calendar or working days and a complaint has several
+bases. Insurance records claim payments one by one, allocates premiums, keeps a schedule of values,
+asks vendors for certificates by email and shows on the contract. Procurement records invoices with a
+three-way match, approval and payment, and keeps budget versions. Fleet has planned maintenance
+intervals and mileage history; every employee sees their own certifications, and certifications filter
+by position and department. A switched-off role gives a warning wherever it is assigned, reminder
+settings of a switched-off area are hidden, and sample defects are marked as sample data. Continuous
+integration now checks what changed (E40-15): `grc ci` and GitHub run only the tests, builds and
+browser suites a change needs (everything nightly and on tags, one required check), and test databases
+start from a migrated template. The 11 issues not done need a person, hardware or outside accounts
+(see [Next up](#next-up)).
 
 Wave 26 added four areas (E46): **Procurement and budgets** (solicitations with evaluation committees
 and awards, purchase orders with approval and receiving, budgets against committed and spent),
@@ -196,9 +215,8 @@ were given what their work needs, the Executive viewer became a leadership view 
 organization-wide Board summary, each role has a home page, My work shows what waits and anyone can
 report a problem. It finished document control (E43: paper copies, OCR of scanned PDFs with
 tesseract.js and bundled language data, diagonal status marks, loaded versions undone one by one),
-navigation (E44-07 to E44-10) and the wave 24 review (E45-53 to E45-67 except E45-61, whose limit is
-documented), and fixed feature switches so a change applies at once to work outside a request
-(E46-52). The 21 issues not done in E45 and E46 are listed in their epics.
+navigation (E44-07 to E44-10) and the wave 24 review (E45-53 to E45-67 except E45-61, done in wave 27), and fixed feature switches so a change applies at once to work outside a request
+(E46-52). The 21 issues it left open in E45 and E46 were done in wave 27.
 
 Wave 25 built the product gaps of the wave 24 review (E45): enterprise risk stands on its own beside
 cybersecurity (risks need only `risks.view`, restriction per risk, target risk, a versioned appetite, a

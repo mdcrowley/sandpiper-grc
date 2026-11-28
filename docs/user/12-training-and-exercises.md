@@ -135,8 +135,8 @@ Select any tile, bar segment, point or number to open **Training records** filte
 
 Positions, the courses and certifications each one requires, and the roster itself are described in [People and qualifications](29-people-and-qualifications.md). In training:
 
-- **Certifications** (the **Certifications** tab of **People and training > Qualifications**) lists every certification (`CRT-` numbers) with the **Person**, **Certification**, **Expires** (the date with the days left: red "Expired N days ago", amber within 60 days) and **Status**, soonest expiry first; the reference, number, issuing body and issue date are in the column chooser. Safety managers can record certifications too. Select **New certification**, or **Create** then **Certification**; when you give the **Issued on** date and leave **Expires on** empty, the expiry is worked out from the type's validity, and **Issued by** is filled from the type. Add the scanned certificate on the record's **Evidence files** tab.
-- **Expiring** on the certifications list shows the certifications that have expired or expire within 30, 60, 90 or 180 days and have not been renewed by a later certification of the same type.
+- **Certifications** (the **Certifications** tab of **People and training > Qualifications**) lists every certification (`CRT-` numbers) with the **Person**, **Certification**, **Expires** (the date with the days left: red "Expired N days ago", amber within 60 days) and **Status**, soonest expiry first; the holder's **Position** and **Department** on the roster show when there is room, and the reference, number, issuing body and issue date are in the column chooser. Filter by **Position** or **Department** to see the certifications of one group of people, for example every bus operator's; both are copied from the person when the certification is recorded and follow the person when they move to another position or department, so they cannot be changed on the certification itself. Safety managers can record certifications too. Select **New certification**, or **Create** then **Certification**; when you give the **Issued on** date and leave **Expires on** empty, the expiry is worked out from the type's validity, and **Issued by** is filled from the type. Add the scanned certificate on the record's **Evidence files** tab.
+- **Expiring** on the certifications list shows the certifications that have expired or expire within 30, 60, 90 or 180 days and have not been renewed by a later certification of the same type, with the person's position and department. Narrow it to one **Position** or **Department**.
 - **Qualifications** shows the qualification matrix (see the guide page above).
 
 ### Certification reminders
@@ -155,6 +155,12 @@ When you finish a course, tell the course owner or your manager so that it can b
 4. Select **Mark complete**.
 
 The record shows **Self-certified**, and your note is kept with it for the course owner to see. The completion is recorded in the course's history under your name.
+
+### My certifications
+
+When you are on the roster (your account is linked to your person there), **My training** also shows **My certifications**: each certification recorded for you, its state (**In date**, **Expiring** within 30 days, **Expired**, **Renewed** by a later one of the same kind, or **Not active** when suspended or revoked), when it expires and how many days are left, and when and by whom it was issued. A notice above the list names any certification your position needs that you do not hold in date. No training permission is needed: you see only your own. When you renew one, give the new certificate to your supervisor so that it can be recorded.
+
+The same certifications are on the **My certifications** card of **My work** (and the Overview's My work section). It is something to know rather than work to do, so it is not counted in the number of items waiting; a certification that has expired, or expires within 30 days, is also listed under **My due work** (kind **My certification renewals**, or **Certification renewals** for people who hold training permissions), where it is counted, and in the mobile app's **My work**, until a renewal is recorded.
 
 ### Notifications
 

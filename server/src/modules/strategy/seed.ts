@@ -185,6 +185,33 @@ export async function seedStrategy(ctx: ModuleContext, opts: SeedOptions): Promi
     }
   }
 
+  // A measure that takes its actuals from a statistics series (E46-59): bus trips a quarter, the sum
+  // of the monthly bus values; it fills in every quarter the series has values for. The standard
+  // dashboard shows it as a measure widget (E46-60).
+  const SERIES_MEASURE = '[Sample] Bus trips a quarter (from statistics)';
+  const upt = await ctx.db.one<Row>(`select id from strategy_stat_series where code = 'UPT' and name like '[Sample]%' and deleted_at is null`);
+  const growth = await ctx.db.one<Row>(`select o.id from strategy_objectives o where o.plan_id = $1 and o.code = '3.1' and o.deleted_at is null`, [plan.id]);
+  let fromSeries = await ctx.db.one<Row>('select id from strategy_measures where title = $1 and deleted_at is null', [SERIES_MEASURE]);
+  if (upt && growth && !fromSeries) {
+    fromSeries = await ctx.resources.create('strategic_measure', {
+      objective_id: growth.id, title: SERIES_MEASURE, unit: 'trips', direction: 'increase', frequency: 'quarterly', source: 'series',
+      series_id: upt.id, series_breakdown: 'Bus', series_aggregation: 'sum', owner_id: owner, baseline_period: String(year - 2), baseline_value: 3200000,
+      description: 'Invented: the bus breakdown of the unlinked passenger trips series, added up over the quarter.',
+    });
+    for (const q of quarters) {
+      const row = await ctx.db.one<Row>('select id from strategy_measure_values where measure_id = $1 and period = $2 and deleted_at is null', [fromSeries.id, q]);
+      if (row) await ctx.resources.update('measure_value', String(row.id), { target: 3400000 });
+      else await ctx.resources.create('measure_value', { measure_id: fromSeries.id, period: q, target: 3400000 });
+    }
+  }
+  const dash = await ctx.db.one<Row>('select id, widgets from dashboards where key = $1 and deleted_at is null', [STRATEGY_DASHBOARD_KEY]);
+  const widgets = (dash?.widgets as Row[] | undefined) ?? [];
+  if (dash && fromSeries && !widgets.some((x) => x.kind === 'measure')) {
+    await ctx.resources.update('dashboard', String(dash.id), {
+      widgets: [...widgets, { id: 'm1', kind: 'measure', title: 'Bus trips a quarter', x: 0, y: 10, w: 6, h: 4, config: { measureId: fromSeries.id, recordType: 'strategic_measure', periods: 8 } }],
+    });
+  }
+
   // Submissions to an invented outside body: one submitted, one coming due, one overdue.
   let submissions = 0;
   const SUBS = [

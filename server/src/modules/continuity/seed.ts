@@ -45,7 +45,7 @@ const PROCESSES: { name: string; department: string; criticality: string; mtd: n
     description: 'Dispatches buses, handles breakdowns and detours, and keeps services on time.',
     workaround: 'Radio voice dispatch with paper running boards; depot supervisors cover missed trips.',
     deps: [['system', 'Example CAD/AVL System', true], ['system', 'Example Radio Dispatch System', true], ['site', 'Example Operations Control Center', true],
-      ['service', '1', false], ['service', '7', false], ['vendor', 'Harbour Signal Systems', false], ['position', '[Sample] Dispatcher', true]],
+      ['service', '1', false], ['service', '7', false], ['vendor', 'Harbor Signal Systems', false], ['position', '[Sample] Dispatcher', true]],
   },
   {
     // A gap by construction: the fare back office needs eight hours to recover; fare collection tolerates four.

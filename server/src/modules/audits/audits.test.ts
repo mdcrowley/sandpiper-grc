@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { approvalEngine } from '../../core/approval-kinds.ts';
 import type { ModuleDef } from '../../core/module.ts';
 import { dayInZone } from '../../core/timezone.ts';
@@ -52,7 +52,9 @@ let safety: Client;    // safety manager: audits.*, safety.*
 let pm: Client;        // project manager: no audit permissions
 let auditor: Client;   // auditor: audits.view, audits.export
 let adminId: string;
-const today = dayInZone();
+let today = dayInZone();
+// Worked out again before each test, so a run that crosses midnight compares with the day the server uses.
+beforeEach(() => { today = dayInZone(); });
 
 beforeAll(async () => {
   process.env.GRC_MODULES = 'audits,inventory,workflows,notifications,attachments';

@@ -173,6 +173,10 @@ export const ROUTE_HELP: RouteHelp[] = [
   { prefix: '/fleet/coverage', page: '19-fleet-and-services', section: 'equipment-coverage' },
   { prefix: '/fleet/impact', page: '19-fleet-and-services', section: 'what-is-affected' },
   { prefix: '/services', page: '19-fleet-and-services', section: 'services' },
+  // Wave 27 (E46-71): planned maintenance and readings.
+  { prefix: '/fleet/maintenance', page: '19-fleet-and-services', section: 'planned-maintenance' },
+  { prefix: '/fleet/maintenance/intervals', page: '19-fleet-and-services', section: 'maintenance-intervals' },
+  { prefix: '/fleet/readings', page: '19-fleet-and-services', section: 'readings-the-mileage-history' },
 
   // Safety
   { prefix: '/safety', page: '20-safety-management', section: 'safety-dashboard' },
@@ -235,6 +239,7 @@ export const ROUTE_HELP: RouteHelp[] = [
   { prefix: '/regulatory-changes', page: '06-risks-actions-obligations', section: 'regulatory-changes' },
   { prefix: '/kris', page: '06-risks-actions-obligations', section: 'key-risk-indicators' },
   { prefix: '/risks/appetite', page: '06-risks-actions-obligations', section: 'risk-appetite' },
+  { prefix: '/risks/appetite/changes', page: '06-risks-actions-obligations', section: 'sending-a-change-for-approval' },
 
   // Business continuity
   { prefix: '/continuity', page: '30-business-continuity', section: 'overview' },
@@ -321,6 +326,12 @@ export const ROUTE_HELP: RouteHelp[] = [
   { prefix: '/insurance/claims', page: '45-insurance', section: 'claims' },
   { prefix: '/insurance/renewals', page: '45-insurance', section: 'renewals' },
   { prefix: '/insurance/settings', page: '45-insurance', section: 'settings' },
+  // Wave 27 (E46-62, E46-64, E46-65): payments, allocation, schedule of values, certificate requests.
+  { prefix: '/insurance/certificate-requests', page: '45-insurance', section: 'asking-a-vendor-for-certificates' },
+  { prefix: '/insurance/claim-payments', page: '45-insurance', section: 'payments-and-recoveries' },
+  { prefix: '/insurance/schedule', page: '45-insurance', section: 'schedule-of-values' },
+  { prefix: '/insurance/allocation', page: '45-insurance', section: 'premium-allocation' },
+  { prefix: '/insurance/premium-shares', page: '45-insurance', section: 'premium-allocation' },
 
   // Procurement and budgets (wave 26).
   { prefix: '/procurement', exact: true, page: '44-procurement-and-budgets', section: 'solicitations' },
@@ -333,6 +344,10 @@ export const ROUTE_HELP: RouteHelp[] = [
   { prefix: '/procurement/budgets', page: '44-procurement-and-budgets', section: 'budgets' },
   { prefix: '/procurement/budget-lines', page: '44-procurement-and-budgets', section: 'budgets' },
   { prefix: '/procurement/settings', page: '44-procurement-and-budgets', section: 'settings' },
+  // Wave 27 (E46-66, E46-67): invoices and budget versions.
+  { prefix: '/procurement/invoices', page: '44-procurement-and-budgets', section: 'invoices-and-payments' },
+  { prefix: '/procurement/invoice-lines', page: '44-procurement-and-budgets', section: 'invoices-and-payments' },
+  { prefix: '/procurement/budget-versions', page: '44-procurement-and-budgets', section: 'adoption-and-amendments' },
   // Strategy and performance (wave 26).
   { prefix: '/strategy', exact: true, page: '47-strategy-and-statistics', section: 'strategic-plans' },
   { prefix: '/strategy', page: '47-strategy-and-statistics', section: 'strategic-plans' },

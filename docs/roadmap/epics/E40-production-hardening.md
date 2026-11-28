@@ -1,6 +1,6 @@
 # E40 Production hardening (wave 19 engineering gap analysis)
 
-**Status:** done (14 of 14 issues done)
+**Status:** done (15 of 15 issues done)
 
 ## Goal
 
@@ -27,6 +27,7 @@ that hold up at an organization's real size.
 | E40-12 | Smaller fixes: pool exhaustion, safety alerts once, scoring preview, shared date helpers, web tests, docs | done | P3 |
 | E40-13 | Reference checks by module permission, and token scope for background model changes | done | P2 |
 | E40-14 | Rotating secrets, and archiving the audit log under a least-privilege role | done | P3 |
+| E40-15 | Change-based continuous integration and a template test database | done | P2 |
 
 ### E40-01 Several server processes on one database
 
@@ -166,3 +167,30 @@ Left from E18-66.
 
 - [x] `docs/operations.md` has a written procedure for rotating the database password, the secret key, SCIM and API tokens, the metrics token and the backup passphrase, each tested once
 - [x] The audit archive can run where the application's run-time role has no delete privilege (a command run as the owner)
+
+### E40-15 Change-based continuous integration and a template test database
+
+**Status:** done · **Priority:** P2 · **Type:** debt · **Implemented in:** `tools/ci/affected.mjs` (the import graph and the changed files), `tools/ci/areas.mjs` (the area map, generated from the code: files, record types, including those written as constants, API paths, pages and imports of every module), `tools/ci/plan.mjs`, `tools/ci/run.mjs`, `tools/ci/github.mjs`, `tools/e2e/suite-map.mjs`, `tools/e2e/run.mjs` (`--affected`, `--areas`, `--plan`, `--shard`), `server/src/test/global-setup.ts`, `server/src/core/db-template.ts`, `vitest.config.ts`, `grc.ps1`/`grc.sh` (`ci`, `-Full`, `-Plan`), `.github/workflows/ci.yml`, `.github/workflows/windows-installer.yml` (tests `tools/ci/areas.test.ts`, `server/src/core/db-template.test.ts`).
+
+A whole CI run took well over an hour for a change to one page. `.\grc.ps1 ci` now checks what changed
+since the merge base with `main` (uncommitted and new files included): the typecheck it needs
+(incremental), the unit tests the changed files reach through the import graph, the affected areas'
+own tests and the tests marked `// ci: every module`, then the same on UTC, the web build and the
+audit only when their inputs changed; it prints what it skipped and why. `-Full` runs everything and
+`-Plan` prints the plan. Test databases start from a template migrated once per run (kept in
+`node_modules/.cache/grc-test-db`, keyed by every migration, the module list, the PGlite version and
+the day) and copied for each `testApp()`; a test migrates an empty database and compares it with the
+template. The browser suites are chosen by area (`tools/e2e/suite-map.mjs`; tours visit only the
+affected areas' pages and record types) and shared out by minutes. On GitHub a "What changed" job
+writes the plan to the run's summary and starts only the jobs the change needs (unit tests in parts on
+Linux and Windows, PostgreSQL, install smoke checks, the container, browser shards, accessibility, the
+API client, the mobile app); everything runs nightly, on a version tag, on a manual full run and when
+the workflow or `tools/ci` changes; the single required check is **CI result**.
+
+**Acceptance criteria**
+
+- [x] `.\grc.ps1 ci` runs only what the changes need and says what it skipped; `-Full` and `-Plan`
+- [x] Every module is an area, every product file belongs to an area or core, every suite is mapped (`tools/ci/areas.test.ts`)
+- [x] Test databases come from a migrated template, proven equal to a database migrated from empty
+- [x] GitHub runs only the jobs a change needs, everything nightly and on tags, with one required check
+- [x] `docs/development.md` describes it, including the branch protection change the maintainer makes

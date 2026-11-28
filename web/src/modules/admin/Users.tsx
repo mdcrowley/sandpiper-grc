@@ -164,12 +164,13 @@ function NewUserDialog({ open, roles, rolesError, onRetryRoles, onClose, onCreat
     if (Object.keys(found).length) return;
     setBusy(true);
     try {
-      const res = await adminApi.post<{ user: AdminUser; setupLink: string; expiresAt: string }>('/api/admin/users', {
+      const res = await adminApi.post<{ user: AdminUser; setupLink: string; expiresAt: string; warnings?: string[] }>('/api/admin/users', {
         displayName: form.displayName.trim(), username: form.username.trim(), email: form.email.trim(),
         departmentId: form.departmentId || null, roles: picked,
       });
       setIssued({ user: res.user, link: { link: res.setupLink, expiresAt: res.expiresAt } });
       toast.success('User created.');
+      for (const w of res.warnings ?? []) toast.info(w); // E46-69: roles given that give no access
       onCreated();
     } catch (err) {
       const fields = err instanceof ApiError ? err.fields : {};

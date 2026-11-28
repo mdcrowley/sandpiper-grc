@@ -2,7 +2,7 @@
 // 1440 pixels and the dark theme at 820, with no script error, no failed request, a page
 // heading, no error state and no sideways scrolling; and every navigation entry opens a page
 // whose title is the entry's label, with no label cut off in the sidebar.
-import { concreteRoutes, pageFacts } from '../lib/routes.mjs';
+import { concreteRoutes, pageFacts, routeAllowed } from '../lib/routes.mjs';
 
 const tour = (theme, width) => ({
   name: `every route loads (${theme}, ${width})`,
@@ -55,6 +55,7 @@ const navTitles = {
     t.soft(links.length > 20, `only ${links.length} navigation entries found`);
     for (const { label } of links.filter((l) => l.cut)) t.soft(false, `navigation label "${label}" is cut off in the sidebar`);
     for (const { path, label } of links.filter((l) => !EXEMPT[l.path])) {
+      if (!(await routeAllowed(t.page, path))) continue; // an area filter (run.mjs --affected): its pages only
       await t.page.goto(path);
       const f = await pageFacts(t.page);
       t.page.takeProblems();

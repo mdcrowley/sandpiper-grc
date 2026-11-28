@@ -50,6 +50,8 @@ Groups appear under **Groups and roles** when your identity provider sends them,
 2. Choose the **Roles**. Roles that can administer (any `admin.` permission or `*`) are refused: give those by hand under **Users**.
 3. Select **Save mapping** and confirm your password.
 
+A role switched off under **Roles** (shown as "(switched off)" in the list) can be mapped, but gives the group's members no access until it is switched on again; saving says so in a message. The same goes for a role of a part of the application that is switched off under **Features**.
+
 Every member's roles are brought in step at once, and again whenever someone joins or leaves the group. A role given through a group is taken away when the person leaves every group that gives it, or when the mapping changes. A role an administrator gave by hand under **Users** is never taken away by provisioning, even if a group also gives it. If a mapped role is later changed to include administration, provisioning takes it back from the people it gave it to rather than keep handing it out.
 
 ### Signing in

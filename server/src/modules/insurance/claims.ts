@@ -1,6 +1,6 @@
 // Insurance claims (ICL-): made under the organization's policies or against it, with the safety event,
 // security incident, asset, vehicle or site they arose from, the claimant, reserves, payments and
-// recoveries. Claims are restricted one by one: kinds that usually hold personal or security details
+// recoveries (each payment and recovery listed one by one in payments.ts). Claims are restricted one by one: kinds that usually hold personal or security details
 // (bodily injury, workers' compensation, cyber) start restricted, as does a claim about a restricted
 // event or a security incident; only someone with access to restricted records may set or lift the flag.
 import type { FastifyRequest } from 'fastify';
@@ -8,6 +8,7 @@ import { isDataLoad } from '../../core/dataload.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { todayInZone } from '../../core/timezone.ts';
 import { valuesWith } from './lists.ts';
+import { PAYMENT } from './payments.ts';
 import { POLICY } from './policies.ts';
 
 export const CLAIM = 'insurance_claim';
@@ -95,8 +96,8 @@ export function registerClaims(ctx: ModuleContext) {
       vehicle_id: { label: 'Vehicle', type: 'ref', to: 'vehicle' },
       site_id: { label: 'Site', type: 'ref', to: 'site' },
       reserve: { label: 'Reserve', type: 'currency', help: 'What the insurer or the organization has set aside for the claim.' },
-      paid: { label: 'Paid to date', type: 'currency' },
-      recovered: { label: 'Recovered', type: 'currency', help: 'Recovered from the insurer or another party (subrogation, salvage).' },
+      paid: { label: 'Paid to date', type: 'currency', readOnly: true, help: 'Worked out from the payments listed on the claim.' },
+      recovered: { label: 'Recovered', type: 'currency', readOnly: true, help: 'Worked out from the recoveries listed on the claim (from the insurer, another party, salvage).' },
       closed_on: { label: 'Closed', type: 'date' },
       owner_id: { label: 'Handled by', type: 'user' },
       restricted: { label: 'Restricted (holds personal or security details)', type: 'boolean' },
@@ -105,6 +106,21 @@ export function registerClaims(ctx: ModuleContext) {
     hooks: {
       beforeCreate: (req, data) => rules(req, null, data),
       beforeUpdate: (req, existing, patch) => rules(req, existing, patch),
+      // Totals given when the claim is entered (a data load of past claims, sample data) become opening
+      // payment rows, so "Paid to date" and "Recovered" keep adding up from the payments (E46-62).
+      afterCreate: async (req, row) => {
+        const opening: [string, string, unknown, unknown][] = [
+          ['opening_paid', 'Paid before payments were listed', row.paid, row.reported_on ?? row.incident_on],
+          ['opening_recovery', 'Recovered before payments were listed', row.recovered, row.closed_on ?? row.reported_on ?? row.incident_on],
+        ];
+        for (const [kind, title, amount, on] of opening) {
+          if (!(Number(amount) > 0)) continue;
+          await ctx.resources.create(PAYMENT, {
+            claim_id: row.id, title, kind, amount: Number(amount), paid_on: day(on) ?? todayInZone(),
+            note: 'The total recorded when the claim was entered.',
+          }, req);
+        }
+      },
     },
   });
 }

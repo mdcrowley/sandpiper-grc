@@ -391,6 +391,8 @@ export function slowStatementLog(threshold = slowQueryMs(), log: (line: string) 
 
 /** Extensions loaded into the embedded database: pg_trgm indexes substring search (migration 009). */
 const EXTENSIONS = { pg_trgm };
+/** Settings for an in-memory database (tests, the API description tool): no durability to wait for. */
+const THROWAWAY_CONF = ['fsync=off', 'synchronous_commit=off', 'full_page_writes=off'];
 
 const WRITE_RE = /^\s*(insert|update|delete)\b/i;
 
@@ -469,15 +471,27 @@ export function makeAutoAnalyze(run: () => Promise<void>, opts: { every?: number
   };
 }
 
-async function openEmbedded(dataDir: string): Promise<Db> {
+/** How a database is opened (tests only). */
+export interface OpenDbOptions {
+  /**
+   * An in-memory test database starts from this copy of a migrated database (a PGlite data folder
+   * as a tar file, made once per test run by server/src/test/global-setup.ts) instead of an empty
+   * one, so its migrations need not run again. Ignored for a data folder and for a database server.
+   */
+  template?: Uint8Array;
+}
+
+async function openEmbedded(dataDir: string, template?: Uint8Array, keep?: (lite: PGlite) => void): Promise<Db> {
   let lite: PGlite;
   if (dataDir === 'memory') {
-    lite = new PGlite({ parsers, extensions: EXTENSIONS });
+    // A throw-away database: nothing is kept, so it need not wait for writes to be safe (faster tests).
+    lite = new PGlite({ parsers, extensions: EXTENSIONS, postgresqlconf: THROWAWAY_CONF, ...(template ? { loadDataDir: new Blob([template as Uint8Array<ArrayBuffer>]) } : {}) });
   } else {
     mkdirSync(dataDir, { recursive: true, mode: 0o700 }); // the owner only (SP-07)
     lite = new PGlite(`${dataDir}/pg`, { parsers, extensions: EXTENSIONS });
   }
   await lite.waitReady;
+  keep?.(lite);
   await lite.exec(`set timezone to ${literal(TIME_ZONE)}`);
   // Throw-away test databases are left alone: their plans do not matter and timers would outlive them.
   const analyze = dataDir === 'memory' ? null : makeAutoAnalyze(async () => { await lite.exec('analyze'); }, { waitForStart: true });
@@ -644,10 +658,10 @@ export async function openServerDb(opts: ServerDbOptions): Promise<Db> {
 // Test harnesses (used only for in-memory databases under GRC_TEST_DATABASE / GRC_TEST_DATABASE_URL)
 
 /** A fresh PGlite served over the Postgres wire protocol on a random local port. */
-async function openSocketTestDb(): Promise<Db> {
+async function openSocketTestDb(template?: Uint8Array): Promise<Db> {
   // A development dependency: imported only in this test mode.
   const { PGLiteSocketServer } = await import('@electric-sql/pglite-socket');
-  const lite = new PGlite({ extensions: EXTENSIONS });
+  const lite = new PGlite({ extensions: EXTENSIONS, postgresqlconf: THROWAWAY_CONF, ...(template ? { loadDataDir: new Blob([template as Uint8Array<ArrayBuffer>]) } : {}) });
   await lite.waitReady;
   const server = new PGLiteSocketServer({ db: lite, host: '127.0.0.1', port: 0, maxConnections: 100 });
   await server.start();
@@ -697,12 +711,12 @@ async function openServerTestDb(adminUrl: string): Promise<Db> {
  * 'memory' for a throwaway database. With GRC_DATABASE_URL set, a data folder's database is the
  * server instead; 'memory' never uses the configured server.
  */
-export async function openDb(dataDir: string): Promise<Db> {
+export async function openDb(dataDir: string, opts: OpenDbOptions = {}): Promise<Db> {
   if (dataDir === 'memory') {
     const testUrl = process.env.GRC_TEST_DATABASE_URL?.trim();
     if (testUrl) return openServerTestDb(testUrl);
-    if (String(process.env.GRC_TEST_DATABASE ?? '').trim().toLowerCase() === 'pg') return openSocketTestDb();
-    return openEmbedded('memory');
+    if (String(process.env.GRC_TEST_DATABASE ?? '').trim().toLowerCase() === 'pg') return openSocketTestDb(opts.template);
+    return openEmbedded('memory', opts.template);
   }
   const url = databaseUrl();
   if (url) {
@@ -719,4 +733,21 @@ function withPassword(url: string): string {
   const u = new URL(url);
   u.password = encodeURIComponent(password);
   return u.toString();
+}
+
+/**
+ * A migrated test database as a PGlite data folder in a tar file (tests only): `fill` gets a fresh
+ * in-memory database (the embedded driver, whatever GRC_TEST_DATABASE says) and the result is
+ * what `openDb('memory', { template })` starts from.
+ */
+export async function makeEmbeddedTemplate(fill: (db: Db) => Promise<void>): Promise<Uint8Array> {
+  let lite: PGlite | undefined;
+  const db = await openEmbedded('memory', undefined, (l) => { lite = l; });
+  try {
+    await fill(db);
+    const dump = await lite!.dumpDataDir('none');
+    return new Uint8Array(await dump.arrayBuffer());
+  } finally {
+    await db.close();
+  }
 }

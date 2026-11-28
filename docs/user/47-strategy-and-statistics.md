@@ -52,12 +52,22 @@ A **measure** (`KPI-` numbers) is a key performance indicator of an objective. A
 | **Near the target within (%)** | How far from the target, as a percentage of the target, still counts as **Near target** (5 unless you change it) |
 | **Frequency** | **Monthly**, **Quarterly** or **Yearly**: the periods of its targets and actuals |
 | **Baseline** and **Baseline period** | Where the measure started, for example 81.5% in 2025 |
-| **Data source** | **Entered by hand**, a **Metric** the application works out (for example overdue corrective actions or inspections done on time), or a **Figure over time** recorded under **Reports > Figures over time** (see [Dashboards and reports](15-dashboards-and-reports.md)) |
+| **Data source** | **Entered by hand**, a **Metric** the application works out (for example overdue corrective actions or inspections done on time), a **Figure over time** recorded under **Reports > Figures over time** (see [Dashboards and reports](15-dashboards-and-reports.md)), or a **Statistics series** of your own (see [Measures from statistics](#measures-from-statistics)) |
 | **Owner** | Who keeps it current |
 
-The measure's page has the tab **Targets and actuals**: one row for each period, with its **Target** and, once known, its **Actual**. Give the period after the measure's frequency (`2026-Q2`, `2026-05` or `2026`); a date inside the period works too. Each period has one row: enter next years' targets now and add the actual when the period is over. The row records who entered the actual and when, and compares it with the target: **Meets target**, **Near target** or **Misses target** (or **No target**). The chart shows targets and actuals over time.
+The measure's page has the tab **Targets and actuals**: one row for each period, with its **Target** and, once known, its **Actual**. Give the period after the measure's frequency (`2026-Q2`, `2026-05` or `2026`, or on a fiscal year `FY2027-Q2` and `FY2027`, see [The fiscal year](#the-fiscal-year)); a date inside the period works too. Each period has one row: enter next years' targets now and add the actual when the period is over. The row records who entered the actual and when, and compares it with the target: **Meets target**, **Near target** or **Misses target** (or **No target**). The chart shows targets and actuals over time.
 
-A new measure is entered by hand. To take its actuals from a metric or a figure over time, open the measure and select **Data source…**, then choose the metric or the figure from the list (only those you may see are offered). Its actual is then filled in each day for the current and the previous period; **Take the current value** on its page does it at once. Targets are still entered by hand.
+A new measure is entered by hand. To take its actuals from a metric, a figure over time or a statistics series, open the measure and select **Data source…**, then choose the metric, the figure or the series from the list (only those you may see are offered). Its actual is then filled in each day for the current and the previous period; **Take the current value** on its page does it at once. Targets are still entered by hand.
+
+#### Measures from statistics
+
+A measure can take its actuals from one of the organization's **statistics series** (see [Operating statistics](#operating-statistics)), for example the bus trips of the passenger trips series. In **Data source…**, choose **Statistics series**, then:
+
+- the **Statistics series**: only series kept as often as the measure or more often are offered (a monthly series for a quarterly or yearly measure, not a yearly series for a quarterly measure);
+- the **Breakdown** of a series that has them (for example **Bus**), or **The total**: the total entered for a period, or else its breakdowns added up;
+- **Combine the series' values in each period by**: **Sum** (for counts such as trips or miles), **Average**, **Latest**, **Lowest** or **Highest** (for rates and levels such as vehicles in service). For example a quarterly measure from a monthly series with **Sum** is the three months added up.
+
+When you save, every period the series has values for is filled in. After that, the actual follows the series: entering, changing or deleting a value of the series changes the measure's actual for that period at once (a period still running counts the months entered so far). An actual that came from the series shows **Statistics series** under **Actual from**; the targets stay yours to enter.
 
 The **Measures** tab lists every measure with its latest actual and the target for that period. Filter by plan, objective or **Against target**.
 
@@ -71,14 +81,14 @@ The initiative's **Actions** tab lists the actions raised for it, and **New** ad
 
 Each quarter, report on each objective and initiative: open it, go to **Status updates** and select **Add a status update**. An update has:
 
-- the **Quarter** (`2026-Q2`); left empty, the quarter of the report date;
+- the **Quarter** (`2026-Q2`, or `FY2027-Q2` on a fiscal year); left empty, the quarter of the report date;
 - the **Status**: **On track**, **At risk** or **Off track**;
 - the **Narrative**: what was done, what is in the way and what happens next;
 - **Reported on**: today, unless you give another day.
 
 The update records who reported it. Deleting the latest update brings back the status of the one before.
 
-The plan's **By quarter** tab is the **action-item matrix**: every objective, with its initiatives under it, against the quarters of the plan, each cell showing that quarter's status. Point at a cell to read its narrative. Select **+** in an empty cell to report that quarter. **Quarters shown** picks one year; by default the matrix shows the plan so far (at most 12 quarters).
+The plan's **By quarter** tab is the **action-item matrix**: every objective, with its initiatives under it, against the quarters of the plan, each cell showing that quarter's status. Point at a cell to read its narrative. Select **+** in an empty cell to report that quarter. **Quarters shown** picks one year (a fiscal year when your organization keeps one); by default the matrix shows the plan so far (at most 12 quarters). On a fiscal year each column also gives its months, for example **FY2027 Q1**, July to September 2026.
 
 ## Scorecard and board PDF
 
@@ -93,7 +103,7 @@ Strategic plans, goals, objectives, measures, measure values, initiatives, statu
 - the saved report **Strategic plan measures**: every measure with its latest actual, target and how it compares; add it to a report pack for the board;
 - the dashboard **Strategy and performance**: objectives off track and at risk, measures missing their target, statistical reports overdue, objectives by status, measures against target, initiatives by stage, and the reports coming due.
 
-A chart of one measure over time is a dashboard chart of **Measure values** filtered to that measure, grouped by period.
+To show one measure on any dashboard, add the widget **Strategic measure** (in **Add a widget**), choose the **Measure** and how many **Periods to show** (4 to 12). It shows the latest actual against the target of that period with **Meets target**, **Near target** or **Misses target**, and a chart of targets and actuals over the last periods; select the figure to open the measure. Like every widget it is worked out for the person looking: someone whose role does not include the strategy area sees "Your role does not include this information" in its place. While **Strategy and performance** is switched off, the widget is not offered and is left out of every dashboard; it comes back when the area is switched on. In a dashboard's print-ready document, PDF and scheduled delivery it is a table of the periods with one line giving the latest actual and target. In the sample data the dashboard **Strategy and performance** has one, for a measure taken from the passenger trips series.
 
 ### Metrics
 
@@ -114,7 +124,7 @@ The **Statistics** tab shows the statistics your organization counts. An adminis
 
 Once values have been entered, a series' frequency cannot change: define a new series instead.
 
-On the **Statistics** tab, choose the **Series** to see its chart (one line or bar for each breakdown) and its **Values**. **New** enters a value: the **Period** (`2026-05`, `2026-Q2` or `2026`, or any date inside it), the **Breakdown** (one of the series' values, or empty for the total) and the **Value**, with an optional note. Each period and breakdown has one value; change the existing one rather than adding another. Each value records who entered it and when.
+On the **Statistics** tab, choose the **Series** to see its chart (one line or bar for each breakdown) and its **Values**. **New** enters a value: the **Period** (`2026-05`, `2026-Q2` or `2026`, on a fiscal year `FY2027-Q2` or `FY2027`, or any date inside it), the **Breakdown** (one of the series' values, or empty for the total) and the **Value**, with an optional note. Each period and breakdown has one value; change the existing one rather than adding another. Each value records who entered it and when. Measures that take their actuals from the series follow each value at once.
 
 To load many values at once, use **Import** on the values list with a CSV or Excel file with the columns Series (its name), Period, Breakdown and Value (see [Importing and exporting](17-importing-and-exporting.md)). The values go through the same checks as values entered by hand.
 
@@ -139,7 +149,20 @@ The person preparing a report is reminded 30 days, 7 days and on the day before 
 
 ## Settings
 
-**Settings** (needs `strategy.administer`) holds the statistics series and the reminders: the days before the due date on which the preparer of a statistical report is reminded, and how many days ahead counts as **due soon** for the figures on the Overview and the Submissions tab.
+**Settings** (needs `strategy.administer`) holds the statistics series, the organization's **fiscal year** (below), and the reminders: the days before the due date on which the preparer of a statistical report is reminded, and how many days ahead counts as **due soon** for the figures on the Overview and the Submissions tab.
+
+### The fiscal year
+
+Quarters and years of measures, statistics and status updates, and the columns of the quarterly matrix and the board PDF, follow the organization's **fiscal year**. Set it under **Settings > Fiscal year**:
+
+- **The fiscal year starts in**: the month; **January** is the calendar year (as installed);
+- **Each fiscal year is named after**: **the calendar year it ends in** (a year from July 2026 to June 2027 is FY2027) or **the calendar year it starts in** (FY2026).
+
+On a fiscal year that does not start in January, quarters and years are written and shown **FY2027-Q1** (**FY2027 Q1**) and **FY2027**: Q1 is the first three months of the fiscal year. A quarter or year you type as `2027-Q1` or `2027` is then taken as that fiscal one, and a date always lands in the fiscal quarter it falls in. A month stays a month (`2026-08`).
+
+Periods entered before the fiscal year was set keep their meaning: a value for `2026-Q1` is still January to March 2026, shows under that name, and counts in the scorecard and the latest actual by its dates. In the matrix, an update entered for a calendar quarter appears in the fiscal quarter its own quarter ends in (the same months when the fiscal year starts in April, July or October), and pointing at it says which quarter it was entered for. A value for the same months under the other kind of year counts as the same period, so it cannot be entered twice.
+
+Once measure values, statistics or updates are kept on fiscal periods, the fiscal year cannot be changed under them: the page says how many there are. Periods on the calendar year never stop a change. The setting is the organization's (`organization.fiscal_year_start_month` and `organization.fiscal_year_named_for`), and changing it is recorded in the audit log.
 
 ## The Overview
 

@@ -6,6 +6,7 @@ import {
   useAuth, useFetch, useToast, useUnsavedChanges,
 } from '../../core';
 import { MODEL_KINDS, ModelDetail, ModelList } from '../inventory/models';
+import { ModelIntervals } from './Maintenance';
 import { FleetTabs } from './shared';
 
 const KIND = MODEL_KINDS.vehicle;
@@ -17,9 +18,11 @@ export function VehicleModelList() {
 export function VehicleModelDetail() {
   const { can } = useAuth();
   return (
-    <ModelDetail kind={KIND} extraTabs={can('assets.view')
-      ? [{ key: 'equipment', label: 'Equipment', content: ({ row, canEdit }) => <ModelEquipment modelId={row.id} canEdit={canEdit} /> }]
-      : []} />
+    <ModelDetail kind={KIND} extraTabs={[
+      ...(can('assets.view') ? [{ key: 'equipment', label: 'Equipment', content: ({ row, canEdit }: { row: { id: string }; canEdit: boolean }) => <ModelEquipment modelId={row.id} canEdit={canEdit} /> }] : []),
+      // Wave 27 (E46-71): the service intervals of this model's vehicles.
+      { key: 'intervals', label: 'Maintenance intervals', content: ({ row }: { row: { id: string } }) => <ModelIntervals modelId={row.id} /> },
+    ]} />
   );
 }
 

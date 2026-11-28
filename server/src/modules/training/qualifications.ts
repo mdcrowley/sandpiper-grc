@@ -169,6 +169,9 @@ export function registerQualifications(ctx: ModuleContext) {
       expires_on: { label: 'Expires on', type: 'date' },
       status: { label: 'Status', type: 'lookup', list: 'certification_status', default: 'active' },
       notes: { label: 'Notes', type: 'longtext', personal: true },
+      // E46-72: the holder's position and department on the roster, copied on save and kept in step when the person moves.
+      position_id: { label: 'Position', type: 'ref', to: 'position', readOnly: true, help: 'The holder\'s position on the roster; filled in from the person and kept in step when it changes.' },
+      department_id: { label: 'Department', type: 'ref', to: 'department', readOnly: true, help: 'The holder\'s department on the roster; filled in from the person and kept in step when it changes.' },
     },
     hooks: {
       beforeCreate: async (_req, data) => checkCertification(data, null),
@@ -194,6 +197,12 @@ export function registerQualifications(ctx: ModuleContext) {
       if (!merged.expires_on && merged.issued_on && Number.isInteger(months) && months > 0) patch.expires_on = addMonths(iso(merged.issued_on)!, months);
     }
     if (!merged.issuing_body && typeof meta.issuing_body === 'string' && meta.issuing_body) patch.issuing_body = meta.issuing_body;
+    // E46-72: the holder's position and department, from the roster (a data load may give them).
+    if (roster && merged.person_id && (!existing || 'person_id' in patch)) {
+      const p = await db.one<Row>('select position_id, department_id from people where id = $1', [merged.person_id]);
+      patch.position_id = p?.position_id ?? null;
+      patch.department_id = p?.department_id ?? null;
+    }
     // A new expiry date starts the reminders again.
     if (existing && 'expires_on' in patch && iso(patch.expires_on) !== iso(existing.expires_on)) patch.reminded_for = null;
     return patch;
@@ -379,20 +388,30 @@ export function registerQualifications(ctx: ModuleContext) {
     const q = req.query as Record<string, string>;
     const days = q.days === undefined ? 90 : Number(q.days);
     if (!Number.isInteger(days) || days < 0 || days > 730) ctx.fail(400, 'bad_filter', 'days must be a whole number from 0 to 730.');
+    // E46-72: by the holder's position or department on the roster.
+    const by: string[] = [];
+    const params: unknown[] = [];
+    for (const [key, col] of [['position', 'c.position_id'], ['department', 'c.department_id']] as const) {
+      if (!q[key]) continue;
+      if (!UUID.test(q[key])) ctx.fail(400, 'bad_filter', `That ${key} filter is not valid.`);
+      params.push(q[key]);
+      by.push(`and ${col} = $${params.length + 2}`);
+    }
     const today = localDate();
     const until = addDays(today, days);
     const rows = await db.query<Row>(
       `select c.id, c.ref, c.person_id, c.certification_type, c.number, c.issuing_body, c.issued_on, c.expires_on, c.status,
-              ${roster ? 'p.full_name as person, p.ref as person_ref, pos.name as position' : 'null as person, null as person_ref, null as position'},
+              ${roster ? 'p.full_name as person, p.ref as person_ref, pos.name as position, d.name as department' : 'null as person, null as person_ref, null as position, null as department'},
               (c.expires_on - $1::date) as days_left
        from certifications c
        ${roster ? `join people p on p.id = c.person_id and p.deleted_at is null and p.status <> 'left'
-                   left join positions pos on pos.id = p.position_id and pos.deleted_at is null` : ''}
-       where c.deleted_at is null and c.status = 'active' and c.expires_on is not null and c.expires_on <= $2::date
+                   left join positions pos on pos.id = p.position_id and pos.deleted_at is null
+                   left join departments d on d.id = p.department_id and d.deleted_at is null` : ''}
+       where c.deleted_at is null and c.status = 'active' and c.expires_on is not null and c.expires_on <= $2::date ${by.join(' ')}
          and not exists (select 1 from certifications n where n.deleted_at is null and n.status = 'active' and n.person_id = c.person_id
                            and n.certification_type = c.certification_type and n.id <> c.id
                            and (n.expires_on is null or n.expires_on > c.expires_on))
-       order by c.expires_on`, [today, until]);
+       order by c.expires_on`, [today, until, ...params]);
     const within = (n: number) => rows.filter((r) => Number(r.days_left) >= 0 && Number(r.days_left) <= n).length;
     return {
       today, days, rows: rows.map((r) => ({ ...r, days_left: Number(r.days_left) })),
@@ -402,8 +421,51 @@ export function registerQualifications(ctx: ModuleContext) {
   ctx.describeRoute({
     method: 'GET', path: '/api/training/certifications/expiring', permission: 'people.view',
     summary: 'Certifications that have expired or expire within the given days and have not been renewed (needs training.view and people.view)',
-    query: { days: 'whole number of days ahead, 0 to 730 (default 90)' },
-    response: '{ today, days, counts: { expired, within30, within60, within90 }, rows: [{ id, ref, person, person_ref, position, certification_type, expires_on, days_left }] }',
+    query: { days: 'whole number of days ahead, 0 to 730 (default 90)', position: 'position id (the holder\'s position)', department: 'department id (the holder\'s department)' },
+    response: '{ today, days, counts: { expired, within30, within60, within90 }, rows: [{ id, ref, person, person_ref, position, department, certification_type, expires_on, days_left }] }',
+  });
+
+  // ---------- my certifications (E46-70) ----------
+
+  // Every employee's own certifications and when they expire, for My work and My training. Needs no
+  // permission: it answers only about the roster person linked to the signed-in account.
+  app.get('/api/training/mine/certifications', async (req) => {
+    const today = localDate();
+    const empty = { today, person: null, rows: [], missing: [] };
+    if (!roster) return empty;
+    const person = await db.one<Row>(`${ROSTER_SELECT} and p.user_id = $1 order by p.created_at limit 1`, [req.user!.id]);
+    if (!person) return empty;
+    const types = new Map((await ctx.lookups.values('certification_type')).map((v) => [v.value, v.label]));
+    const certs = await db.query<Row>(
+      `select c.id, c.ref, c.certification_type, c.number, c.issuing_body, c.issued_on, c.expires_on, c.status,
+              (c.expires_on - $2::date) as days_left,
+              exists (select 1 from certifications n where n.deleted_at is null and n.status = 'active' and n.person_id = c.person_id
+                        and n.certification_type = c.certification_type and n.id <> c.id
+                        and (n.expires_on is null or (c.expires_on is not null and n.expires_on > c.expires_on))) as renewed
+       from certifications c where c.deleted_at is null and c.person_id = $1
+       order by c.status <> 'active', c.expires_on nulls last, c.ref`, [person.id, today]);
+    const rows = certs.map((c) => {
+      const left = c.days_left === null ? null : Number(c.days_left);
+      const state = c.status !== 'active' ? 'inactive' : c.renewed ? 'renewed' : left === null ? 'current'
+        : left < 0 ? 'expired' : left <= EXPIRING_DAYS ? 'expiring' : 'current';
+      return {
+        id: c.id, ref: c.ref, certification_type: c.certification_type, label: types.get(c.certification_type) ?? c.certification_type,
+        number: c.number, issuing_body: c.issuing_body, issued_on: iso(c.issued_on), expires_on: iso(c.expires_on), status: c.status,
+        days_left: left, state,
+      };
+    });
+    // What the person's position needs that they do not hold in date.
+    const { reqs, rows: q } = await qualificationRows(ctx, [person], today);
+    const missing = reqs.filter((r) => r.kind === 'certification' && r.position_id === person.position_id)
+      .map((r) => ({ key: r.key, label: r.label, mandatory: r.mandatory, state: q[0].cells[r.key]?.state ?? 'missing' }))
+      .filter((r) => r.state === 'missing' || r.state === 'expired');
+    return { today, person: { id: person.id, full_name: person.full_name, position: person.position, department: person.department }, rows, missing };
+  });
+  ctx.describeRoute({
+    method: 'GET', path: '/api/training/mine/certifications',
+    summary: 'My certifications: the signed-in person\'s own certifications and when each expires (no permission needed)',
+    description: 'Answers about the roster person linked to your account only. `state`: current, expiring (within 30 days), expired, renewed (a later one of the same kind exists) or inactive (suspended or revoked). `missing` lists certifications your position needs that you do not hold in date.',
+    response: '{ today, person: { id, full_name, position, department } | null, rows: [{ id, ref, certification_type, label, number, issuing_body, issued_on, expires_on, status, days_left, state }], missing: [{ key, label, mandatory, state }] }',
   });
 
   // ---------- settings: certification reminder steps ----------
@@ -530,3 +592,19 @@ export async function adoptRosterRecords(ctx: ModuleContext, person: Row): Promi
   }
 }
 
+
+/**
+ * E46-72: certifications carry their holder's position and department. Copies one person's (when a
+ * roster person is saved) or everyone's (at start, for certifications from before wave 27). A derived
+ * copy of the roster, which is audited on its own change: nothing is audited here.
+ */
+export async function syncCertificationRoster(ctx: ModuleContext, personId?: string): Promise<number> {
+  if (!rosterOn(ctx.db)) return 0;
+  const rows = await ctx.db.query<{ id: string }>(
+    `update certifications c set position_id = p.position_id, department_id = p.department_id
+     from people p
+     where p.id = c.person_id and ($1::uuid is null or c.person_id = $1::uuid)
+       and (c.position_id is distinct from p.position_id or c.department_id is distinct from p.department_id)
+     returning c.id`, [personId ?? null]);
+  return rows.length;
+}

@@ -6,6 +6,7 @@ export const SETTINGS = {
   renewal: { key: 'insurance.renewal_reminder_days', default: [90, 60, 30], label: 'Remind policy owners before a policy expires', max: 365 },
   application: { key: 'insurance.application_reminder_days', default: [14, 3, 0], label: 'Remind policy owners before the renewal application is due', max: 180 },
   certificate: { key: 'insurance.certificate_reminder_days', default: [30, 0], label: 'Remind certificate owners before a certificate of insurance expires', max: 180 },
+  request: { key: 'insurance.certificate_request_reminder_days', default: [7, 2], label: 'Remind vendors by email before a certificate request link expires', max: 90 },
 } as const;
 export type SettingName = keyof typeof SETTINGS;
 
@@ -23,3 +24,9 @@ export async function stepsOf(ctx: ModuleContext, name: SettingName): Promise<nu
 
 /** How far ahead a policy counts as "expiring soon" in the figures (fixed, so figures compare month to month). */
 export const EXPIRING_DAYS = 90;
+
+/** Requests to vendors for certificates (E46-65): whether links work at all, and how long one lasts. */
+export const LINKS_ENABLED = 'insurance.certificate_links_enabled';
+export const LINK_DAYS = 'insurance.certificate_link_days';
+export const DEFAULT_LINK_DAYS = 30;
+export const MAX_LINK_DAYS = 90;

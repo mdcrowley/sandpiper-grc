@@ -10,7 +10,7 @@ import { DueChip, Figure, useSummary } from './shared';
 import './civilrights.css';
 
 const CREATE = [
-  'subject', 'received_on', 'channel', 'anonymous', 'complainant_name', 'complainant_contact', 'language_needed', 'basis', 'program_id',
+  'subject', 'received_on', 'channel', 'anonymous', 'complainant_name', 'complainant_contact', 'language_needed', 'bases', 'program_id',
   'service_id', 'vehicle_id', 'site_id', 'employee_id', 'occurred_on', 'description', 'investigator_id', 'confidential',
 ];
 
@@ -50,11 +50,11 @@ export function ComplaintList() {
         type="civil_rights_complaint"
         urlState
         columns={[
-          'ref', 'subject', 'received_on', 'basis', 'status',
+          'ref', 'subject', 'received_on', { field: 'bases', priority: 2 }, 'status',
           { field: 'next_due_on', label: 'Next due', priority: 1, sortable: true, render: (r) => (r.next_due_on ? <DueChip date={r.next_due_on} /> : <span className="muted">None</span>) },
           'investigator_id', { field: 'confidential', priority: 3 },
         ]}
-        filters={['status', 'basis', 'channel', 'program_id', 'investigator_id', 'received_on', 'next_due_on', 'confidential']}
+        filters={['status', 'bases', 'channel', 'program_id', 'investigator_id', 'received_on', 'next_due_on', 'confidential']}
         createFields={CREATE}
       />
     </div>
@@ -62,7 +62,7 @@ export function ComplaintList() {
 }
 
 interface Clock {
-  limits: { key: string; label: string; due_on: string; done_on: string | null; state: string; days_left: number | null }[];
+  limits: { key: string; label: string; due_on: string; done_on: string | null; state: string; days_left: number | null; working?: boolean }[];
   next_due_on: string | null; overdue: boolean; steps: { open: number; overdue: number };
 }
 
@@ -83,13 +83,13 @@ function LimitsTab({ complaint }: { complaint: Row }) {
           value: (
             <span>
               <StatusChip size="sm" color={LIMIT[l.state]?.color ?? 'gray'} label={LIMIT[l.state]?.label ?? l.state} />{' '}
-              Due {formatDate(l.due_on)}{l.done_on ? `, done ${formatDate(l.done_on)}` : l.days_left != null && l.days_left >= 0 ? `, ${l.days_left} day${l.days_left === 1 ? '' : 's'} left` : ''}
+              Due {formatDate(l.due_on)}{l.done_on ? `, done ${formatDate(l.done_on)}` : l.days_left != null && l.days_left >= 0 ? `, ${l.days_left} ${l.working ? 'working ' : ''}day${l.days_left === 1 ? '' : 's'} left` : ''}
             </span>
           ),
         }))} />
         <p className="muted">
           {data.steps.open} open investigation step{data.steps.open === 1 ? '' : 's'}{data.steps.overdue ? `, ${data.steps.overdue} overdue` : ''}.
-          The limits are counted from the day received (and the day an appeal arrived) by the days set under Civil rights, Settings.
+          The limits are counted from the day received (and the day an appeal arrived) by the days set under Civil rights, Settings, in calendar or working days.
         </p>
       </div>
     </Card>
@@ -140,7 +140,7 @@ export function ComplaintDetail() {
       summary={({ row, reload }) => (
         <div className="cr-summary">
           <EditableSummary type="civil_rights_complaint" row={row} onSaved={reload} title="Complaint"
-            fields={['subject', 'status', 'received_on', 'channel', 'basis', 'program_id', 'investigator_id', 'confidential']} />
+            fields={['subject', 'status', 'received_on', 'channel', 'bases', 'program_id', 'investigator_id', 'confidential']} />
           <EditableSummary type="civil_rights_complaint" row={row} onSaved={reload} title="Complainant"
             fields={['anonymous', 'complainant_name', 'complainant_contact', 'language_needed']} />
           <EditableSummary type="civil_rights_complaint" row={row} onSaved={reload} title="What happened"

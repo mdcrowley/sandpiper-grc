@@ -123,6 +123,18 @@ describe('file-only versions', () => {
     expect(printedText).toContain('quellotrix');
     expect(printedText).toContain('Uncontrolled when printed');
     expect(printedText).toContain('Page 1 of 1');
+    // An issued paper copy of it is stamped with its number and holder instead (E46-57).
+    const copy = await t.api.post(`/api/policies/${pdfDoc}/copies`, { holder_name: 'Invented garage binder', location: 'Invented workshop' });
+    expect(copy.status, JSON.stringify(copy.body)).toBe(201);
+    const copied = await t.app.inject({
+      method: 'GET', url: `/api/policies/${pdfDoc}/copies/${copy.body.id}/pdf`,
+      headers: { cookie: `grc_session=${await createSession(t.db, admin!.id)}` },
+    });
+    expect(copied.statusCode, copied.body.slice(0, 200)).toBe(200);
+    const copiedText = await pdfText(copied.rawPayload);
+    expect(copiedText).toContain('quellotrix');
+    expect(copiedText).toContain('Controlled copy 1 · Invented garage binder (Invented workshop)');
+    expect(copiedText).not.toContain('Uncontrolled when printed');
 
     const scanDoc = (await t.api.post('/api/policies', { title: 'Invented scanned bylaws', document_type: 'charter' })).body.id;
     const scan = await t.api.post(`/api/policies/${scanDoc}/versions`, { source_upload_id: await upload(t.api, 'bylaws-scan.pdf', await makePdf(['x'], { noText: true })), content_kind: 'file' });

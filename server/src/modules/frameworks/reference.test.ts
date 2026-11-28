@@ -47,7 +47,7 @@ describe('also-satisfies parsing', () => {
     // Well-known names that contain a number are kept whole.
     expect(parseMapping('ISO/IEC 27001 A.5.1')).toEqual({ framework_name: 'ISO/IEC 27001', reference: 'A.5.1' });
     expect(parseMapping('SOC 2')).toEqual({ framework_name: 'SOC 2', reference: '' });
-    expect(parseMapping('Harbour Privacy Rule 164.308(a)(1)')).toEqual({ framework_name: 'Harbour Privacy Rule', reference: '164.308(a)(1)' });
+    expect(parseMapping('Harbor Privacy Rule 164.308(a)(1)')).toEqual({ framework_name: 'Harbor Privacy Rule', reference: '164.308(a)(1)' });
     expect(parseMapping('Example Guild XY-RP-001, XY-RP-002')).toEqual({ framework_name: 'Example Guild', reference: 'XY-RP-001, XY-RP-002' });
     expect(parseMapping('Insurer conditions')).toEqual({ framework_name: 'Insurer conditions', reference: '' });
     expect(parseMapping('Regional advisory (June 2031)')).toEqual({ framework_name: 'Regional advisory', reference: 'June 2031' });

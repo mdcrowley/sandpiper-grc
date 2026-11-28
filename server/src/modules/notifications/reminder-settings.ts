@@ -6,6 +6,7 @@
 // here. A setting appears only when the record type it is about is loaded (`requires`).
 // Changes go through `ctx.settings.set(key, value, req)`, which writes the audit event.
 import type { FastifyRequest } from 'fastify';
+import { featureState, typeOff } from '../../core/features.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 
 export type ReminderSettingKind = 'number' | 'steps' | 'statuses';
@@ -183,6 +184,11 @@ export const REMINDER_SETTINGS: ReminderSettingDef[] = [
     description: 'A certificate’s owner is reminded this many days before it expires, once for each step.',
   },
   {
+    key: 'insurance.certificate_request_reminder_days', group: 'Insurance', requires: 'insurance_certificate_request', kind: 'steps', unit: 'days', min: 0, max: 90, default: [7, 2],
+    label: 'Remind vendors by email before a certificate request link expires',
+    description: 'A vendor asked for certificates of insurance is emailed a reminder with the same upload link this many days before the link expires, once for each step, until they have sent their certificates.',
+  },
+  {
     key: 'civilrights.reminder_days', group: 'Civil rights', requires: 'civil_rights_complaint', kind: 'number', unit: 'days', min: 0, max: 90, default: 7,
     label: 'Remind before a complaint or report time limit',
     description: 'The investigator (or the complaint handlers) and report owners are reminded this many days before a time limit, and once when it has passed.',
@@ -233,13 +239,21 @@ export function registerReminderSettings(ctx: ModuleContext) {
   const { app } = ctx;
   const admin = { preHandler: ctx.requirePerm('admin.administer') };
 
-  const available = () => REMINDER_SETTINGS.filter((d) => !d.requires || ctx.resources.get(d.requires));
+  // A setting of a record type that is not loaded, or whose area is switched off, is not offered.
+  const available = async () => {
+    const state = await featureState(ctx.db);
+    return REMINDER_SETTINGS.filter((d) => {
+      if (!d.requires) return true;
+      const def = ctx.resources.get(d.requires);
+      return !!def && !typeOff(state, def);
+    });
+  };
   const listValues = async (def: ReminderSettingDef) =>
     def.list ? (await ctx.lookups.values(def.list)).map((v) => v.value) : [];
 
   async function overview() {
     const groups: { label: string; settings: Row[] }[] = [];
-    for (const def of available()) {
+    for (const def of await available()) {
       const values = def.list ? await ctx.lookups.values(def.list) : [];
       const stored = await ctx.settings.get<unknown>(def.key, def.default);
       let group = groups.find((g) => g.label === def.group);
@@ -264,7 +278,7 @@ export function registerReminderSettings(ctx: ModuleContext) {
   app.patch('/api/notifications/reminder-settings', admin, async (req: FastifyRequest) => {
     const values = ((req.body ?? {}) as Row).values;
     if (!values || typeof values !== 'object' || Array.isArray(values)) ctx.fail(400, 'validation', 'Send the settings as { values: { key: value } }.');
-    const defs = new Map(available().map((d) => [d.key, d]));
+    const defs = new Map((await available()).map((d) => [d.key, d]));
     const fields: Record<string, string> = {};
     const changes: [ReminderSettingDef, unknown][] = [];
     for (const [key, value] of Object.entries(values as Row)) {

@@ -2,7 +2,7 @@
 // that allow it) marking a course complete yourself with a note of the evidence.
 import { useState } from 'react';
 import {
-  api, ApiError, Button, Card, DateField, EmptyState, ErrorState, errorMessage, formatDate, Loading, Modal, PageHeader, Select, Stat,
+  api, ApiError, Badge, Button, Card, DateField, EmptyState, ErrorState, errorMessage, formatDate, Loading, Modal, Notice, PageHeader, Select, Stat,
   TableWrap, TextArea, todayInZone, useFetch, useToast,
 } from '../../core';
 import { RecordStatusChip, ResultCell, WhenCell } from './shared';
@@ -96,7 +96,7 @@ export function MyTraining() {
   const [completing, setCompleting] = useState<string | null | undefined>(undefined);
   const selfCourses = new Set((self.data ?? []).map((c) => c.id));
   const header = (
-    <PageHeader title="My training" subtitle="Courses you have been given and the ones you have completed."
+    <PageHeader title="My training" subtitle="Courses you have been given, the ones you have completed, and your certifications."
       actions={self.data?.length ? <Button icon="check" onClick={() => setCompleting(null)}>Record a completed course</Button> : undefined} />
   );
   const dialog = completing !== undefined && (
@@ -110,6 +110,7 @@ export function MyTraining() {
       <div className="stack trn-mine">
         {header}
         <EmptyState icon="graduation" title="You have no training to do" message="When a course is assigned to you it appears here with its due date." />
+        <MyCertifications />
         {dialog}
       </div>
     );
@@ -144,7 +145,86 @@ export function MyTraining() {
           <Table caption="Training you have completed" rows={done} today={data.today} done selfCourses={selfCourses} onComplete={setCompleting} />
         </Card>
       )}
+      <MyCertifications />
       {dialog}
     </div>
+  );
+}
+
+// ---------- my certifications (E46-70) ----------
+
+type CertState = 'current' | 'expiring' | 'expired' | 'renewed' | 'inactive';
+interface MineCert {
+  id: string; ref: string | null; certification_type: string; label: string; number: string | null; issuing_body: string | null;
+  issued_on: string | null; expires_on: string | null; status: string; days_left: number | null; state: CertState;
+}
+interface MineCerts {
+  today: string;
+  person: { id: string; full_name: string; position: string | null; department: string | null } | null;
+  rows: MineCert[];
+  missing: { key: string; label: string; mandatory: boolean; state: 'missing' | 'expired' }[];
+}
+
+const CERT_STATE: Record<CertState, { label: string; color: 'green' | 'amber' | 'red' | 'gray' | 'blue' }> = {
+  current: { label: 'In date', color: 'green' },
+  expiring: { label: 'Expiring', color: 'amber' },
+  expired: { label: 'Expired', color: 'red' },
+  renewed: { label: 'Renewed', color: 'blue' },
+  inactive: { label: 'Not active', color: 'gray' },
+};
+
+function Expiry({ cert }: { cert: MineCert }) {
+  if (!cert.expires_on || cert.days_left === null) return <span className="muted">Does not expire</span>;
+  const d = cert.days_left;
+  const when = d < 0 ? `${-d} ${d === -1 ? 'day' : 'days'} ago` : d === 0 ? 'today' : `in ${d} ${d === 1 ? 'day' : 'days'}`;
+  return <span>{formatDate(cert.expires_on)} <span className={cert.state === 'expired' ? 'trn-late' : 'muted'}>({when})</span></span>;
+}
+
+/** The person's own certifications from the roster, with their expiry and what their position still needs. */
+export function MyCertifications() {
+  const { data, error, reload } = useFetch<MineCerts>('/api/training/mine/certifications');
+  if (error) return <Card title="My certifications"><ErrorState error={error} onRetry={reload} /></Card>;
+  if (!data) return <Card title="My certifications"><Loading lines={3} label="Loading your certifications" /></Card>;
+  if (!data.person) return null; // not on the roster: nothing to show
+  const held = data.rows;
+  return (
+    <Card title="My certifications" flush={held.length > 0}>
+      {data.missing.length > 0 && (
+        <div className="trn-more">
+          <Notice tone="warning" title="Your position needs">
+            {data.missing.map((m) => `${m.label} (${m.state === 'expired' ? 'expired' : 'not on record'})`).join(', ')}.
+            {' '}Arrange it and give the certificate to your supervisor.
+          </Notice>
+        </div>
+      )}
+      {held.length === 0 ? (
+        <EmptyState icon="star" title="No certifications on record" message="When a certification of yours is recorded, it appears here with its expiry date." />
+      ) : (
+        <TableWrap label="Your certifications" fit>
+          <table className="table">
+            <caption className="sr-only">Your certifications</caption>
+            <thead>
+              <tr><th scope="col">Certification</th><th scope="col">State</th><th scope="col">Expires</th><th scope="col" data-priority="2">Issued</th><th scope="col" data-priority="3">Issued by</th></tr>
+            </thead>
+            <tbody>
+              {held.map((c) => (
+                <tr key={c.id}>
+                  <td>{c.ref && <span className="ref">{c.ref}</span>} <span className="row-title">{c.label}</span></td>
+                  <td><Badge color={CERT_STATE[c.state].color}>{CERT_STATE[c.state].label}</Badge></td>
+                  <td><Expiry cert={c} /></td>
+                  <td data-priority="2">{c.issued_on ? formatDate(c.issued_on) : <span className="muted">Not recorded</span>}</td>
+                  <td data-priority="3">{c.issuing_body ?? <span className="muted">Not recorded</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableWrap>
+      )}
+      {held.length > 0 && (
+        <p className="muted trn-more">
+          You are reminded before each one expires. When you renew one, give the new certificate to your supervisor so that it can be recorded.
+        </p>
+      )}
+    </Card>
   );
 }

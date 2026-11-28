@@ -987,7 +987,11 @@ export function makeResources({ app, db, audit, lookups, custom }: Deps) {
       const col = columnSql(name, f);
       if (!op) {
         const values = value.split(',').map((v) => (v === 'me' && f.type === 'user' ? user?.id ?? '' : v));
-        if (f.multiple) where.push(`jsonb_exists_any(custom->'${name.slice(CUSTOM_PREFIX.length)}', ${add(values)}::text[])`);
+        // A field with several values (a jsonb array) matches when it holds any of them: a custom field
+        // keeps its array in `custom`, a built-in one in its own column.
+        if (f.multiple) where.push(f.custom
+          ? `jsonb_exists_any(custom->'${name.slice(CUSTOM_PREFIX.length)}', ${add(values)}::text[])`
+          : `jsonb_exists_any(${def.table}.${col}, ${add(values)}::text[])`);
         else {
           const cond = `${col}::text = any(${add(values)}::text[])`;
           where.push(DETAIL_TYPES.has(f.type) ? guard(cond) : cond);

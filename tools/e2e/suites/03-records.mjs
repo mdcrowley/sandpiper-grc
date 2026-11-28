@@ -136,6 +136,7 @@ async function openEdit(page) {
 function journey({ type, open, skip = [], known = {}, start, pick, comment }) {
   return {
     name: `${type}: create, edit, status, comment, attachment`,
+    types: [type], // left out when an area filter does not visit this record type (run.mjs --affected)
     async run(t) {
       const { page } = t;
       const api = t.api();

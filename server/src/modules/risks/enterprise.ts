@@ -7,6 +7,7 @@ import { actorOf, isDataLoad } from '../../core/dataload.ts';
 import { dayInZone } from '../../core/timezone.ts';
 import { DEFAULT_SCALE, type Scale, type Scales } from './scales.ts';
 import { riskMasker } from './masking.ts';
+import { registerAppetiteRequests, seedAppetiteRequestDefaults, type AppetiteRequests } from './appetite-requests.ts';
 
 // Enterprise risk (E30, GP-18): the risk appetite per category and the breach flag on each risk
 // (E30-06), key risk indicators with amber and red thresholds (E30-07), and parent risks with a
@@ -47,6 +48,7 @@ export async function seedEnterpriseDefaults(ctx: ModuleContext): Promise<void> 
     { value: 'percent', label: 'Percent', color: 'teal', sort: 20 },
     { value: 'number', label: 'Number', color: 'gray', sort: 30 },
   ], { module: 'risks' });
+  await seedAppetiteRequestDefaults(ctx);
 }
 
 /** green, amber or red for a value against an indicator's thresholds (null: no value or no thresholds). */
@@ -129,7 +131,51 @@ export function makeEnterprise(ctx: ModuleContext, scales: Scales) {
     return null;
   }
 
-  return { appetite, breachFor, refreshBreaches, checkParent };
+  /**
+   * What is wrong with a proposed appetite for one category (its scale's rating, the score, the
+   * statement's length), by field; shared by the direct change and the request for approval (E46-53).
+   */
+  function checkProposal(label: string, scale: Scale | undefined, row: Pick<AppetiteRow, 'statement' | 'max_rating' | 'max_score'>): Record<string, string> {
+    const errors: Record<string, string> = {};
+    if (row.max_rating && !scale?.ratings.some((r) => r.key === row.max_rating)) errors.max_rating = `${label}: choose a rating of the ${scale?.name ?? ''} scale.`;
+    if (row.max_score !== null && (!Number.isInteger(row.max_score) || row.max_score < 0 || row.max_score > 100000)) errors.max_score = `${label}: the highest score is a whole number, 0 or more.`;
+    if ((row.statement?.length ?? 0) > MAX_TEXT) errors.statement = `${label}: the statement is at most 4,000 characters.`;
+    return errors;
+  }
+
+  /**
+   * Records new versions of the appetite (each category's next version number), puts them in force (a
+   * removed one deletes the category's appetite), and re-checks every risk. Answers the version numbers
+   * by category and how many risks changed breach. The caller audits.
+   */
+  async function recordVersions(changes: { row: AppetiteRow; removed: boolean }[], reason: string, actorId: string | null): Promise<{ versions: Map<string, number>; changed: number }> {
+    const versions = new Map<string, number>();
+    for (const { row: r, removed } of changes) {
+      const next = ((await ctx.db.one<{ v: number }>('select coalesce(max(version), 0)::int as v from risk_appetite_versions where category = $1', [r.category]))?.v ?? 0) + 1;
+      versions.set(r.category, next);
+      await ctx.db.query(
+        `insert into risk_appetite_versions (category, version, statement, max_rating, max_score, approved_on, approved_by_name, approval_body, reference, removed, reason, recorded_by, decision_id)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+        [r.category, next, r.statement, r.max_rating, r.max_score, r.approved_on, r.approved_by_name, r.approval_body, r.reference, removed, reason, actorId, r.decision_id ?? null]);
+      if (removed) { await ctx.db.query('delete from risk_appetite where category = $1', [r.category]); continue; }
+      await ctx.db.query(
+        `insert into risk_appetite (category, statement, max_rating, max_score, approved_on, approved_by_name, approval_body, reference, version, reason, updated_at, updated_by, decision_id)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, now(), $11, $12)
+         on conflict (category) do update set statement = excluded.statement, max_rating = excluded.max_rating, max_score = excluded.max_score,
+           approved_on = excluded.approved_on, approved_by_name = excluded.approved_by_name, approval_body = excluded.approval_body, reference = excluded.reference,
+           version = excluded.version, reason = excluded.reason, updated_at = now(), updated_by = excluded.updated_by, decision_id = excluded.decision_id`,
+        [r.category, r.statement, r.max_rating, r.max_score, r.approved_on, r.approved_by_name, r.approval_body, r.reference, next, reason, actorId, r.decision_id ?? null]);
+    }
+    return { versions, changed: await refreshBreaches() };
+  }
+
+  /** The scale a risk category (its list value) is rated on. */
+  async function scaleOf(category: Row | undefined): Promise<Scale | undefined> {
+    const all = await scales.all();
+    return all.find((s) => s.key === (category?.meta?.scale ?? DEFAULT_SCALE)) ?? all[0];
+  }
+
+  return { appetite, breachFor, refreshBreaches, checkParent, checkProposal, recordVersions, scaleOf };
 }
 
 export type Enterprise = ReturnType<typeof makeEnterprise>;
@@ -143,7 +189,9 @@ interface Deps {
 /** Registers appetite, KRI and roll-up routes. Called from risks/index.ts `register`, after the obligations. */
 export async function registerEnterpriseRisk(ctx: ModuleContext, deps: Deps): Promise<void> {
   const { scales, enterprise, riskPre } = deps;
-  registerAppetite(ctx, scales, enterprise, riskPre);
+  // E46-53: a change of the appetite may go through an approval workflow (appetite-requests.ts).
+  const requests = registerAppetiteRequests(ctx, { enterprise, riskPre });
+  registerAppetite(ctx, scales, enterprise, riskPre, requests);
   registerCategoryRestriction(ctx, riskPre);
   registerRollup(ctx, scales, riskPre);
   // The daily check also keeps every risk's breach flag in step (a scale changed elsewhere, a status list edited).
@@ -152,7 +200,7 @@ export async function registerEnterpriseRisk(ctx: ModuleContext, deps: Deps): Pr
 
 // ------------------------------------------------------------------ appetite (E30-06)
 
-function registerAppetite(ctx: ModuleContext, scales: Scales, enterprise: Enterprise, riskPre: Deps['riskPre']): void {
+function registerAppetite(ctx: ModuleContext, scales: Scales, enterprise: Enterprise, riskPre: Deps['riskPre'], requests: AppetiteRequests): void {
   async function view() {
     const categories = await ctx.lookups.values('risk_category');
     const map = await enterprise.appetite();
@@ -165,7 +213,10 @@ function registerAppetite(ctx: ModuleContext, scales: Scales, enterprise: Enterp
       [(await ctx.lookups.values('risk_status')).filter((v) => v.meta?.closed).map((v) => v.value)]);
     const versions = await ctx.db.query<{ category: string; versions: number }>(
       'select category, count(*)::int as versions from risk_appetite_versions group by 1');
+    const waiting = await requests.waiting();
     return {
+      // E46-53: whether a change can be sent for approval (an active Risk appetite change workflow exists).
+      workflow_available: await requests.available(),
       categories: categories.map((c) => {
         const scale = all.find((s) => s.key === (c.meta?.scale ?? DEFAULT_SCALE)) ?? all[0];
         const a = map.get(c.value);
@@ -181,6 +232,7 @@ function registerAppetite(ctx: ModuleContext, scales: Scales, enterprise: Enterp
           version: a?.version ?? null, reason: a?.reason ?? null, changed_at: a?.changed_at ?? null, changed_by_name: a?.changed_by_name ?? null,
           versions: versions.find((v) => v.category === c.value)?.versions ?? 0,
           open: n?.open ?? 0, breaches: n?.breaches ?? 0,
+          request: waiting.get(c.value) ?? null,
         };
       }),
     };
@@ -190,8 +242,8 @@ function registerAppetite(ctx: ModuleContext, scales: Scales, enterprise: Enterp
   ctx.describeRoute({
     method: 'GET', path: '/api/risks/appetite', permission: 'risks.view',
     summary: 'The risk appetite in force per category, with open risks and those above it',
-    description: 'Counts cover every open risk, restricted ones included. `version` is the number of the appetite version in force; earlier versions are listed by GET /api/risks/appetite/versions.',
-    response: '{ categories: [{ category, label, color, scale_key, scale_name, ratings, statement, max_rating, max_score, approved_on, approved_by_name, approval_body, reference, decision_id, version, reason, changed_at, changed_by_name, versions, open, breaches }] }',
+    description: 'Counts cover every open risk, restricted ones included. `version` is the number of the appetite version in force; earlier versions are listed by GET /api/risks/appetite/versions. `request` is the change of the category waiting for approval (E46-53), and `workflow_available` says whether a change can be sent for approval.',
+    response: '{ workflow_available, categories: [{ category, label, color, scale_key, scale_name, ratings, statement, max_rating, max_score, approved_on, approved_by_name, approval_body, reference, decision_id, version, reason, changed_at, changed_by_name, versions, open, breaches, request: { id, ref, statement, max_rating, max_score, remove, reason, requested_by_name, requested_at, workflow } | null }] }',
   });
 
   // E45-04: every version of the appetite is kept, newest first: what it said, who approved it, when
@@ -253,9 +305,7 @@ function registerAppetite(ctx: ModuleContext, scales: Scales, enterprise: Enterp
       // Nothing changed, or nothing set and nothing there: no new version.
       if (same(existing, row) || (empty && !existing)) continue;
       const at = (k: string) => `categories.${i}.${k}`;
-      if (row.max_rating && !scale?.ratings.some((r) => r.key === row.max_rating)) errors[at('max_rating')] = `${c.label}: choose a rating of the ${scale?.name ?? ''} scale.`;
-      if (row.max_score !== null && (!Number.isInteger(row.max_score) || row.max_score < 0 || row.max_score > 100000)) errors[at('max_score')] = `${c.label}: the highest score is a whole number, 0 or more.`;
-      if ((row.statement?.length ?? 0) > MAX_TEXT) errors[at('statement')] = `${c.label}: the statement is at most 4,000 characters.`;
+      for (const [k, m] of Object.entries(enterprise.checkProposal(c.label, scale, row))) errors[at(k)] = m;
       for (const k of ['approved_by_name', 'approval_body', 'reference'] as const) if ((row[k]?.length ?? 0) > 200) errors[at(k)] = `${c.label}: at most 200 characters.`;
       // A changed appetite is a decision someone took: say who approved it, when, and in which body.
       if (!empty) {
@@ -272,23 +322,9 @@ function registerAppetite(ctx: ModuleContext, scales: Scales, enterprise: Enterp
     if (Object.keys(errors).length) ctx.fail(400, 'validation', 'Check the highlighted fields.', errors);
     if (!changes.length) return view();
 
-    const actor = actorOf(req);
-    for (const { row: r, removed } of changes) {
-      const next = ((await ctx.db.one<{ v: number }>('select coalesce(max(version), 0)::int as v from risk_appetite_versions where category = $1', [r.category]))?.v ?? 0) + 1;
-      await ctx.db.query(
-        `insert into risk_appetite_versions (category, version, statement, max_rating, max_score, approved_on, approved_by_name, approval_body, reference, removed, reason, recorded_by, decision_id)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
-        [r.category, next, r.statement, r.max_rating, r.max_score, r.approved_on, r.approved_by_name, r.approval_body, r.reference, removed, reason, actor.id, r.decision_id ?? null]);
-      if (removed) { await ctx.db.query('delete from risk_appetite where category = $1', [r.category]); continue; }
-      await ctx.db.query(
-        `insert into risk_appetite (category, statement, max_rating, max_score, approved_on, approved_by_name, approval_body, reference, version, reason, updated_at, updated_by, decision_id)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, now(), $11, $12)
-         on conflict (category) do update set statement = excluded.statement, max_rating = excluded.max_rating, max_score = excluded.max_score,
-           approved_on = excluded.approved_on, approved_by_name = excluded.approved_by_name, approval_body = excluded.approval_body, reference = excluded.reference,
-           version = excluded.version, reason = excluded.reason, updated_at = now(), updated_by = excluded.updated_by, decision_id = excluded.decision_id`,
-        [r.category, r.statement, r.max_rating, r.max_score, r.approved_on, r.approved_by_name, r.approval_body, r.reference, next, reason, actor.id, r.decision_id ?? null]);
-    }
-    const changed = await enterprise.refreshBreaches();
+    const { changed } = await enterprise.recordVersions(changes, reason!, actorOf(req).id);
+    // E46-53: a request for approval still waiting on a category changed here is overtaken by this version.
+    await requests.supersede(changes.map((c) => c.row.category), req);
     const labels = new Map(categories.map((c) => [c.value, c.label]));
     await ctx.audit(req, {
       action: 'risk_appetite.update', recordType: 'risk_appetite', recordId: 'appetite',
@@ -300,7 +336,7 @@ function registerAppetite(ctx: ModuleContext, scales: Scales, enterprise: Enterp
   ctx.describeRoute({
     method: 'PUT', path: '/api/risks/appetite', permission: 'risks.administer',
     summary: 'Records a new version of the risk appetite of the categories that changed, and re-checks every risk against it',
-    description: 'Only categories whose appetite differs from the version in force get a new version; earlier versions are kept. A changed category needs approved_on (not in the future), approved_by_name and approval_body; the change needs a reason. Or give decision_id, a carried decision of a committee meeting (E45-56): the committee is then the approver and the approval body, the date of the meeting the approval date and the resolution the reference. A category given with no statement, rating or score has its appetite removed (recorded as a version too). max_rating is a rating key of the category\'s scale; a risk whose residual (or, unscored, inherent) rating is above it, or whose score is above max_score, is in breach.',
+    description: 'Only categories whose appetite differs from the version in force get a new version; earlier versions are kept. A changed category needs approved_on (not in the future), approved_by_name and approval_body; the change needs a reason. Or give decision_id, a carried decision of a committee meeting (E45-56): the committee is then the approver and the approval body, the date of the meeting the approval date and the resolution the reference. A category given with no statement, rating or score has its appetite removed (recorded as a version too). max_rating is a rating key of the category\'s scale; a risk whose residual (or, unscored, inherent) rating is above it, or whose score is above max_score, is in breach. A change of the category waiting for approval (E46-53) is superseded by a version recorded here.',
     body: { type: 'object', required: ['categories'], properties: { reason: { type: 'string' }, categories: { type: 'array', items: { type: 'object', required: ['category'], properties: { category: { type: 'string' }, statement: { type: 'string' }, max_rating: { type: 'string' }, max_score: { type: 'integer' }, approved_on: { type: 'string', format: 'date' }, approved_by_name: { type: 'string' }, approval_body: { type: 'string' }, reference: { type: 'string' }, decision_id: { type: 'string', format: 'uuid' } } } } } },
     response: 'The appetite, as GET returns it',
   });

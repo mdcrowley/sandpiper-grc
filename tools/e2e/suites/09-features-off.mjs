@@ -13,7 +13,7 @@ import { sleep } from '../lib/browser.mjs';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PASSWORD, repoRoot } from '../lib/instance.mjs';
-import { concreteRoutes } from '../lib/routes.mjs';
+import { concreteRoutes, routeAllowed } from '../lib/routes.mjs';
 
 /**
  * Words that name each area in running text. Case-insensitive, whole words. Kept to phrases that
@@ -26,14 +26,15 @@ const TERMS = {
   changes: [/\bchange (requests?|calendar|enablement|advisory|freeze|windows?)\b/i, /\bpost-implementation\b/i, /\bCAB\b/],
   vendors: [/\bvendors?\b/i, /\bcontracts?\b/i],
   frameworks: [/\bframework outcomes?\b/i, /\bframeworks?\b/i, /\btarget profiles?\b/i],
-  risks: [/\brisks?\b/i, /\bobligations?\b/i, /\brisk register\b/i],
+  risks: [/\brisks?\b/i, /\bobligations?\b/i, /\brisk register\b/i, /\bRAC-\d/],
   secincidents: [/\bsecurity incidents?\b/i, /\bnotification (tasks?|clocks?)\b/i, /\bincident kit\b/i],
   policies: [/\bpolic(y|ies)\b/i, /\bpolicy exceptions?\b/i, /\battestations?\b/i],
-  training: [/\btraining\b/i, /\bcourses?\b/i, /\bexercises?\b/i],
+  training: [/\btraining\b/i, /\bcourses?\b/i, /\bexercises?\b/i, /\bmy certifications\b/i],
   vulnerabilities: [/\bvulnerabilit(y|ies)\b/i],
   projects: [/\bprojects?\b/i, /\bportfolio\b/i],
   reports: [/\breport (catalog|builder|packs?|schedules?)\b/i, /\bscheduled reports?\b/i, /\bsaved dashboards?\b/i, /\bdashboards\b/i],
-  fleet: [/\bvehicles?\b/i, /\bfleet\b/i],
+  // Wave 27 (E46-71): planned maintenance and vehicle readings belong to fleet.
+  fleet: [/\bvehicles?\b/i, /\bfleet\b/i, /\bplanned maintenance\b/i, /\bmaintenance intervals?\b/i, /\bPMI-\d/, /\bRDG-\d/, /\bPMR-\d/],
   safety: [/\bsafety\b/i, /\bhazards?\b/i],
   // Not "funding" or "funder" alone: a project's or asset's funding source and the inventory's funder
   // interest option are not the funding area.
@@ -42,8 +43,10 @@ const TERMS = {
   evidence: [/\bevidence library\b/i, /\bevidence to renew\b/i, /\bEVD-\d/],
   // Wave 26 (E46). Not "procurement", "insurance", "purchase order" or "strategic plan" alone: funder
   // review areas, vendor offboarding steps, risk descriptions and project scoring use them as plain words.
-  procurement: [/\bsolicitations?\b/i, /\bPRC-\d/, /\bBUD-\d/],
-  insurance: [/\binsurance claims?\b/i, /\bIPL-\d/, /\bICL-\d/, /\bCOI-\d/],
+  // Wave 27 (E46-66, E46-67): not "invoice" alone (vendors and statistics keep their own references).
+  procurement: [/\bsolicitations?\b/i, /\bPRC-\d/, /\bBUD-\d/, /\bbudget versions?\b/i, /\binvoices due for payment\b/i],
+  // Wave 27 (E46-62 to E46-65): claim payments, premium allocation, schedule of values, certificate requests.
+  insurance: [/\binsurance claims?\b/i, /\bIPL-\d/, /\bICL-\d/, /\bCOI-\d/, /\bschedule of values\b/i, /\bpremium allocation\b/i, /\bcertificate requests?\b/i, /\bCIR-\d/, /\bSOV-\d/],
   civilrights: [/\bcivil rights\b/i, /\bparticipation goals?\b/i],
   strategy: [/\boperating statistics\b/i, /\bstatistical submissions?\b/i, /\bstrategic measures?\b/i, /\bKPI-\d/, /\bOBJ-\d/],
 };
@@ -243,6 +246,8 @@ async function baseline(t) {
   const guide = readdirSync(join(repoRoot, 'docs/user')).filter((x) => /^d+-.*.md$/.test(x)).map((x) => x.replace(/^d+-/, '').replace(/.md$/, ''));
   for (const slug of guide) visit.push({ path: `/help/${slug}`, pattern: `/help/${slug}`, prose: true });
   const pageArea = Object.fromEntries([...readFileSync(join(repoRoot, 'web/src/modules/help/areas.ts'), 'utf8').matchAll(/^s+'?([a-z-]+)'?: '([a-z]+)',$/gm)].map((m) => [m[1], m[2]]));
+  // With an area filter (run.mjs --affected) the added pages are visited only when their area is affected.
+  for (let i = visit.length - 1; i >= 0; i--) if (!(await routeAllowed(t.page, visit[i].pattern))) visit.splice(i, 1);
   shared.before = { visit, resources, routeModules, moduleArea, nav, areas, initial, pageArea };
   return shared.before;
 }
@@ -277,7 +282,7 @@ async function serverLeaks(t, offTypes, offAreas, check) {
     if (check.offApiPaths.some((ap) => p === ap || p.startsWith(`${ap}/`))) problems.push(`/api/openapi.json describes ${p}`);
   }
   // Every catalog-like answer the pages read: nothing in it may name a switched-off area.
-  for (const path of ['/api/notifications/preferences', '/api/mcp/admin', '/api/admin/webhooks/events', '/api/reports/catalog', '/api/admin/retention', '/api/admin/custom-fields', '/api/import/types', '/api/workflows/types']) {
+  for (const path of ['/api/notifications/preferences', '/api/notifications/reminder-settings', '/api/mcp/admin', '/api/admin/webhooks/events', '/api/reports/catalog', '/api/admin/retention', '/api/admin/custom-fields', '/api/import/types', '/api/workflows/types']) {
     const r = await api.get(path);
     if (r.status !== 200) continue;
     const text = r.text;
@@ -318,7 +323,8 @@ async function serverLeaks(t, offTypes, offAreas, check) {
 async function dashboardLeaks(t, offTypes) {
   const api = t.api();
   const problems = [];
-  const typeOf = (w) => w?.config?.spec?.type;
+  // A widget's record type: its query's, or the one it names itself (the strategic measure widget, wave 27).
+  const typeOf = (w) => w?.config?.spec?.type ?? w?.config?.recordType;
   if (offTypes.has('dashboard')) return problems; // dashboards are switched off themselves: the page tour covers them
   const dashes = listOf(await api.must('GET', '/api/dashboards?pageSize=200'));
   const offOnly = dashes.filter((d) => d.key && d.widgets.some(typeOf) && d.widgets.filter(typeOf).every((w) => offTypes.has(typeOf(w))));

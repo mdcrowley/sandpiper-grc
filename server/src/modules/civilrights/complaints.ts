@@ -1,5 +1,5 @@
 // Civil rights complaints: intake (date and channel received, the complainant or "anonymous", the
-// basis, the program and the related service, vehicle, site or employee), the time limits the
+// bases (several may apply), the program and the related service, vehicle, site or employee), the time limits the
 // organization sets (acknowledgment, investigation, appeal), investigation steps and letters sent,
 // findings, outcome, appeal and closure.
 //
@@ -21,7 +21,7 @@ import { addDays } from '../../../../shared/dates.ts';
 import { defineChildRows } from './children.ts';
 import { COMPLAINT_FINAL } from './lists.ts';
 import { PROGRAM } from './programs.ts';
-import { readSettings } from './settings.ts';
+import { daysLeft, limitDue, readSettings, type LimitKey } from './settings.ts';
 
 export const COMPLAINT = 'civil_rights_complaint';
 const TAG = 'Civil rights';
@@ -88,14 +88,24 @@ export async function registerComplaints(ctx: ModuleContext) {
       && !ctx.can(req.user, 'civilrights.administer') && !(await isHandler(req.user))) {
       ctx.fail(403, 'forbidden', 'Only the named complaint handlers and administrators of civil rights can change whether a complaint is confidential.');
     }
+    // Several bases (E46-61): `bases` holds them all and `basis` the first, which older clients and
+    // assistants may still send alone (it then becomes the first of the bases).
+    if ('bases' in patch) {
+      const list = Array.isArray(patch.bases) ? (patch.bases as unknown[]).map(String) : [];
+      patch.bases = list;
+      patch.basis = list[0] ?? null;
+    } else if ('basis' in patch) {
+      const others = (Array.isArray(existing?.bases) ? existing!.bases as string[] : []).filter((b) => b !== patch.basis && b !== existing?.basis);
+      patch.bases = patch.basis ? [String(patch.basis), ...others] : [];
+    } else if (!existing) patch.bases = [];
     // Time limits counted from the day received (and the day an appeal arrived), by the organization's settings.
     const received = ymd(merged.received_on);
     if (received && (!existing || 'received_on' in patch)) {
-      patch.ack_due_on = addDays(received, s.ackDays);
-      patch.investigation_due_on = addDays(received, s.investigationDays);
+      patch.ack_due_on = await limitDue(app, s, 'ack', received);
+      patch.investigation_due_on = await limitDue(app, s, 'investigation', received);
     }
     const appeal = ymd(merged.appeal_received_on);
-    if ('appeal_received_on' in patch) patch.appeal_due_on = appeal ? addDays(appeal, s.appealDays) : null;
+    if ('appeal_received_on' in patch) patch.appeal_due_on = appeal ? await limitDue(app, s, 'appeal', appeal) : null;
     // Status moves fill the dates they mean (skipped in a data load, which gives its own dates).
     if (!load && 'status' in patch && patch.status !== existing?.status) {
       const to = String(patch.status);
@@ -106,7 +116,7 @@ export async function registerComplaints(ctx: ModuleContext) {
       }
       if (to === 'appealed' && !merged.appeal_received_on) {
         patch.appeal_received_on = today;
-        patch.appeal_due_on = addDays(today, s.appealDays);
+        patch.appeal_due_on = await limitDue(app, s, 'appeal', today);
       }
       if (to === 'closed' && !merged.outcome) invalid({ outcome: 'Choose the outcome before the complaint is closed.' });
       if (to === 'withdrawn' && !merged.outcome) patch.outcome = 'withdrawn';
@@ -132,7 +142,8 @@ export async function registerComplaints(ctx: ModuleContext) {
       complainant_name: { label: 'Complainant', type: 'text', personal: true },
       complainant_contact: { label: 'Complainant contact', type: 'text', personal: true, help: 'Address, phone or email for letters.' },
       language_needed: { label: 'Language or format needed', type: 'text', personal: true, help: 'A language other than English, or an accessible format, for letters and interviews.' },
-      basis: { label: 'Basis', type: 'lookup', list: 'civil_rights_basis', help: 'What the complaint says the treatment was based on (your own list).' },
+      bases: { label: 'Bases', type: 'lookup', list: 'civil_rights_basis', multiple: true, help: 'Every basis the complaint names: what it says the treatment was based on (your own list). Choose as many as apply.' },
+      basis: { label: 'First basis', type: 'lookup', list: 'civil_rights_basis', help: 'The first of the bases, kept for grouping and filtering; set by itself from Bases.' },
       program_id: { label: 'Program', type: 'ref', to: PROGRAM },
       service_id: { label: 'Route or service', type: 'ref', to: 'service' },
       vehicle_id: { label: 'Vehicle', type: 'ref', to: 'vehicle' },
@@ -265,7 +276,14 @@ export async function registerComplaints(ctx: ModuleContext) {
   app.get('/api/civil-rights/complaints/:id/clock', { preHandler: ctx.requirePerm('civilrights.view') }, async (req) => {
     const c = (await ctx.resources.find(COMPLAINT, String((req.params as { id: string }).id), req.user)) ?? ctx.fail(404, 'not_found', 'Complaint not found.');
     const s = await readSettings(ctx);
-    const limits = limitsOf(c, s.reminderDays);
+    const today = todayInZone();
+    const limits = limitsOf(c, s.reminderDays, today);
+    // Days left in the unit the limit counts (working days on the organization's calendar, or calendar days).
+    const workingOf: Record<LimitKey, boolean> = { ack: s.ackWorking, investigation: s.investigationWorking, appeal: s.appealWorking };
+    for (const l of limits) {
+      l.working = workingOf[l.key as LimitKey] ?? false;
+      if (l.days_left != null && l.working) l.days_left = await daysLeft(app, true, today, l.due_on);
+    }
     const steps = await db.query<Row>(
       `select count(*) filter (where done_on is null and due_on < $2::date)::int as overdue, count(*) filter (where done_on is null)::int as open
        from civil_rights_complaint_steps where complaint_id = $1 and kind = 'step'`, [c.id, todayInZone()]);
@@ -274,7 +292,7 @@ export async function registerComplaints(ctx: ModuleContext) {
   ctx.describeRoute({
     method: 'GET', path: '/api/civil-rights/complaints/:id/clock', tag: TAG, permission: 'civilrights.view',
     summary: 'A complaint\'s time limits (acknowledgment, investigation, appeal) with their state, and its open and overdue steps',
-    response: '{ limits: [{ key, label, due_on, done_on, state: "open" | "soon" | "overdue" | "met" | "late" | "stopped", days_left }], next_due_on, overdue, steps: { open, overdue } }',
+    response: '{ limits: [{ key, label, due_on, done_on, state: "open" | "soon" | "overdue" | "met" | "late" | "stopped", days_left, working }], next_due_on, overdue, steps: { open, overdue } }',
   });
 
   // ---------------------------------------------------------------- calendar and My work (the investigator)

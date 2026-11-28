@@ -29,6 +29,8 @@ param(
   [switch]$NoRollback,             # upgrade: on failure, stop and print the steps instead of rolling back
   [switch]$IncludeSecretKey,       # backup -Encrypt: also carry the secret key file inside the encrypted backup
   [string]$Folder,                 # audit-archive: write this run's archive to another folder
+  [switch]$Full,                   # ci: everything, not only what the changes need
+  [switch]$Plan,                   # ci: print what would run (unit tests, browser suites, GitHub jobs) and run nothing
   [Parameter(ValueFromRemainingArguments = $true)][string[]]$Rest
 )
 
@@ -196,7 +198,9 @@ Usage: .\grc.ps1 <command>
   Encrypted files use -KeyFile <file> or -PassphraseFile <file>, or the environment variables
   GRC_BACKUP_KEY_FILE, GRC_BACKUP_PASSPHRASE_FILE or GRC_BACKUP_PASSPHRASE.
 
-  dev | build | test | typecheck | ci development (ci = typecheck + tests + tests on UTC + build + dependency audit)
+  dev | build | test | typecheck      development
+  ci [-Full] [-Plan]                  local CI for what the changes need (typecheck, their tests, again on UTC, build and
+                                      audit when needed); -Full everything; -Plan the plan only, with the browser suites
   audit-deps [-Level high]            known vulnerabilities in production packages; fails only when a fix exists
   audit-archive [-Folder dir]         the audit archive as the database owner (least-privilege database role)
   npm <args>                          any npm command with the portable Node.js
@@ -227,22 +231,18 @@ switch ($Command) {
   'test'      { & npm.cmd test; exit $LASTEXITCODE }
   'typecheck' { & npm.cmd run typecheck; exit $LASTEXITCODE }
   'ci' {
-    # Local continuous integration: the checks to run before every commit or push.
-    # Tools print warnings on stderr; judge each step by its exit code only.
-    $ErrorActionPreference = 'Continue'
-    $steps = [ordered]@{ 'Typecheck' = { & npm.cmd run --silent typecheck }; 'Tests' = { & npm.cmd test }; 'Tests on UTC' = { $env:TZ = 'UTC'; try { & npm.cmd test } finally { Remove-Item Env:TZ -ErrorAction SilentlyContinue } }; 'Web build' = { & npm.cmd run --silent build }; 'Dependency audit' = { & $node $tsx 'server/src/cli.ts' audit-deps } }
-    $failed = @()
-    foreach ($name in $steps.Keys) {
-      Write-Host "== $name" -ForegroundColor Cyan
-      & $steps[$name]
-      # The audit needs the npm registry: without a network (exit 3) it is a warning, not a failure.
-      if ($name -eq 'Dependency audit' -and $LASTEXITCODE -eq 3) { Write-Host 'Dependency audit skipped: the npm registry could not be reached.' -ForegroundColor Yellow; continue }
-      if ($LASTEXITCODE -ne 0) { $failed += $name }
-    }
-    if ($failed.Count) { Write-Host ("CI FAILED: " + ($failed -join ', ')) -ForegroundColor Red; exit 1 }
-    Write-Host 'CI passed: typecheck, tests, web build and dependency audit.' -ForegroundColor Green
+    # Local continuous integration: the checks to run before every commit or push (tools/ci/run.mjs).
+    # By default only what the changes need (since the merge base with main, or the last commit on
+    # main, plus uncommitted files), saying what it skips and why; -Full runs everything (typecheck,
+    # every test, every test again on UTC, web build, dependency audit); -Plan prints the plan only.
+    $a = @('tools/ci/run.mjs')
+    if ($Full) { $a += '--full' }
+    if ($Plan) { $a += '--plan' }
+    if ($Rest) { $a += $Rest }
+    if (-not $Plan) { Install-Packages }
+    & $node @a
+    exit $LASTEXITCODE
   }
-
   'status' {
     Get-ServerProcess | Out-Null   # clears a stale process file first
     $code = Invoke-Cli status

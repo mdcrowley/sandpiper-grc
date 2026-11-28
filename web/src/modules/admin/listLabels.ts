@@ -200,6 +200,7 @@ export const LIST_LABELS: Record<string, string> = {
   review_deficiency_status: 'Compliance review deficiency status',
   review_request_status: 'Compliance review request status',
   review_self_assessment: 'Compliance review self-assessment',
+  risk_appetite_change_status: 'Risk appetite change status',
   risk_category: 'Risk category',
   risk_proximity: 'Risk proximity',
   risk_status: 'Risk status',
@@ -273,6 +274,11 @@ export const LIST_LABELS: Record<string, string> = {
   procurement_status: 'Solicitation status',
   protest_status: 'Procurement protest status',
   solicitation_type: 'Solicitation type',
+  // Wave 27 (E46-66, E46-67): invoices and budget versions.
+  budget_version_kind: 'Budget version kind (adopted or amendment)',
+  invoice_match: 'Invoice match result',
+  invoice_status: 'Invoice status',
+  payment_method: 'Invoice payment method',
   // Wave 26 (E46): insurance.
   insurance_certificate_check: 'Certificate of insurance against the contract',
   insurance_certificate_status: 'Certificate of insurance status',
@@ -285,6 +291,11 @@ export const LIST_LABELS: Record<string, string> = {
   insurance_renewal_status: 'Insurance renewal step',
   insurance_requirement_state: 'Contract insurance requirement state',
   insurer_kind: 'Insurance placed with',
+  // Wave 27 (E46-62, E46-64, E46-65): claim payments, premium allocation, schedule of values, requests.
+  insurance_allocation_method: 'Insurance premium split method',
+  insurance_payment_kind: 'Insurance claim payment kind',
+  insurance_request_status: 'Certificate of insurance request status',
+  insurance_valuation_basis: 'Insured property valuation basis',
   // Wave 26 (E46): defects, vehicle retirement and strategy.
   defect_severity: 'Defect severity',
   defect_status: 'Defect status',
@@ -297,6 +308,9 @@ export const LIST_LABELS: Record<string, string> = {
   initiative_stage: 'Strategic initiative stage',
   stat_frequency: 'Operating statistics frequency',
   submission_status: 'Statistical submission status',
+  // Wave 27 (E46-59, E46-71): measures from statistics, vehicle readings.
+  measure_aggregation: 'How a strategic measure adds up a statistics series',
+  vehicle_reading_source: 'Vehicle reading sources',
 };
 
 /** A setting kept on each value of a list (in its `meta`), edited beside the value's name and color. */
@@ -366,5 +380,13 @@ export const LIST_SETTINGS: Record<string, ListSetting[]> = {
   ],
   procurement_clause: [
     { key: 'description', label: 'What the clause requires', kind: 'text', column: false, hint: 'Shown beside the clause on a solicitation’s required clauses checklist.' },
+  ],
+  // Wave 27 (E46-62): a kind of claim payment that is money coming back.
+  insurance_payment_kind: [
+    {
+      key: 'recovery', label: 'Money coming back', kind: 'choice', fallback: 'no',
+      options: [{ value: 'no', label: 'No: a payment' }, { value: 'yes', label: 'Yes: a recovery' }],
+      hint: 'Recoveries count toward a claim’s Recovered total, payments toward Paid to date.',
+    },
   ],
 };

@@ -98,7 +98,7 @@ The user guide is in [`user/`](user/) and is also shown inside the application u
 | Document | What it covers |
 |---|---|
 | [Architecture](architecture.md) | The stack, process model, request lifecycle, module system, resource engine, data model, authentication and authorization, testing, how to add a module, hosting, path to production |
-| [Developer guide](development.md) | Hard rules, commands, environment variables and settings, tests (unit, browser and accessibility), and the detailed API reference: module shape, `defineResource`, generated routes, core routes, permissions, record types |
+| [Developer guide](development.md) | Hard rules, commands, environment variables and settings, tests (unit, browser and accessibility), change-based CI (`grc ci`, GitHub), and the detailed API reference: module shape, `defineResource`, generated routes, core routes, permissions, record types |
 | [`web/src/core/README.md`](../web/src/core/README.md) | The web component catalog |
 | [Roadmap](roadmap/README.md) | Planned work, as epics and issues |
 | [Known gaps](known-gaps.md) | What is missing or incomplete today |

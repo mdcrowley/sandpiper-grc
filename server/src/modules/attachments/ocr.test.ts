@@ -5,7 +5,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { createSession, SESSION_COOKIE } from '../../core/auth.ts';
 import type { Row } from '../../core/module.ts';
 import { testApp } from '../../test/helpers.ts';
-import { BUNDLED_LANG_DIR, ocrState, resetOcrState } from './ocr.ts';
+import { availableOcrLanguages, BUNDLED_LANG_DIR, chosenOcrLanguages, ocrLanguages, ocrState, resetOcrState } from './ocr.ts';
 import { extractText, indexFileTexts } from './text.ts';
 
 // E43-15: a PDF with no text layer (a scan) is recognized as scanned; with the OCR engine installed and
@@ -120,4 +120,71 @@ describe('the text job and scans', () => {
       `select x.status, x.detail from attachment_texts x join attachments a on a.id = x.attachment_id where a.record_id = $1`, [system]);
     expect(row).toMatchObject({ status: 'empty', detail: expect.stringMatching(/scanned: no text layer; reading scans \(OCR\) is switched off/) });
   }, 90_000);
+});
+
+// E46-56: the languages are chosen in Administration from the bundled English and Spanish data (or the
+// files in GRC_OCR_LANG_DIR); the choice applies to the reader and puts unread scans back in the queue.
+describe('OCR languages chosen in Administration', () => {
+  let t: Awaited<ReturnType<typeof testApp>>;
+  beforeAll(async () => { t = await testApp(); }, 60_000);
+  afterAll(async () => { delete process.env.GRC_OCR; delete process.env.GRC_OCR_LANGS; await t?.close(); });
+  afterEach(() => resetOcrState());
+
+  it('bundles English and Spanish data and builds the job from the choice', () => {
+    expect(availableOcrLanguages({}).map((l) => [l.code, l.name])).toEqual([['eng', 'English'], ['spa', 'Spanish']]);
+    expect(availableOcrLanguages({ GRC_OCR_LANG_DIR: 'Z:/invented/nowhere' })).toEqual([]);
+    expect(ocrLanguages({}, null)).toEqual({ langs: 'eng', source: 'default' });
+    expect(ocrLanguages({ GRC_OCR_LANGS: 'spa' }, null)).toEqual({ langs: 'spa', source: 'environment' });
+    expect(ocrLanguages({ GRC_OCR_LANGS: 'spa' }, ['eng', 'spa'])).toEqual({ langs: 'eng+spa', source: 'setting' });
+    expect(chosenOcrLanguages(['eng', 'eng', 'spa; rm', 'spa'])).toEqual(['eng', 'spa']);
+    expect(chosenOcrLanguages('eng')).toBeNull();
+    if (!engine) return;
+    expect(ocrState({}, ['eng', 'spa'])).toMatchObject({ ready: true, job: { langs: 'eng+spa', langPath: BUNDLED_LANG_DIR, gzip: true } });
+    expect(ocrState({}, ['fra'])).toMatchObject({ ready: false, reason: expect.stringMatching(/"fra".*Administration/) });
+  });
+
+  it('shows the languages, refuses ones without data, saves the choice and queues unread scans again', async () => {
+    process.env.GRC_OCR = 'off';
+    const system = (await t.api.post('/api/systems', { name: 'Invented scanned timetables system' })).body.id;
+    const adminId = (await t.db.one<{ id: string }>(`select id from users where username = 'admin'`))!.id;
+    const token = await createSession(t.db, adminId);
+    const up = await t.app.inject({
+      method: 'PUT', url: `/api/attachments/upload?${new URLSearchParams({ record_type: 'system', record_id: system, name: 'timetable-scan.pdf' })}`,
+      headers: { cookie: `${SESSION_COOKIE}=${token}`, 'x-grc-csrf': '1', 'content-type': 'application/octet-stream' }, payload: await scannedPdf('DEPOT FUEL'),
+    });
+    expect(up.statusCode, up.body).toBe(201);
+    await indexFileTexts(t.ctx, 25, { timeoutMs: 30_000 });
+
+    const before = await t.api.get('/api/attachments/admin/ocr');
+    expect(before.status).toBe(200);
+    expect(before.body).toMatchObject({ switched_off: true, ready: false, folder: 'bundled', chosen: ['eng'], source: 'default', max_languages: 4, scans_not_read: 1 });
+    expect(before.body.languages).toEqual([{ code: 'eng', name: 'English' }, { code: 'spa', name: 'Spanish' }]);
+
+    expect((await t.api.put('/api/attachments/admin/ocr', { languages: [] })).status).toBe(400);
+    const unknown = await t.api.put('/api/attachments/admin/ocr', { languages: ['eng', 'fra'] });
+    expect(unknown.status).toBe(400);
+    expect(unknown.body.error.fields.languages).toMatch(/fra/);
+    expect((await t.api.put('/api/attachments/admin/ocr', { languages: ['eng', 'spa', 'a1', 'b2', 'c3'] })).status).toBe(400);
+    const agent = await t.as('agent');
+    expect((await agent.get('/api/attachments/admin/ocr')).status).toBe(403);
+
+    const saved = await t.api.put('/api/attachments/admin/ocr', { languages: ['spa', 'eng'] });
+    expect(saved.status, JSON.stringify(saved.body)).toBe(200);
+    expect(saved.body).toMatchObject({ chosen: ['eng', 'spa'], source: 'setting', requeued: 1, scans_not_read: 0 });
+    expect(await t.ctx.settings.get('attachments.ocr_languages', null)).toEqual(['eng', 'spa']);
+    const events = (await t.db.query<Row>(`select action from audit_events where record_id = 'attachments.ocr_languages'`)).map((r) => r.action);
+    expect(events).toEqual(expect.arrayContaining(['setting.change', 'attachments.ocr_requeue']));
+
+    // The reader uses the choice: with OCR on, the scan is read in English and Spanish.
+    if (!engine) return;
+    delete process.env.GRC_OCR;
+    await indexFileTexts(t.ctx, 25, { timeoutMs: 150_000 });
+    const row = await t.db.one<Row>(
+      `select x.status, x.detail, x.content from attachment_texts x join attachments a on a.id = x.attachment_id where a.record_id = $1`, [system]);
+    expect(row).toMatchObject({ status: 'indexed', detail: 'read by OCR (eng+spa)' });
+    expect(String(row!.content).toUpperCase()).toMatch(/FUEL/);
+    // Reading again on request: the scans read before go back in the queue too.
+    const again = await t.api.put('/api/attachments/admin/ocr', { languages: ['spa'], reread: true });
+    expect(again.body).toMatchObject({ chosen: ['spa'], requeued: 1 });
+  }, 240_000);
 });

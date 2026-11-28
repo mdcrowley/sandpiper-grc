@@ -1,5 +1,6 @@
 import type { ModuleContext, ModuleDef, Row } from '../../core/module.ts';
 import { registerEquipment } from './equipment.ts';
+import { ensureMaintenanceLists, readingFromVehicle, registerMaintenance } from './maintenance.ts';
 import { CONDITION_VEHICLE_FIELDS, ensureFleetConditionLists } from './fields-condition.ts';
 import { VEHICLE_MODEL_FIELDS } from './fields-models.ts';
 import { registerFleetTaggables, VEHICLE_TAG_FIELDS } from './fields-tags.ts';
@@ -56,6 +57,7 @@ async function seedDefaults(ctx: ModuleContext) {
   ], own);
   await ctx.lookups.ensure('vehicle_disposal_method', RETIREMENT_METHODS, own);
   await ensureFleetConditionLists(ctx);
+  await ensureMaintenanceLists(ctx);
 }
 
 const fail = (ctx: ModuleContext, fields: Record<string, string>): never =>
@@ -93,6 +95,9 @@ async function register(ctx: ModuleContext) {
     hooks: {
       beforeCreate: async (req, data) => { await checkVehicle(ctx, data, data, null); await checkRetirement(ctx, req, null, data, data); return data; },
       beforeUpdate: async (req, existing, patch) => { await checkVehicle(ctx, { ...existing, ...patch }, patch, existing); await checkRetirement(ctx, req, existing, { ...existing, ...patch }, patch); return patch; },
+      // Wave 27 (E46-71): an odometer changed on the vehicle itself is a reading in its mileage history.
+      afterCreate: async (req, row) => { await readingFromVehicle(ctx, req, null, row); },
+      afterUpdate: async (req, before, after) => { await readingFromVehicle(ctx, req, before, after); },
     },
   });
 
@@ -123,6 +128,7 @@ async function register(ctx: ModuleContext) {
   registerServices(ctx);
   registerFleetTaggables(ctx);
   registerRetirement(ctx); // wave 26: retiring a vehicle needs an approval
+  registerMaintenance(ctx); // wave 27: planned maintenance intervals, readings and services (E46-71)
 }
 
 /** Unique fleet number, a sensible year and percentage, and no retiring a vehicle that still carries equipment. */

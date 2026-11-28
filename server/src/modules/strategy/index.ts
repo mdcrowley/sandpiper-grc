@@ -52,6 +52,15 @@ async function seedDefaults(ctx: ModuleContext) {
     { value: 'manual', label: 'Entered by hand', sort: 10 },
     { value: 'metric', label: 'Metric', sort: 20 },
     { value: 'figure', label: 'Figure over time', sort: 30 },
+    { value: 'series', label: 'Statistics series', sort: 40 },
+  ], own);
+  // How a statistics series' values within one of a measure's periods make its actual (E46-59).
+  await ctx.lookups.ensure('measure_aggregation', [
+    { value: 'sum', label: 'Sum', sort: 10 },
+    { value: 'average', label: 'Average', sort: 20 },
+    { value: 'latest', label: 'Latest', sort: 30 },
+    { value: 'min', label: 'Lowest', sort: 40 },
+    { value: 'max', label: 'Highest', sort: 50 },
   ], own);
   await ctx.lookups.ensure('measure_state', [
     { value: 'met', label: 'Meets target', color: 'green', sort: 10 },

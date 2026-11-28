@@ -19,3 +19,10 @@
   border-radius: 6px; min-width: 2rem; min-height: 1.75rem; cursor: pointer; font: inherit;
 }
 .stg-add:hover, .stg-add:focus-visible { color: var(--text); border-color: var(--accent, currentColor); }
+.stg-span { font-weight: 400; white-space: normal; }
+/* The dashboard widget for one measure (E46-60). */
+.stg-widget { display: flex; flex-direction: column; gap: var(--space-2, 8px); height: 100%; }
+.stg-widget-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2, 8px) var(--space-3, 12px); }
+.stg-widget-value { font-size: 1.75rem; font-weight: 600; line-height: 1.1; color: var(--text); text-decoration: none; }
+.stg-widget-value:hover, .stg-widget-value:focus-visible { text-decoration: underline; }
+.stg-widget-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2, 8px); }

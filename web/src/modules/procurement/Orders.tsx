@@ -1,5 +1,5 @@
-// Purchase orders: the list, and one order with its lines, approval, issue, receiving and the budget lines
-// it is charged to.
+// Purchase orders: the list, and one order with its lines, approval, issue, receiving, its invoices
+// (Invoices.tsx) and the budget lines it is charged to.
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import {
@@ -7,6 +7,7 @@ import {
   PageHeader, RecordPage, RecordPicker, ResourceList, TableWrap, TextArea, TextField, todayInZone, useAuth, useFetch, useToast, useUnsavedChanges,
 } from '../../core';
 import type { ColumnDef, Row } from '../../core';
+import { OrderInvoices } from './Invoices';
 import { money } from './shared';
 
 const COLUMNS: ColumnDef[] = [
@@ -22,7 +23,7 @@ const SUMMARY = ['title', 'vendor_id', 'vendor_name', 'order_date', 'total', 'de
 export function OrderList() {
   return (
     <div className="stack">
-      <PageHeader title="Purchase orders" subtitle="Orders to vendors, from draft through approval, issue and receiving. Approved orders commit their budget lines until what was ordered is received." />
+      <PageHeader title="Purchase orders" subtitle="Orders to vendors, from draft through approval, issue, receiving and invoices. Approved orders commit their budget lines until their invoices are paid." />
       <ResourceList type="purchase_order" urlState columns={COLUMNS} filters={FILTERS} createFields={CREATE} />
     </div>
   );
@@ -100,7 +101,7 @@ function ReceiveDialog({ po, lines, onClose, onSaved }: { po: Row; lines: Line[]
             </tr>
           ))}</tbody>
         </table></TableWrap>
-        <TextArea label="Note" value={note} rows={2} onChange={setNote} hint="For example the delivery slip or invoice number." />
+        <TextArea label="Note" value={note} rows={2} onChange={setNote} hint="For example the delivery slip number. The vendor's invoice is entered on the Invoices tab." />
       </div>
     </Modal>
   );
@@ -177,7 +178,7 @@ function BudgetTab({ po }: { po: Row }) {
       <TableWrap label="Budget lines charged" fit><table className="table">
         <thead><tr>
           <th scope="col" data-priority={1}>Budget line</th><th scope="col" className="num" data-priority={2}>Budgeted</th><th scope="col" className="num" data-priority={2}>Committed</th>
-          <th scope="col" className="num" data-priority={2}>Spent</th><th scope="col" className="num" data-priority={1}>This order</th><th scope="col" className="num" data-priority={1}>Left after it</th>
+          <th scope="col" className="num" data-priority={2}>Spent (paid)</th><th scope="col" className="num" data-priority={1}>This order</th><th scope="col" className="num" data-priority={1}>Left after it</th>
         </tr></thead>
         <tbody>{data.map((b) => (
           <tr key={b.id}>
@@ -250,6 +251,7 @@ export function OrderDetail() {
       summaryFields={SUMMARY}
       tabs={[
         { key: 'lines', label: 'Lines', content: ({ row, reload }) => <Lines po={row} reloadRecord={reload} /> },
+        { key: 'invoices', label: 'Invoices', content: ({ row }) => <OrderInvoices po={row} /> },
         { key: 'budget', label: 'Budget', content: ({ row }) => <BudgetTab po={row} /> },
       ]}
     />

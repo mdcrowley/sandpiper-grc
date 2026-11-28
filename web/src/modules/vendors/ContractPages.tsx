@@ -25,6 +25,11 @@ const fundingLoaders = import.meta.glob<{ ContractFundingClauses: ComponentType<
 const loadFunding = Object.values(fundingLoaders)[0];
 const FundingClauses = loadFunding ? lazy(() => loadFunding().then((m) => ({ default: m.ContractFundingClauses }))) : null;
 
+// The insurance module's Insurance tab (E46-63): requirements, certificates and requests, only when that module is in the build.
+const insuranceLoaders = import.meta.glob<{ ContractInsurance: ComponentType<{ contractId: string; vendorId?: string | null }> }>('../insurance/ContractInsurance.tsx');
+const loadInsurance = Object.values(insuranceLoaders)[0];
+const ContractInsurance = loadInsurance ? lazy(() => loadInsurance().then((m) => ({ default: m.ContractInsurance }))) : null;
+
 /** Whether contracts carry an approval number (an option under Administration > Features: E18-28). */
 const useApprovalNumber = () => Boolean(useResource('contract')?.fields.resolution_number);
 
@@ -203,6 +208,7 @@ export function ContractDetail() {
   const actions = useActionsAvailable();
   const { can, areaOn } = useAuth();
   const funding = Boolean(FundingClauses) && areaOn('funding') && can('funding.view');
+  const insurance = Boolean(ContractInsurance) && areaOn('insurance') && can('insurance.view');
   const approval = useApprovalNumber();
   const valueFields = ['total_value', ...(approval ? ['resolution_number'] : []), 'notes'];
   return (
@@ -257,6 +263,10 @@ export function ContractDetail() {
         ...(funding && FundingClauses ? [{
           key: 'funder-clauses', label: 'Funder clauses',
           content: ({ row }: { row: Row }) => <Suspense fallback={<Loading lines={4} />}><FundingClauses contractId={row.id} /></Suspense>,
+        }] : []),
+        ...(insurance && ContractInsurance ? [{
+          key: 'insurance', label: 'Insurance',
+          content: ({ row }: { row: Row }) => <Suspense fallback={<Loading lines={4} />}><ContractInsurance contractId={row.id} vendorId={row.vendor_id ?? null} /></Suspense>,
         }] : []),
       ]}
     />

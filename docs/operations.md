@@ -40,7 +40,7 @@ and the image's `grc` command ([Docker](#docker)). The examples in this runbook 
 | `.\grc.ps1 build` | Builds the web application into `dist\web\` and shows the full build output |
 | `.\grc.ps1 test` | Runs the automated tests (Vitest) |
 | `.\grc.ps1 typecheck` | Type-checks the server and the web application |
-| `.\grc.ps1 ci` | Local continuous integration: typecheck, tests, tests with the clock on UTC, web build and the dependency audit, with a pass or fail summary. Run it before every commit and push |
+| `.\grc.ps1 ci [-Full] [-Plan]` | Local continuous integration for what the changes need (since the merge base with `main`): the typecheck, the tests the changes need and the same tests with the clock on UTC, the web build and the dependency audit when what they use changed, with what was skipped and why and a pass or fail summary. `-Full` runs everything; `-Plan` prints the plan only. Run it before every commit and push (see [Change-based CI](development.md#change-based-ci)) |
 | `.\grc.ps1 audit-deps [-Level high]` | Known vulnerabilities in the production packages (`npm audit`); fails only when a fixed version exists. See [Dependency vulnerabilities](#dependency-vulnerabilities) |
 | `.\grc.ps1 audit-archive [-Folder <dir>]` | Runs the audit archive as the database owner, for an installation whose server uses a least-privilege database role (`npm run cli -- audit-archive [--folder <dir>]`). See [Audit log archive](#audit-log-archive) |
 | `.\grc.ps1 npm <args>` | Runs any npm command with the portable Node.js, for example `.\grc.ps1 npm install` |

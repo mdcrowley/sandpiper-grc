@@ -4,9 +4,11 @@
 // then each item with its details and papers. A controlled document or a Markdown, text or Word paper
 // is printed in the book (Word files are converted in the document sandbox, never in the server
 // process); a record is summarized; a PDF paper is appended at the end, after an "Appendices" list
-// giving its pages. Appended pages keep their drawing as it is, marked as an artifact: the book's own
-// pages carry the structure, and the text-only version of the book prints the text read from each PDF
-// paper instead, for screen readers. Closed-session items are left out of the public version (a line
+// giving its pages. A tagged PDF paper keeps its structure: its tags are merged into the book's
+// structure tree under a Part element named after the appendix (E45-61, book-structure.mjs), so the
+// whole book stays tagged for screen readers. An untagged paper (or one whose tags cannot be merged)
+// keeps its drawing as it is, marked as an artifact, and the text-only version of the book prints the
+// text read from it instead. Closed-session items are left out of the public version (a line
 // says how many), and so are restricted records and documents not open to the whole organization.
 //
 // The minutes PDF has the attendance and quorum, the general minutes, and each item's discussion and
@@ -197,7 +199,7 @@ async function names(ctx: ModuleContext) {
  * items (the caller has checked `seesClosed`); 'public' leaves them out, with restricted records and
  * documents not open to the whole organization.
  */
-export async function makeBook(ctx: ModuleContext, user: SessionUser | null, meeting: Row, opts: BookOpts): Promise<{ pdf: Buffer; appended: number; skipped: string[] }> {
+export async function makeBook(ctx: ModuleContext, user: SessionUser | null, meeting: Row, opts: BookOpts): Promise<{ pdf: Buffer; appended: number; tagged: number; skipped: string[] }> {
   const committee = (await ctx.db.one<Row>('select name from committees where id = $1', [meeting.committee_id])) ?? { name: 'Committee' };
   const all = await agendaFor(ctx, user, meeting, opts.version === 'members');
   const items = all.filter((i) => !i.hidden);
@@ -205,7 +207,7 @@ export async function makeBook(ctx: ModuleContext, user: SessionUser | null, mee
   const parts = await partsOf(ctx, user, items, opts);
 
   // PDF papers to append: read once in the sandbox for their page counts; one that cannot be read is named, not appended.
-  const pdfParts: { part: Extract<Part, { kind: 'pdf' }>; bytes: Buffer; pages: number; letter: string; start: number }[] = [];
+  const pdfParts: { part: Extract<Part, { kind: 'pdf' }>; bytes: Buffer; pages: number; tagged: boolean; letter: string; start: number }[] = [];
   const skipped: string[] = [];
   let total = 0;
   const candidates: { part: Extract<Part, { kind: 'pdf' }>; bytes: Buffer }[] = [];
@@ -222,7 +224,7 @@ export async function makeBook(ctx: ModuleContext, user: SessionUser | null, mee
   const inspected = await inspectPdfs(candidates.map((c) => c.bytes));
   for (const [i, c] of candidates.entries()) {
     const r = inspected[i];
-    if (r?.ok) pdfParts.push({ ...c, pages: r.pages, letter: appendixName(pdfParts.length), start: 0 });
+    if (r?.ok) pdfParts.push({ ...c, pages: r.pages, tagged: r.tagged, letter: appendixName(pdfParts.length), start: 0 });
     else skipped.push(c.part.att.file_name);
   }
   const appendixOf = new Map(pdfParts.map((p) => [p.part, p]));
@@ -272,7 +274,7 @@ export async function makeBook(ctx: ModuleContext, user: SessionUser | null, mee
         if (part.meta.length) b.keyValues(part.meta);
         if (part.kind === 'pdf') {
           const a = appendixOf.get(part);
-          b.note(a ? `Appended as appendix ${a.letter}: ${a.pages} ${a.pages === 1 ? 'page' : 'pages'}, from page ${a.start} of this file.`
+          b.note(a ? `Appended as appendix ${a.letter}: ${a.pages} ${a.pages === 1 ? 'page' : 'pages'}, from page ${a.start} of this file${a.tagged ? '' : ' (not tagged for screen readers: the text-only version prints its text)'}.`
             : 'This PDF could not be appended (it may be protected by a password, damaged or too large). Open it in the application.');
           continue;
         }
@@ -283,9 +285,15 @@ export async function makeBook(ctx: ModuleContext, user: SessionUser | null, mee
     if (pdfParts.length) {
       b.newPage();
       b.heading('Appendices', 1);
-      b.paragraph('The PDF papers follow this page as they were supplied. Their pages are not described for screen readers; the text-only version of this book prints the text read from them instead.', { muted: true });
-      b.table([{ header: 'Appendix', weight: 1 }, { header: 'Paper', weight: 5 }, { header: 'Item', weight: 0.8 }, { header: 'Pages', weight: 1.6, align: 'right' }],
-        pdfParts.map((p) => [p.letter, p.part.heading, String(p.part.item), `${p.start} to ${p.start + p.pages - 1}`]));
+      const untagged = pdfParts.filter((p) => !p.tagged).length;
+      b.paragraph(untagged === 0
+        ? 'The PDF papers follow this page as they were supplied. Each one is a tagged PDF whose structure is part of this book, so screen readers read it as its author tagged it.'
+        : untagged === pdfParts.length
+          ? 'The PDF papers follow this page as they were supplied. They are not tagged PDFs, so their pages are not described for screen readers; the text-only version of this book prints the text read from them instead.'
+          : 'The PDF papers follow this page as they were supplied. A tagged paper keeps its structure in this book, so screen readers read it; the pages of a paper that is not tagged are not described, and the text-only version of this book prints the text read from it instead.',
+      { muted: true });
+      b.table([{ header: 'Appendix', weight: 1 }, { header: 'Paper', weight: 4.6 }, { header: 'Item', weight: 0.8 }, { header: 'Pages', weight: 1.6, align: 'right' }, { header: 'Screen readers', weight: 1.8 }],
+        pdfParts.map((p) => [p.letter, p.part.heading, String(p.part.item), `${p.start} to ${p.start + p.pages - 1}`, p.tagged ? 'Tagged' : 'Not tagged']));
     }
     const pages = b.doc.bufferedPageRange().count;
     return { pdf: await b.finish(), pages };
@@ -296,8 +304,10 @@ export async function makeBook(ctx: ModuleContext, user: SessionUser | null, mee
   place(guess);
   let made = await build();
   for (let tries = 0; pdfParts.length && made.pages !== guess && tries < 2; tries++) { guess = made.pages; place(guess); made = await build(); }
-  const pdf = pdfParts.length ? await appendPdfs(made.pdf, pdfParts.map((p) => p.bytes)) : made.pdf;
-  return { pdf, appended: pdfParts.length, skipped };
+  const pdf = pdfParts.length
+    ? await appendPdfs(made.pdf, pdfParts.map((p) => p.bytes), pdfParts.map((p) => `Appendix ${p.letter}: ${p.part.heading.replace(/^(Paper|Document): /, '')}`))
+    : made.pdf;
+  return { pdf, appended: pdfParts.length, tagged: pdfParts.filter((p) => p.tagged).length, skipped };
 }
 
 /** The minutes of a meeting as `user` may read them ('members' with closed-session items, 'public' without). */
@@ -432,13 +442,13 @@ export function registerBook(ctx: ModuleContext) {
     await ctx.audit(req, {
       action: 'meeting.book', recordType: 'meeting', recordId: meeting.id,
       summary: `Board book of ${meeting.ref} produced (${version === 'members' ? 'members\' version' : 'public version'}${textOnly ? ', text only' : ''})`,
-      after: { version, text_only: textOnly, appended: made.appended, not_appended: made.skipped },
+      after: { version, text_only: textOnly, appended: made.appended, tagged: made.tagged, not_appended: made.skipped },
     });
     return sendPdf(reply, made.pdf, `${meeting.ref}-board-book${version === 'public' ? '-public' : ''}`);
   });
   ctx.describeRoute({
     method: 'GET', path: '/api/meetings/:id/book', tag: 'Governance', permission: 'governance.view',
-    summary: 'The board book as one PDF: cover, agenda, each item with its papers (documents and Word or text papers printed, PDF papers appended). The members\' version includes closed-session items and needs a member or governance.edit',
+    summary: 'The board book as one PDF: cover, agenda, each item with its papers (documents and Word or text papers printed, PDF papers appended, a tagged PDF paper with its structure merged into the book\'s). The members\' version includes closed-session items and needs a member or governance.edit',
     query: { version: 'public (default) or members', text: '1: print the text of PDF papers instead of appending them (for screen readers)' },
     response: 'application/pdf',
   });

@@ -56,8 +56,8 @@ const DOCS: [RouteDoc['method'], string, string, Extra?][] = [
 
   ['GET', '/api/admin/users', 'List users', { tag: 'Users', permission: A, query: { q: 'Part of a name, username or email.', status: 'pending, active or disabled.', role: 'Role key.' } }],
   ['GET', '/api/admin/users/:id', 'One user', { tag: 'Users', permission: A }],
-  ['POST', '/api/admin/users', 'Create a user and a one-time setup link', { tag: 'Users', permission: A, description: CONFIRM, body: '{ username, email, displayName, departmentId?, roles: [roleKey] }' }],
-  ['PATCH', '/api/admin/users/:id', 'Change a user\'s profile, roles or status', { tag: 'Users', permission: A, description: 'A change of roles needs a recent password confirmation.', body: '{ username?, email?, displayName?, departmentId?, roles?, status? }' }],
+  ['POST', '/api/admin/users', 'Create a user and a one-time setup link', { tag: 'Users', permission: A, description: CONFIRM, body: '{ username, email, displayName, departmentId?, roles: [roleKey] }', response: '{ user, setupLink, expiresAt, warnings: [string] (E46-69: roles accepted that give no access) }' }],
+  ['PATCH', '/api/admin/users/:id', 'Change a user\'s profile, roles or status', { tag: 'Users', permission: A, description: 'A change of roles needs a recent password confirmation. `warnings` (E46-69) says which roles kept or given give no access: one switched off under Roles, or one of a switched-off area.', body: '{ username?, email?, displayName?, departmentId?, roles?, status? }', response: 'The user, with warnings: [string]' }],
   ['POST', '/api/admin/users/:id/disable', 'Disable a user', { tag: 'Users', permission: A }],
   ['POST', '/api/admin/users/:id/enable', 'Enable a user', { tag: 'Users', permission: A }],
   ['POST', '/api/admin/users/:id/setup-link', 'Issue a new one-time setup link', { tag: 'Users', permission: A, description: CONFIRM, response: '{ token, expiresAt, ... } (shown once)' }],

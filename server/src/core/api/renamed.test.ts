@@ -1,3 +1,4 @@
+// ci: every module (tools/ci/plan.mjs runs this for a change to any server module)
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createSession, SESSION_COOKIE } from '../auth.ts';
 import { testApp } from '../../test/helpers.ts';

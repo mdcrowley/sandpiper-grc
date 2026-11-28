@@ -37,8 +37,20 @@ export const PO_STATUSES: LookupValue[] = [
   { value: 'closed', label: 'Closed', color: 'gray', sort: 70 },
   { value: 'canceled', label: 'Canceled', color: 'red', sort: 80 },
 ];
-/** Purchase order statuses whose unreceived amount is committed against the budget. */
-export const COMMITTING = ['approved', 'issued', 'partially_received'];
+/**
+ * Purchase order statuses whose amount not yet paid is committed against the budget (E46-66: what was
+ * received stays committed until its invoice is paid). Closing an order releases what was not paid.
+ */
+export const COMMITTING = ['approved', 'issued', 'partially_received', 'received'];
+
+/** Statuses of a vendor invoice. Set by the application (submit, approve, reject, pay, void). */
+export const INVOICE_STATUSES: LookupValue[] = [
+  { value: 'draft', label: 'Entered', color: 'gray', sort: 10 },
+  { value: 'pending_approval', label: 'Awaiting approval', color: 'amber', sort: 20 },
+  { value: 'approved', label: 'Approved for payment', color: 'blue', sort: 30 },
+  { value: 'paid', label: 'Paid', color: 'green', sort: 40 },
+  { value: 'voided', label: 'Voided', color: 'red', sort: 50 },
+];
 
 export async function ensureProcurementLists(ctx: ModuleContext): Promise<void> {
   await ctx.lookups.ensure('procurement_method', METHODS, OWN);
@@ -94,6 +106,23 @@ export async function ensureProcurementLists(ctx: ModuleContext): Promise<void> 
     { value: 'adopted', label: 'Adopted', color: 'green', sort: 20, meta: { current: true } },
     { value: 'amended', label: 'Amended', color: 'teal', sort: 30, meta: { current: true } },
     { value: 'closed', label: 'Closed', color: 'gray', sort: 40 },
+  ], OWN);
+  await ctx.lookups.ensure('invoice_status', INVOICE_STATUSES, OWN);
+  await ctx.lookups.ensure('invoice_match', [
+    { value: 'matched', label: 'Matches order and receipts', color: 'green', sort: 10 },
+    { value: 'exception', label: 'Does not match', color: 'red', sort: 20 },
+    { value: 'no_lines', label: 'No lines yet', color: 'gray', sort: 30 },
+  ], OWN);
+  await ctx.lookups.ensure('payment_method', [
+    { value: 'electronic', label: 'Electronic transfer', color: 'blue', sort: 10 },
+    { value: 'check', label: 'Check', color: 'teal', sort: 20 },
+    { value: 'card', label: 'Purchasing card', color: 'purple', sort: 30 },
+    { value: 'wire', label: 'Wire transfer', color: 'gray', sort: 40 },
+    { value: 'other', label: 'Other', color: 'gray', sort: 50 },
+  ], OWN);
+  await ctx.lookups.ensure('budget_version_kind', [
+    { value: 'adopted', label: 'Adopted budget', color: 'green', sort: 10 },
+    { value: 'amendment', label: 'Amendment', color: 'teal', sort: 20 },
   ], OWN);
   await ctx.lookups.ensure('budget_kind', [
     { value: 'operating', label: 'Operating', color: 'blue', sort: 10 },

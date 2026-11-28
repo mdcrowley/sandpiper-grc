@@ -103,7 +103,7 @@ Everything goes through `grc.ps1` (it puts the portable Node on PATH):
 .\grc.ps1 test       # vitest (server and web tests)
 .\grc.ps1 typecheck  # server and web
 .\grc.ps1 build      # production web build into dist/web
-.\grc.ps1 ci         # local continuous integration: typecheck, tests, tests on UTC, web build, dependency audit
+.\grc.ps1 ci         # local continuous integration for what the changes need (-Full: everything; -Plan: the plan only)
 .\grc.ps1 backup     # verified copy of data/ in backups/<timestamp> (-Prune <n> keeps the newest n; -Encrypt)
 .\grc.ps1 restore <backup|latest|file>   # verifies, keeps a safety copy, replaces data/
 .\grc.ps1 status | logs | upgrade   # see docs/operations.md for these and the other operations commands
@@ -120,25 +120,52 @@ powershell -ExecutionPolicy Bypass -File tools\installer\test-install.ps1   # te
 
 `.\grc.ps1` with no command prints the full list.
 
-**Continuous integration is local first.** Run `.\grc.ps1 ci` before every commit and
-push: it runs the typecheck, the tests (server and web) twice, the second time with the
-clock on UTC, the web build and the dependency audit (`audit-deps`: it fails on a fixable
-high or critical advisory, and is skipped with a warning when the npm registry cannot be
-reached), and fails if any step fails. GitHub Actions
-(`.github/workflows/ci.yml`) runs on every push and pull request: the typecheck, tests and
-build on Windows and Linux with a non-blocking dependency audit (`npm audit`); the tests
-through the PostgreSQL wire protocol (and, not yet blocking, on PostgreSQL 17); the
-container build and smoke test; and the browser suite with the accessibility audit, which
-fails only on a finding not already raised as an issue (see [Tests](#tests)).
-A push or pull request that changes only documentation (anything under `docs/` except the
-user guide in `docs/user`, and the top-level Markdown files) runs none of this; the user guide is
-bundled into the in-app Help and tested, so a change there runs everything.
+**Continuous integration is local first, and checks what changed.** Run `.\grc.ps1 ci`
+(`./grc.sh ci`) before every commit and push. By default it compares with the merge base with
+`main` (on `main` itself: the last commit), counts uncommitted and new files too, and runs only
+what those changes need, printing what it skipped and why (see [Change-based CI](#change-based-ci)):
 
-For one change, run `.\grc.ps1 ci` and only the browser tests that cover it
-(`npm run test:e2e -- --only smoke,<suite>` or `--grep <name>`). The whole browser suite (over an
-hour in one run; on GitHub it is split into four parallel jobs: roles, smoke with sign-in and
-features off, the rest, and the accessibility audit) runs on GitHub for every push; run them locally at the end of a
-larger piece of work, before a release, or when a change touches the shell, routing or theme.
+- the typecheck of the server and/or the web app (incremental: tsc keeps its state in
+  `node_modules/.cache/tsc`), when TypeScript there, in `shared/`, the packages or the settings changed;
+- the unit tests the changes need, then the same tests with the clock on UTC;
+- the web build, when `web/`, `shared/`, `docs/user/`, `vite.config.ts` or the packages changed;
+- the dependency audit (`audit-deps`: it fails on a fixable high or critical advisory, and is
+  skipped with a warning when the npm registry cannot be reached), when `package.json` or
+  `package-lock.json` changed.
+
+`.\grc.ps1 ci -Full` (`./grc.sh ci --full`) runs everything as before: the typecheck, every test
+twice (the second time on UTC), the build and the audit. Run it before a release and after a large
+change. `.\grc.ps1 ci -Plan` (`./grc.sh ci --plan`, `npm run test:affected -- --plan`) prints the
+plan for the current changes (unit tests with the reason for each, the affected areas, the browser
+suites, the GitHub jobs) and runs nothing; `--base <ref>` compares with another commit.
+
+GitHub Actions (`.github/workflows/ci.yml`) works the same way. Its first job, "What changed",
+compares with the merge base of a pull request's target branch or with the commit before a push
+(the merge base with `main` for the first push of a branch and after a force push), writes the
+plan to the run's summary ("affected: risks; skipped: 47 areas") and starts only the jobs the
+change needs: the unit tests in parts on Linux and on Windows, the same tests through the
+PostgreSQL wire protocol and on PostgreSQL 17, the install jobs (a smoke check of `grc.ps1` and
+`grc.sh`: install, start, sample data, backup, service, not the tests again), the container image,
+the browser suites shared out over up to eight machines, the accessibility audit, the API client
+check and the mobile app. A documentation-only change runs only the tests that read documentation.
+Everything runs every night, on a version tag, on a manual run with "full" ticked, and when the
+workflow or `tools/ci` changes. A newer push cancels the run it makes out of date.
+
+**Branch protection (the maintainer must change this on GitHub once).** Under the repository's
+Settings > Branches (or Rules > Rulesets) > the rule for `main` > "Require status checks to pass",
+remove every check required before wave 27 (the old per-job names such as the unit test, install,
+browser and accessibility jobs) and require only the single check **CI result** (the last job of
+`ci.yml`). It passes when every job that ran passed; a job skipped because the change did not need
+it counts as passed. Until the old names are removed, a pull request waits for checks that no longer
+run under those names. The other jobs' names change with their parts, so never require them. The Windows installer workflow
+(`windows-installer.yml`) runs only when the installer, the server or the packages change, and
+nightly; it is not a required check.
+
+For one change, `.\grc.ps1 ci` and then the browser tests it needs:
+`npm run test:e2e -- --affected` runs the suites of the affected areas and visits only those
+areas' pages in the tours (see [Change-based CI](#change-based-ci)); `--only smoke,<suite>` and
+`--grep <name>` still pick suites and tests by hand. Run the whole browser suite locally (over an
+hour) before a release or after a change to the shell, routing or theme; GitHub runs it nightly.
 
 The API description: `npx tsx server/src/core/openapi-cli.ts [file] [--unversioned]`
 writes the whole OpenAPI document (every record type and route, paths under `/api/v1`;
@@ -184,8 +211,8 @@ In a plain shell: `$env:Path = "$PWD\.tools\node;$env:Path"` then `npm run <scri
 | `GRC_LOG_LEVEL`, `GRC_LOG_DIR`, `GRC_LOG_CONSOLE` | `info`, `<data>/logs`, `text` | Server log: level, folder of the rotating `grc.log` (`off` = none), and what reaches the console (`text`, `json`, `off`); also `GRC_LOG_MAX_MB`, `GRC_LOG_FILES`, `GRC_LOG_REQUESTS` ([Operations](operations.md#logs)) |
 | `GRC_PDF_FONTS` | system fonts | Font files for PDF text beyond Western European, separated by `;` (Windows) or `:`; `file.ttc#PostScriptName` picks one font of a collection; `none` switches it off. Unset: Noto, DejaVu, Arial Unicode, Segoe UI, Arial, Microsoft YaHei, Yu Gothic, Malgun or Nirmala, whichever the machine has ([Operations](operations.md#fonts-for-pdf-exports)) |
 | `GRC_OCR` | on | `off` stops reading scanned PDFs (no text layer) by OCR (E43-15) |
-| `GRC_OCR_LANGS` | `eng` | OCR languages, joined by `+` (`eng+spa`); each needs its `<lang>.traineddata.gz` |
-| `GRC_OCR_LANG_DIR` | the bundled `attachments/tessdata` | A folder of `<lang>.traineddata.gz` files used instead of the bundled English data |
+| `GRC_OCR_LANGS` | `eng` | OCR languages, joined by `+` (`eng+spa`), used until a choice is saved under Administration > File settings > Reading scans; each needs its `<lang>.traineddata.gz` |
+| `GRC_OCR_LANG_DIR` | the bundled `attachments/tessdata` (English and Spanish) | A folder of `<lang>.traineddata.gz` files used instead of the bundled data |
 
 Security environment (all optional; see [Security](security.md)): `GRC_SECRET_KEY` (32
 bytes as 64 hex characters or base64; encrypts authenticator keys and other stored
@@ -247,6 +274,7 @@ Read them in code with `ctx.settings.get(key, fallback)`, using the same fallbac
 | `integrations.scim_link_provider` | `''` | The sign-in provider whose external ids provisioned accounts are linked to |
 | `feeds.calendar_enabled` | `false` | Calendar feeds answer at all (Administration > Calendar and work trackers; password confirmation to switch on) |
 | `attachments.link_check_days` | `90` | Days after which a linked document is due for a check |
+| `attachments.ocr_languages` | not set (`GRC_OCR_LANGS`, else `eng`) | The languages scanned PDFs are read in by OCR (E46-56), chosen from the language files in the folder (Administration > File settings > Reading scans, `PUT /api/attachments/admin/ocr`); at most four |
 | `actions.closure_evidence_sources` | `[]` | Action sources whose actions need an attachment or closure evidence text before they are finished (Administration > Settings > Actions) |
 | `continuity.bia_every_months` | `12` | Months between business impact analyses of a process |
 | `vendors.reassessment_reminder_days` | `30` | Days before a vendor's reassessment or exclusion-list check that its owner is reminded |
@@ -277,9 +305,13 @@ Read them in code with `ctx.settings.get(key, fallback)`, using the same fallbac
 | `safety.plan_ids` | `[]` | The documents chosen as the safety plan (`PUT /api/safety/plans`); with none, active plans titled "safety" |
 | `procurement.criteria_template` | starter criteria | The standard weighted evaluation criteria copied into a new solicitation (Procurement > Settings) |
 | `insurance.renewal_reminder_days`, `.application_reminder_days`, `.certificate_reminder_days` | `[90, 60, 30]`, `[14, 3, 0]`, `[30, 0]` | Days before a policy expires, before its renewal application is due, and before a certificate of insurance expires that its owner is reminded (Administration > Reminders and Insurance > Settings) |
-| `civilrights.ack_days`, `.investigation_days`, `.appeal_days` | `10`, `90`, `30` | The organization's own complaint time limits in calendar days (Civil rights > Settings); no jurisdiction's deadline is built in |
+| `insurance.certificate_request_reminder_days` | `[7, 2]` | Days before a certificate request's upload link expires that the vendor is emailed a reminder with the same link (E46-65; Administration > Reminders and Insurance > Settings) |
+| `civilrights.ack_days`, `.investigation_days`, `.appeal_days` | `10`, `90`, `30` | The organization's own complaint time limits (Civil rights > Settings); no jurisdiction's deadline is built in |
+| `civilrights.ack_working_days`, `.investigation_working_days`, `.appeal_working_days` | `false` | Count each limit in working days on the organization's working calendar (`dueAfter`, the calendar records requests use) instead of calendar days (E46-61) |
 | `civilrights.reminder_days` | `7` | Days before a complaint or report time limit that the investigator or owner is reminded (Administration > Reminders) |
 | `strategy.submission_reminder_days`, `strategy.due_soon_days` | `[30, 7, 0]`, `30` | Reminder steps before a statistical submission is due, and what counts as due soon (Strategy > Settings; the steps also under Administration > Reminders) |
+| `organization.fiscal_year_start_month`, `organization.fiscal_year_named_for` | `1`, `'end'` | The organization's fiscal year (E46-58): the month it starts (1 = the calendar year) and whether a fiscal year is named after the calendar year it ends or starts in; set under Strategy > Settings (`strategy.administer`); cannot change while strategy values, statistics or updates are kept on fiscal (FY...) periods |
+| `procurement.invoice_tolerance_pct` | `0` | How far (0 to 25 %) an invoice line may be above the order price or the quantity received and still match (E46-66; Procurement > Settings) |
 
 Changing an `auth.*`, `tokens.*` or `integrations.*` setting needs a recent password
 confirmation.
@@ -372,7 +404,8 @@ shared/                       code the server, the web and the mobile app share:
 mobile/                       the iPhone and Android app (Expo, React Native): its own package.json and
                               lockfile, not part of the root install, typecheck or tests (see below)
 tools/                        install-node.ps1, browse.mjs, contrast.mjs, code-snapshot.mjs
-tools/e2e/                    browser test runner and suites (npm run test:e2e)
+tools/ci/                     change-based CI: import graph, area map, plan (grc ci, GitHub)
+tools/e2e/                    browser test runner and suites (npm run test:e2e); suite-map.mjs
 tools/a11y/                   accessibility audit (npm run test:a11y)
 tools/sr/                     screen reader journeys (NVDA through Guidepup; manual only)
 tools/mcp-stdio.mjs           bridge for MCP clients that speak only stdio (docs/mcp.md)
@@ -396,7 +429,7 @@ Dates: build "today" with `dayInZone(offsetDays)` (or `todayInZone()`) from
 `toISOString().slice(0, 10)`): those differ from the organization's date for part of
 every day, and tests then fail at some hours or on a machine set to UTC. Date arithmetic uses
 `shared/dates.ts` (`addDays`, `addMonths`, `daysBetween`, …), never a copy; a deadline in working
-days uses `dueAfter`/`workingCalendar` from `core/working-days.ts`.
+days uses `dueAfter`/`workingCalendar` from `core/working-days.ts`. Civil rights complaint limits use the same `dueAfter` calendar (E46-61).
 
 ### Module shape
 
@@ -427,7 +460,10 @@ export default mod;
   require a session or a token unless registered with `config: { public: true }`; a public
   route that checks a bearer token of its own, such as the SCIM provisioning endpoint, adds
   `ownBearer: true`, so neither a session nor a personal access token is looked at and no
-  CSRF header is asked for).
+  CSRF header is asked for). A public link may carry its secret in the address fragment
+  (`#<secret>`) and send it in a header (`X-Upload-Token`: insurance certificate requests, E46-65), so it
+  is never in a request line or a log; the secret is kept as a SHA-256 hash and, when a reminder must
+  carry the same link, sealed with `secretBox` (context per record).
   `req.apiToken` is `{ id, name }` when the request was made with a personal access token,
   otherwise `null`.
 - `ctx.db.query<T>(sql, params) => T[]`, `ctx.db.one<T>(sql, params) => T | undefined`,
@@ -498,7 +534,7 @@ Services other modules may offer are Fastify decorators; check before use:
   log, such as a confidential reporter). A reminder's lead time
   is a setting read with `ctx.settings.get(key, fallback)`; add it to the list in
   `modules/notifications/reminder-settings.ts` so administrators can change it under
-  Administration > Reminders.
+  Administration > Reminders (with `requires: '<record type>'`: not offered while that type's area is off).
 - `app.jobs` (`core/jobs`): the table-backed job queue. `app.jobs.register(type, handler,
   opts?)` in `register()`, then `await app.jobs.enqueue(type, payload?, { key?, runAt?,
   delayMs?, maxAttempts?, rerunIfRunning? })` (a second job with the same `key` while one waits is
@@ -535,13 +571,16 @@ Services other modules may offer are Fastify decorators; check before use:
   attached files, E41-16), not only the PDF/UA test check. Text extraction from attached files runs in
   a child process (`attachments/text-reader.mjs`); never call pdf.js on untrusted files inside the
   server process. A PDF with no text layer is read again by OCR in the same reader process
-  (`attachments/ocr.ts`, **tesseract.js** (Apache-2.0, WebAssembly) with the bundled English data in
-  `attachments/tessdata`, longer limits: 5 minutes, 1 GB, 50 pages); nothing is downloaded at run time
+  (`attachments/ocr.ts`, **tesseract.js** (Apache-2.0, WebAssembly) with the bundled English and
+  Spanish data in `attachments/tessdata` (the languages chosen in Administration, E46-56), longer limits: 5 minutes, 1 GB, 50 pages); nothing is downloaded at run time
   (E43-15). Converting a Word file or stamping a PDF (document control, E43) runs the same way in
   `policies/convert/sandbox.ts` (a forked process with time, memory and size limits): never parse a
   Word file or PDF in the server process. Appending uploaded PDFs to a generated PDF (the board book,
   wave 25) runs in `governance/book-sandbox.ts` (a forked process with time and memory limits,
-  pdf-lib); appended pages are marked as artifacts; check the result with `checkPdfUa`. Large files arrive in parts through `attachments/uploads.ts`
+  pdf-lib); the structure of a tagged paper is merged into the book's (`governance/book-structure.mjs`, run in
+  the book sandbox only, E45-61), an untagged paper's pages are marked as artifacts; check the result with
+  `checkPdfUa`. `PdfOptions.pageLine` prints a bold line at the top of every page (a controlled copy's number
+  and holder, E46-57). Large files arrive in parts through `attachments/uploads.ts`
   (`app.claimUpload`); a module's own rules for its files (keep, who may download) go through`
   `addAttachmentGuard` (`core/attachment-guards.ts`).
 - `app.sendMail({ userIds, template, purpose, data, record?, attachments? })` and
@@ -892,7 +931,8 @@ hand-written recipient or picker query with `not ${await reviewerSql(db, 'u.id')
 ### Feature switches (optional areas)
 
 Dashboards read `GET /api/dashboards/switched-off-types` and leave widgets of switched-off areas
-out; a standard dashboard made only of them is not listed. Suite 09 also switches the service
+out (a widget's record type is its query's, or `config.recordType` for a widget that names one, such
+as the strategic measure widget); a standard dashboard made only of them is not listed. Suite 09 also switches the service
 desk, portal and vendors off to check dashboards.
 
 Administrators switch optional parts of the application on and off under Administration >
@@ -986,8 +1026,9 @@ include pattern finds them.
 
 The test commands:
 
-- `npm test` (or `.\grc.ps1 test`): server and web unit tests. `.\grc.ps1 ci` runs them
-  twice, the second time with the clock on UTC.
+- `npm test` (or `.\grc.ps1 test`): every server and web unit test. `.\grc.ps1 ci` runs the ones
+  the changes need, twice, the second time with the clock on UTC (`-Full`: every test twice).
+  `GRC_TEST_LIST=<file>` (one test file per line) limits a run to those files.
 - `npm run test:e2e`: the browser suite (`tools/e2e/suites`). It builds the web app (or
   serves the build in `E2E_WEB_DIST`), starts a throw-away instance and drives a real
   browser through every route (checking that every menu label matches the title of the page
@@ -996,7 +1037,10 @@ The test commands:
   Lifecycles page, and then one suite per newer module area (`01-smoke` to `23-portal`; `23-portal` takes a person with only the Requester role through the self-service portal at 390 and 1440 pixels). Options
   after `--`: `--only smoke,roles` (some suites), `--skip roles` (every suite but these; the
   numbered name, such as `03-records`, picks one of two suites with the same name), `--grep ticket` (tests whose name
-  contains it), `--headed` (show the browser), `--keep` (keep the scratch data folder).
+  contains it), `--headed` (show the browser), `--keep` (keep the scratch data folder),
+  `--affected [--base <ref>]` and `--areas risks,tickets` (only what those changes or areas need:
+  see [Change-based CI](#change-based-ci)), `--plan` (print what would run) and `--shard 2/4`
+  (this machine's share of the chosen tests, by the minutes in `tools/e2e/suite-map.mjs`).
   Logs and screenshots go to `tools/e2e/out`. `node tools/e2e/serve.mjs` keeps an
   instance running, and `E2E_BASE` points the tests at it; `E2E_BROWSER` picks the
   browser and `E2E_PORT` the port. `E2E_DATABASE_URL` runs the instance on a PostgreSQL server
@@ -1017,10 +1061,69 @@ The test commands:
   `node journeys.mjs --only <journey>`. Own `package.json`, outside the root install, typecheck and
   tests. See [Accessibility](accessibility.md#screen-reader-run).
 
-GitHub Actions runs the typecheck, tests and build on Windows and Linux, the tests through
-the PostgreSQL wire protocol, the container build and smoke test, and the browser suite (with
-the smoke, records and portal suites run again on PostgreSQL 17) followed by the accessibility audit, which fails the build on a finding not yet raised as
-an issue in `tools/a11y/known.json`.
+GitHub Actions runs what the change needs (see [Commands](#commands) and
+[Change-based CI](#change-based-ci)): the typecheck, unit tests in parts on Linux and Windows, the
+tests through the PostgreSQL wire protocol and on PostgreSQL 17, the container build and smoke test,
+and the browser suites shared out over several machines (with the smoke, records and portal suites
+run again on PostgreSQL 17 when the database code, operations or a migration changes), and the
+accessibility audit, which fails the build on a finding not yet raised as an issue in
+`tools/a11y/known.json`. Every night, and on a version tag, it runs everything.
+
+Test databases start from a template (wave 27). The test run's global setup
+(`server/src/test/global-setup.ts`) migrates one in-memory database, keeps it as a PGlite data
+folder in `node_modules/.cache/grc-test-db` (named after a hash of every migration, the module
+list, the PGlite version and the day), and every `testApp()` and in-memory `buildApp()` starts from
+a copy instead of running all 180 migrations again (`core/db-template.ts`). In-memory databases
+also skip waiting for durable writes (`fsync=off`). `server/src/core/db-template.test.ts` migrates
+an empty database (`buildApp({ freshDatabase: true })`) and checks that it equals the template:
+columns, constraints, indexes, triggers, functions, views and the rows of every table.
+`GRC_TEST_NO_TEMPLATE=1` turns the template off; a run on a PostgreSQL server does not use it.
+
+### Change-based CI
+
+`tools/ci` decides what a change needs; it is plain Node with no packages, so it runs before
+`npm ci`. Three parts:
+
+- **The import graph** (`tools/ci/affected.mjs`): for every code file in `server/`, `web/`, `shared/`,
+  `tools/` and `packages/`, the files it imports (static and literal dynamic imports, `vi.mock`,
+  `import.meta.glob`, `new URL(..., import.meta.url)`), and the files changed since a base commit.
+- **The area map** (`tools/ci/areas.mjs`), generated from the code each time: an area is a module
+  (the folders `server/src/modules/<key>` and `web/src/modules/<key>`), plus `operations`
+  (`server/src/ops`) and `help` (the user guide). For each it finds the files, the record types and
+  API paths (`defineResource`), the pages (the web module's routes) and the areas it imports.
+  `node tools/ci/plan.mjs --areas` prints it. A changed file affects its own area and every area
+  whose files import it, directly or through other files. A change that is, or reaches, core
+  affects everything, and the reason names the file: the server's core and start-up, the web shell
+  and shared screens (`web/src/core`), the build and test configuration, the packages, the browser
+  test runner and these rules.
+- **The plan** (`tools/ci/plan.mjs`): the unit tests are the changed tests, the tests that import a
+  changed file (directly or through other files), the affected areas' own test folders (the server
+  folder for a server change, the web folder for a web change), the tests that name a changed file
+  that is not code (documentation, examples), and, for any change to a server module, the tests
+  marked `// ci: every module` on their first line (the route sweep, the API conventions and
+  description, the permission catalog, the template database). Every test runs when the packages,
+  the test configuration or set-up, the TypeScript settings, a core migration or `tools/ci` change.
+
+The browser suites are chosen by area with `tools/e2e/suite-map.mjs`, which lists every suite (a test
+fails on one that is missing) as one of:
+
+- `tour` (smoke, record journeys, roles, dialogs, keyboard by module, features off): with an area
+  filter they visit only the affected areas' pages (`window.__grcRouteModules` says which module owns
+  each route) and record types, plus the overview, by every role and theme they normally cover;
+- `always` (sign-in): every browser run;
+- `core` (the keyboard and shell suite, list features): only when everything is affected;
+- `area` (audits, governance, continuity...): only when one of its areas is affected.
+
+A changed suite file runs that suite in full. A test in a suite can say what it needs with `types:
+[...]` (record types) or `areas: [...]`; it is left out when the filter does not include them, and
+`everyShard: true` runs it on every machine of a shared-out run (the administrator's tour in the
+roles suite, which the other roles are compared with). A new suite goes in the map with its kind,
+its areas and about how many minutes it takes on GitHub.
+
+`tools/ci/areas.test.ts` checks the map: every module is an area, every web module's key is its
+folder name, every product file belongs to an area or to core, every record type the journeys drive
+belongs to an area, every suite is mapped to areas that exist, and the selection for sample changes
+(two pages of one module, a server module, core, documentation only, a changed suite).
 
 ### Actions (shared contract)
 
@@ -1046,6 +1149,11 @@ A module whose key sorts before `notifications` or `risks` adds its `notificatio
 `action_source` values in `register` (those lists are seeded after its own `seedDefaults`).
 
 ### Metrics (shared registry)
+
+Dashboard widgets can also read a module's figures directly (wave 27): a widget with `config.source`
+(`reports/widget-sources.ts`: `change_success`, the changes module's success rate, and
+`safety_indicators`, read through the safety module's `safetyIndicatorStatus` decorator) is worked
+out by that module, and the widget kind `measure` (`strategy/widget.ts`) shows one strategic measure.
 
 `core/metrics.ts` holds named monthly figures that one module offers and others read, so a computed
 safety performance indicator or key risk indicator never needs another module's tables (wave 10,
@@ -1150,7 +1258,10 @@ verifier). Wave 25 adds `evidence.expiry` (evidence about to lapse, for its owne
 `insurance.conditions`, `civilrights.complaints`, `civilrights.reports`, `strategy.submissions`,
 `audits.defects`, `audits.missed_inspections` and `policies.copy_recalls` (paper copies to recall), all
 `work` and `anyone`, and makes `governance.meetings` `named` (members without `governance.view` get their
-meetings, linking to `/governance/my-meetings/:id`; feeds specs take `named` and `link`, E45-67). The `work`
+meetings, linking to `/governance/my-meetings/:id`; feeds specs take `named` and `link`, E45-67). Wave 27 adds `procurement.invoice_approvals` (`work`),
+`procurement.invoices_due`, `fleet.maintenance` (planned maintenance due, for the interval's planner; `work`,
+`anyone`) and `training.my_certifications` (`work`, `named`: an employee's own renewals without
+`training.view`); `training.certifications` now leaves out certifications renewed by a later one. The `work`
 module also serves `GET /api/work/home` (where a person lands, from `home.role_homes`), `GET /api/work/waiting`
 (the count beside My work) and the Report a problem routes (`/api/work/report/*`: a safety report through the
 portal's intake, `safety/portal-intake.ts`, or a ticket, for everyone signed in). The `work` module (`server/src/modules/work`, `web/src/modules/work`, shapes in
@@ -1176,7 +1287,8 @@ A link to a part is stored with `part = '<prefix>:<key>'` (`step:<item>`, `area:
 reviewed (locked) workpaper step keeps its evidence (E45-19). Parts today: audits `step` on
 `audit_engagement`, funding `area` and `request` on `compliance_review`, evidence `period` on
 `obligation`, civil rights `element` on `civil_rights_program`. Wave 26 adds `procurement`,
-`purchase_order`, `insurance_policy`, `insurance_certificate` and `insurance_condition` to `LINK_TYPES`
+`purchase_order`, `insurance_policy`, `insurance_certificate` and `insurance_condition` to `LINK_TYPES`, wave 27
+`purchase_invoice`
 (and to `EVIDENCE_TYPES` in `web/src/core/RecordPage.tsx`, which mirrors it). On the web, `EvidencePanel` (`web/src/modules/evidence/EvidencePanel.tsx`) shows a
 record's or part's evidence (use existing, upload, remove, hidden counts). The shared record page
 adds an **Evidence** tab to every record of a linkable type by itself (unless the module has a tab
@@ -1321,7 +1433,8 @@ extensions, audit reports, funding certifications, meeting minutes, annual plan 
 performance targets (`safety_targets`), continuity plans, impact analysis sign-off (`bia_signoff`, by the process owner), asset condition targets, legal hold
 releases (`legal_hold_release`), privacy impact assessments, vendor offboarding sign-off
 (`vendor_offboarding`), records destruction (`records_destruction`), purchase orders
-(`purchase_order_approval`) and vehicle retirement (`vehicle_retirement`) are approval kinds. A committee decision may be applied through
+(`purchase_order_approval`), invoices (`purchase_invoice_approval`), risk appetite changes
+(`risk_appetite_change`) and vehicle retirement (`vehicle_retirement`) are approval kinds. A committee decision may be applied through
 `decide` with `opts.userId` set to the chair (E28-06), only when the chair may decide the current step.
 
 A step may have `branches` (2 to 5 units run side by side; step rows carry `branch` and
@@ -1411,10 +1524,10 @@ has filter, sort, saved view and export; every record shows its history.
 | `changes` | `change` → changes |
 | `vendors` | `vendor` → vendors, `contract` → contracts, `evidence_item` → evidence_items, `vendor_issue` → vendor_issues, `vendor_offboarding` → vendor_offboardings (child tables vendor_exclusion_checks, vendor_offboarding_items) |
 | `frameworks` | `framework` → frameworks, `framework_outcome` → framework_outcomes, `assessment_snapshot` → assessment_snapshots |
-| `risks` | `risk` → risks (flag, from the category; cybersecurity by default), `action` → actions (flag, inherited), `cap` → caps (flag, inherited), `obligation` → obligations, `regulatory_change` → regulatory_changes, `kri` → key_risk_indicators (flag, follows its risk); table risk_appetite_versions |
+| `risks` | `risk` → risks (flag, from the category; cybersecurity by default), `action` → actions (flag, inherited), `cap` → caps (flag, inherited), `obligation` → obligations, `regulatory_change` → regulatory_changes, `kri` → key_risk_indicators (flag, follows its risk); `risk_appetite_change` → risk_appetite_changes (status set by the application, through the "Risk appetite change" workflow, E46-53); table risk_appetite_versions |
 | `secincidents` | `security_incident` → security_incidents (restricted), `notification_task` → notification_tasks |
 | `policies` | `policy` (label **Document**) → policies, `policy_exception` → policy_exceptions; tables `policy_person_acknowledgements`, `policy_plan_elements`, `policy_plan_reviews`, `policy_version_translations`, `document_groups`, `document_imports`, `document_copies` and the other document-control tables (E43) |
-| `training` | `course` → courses, `exercise` → exercises, `certification` → certifications |
+| `training` | `course` → courses, `exercise` → exercises, `certification` → certifications (`position_id` and `department_id` copied from the roster and kept in step when a person is saved, E46-72) |
 | `people` | `person` → people, `position` → positions, `department` → departments (always on, not a feature area) |
 | `audits` | `audit_area` → audit_areas, `audit_engagement` → audits (flag), `checklist_template` → checklist_templates, `inspection_schedule` → inspection_schedules, `inspection` → inspections, `audit_finding` → audit_findings (flag, inherited from its audit), `audit_request` → audit_requests (flag, inherited), `defect` → defects (wave 26); tables audit_plans, workpaper_review_notes, audit_time_entries. The type is `audit_engagement` because `audit` would clash with the audit log (`GET /api/audit`, `audit.export`) |
 | `controls` | `control` → controls, `control_test` → control_tests (child table `control_test_samples`) |
@@ -1429,13 +1542,13 @@ has filter, sort, saved view and export; every record shows its history.
 | `registers` | `reg_<key>` → view `reg_<key>` of `register_records` (one per register an administrator defines; table `register_definitions`) |
 | `recordsretention` | `record_series` → record_series, `records_destruction` → records_destructions (evidence) |
 | `records` | `records_request` → records_requests (row rule: personal-data kinds need privacy.view; child table records_request_items), `privacy_assessment` → privacy_assessments |
-| `procurement` | `procurement` → procurements, `procurement_offer` → procurement_offers (row rule: before the award only `procurement.edit` holders and the evaluation committee read them; figures masked), `purchase_order` → purchase_orders (status set by the application), `purchase_order_line` → purchase_order_lines, `budget` → budgets, `budget_line` → budget_lines; tables procurement_criteria, procurement_evaluators, procurement_scores, procurement_addenda, procurement_protests, purchase_order_receipts |
-| `insurance` | `insurance_policy` → insurance_policies, `insurance_condition` → insurance_conditions, `insurance_requirement` → insurance_requirements, `insurance_certificate` → insurance_certificates, `insurance_claim` → insurance_claims (flag); table insurance_covered |
+| `procurement` | `procurement` → procurements, `procurement_offer` → procurement_offers (row rule: before the award only `procurement.edit` holders and the evaluation committee read them; figures masked), `purchase_order` → purchase_orders (status set by the application), `purchase_order_line` → purchase_order_lines, `budget` → budgets, `budget_line` → budget_lines, `purchase_invoice` → purchase_invoices (status set by the application), `purchase_invoice_line` → purchase_invoice_lines, `budget_version` → budget_versions (the adoption and each amendment, lines in budget_version_lines); tables procurement_criteria, procurement_evaluators, procurement_scores, procurement_addenda, procurement_protests, purchase_order_receipts |
+| `insurance` | `insurance_policy` → insurance_policies, `insurance_condition` → insurance_conditions, `insurance_requirement` → insurance_requirements, `insurance_certificate` → insurance_certificates, `insurance_claim` → insurance_claims (flag), `insurance_claim_payment` → insurance_claim_payments (restricted with its claim), `insurance_premium_share` → insurance_premium_shares, `insurance_schedule_item` → insurance_schedule_items (SOV-), `insurance_certificate_request` → insurance_certificate_requests (CIR-); table insurance_covered |
 | `civilrights` | `civil_rights_template` → civil_rights_templates, `civil_rights_program` → civil_rights_programs, `civil_rights_report` → civil_rights_reports, `civil_rights_complaint` → civil_rights_complaints (row rule: a confidential complaint only for its named handlers, investigator and creator; figures masked), `participation_goal` → civil_rights_goals, `participation_award` → civil_rights_awards; tables civil_rights_program_items, civil_rights_report_submissions, civil_rights_complaint_steps, civil_rights_complaint_viewers, civil_rights_award_firms, civil_rights_reminders |
 | `strategy` | `strategic_plan` → strategy_plans, `strategic_goal` → strategy_goals, `strategic_objective` → strategy_objectives, `strategic_measure` → strategy_measures, `measure_value` → strategy_measure_values, `strategic_initiative` → strategy_initiatives, `strategy_update` → strategy_updates, `stat_series` → strategy_stat_series, `stat_value` → strategy_stat_values, `stat_submission` → strategy_submissions (evidence) |
 | `vulnerabilities` | `vulnerability` → vulnerability_records (restricted) |
 | `projects` | `project` → projects, `cert_item` → project_cert_items, `cert_requirement` → project_cert_requirements (flag, inherited from its source: restricted when derived from a threat kept as a risk) |
-| `fleet` | `vehicle` → vehicles, `service` → services; table vehicle_retirement_requests |
+| `fleet` | `vehicle` → vehicles, `service` → services, `maintenance_interval` → maintenance_intervals (PMI-), `vehicle_reading` → vehicle_readings (RDG-, scoped by the vehicle's depot), `maintenance_record` → maintenance_records (PMR-, scoped by the vehicle's depot); table vehicle_retirement_requests |
 | `tags` | `inventory_count` → inventory_counts (child table inventory_count_items); tables tag_formats, tag_series, tag_ranges, tag_range_values, tag_stock_marks, tag_assignments, tag_lookups, tag_label_layouts, tag_verifications (no record type) |
 | `mobile` | no record type: the mobile app's devices, My work, settings, the offline package and the outbox answers (`mobile_sync_items`) (waves 13 and 14, area `mobile`) |
 | `push` | no record type: push notifications to the mobile app (tables `push_config`, `push_registrations`, `push_cursor`; part of the `mobile` area; `app.pushNotify(userIds)`, called by the notifications service) |
@@ -1461,8 +1574,8 @@ framework_outcome, assessment_snapshot → `frameworks`; risk → `risks`; actio
 `actions`; obligation → `obligations`; security_incident, notification_task → `security`;
 policy → `policies`; policy_exception → `exceptions`; course → `training`; exercise →
 `exercises`; vulnerability → `vulnerabilities`; project → `projects`; report_definition,
-report_schedule, report_pack → `reports`; dashboard → `dashboards`; vehicle, service →
-`fleet`; hazard, safety_event, safety_indicator → `safety`; cap → `actions`; regulatory_change →
+report_schedule, report_pack → `reports`; dashboard → `dashboards`; vehicle, service, maintenance_interval, vehicle_reading,
+maintenance_record → `fleet`; hazard, safety_event, safety_indicator → `safety`; cap → `actions`; regulatory_change →
 `obligations`; kri → `risks`; certification → `training`; person, position, department → `people`; audit_area,
 audit_engagement, checklist_template, inspection_schedule, inspection, audit_finding, audit_request →
 `audits`; control, control_test → `controls`; funding_award, funding_certification, compliance_review,
@@ -1472,8 +1585,9 @@ emergency_activation → `continuity`; asset_class, condition_assessment → `as
 ot_conduit, system_account, access_review → `systems`; legal_hold → `legal`; records_request → `records`; privacy_assessment →
 `privacy`; inventory_count → `tags`; cert_item, cert_requirement → `projects`; record_series,
 records_destruction → `records`; `reg_<key>` → the register's key (`<key>`); defect → `audits`; procurement, procurement_offer, purchase_order,
-purchase_order_line, budget, budget_line → `procurement`; insurance_policy, insurance_condition,
-insurance_requirement, insurance_certificate, insurance_claim → `insurance`; civil_rights_template,
+purchase_order_line, budget, budget_line, purchase_invoice, purchase_invoice_line, budget_version → `procurement`;
+insurance_policy, insurance_condition, insurance_requirement, insurance_certificate, insurance_claim,
+insurance_claim_payment, insurance_premium_share, insurance_schedule_item, insurance_certificate_request → `insurance`; civil_rights_template,
 civil_rights_program, civil_rights_report, civil_rights_complaint, participation_goal, participation_award →
 `civilrights`; strategic_plan, strategic_goal, strategic_objective, strategic_measure, measure_value,
 strategic_initiative, strategy_update, stat_series, stat_value, stat_submission → `strategy`.

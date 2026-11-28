@@ -245,6 +245,12 @@ export interface PdfOptions {
    * Page furniture, so it is an artifact: screen readers skip it; say the status in the text as well.
    */
   mark?: string | null;
+  /**
+   * A line at the top of every page, the first included (E46-57), such as "Controlled copy 3 · Invented
+   * depot binder": who a printed copy belongs to. Printed in bold, after the restricted line when there
+   * is one, in place of the running title. Page furniture (an artifact): say it in the text as well.
+   */
+  pageLine?: string | null;
   appName?: string;
   landscape?: boolean;
   /** A cover page with the title, subtitle and meta; the body starts on page 2. */
@@ -977,9 +983,13 @@ export class PdfBuilder {
           doc.restore();
           doc.fillOpacity(1);
         }
+        const pageLine = clean(this.opts.pageLine ?? '').trim();
         if (this.opts.watermark) {
           doc.fontSize(8).fillColor(DANGER);
-          this.write(this.opts.watermark, margins.left, 24, { width: w, align: 'center', lineBreak: false, ellipsis: true, bold: true });
+          this.write([this.opts.watermark, pageLine].filter(Boolean).join(' · '), margins.left, 24, { width: w, align: 'center', lineBreak: false, ellipsis: true, bold: true });
+        } else if (pageLine) {
+          doc.fontSize(8).fillColor(INK);
+          this.write(pageLine, margins.left, 24, { width: w, align: 'center', lineBreak: false, ellipsis: true, bold: true });
         } else if (i > 0) {
           doc.fontSize(8).fillColor(MUTED);
           this.write(this.opts.title, margins.left, 28, { width: w, lineBreak: false, ellipsis: true });

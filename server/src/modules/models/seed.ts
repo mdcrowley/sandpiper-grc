@@ -1,4 +1,5 @@
 import type { ModuleContext, Row, SeedOptions } from '../../core/module.ts';
+import { seedMaintenance } from '../fleet/seed-maintenance.ts';
 import { dayInZone } from '../../core/timezone.ts';
 
 /**
@@ -102,6 +103,9 @@ export async function seedModels(ctx: ModuleContext, opts: SeedOptions): Promise
     const bus = await ctx.db.one<Row>(`select id, model_overrides from vehicles where fleet_number = '1205' and deleted_at is null and model_id is not null`);
     if (bus && !(bus.model_overrides ?? []).includes('capacity')) await ctx.resources.update('vehicle', bus.id, { capacity: 72 });
     parts.push(`vehicle models ${VEHICLE_MODELS.length} (${made} new), ${given} vehicles given a model`);
+    // Wave 27 (E46-71): planned maintenance intervals for these models, with readings and services (fleet module).
+    const maintenance = await seedMaintenance(ctx);
+    if (maintenance) parts.push(maintenance);
   }
   return parts.join('; ') || 'skipped: fleet and inventory are not loaded';
 }

@@ -181,6 +181,8 @@ The list shows where each indicator stands without opening it:
 
 The tiles above the list count the indicators **Off target** and **On target** in their latest complete month. **On the dashboard** is in the column chooser.
 
+The **Board summary** dashboard shows how many active indicators missed their target in their latest complete month, and a line for each (see [Dashboards](15-dashboards-and-reports.md)).
+
 ### Add an indicator
 
 1. Select **New indicator**.

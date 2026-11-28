@@ -5,8 +5,10 @@ import { todayInZone } from '../../core/config.ts';
 import type { ModuleContext, Row, SessionUser } from '../../core/module.ts';
 import { AccessError, runReport, type ReportResult } from './query.ts';
 import { SpecError, type FilterGroup, type GlobalFilters, type ReportSpec } from './spec.ts';
+import { runSourced } from './widget-sources.ts';
+import { measureWidget } from '../strategy/widget.ts';
 
-export const WIDGET_KINDS = ['report', 'number', 'gauge', 'progress', 'chart', 'table', 'list', 'countdown', 'calendar', 'text', 'figure'] as const;
+export const WIDGET_KINDS = ['report', 'number', 'gauge', 'progress', 'chart', 'table', 'list', 'countdown', 'calendar', 'text', 'figure', 'measure'] as const;
 
 export interface Widget {
   id: string;
@@ -26,6 +28,8 @@ export interface WidgetData {
   value?: number | null;
   denominator?: number | null;
   trend?: { current: number; previous: number; days: number };
+  /** measure (E46-60): the strategic measure with its latest actual against target. */
+  measure?: Row;
 }
 
 const and = (...groups: (FilterGroup | undefined | null)[]): FilterGroup => ({ op: 'and', items: groups.filter((g): g is FilterGroup => Boolean(g && Array.isArray(g.items))) });
@@ -54,7 +58,17 @@ export async function runWidget(ctx: ModuleContext, user: SessionUser | null, wi
   const now = opts.now ?? new Date();
   try {
     if (widget.kind === 'text') return { status: 'ok' };
+    // Wave 27 (E46-54, E46-68): figures another module works out (`config.source`, widget-sources.ts).
+    const sourced = await runSourced(ctx, user, widget.kind, cfg, { globals: opts.globals, now });
+    if (sourced) return sourced;
     if (widget.kind === 'countdown' && !cfg.spec) return { status: 'ok' };
+    if (widget.kind === 'measure') {
+      // One strategic measure (E46-60, strategy/widget.ts): unavailable while the strategy area is off.
+      if (!cfg.measureId) return { status: 'error', message: 'This widget has not been set up yet.' };
+      const got = await measureWidget(ctx, user, String(cfg.measureId), Number(cfg.periods) || 8, now);
+      if (got.status !== 'ok') return { status: got.status, message: got.message };
+      return { status: 'ok', result: got.result as unknown as ReportResult, chart: { kind: 'table' }, measure: got.measure };
+    }
     if (widget.kind === 'figure') {
       // A recorded figure over time (E41-04): the same values for everyone, drawn as a line by default.
       const result = cfg.figureId ? await opts.loadFigure?.(String(cfg.figureId), Number(cfg.months) || 12) : null;

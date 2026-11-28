@@ -166,9 +166,17 @@ export function registerScimAdmin(ctx: ModuleContext) {
     const before = [...(g!.role_keys as string[])].sort();
     // A hidden role (its area is off) stays mapped: the form could not show it.
     const state = await featureState(db);
+    // E46-69: a role that gives no access (switched off under Roles, or of a switched-off area) is mapped
+    // all the same, so it works once switched on again, and the answer says so in `warnings`.
+    const warnings: string[] = [];
+    const off = roles.filter((r) => wanted.includes(r.key) && !r.enabled && !ownedOff(state, 'role', r.key));
+    if (off.length) warnings.push(`${off.map((r) => r.name).join(', ')} ${off.length === 1 ? 'is' : 'are'} switched off under Roles: the group's members get no access from ${off.length === 1 ? 'it' : 'them'} until switched on.`);
+    const areaOff = wanted.filter((k) => ownedOff(state, 'role', k) && !before.includes(k));
+    if (areaOff.length) warnings.push(`${areaOff.map((k) => `"${k}"`).join(', ')} ${areaOff.length === 1 ? 'belongs' : 'belong'} to an area that is switched off: the mapping gives no access from ${areaOff.length === 1 ? 'it' : 'them'} until the area is switched on under Administration > Features.`);
     for (const k of before) if (ownedOff(state, 'role', k) && !wanted.includes(k)) wanted.push(k);
     wanted.sort();
-    if (JSON.stringify(before) === JSON.stringify(wanted)) return db.one(`${GROUP_SELECT} where g.id = $1`, [id]);
+    const answer = async () => ({ ...(await db.one<Row>(`${GROUP_SELECT} where g.id = $1`, [id])), warnings });
+    if (JSON.stringify(before) === JSON.stringify(wanted)) return answer();
     await sensitive(ctx, req, `mapping the group "${g!.display_name}" to roles`);
     const changes: { userId: string; text: string }[] = [];
     await db.tx(async (tx) => {
@@ -188,11 +196,11 @@ export function registerScimAdmin(ctx: ModuleContext) {
       const name = (await db.one<{ username: string }>('select username from users where id = $1', [c.userId]))?.username ?? c.userId;
       await ctx.audit(req, { action: 'user.roles', recordType: 'user', recordId: c.userId, summary: `Roles of ${name} changed through the mapping of group "${g!.display_name}": ${c.text}` });
     }
-    return db.one(`${GROUP_SELECT} where g.id = $1`, [id]);
+    return answer();
   });
   d('PUT', '/api/admin/scim/groups/:id/roles', 'Map a provisioned group to roles', {
-    body: '{ roleKeys: ["agent", "auditor"] }', response: 'The group',
-    description: 'Needs a recent password confirmation. Roles that can administer are refused (400). The roles of every member are brought in step at once: roles given through groups are added and taken away; roles given by hand are never taken away. 409 `last_admin` when it would leave no administrator.',
+    body: '{ roleKeys: ["agent", "auditor"] }', response: 'The group, with `warnings` (strings) naming mapped roles that give no access: switched off under Roles or of a switched-off area',
+    description: 'Needs a recent password confirmation. Roles that can administer are refused (400). A role that is switched off, or of a switched-off area, is mapped with a warning. The roles of every member are brought in step at once: roles given through groups are added and taken away; roles given by hand are never taken away. 409 `last_admin` when it would leave no administrator.',
   });
 
   app.get('/api/admin/scim/groups/:id/members', admin, async (req) => {

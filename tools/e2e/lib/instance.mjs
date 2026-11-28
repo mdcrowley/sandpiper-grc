@@ -27,7 +27,7 @@ const tsxCli = join(repoRoot, 'node_modules/tsx/dist/cli.mjs');
 const viteCli = join(repoRoot, 'node_modules/vite/bin/vite.js');
 
 /** Passwords meet the default policy (14 characters or more). Invented, local, throw-away. */
-export const PASSWORD = 'Harbour-Tram-Signal-42';
+export const PASSWORD = 'Harbor-Tram-Signal-42';
 
 /** The default roles, in the order they are toured. */
 export const ROLES = ['administrator', 'agent', 'security_lead', 'project_manager', 'approver', 'executive_viewer', 'auditor', 'requester'];

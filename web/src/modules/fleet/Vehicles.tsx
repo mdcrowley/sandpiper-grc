@@ -7,6 +7,7 @@ import { Button, Loading, PageHeader, RecordPage, ResourceList, useAuth, useReso
 import type { Row } from '../../core';
 import { RetireDialog, RetirementTab } from './Retirement';
 import { EquipmentPanel } from './Equipment';
+import { VehicleMaintenanceTab } from './Maintenance';
 import { SafetyEventsCard } from './SafetyEvents';
 import { FleetTabs } from './shared';
 import { ListExtensionActions, useBulkExtensions, useExtensionTabs } from '../inventory/Extensions';
@@ -83,6 +84,8 @@ export function VehicleDetail() {
       summaryFields={['fleet_number', 'model_id', 'mode', 'status', 'depot_id', 'make', 'model', 'model_year', 'registration', 'in_service_date', 'capacity', 'funding_source', 'funder_interest', 'funder_interest_pct', 'notes']}
       tabs={[
         { key: 'equipment', label: 'Equipment', content: ({ row }) => <EquipmentPanel vehicleId={row.id} fleetNumber={row.fleet_number} retired={row.status === 'retired'} /> },
+        // Wave 27 (E46-71): next services, services done and the readings (mileage history).
+        { key: 'maintenance', label: 'Maintenance', content: ({ row }) => <VehicleMaintenanceTab vehicleId={row.id} /> },
         ...(condition && LazySection ? [{
           key: 'condition', label: 'Condition',
           content: ({ row }: { row: { id: string } }) => <Suspense fallback={<Loading lines={3} />}><LazySection recordType="vehicle" recordId={row.id} /></Suspense>,

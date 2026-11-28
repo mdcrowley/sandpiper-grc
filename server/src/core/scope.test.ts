@@ -88,6 +88,11 @@ async function placeValues(def: ResourceDef, kind: ScopeKind, place: string): Pr
     const series = t.core.resources.registry.get('record_series')!;
     return { series_id: await bareRow(series, { [series.scope![kind] as string]: place, [series.titleField]: 'Zseries' }) };
   }
+  // Readings and services of a vehicle (E46-71) belong where the vehicle is kept.
+  if (def.type === 'vehicle_reading' || def.type === 'maintenance_record') {
+    const vehicles = t.core.resources.registry.get('vehicle')!;
+    return { vehicle_id: await bareRow(vehicles, { [vehicles.scope![kind] as string]: place, fleet_number: `Z${def.type}${++roleCount}` }) };
+  }
   // Inspections, inspection schedules and condition assessments of a site: a target of type "site".
   return { target_type: 'site', target_id: place };
 }

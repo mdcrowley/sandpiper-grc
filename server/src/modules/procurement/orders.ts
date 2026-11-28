@@ -9,6 +9,8 @@ import { actorOf, dataLoadFor, isDataLoad } from '../../core/dataload.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { notePermission } from '../../core/permission-use.ts';
 import { todayInZone } from '../../core/timezone.ts';
+import { LINE_FIGURES_SQL } from './budgets.ts';
+import { rematchOrder } from './invoices.ts';
 import { COMMITTING } from './lists.ts';
 import { body, cents, cleanText, idParam, invalid, isDate, isInstant, num } from './shared.ts';
 
@@ -339,6 +341,7 @@ export function registerOrders(ctx: ModuleContext) {
         await tx.query('update purchase_order_lines set received_quantity = received_quantity + $2, updated_at = now() where id = $1', [w.line.id, w.qty]);
       }
     });
+    await rematchOrder(ctx, po.id);
     const after = await linesOf(po.id);
     const full = after.every((l) => num(l.received_quantity) >= num(l.quantity) - 1e-9);
     const status = full ? 'received' : 'partially_received';
@@ -365,29 +368,27 @@ export function registerOrders(ctx: ModuleContext) {
     if (!['draft', 'pending_approval', 'approved', 'issued'].includes(po.status)) ctx.fail(409, 'not_cancelable', `${po.ref} cannot be canceled from its status.`);
     const received = await db.one<Row>('select count(*)::int as n from purchase_order_receipts where purchase_order_id = $1', [po.id]);
     if (Number(received?.n) > 0) ctx.fail(409, 'has_receipts', 'Something was already received: close the order instead.');
+    const invoiced = await db.one<Row>(`select count(*)::int as n from purchase_invoices where purchase_order_id = $1 and deleted_at is null and status <> 'voided'`, [po.id]);
+    if (Number(invoiced?.n) > 0) ctx.fail(409, 'has_invoices', 'The vendor has invoiced this order: void its invoices first, or close the order.');
     const reason = cleanText(body(req).reason, 300);
     if (!reason) invalid(ctx, { reason: 'Say why the order is canceled.' });
     const eng = engine();
     if (eng && po.status === 'pending_approval') await eng.cancel(PO_KIND, po.id, `The order was canceled: ${reason}`, req);
     return move(req, po, 'canceled', { canceled_reason: reason }, `${po.ref} canceled: ${reason}`);
   });
-  ctx.describeRoute({ method: 'POST', path: '/api/purchase-orders/:id/cancel', tag: 'Procurement', permission: 'procurement.edit', summary: 'Cancel an order nothing was received against (a running approval is canceled too)', body: '{ reason }', response: 'the purchase order' });
+  ctx.describeRoute({ method: 'POST', path: '/api/purchase-orders/:id/cancel', tag: 'Procurement', permission: 'procurement.edit', summary: 'Cancel an order nothing was received or invoiced against (a running approval is canceled too)', body: '{ reason }', response: 'the purchase order' });
 
   // ---------- the budget lines an order is charged to ----------
 
   app.get('/api/purchase-orders/:id/budget-check', { preHandler: ctx.requirePerm('procurement.view') }, async (req) => {
     const po = await need(req);
-    // Figures: what each budget line holds, has committed and has spent, counting every order.
+    // Figures: what each budget line holds, has committed and has spent (paid invoices), counting every order.
     const rows = await db.query<Row>(
-      `with mine as (select budget_line_id, sum(amount) as this_order from purchase_order_lines where purchase_order_id = $1 and deleted_at is null and budget_line_id is not null group by budget_line_id)
-       select b.id, b.ref, b.title, b.account, b.amount, m.this_order,
-              coalesce((select sum(case when p.status = any($2::text[]) then l.amount - l.received_quantity * l.unit_price else 0 end)
-                        from purchase_order_lines l join purchase_orders p on p.id = l.purchase_order_id and p.deleted_at is null
-                        where l.budget_line_id = b.id and l.deleted_at is null), 0) as committed,
-              coalesce((select sum(l.received_quantity * l.unit_price) from purchase_order_lines l join purchase_orders p on p.id = l.purchase_order_id and p.deleted_at is null
-                        where l.budget_line_id = b.id and l.deleted_at is null and p.status <> 'canceled'), 0) as spent
-       from mine m join budget_lines b on b.id = m.budget_line_id and b.deleted_at is null order by b.ref`, [po.id, COMMITTING]);
-    const counted = COMMITTING.includes(po.status) || ['received', 'closed', 'partially_received'].includes(po.status);
+      `with mine as (select budget_line_id, sum(amount) as this_order from purchase_order_lines where purchase_order_id = $2 and deleted_at is null and budget_line_id is not null group by budget_line_id),
+            f as (${LINE_FIGURES_SQL})
+       select b.id, b.ref, b.title, b.account, b.amount, m.this_order, coalesce(f.committed, 0) as committed, coalesce(f.spent, 0) as spent
+       from mine m join budget_lines b on b.id = m.budget_line_id and b.deleted_at is null left join f on f.id = b.id order by b.ref`, [COMMITTING, po.id]);
+    const counted = COMMITTING.includes(po.status) || po.status === 'closed';
     return rows.map((r) => {
       const amount = num(r.amount); const committed = num(r.committed); const spent = num(r.spent);
       const remaining = cents(amount - committed - spent);

@@ -13,7 +13,7 @@ const mod: ModuleDef = {
     // filter. Under Vendors > Evidence (E44-06: it needs the vendors permission to be offered there); the evidence library's
     // Expiring tab shows the same page.
     { group: 'Vendors', label: 'Expiring evidence', path: '/attachments/expiring', icon: 'clock', permission: 'vendors.view', order: 32, menu: false, parent: '/evidence', tab: 'Expiring' },
-    { group: 'Administration', label: 'File settings', path: '/admin/attachments', icon: 'upload', permission: 'admin.administer', order: 63, menu: false, hub: 'Data and operations', hint: 'Allowed file types, size limits, malware scanning and storage.' },
+    { group: 'Administration', label: 'File settings', path: '/admin/attachments', icon: 'upload', permission: 'admin.administer', order: 63, menu: false, hub: 'Data and operations', hint: 'Allowed file types, size limits, malware scanning, the languages scans are read in, and storage.' },
     { group: 'Administration', label: 'Backups', path: '/admin/backups', icon: 'database', permission: 'admin.administer', order: 64, menu: false, hub: 'Data and operations', hint: 'The daily verified copy and how many to keep.' },
   ],
   routes: [

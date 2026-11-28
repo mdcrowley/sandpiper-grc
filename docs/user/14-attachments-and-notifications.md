@@ -99,7 +99,7 @@ The search at the top of every page finds a record by the words inside its PDF, 
 
 - The text is read in the background a minute or so after a file is attached, so a new file is not found at once. Files attached before this was added are read too, newest first.
 - What you find follows the record, exactly as the files do: you only find records you can open, and a restricted record's files only if your role lets you see restricted records.
-- A scanned PDF that holds only pictures of pages is read by OCR (optical character recognition): the pictures on its first 50 pages are read on the server, in the same separate reader with its own time limit (five minutes) and memory limit, with the English language data that comes with the application. Nothing is downloaded and nothing is sent elsewhere. OCR can make reading mistakes, so a word may be missed. An administrator can switch OCR off, or add languages, with the settings in the installation guide; where it is off, a scan has no text to find. Files larger than 25 MB, and files that cannot be read in 30 seconds or would need too much memory to read, are not read. Only the first 300,000 characters of a file are searched.
+- A scanned PDF that holds only pictures of pages is read by OCR (optical character recognition): the pictures on its first 50 pages are read on the server, in the same separate reader with its own time limit (five minutes) and memory limit, in the languages an administrator chose under **Administration > File settings > Reading scans** (English to begin with; the application comes with English and Spanish). Nothing is downloaded and nothing is sent elsewhere. OCR can make reading mistakes, so a word may be missed. The person running the server can switch OCR off, or offer other languages, with the settings in the installation guide; where it is off, a scan has no text to find. Files larger than 25 MB, and files that cannot be read in 30 seconds or would need too much memory to read, are not read. Only the first 300,000 characters of a file are searched.
 - Each file is read apart from the rest of the application, so a damaged or deliberately harmful file cannot slow it down or stop it. A file whose reading had to be stopped is tried once more; if that fails too, it is left unread for good and is found by its name only.
 - Files a vendor sends through a response link are not read while they wait for review; their text is read once someone takes them over (see [Files from the vendor](04-vendors-and-contracts.md#files-from-the-vendor)).
 - When a file is removed its text is forgotten at once; if an administrator puts the file back, it is read again.
@@ -175,7 +175,7 @@ The owner of the record is reminded as an evidence file's expiry date approaches
 
 ## File settings
 
-*Administrators.* Open **Administration > File settings** (a card on the **Administration** page). Four tiles at the top show the **Files in use**, the files **Removed, waiting to be purged**, how many are **Not scanned for malware**, and where **New files go to**, each with its size. Below them are four tabs. Changes on the **Malware scanning**, **Storage** and **Removed files** tabs ask you to confirm your password if you have not done so in the last few minutes. Every change is kept in the audit log.
+*Administrators.* Open **Administration > File settings** (a card on the **Administration** page). Four tiles at the top show the **Files in use**, the files **Removed, waiting to be purged**, how many are **Not scanned for malware**, and where **New files go to**, each with its size. Below them are five tabs. Changes on the **Malware scanning**, **Storage** and **Removed files** tabs ask you to confirm your password if you have not done so in the last few minutes. Every change is kept in the audit log.
 
 ### Uploads
 
@@ -207,6 +207,18 @@ Select **Test connection** to ask the scanner for its version: the page shows th
 - A file found to contain malware is refused and its content deleted; the refusal, with the name of what was found, is kept in the audit log.
 - A file accepted without a scan is marked **Not scanned**, and the audit log says why.
 - **Files attached without a scan** shows how many files in use were never scanned. Select **Scan files attached earlier** to scan them all in the background: a progress bar shows how many have been checked, and you can leave the page and keep working; the application carries on. When it finishes, the card shows how many were clean, infected or could not be checked. Only one scan runs at a time, and it also appears under **Background jobs**. A file found to contain malware is removed at once, its content deleted, and every administrator is notified; the audit log names the file and its record (action `attachment.quarantine`).
+
+### Reading scans
+
+A PDF that holds only pictures of pages (a scan) is read by OCR on the server so that search finds it by its words (see [Finding a record by what its files say](#finding-a-record-by-what-its-files-say)). The **Reading scans** tab chooses the languages it is read in.
+
+1. Under **Read scans in**, check the languages your scanned documents are written in. The application comes with **English** and **Spanish**; the list shows every language whose data is installed. Each extra language makes reading slower, so choose only those you need (at most four).
+2. To read again the scans that were already read (for example after adding Spanish for Spanish-language notices), check **Also read again the scans already read by OCR**. Scans not read yet (OCR was off, or their language was missing) are always read again.
+3. Select **Save languages**. The scans go back in the reading queue and are read in the background; the hint under the check box says how many were read before and how many are waiting.
+
+- Nothing is downloaded: a language can be chosen only when its data file is installed. The person running the server can offer other languages by putting their Tesseract language files (`<code>.traineddata.gz`) in a folder named by `GRC_OCR_LANG_DIR` (see the installation guide). Until a choice is saved here, the server setting `GRC_OCR_LANGS` (or English) applies.
+- When OCR is switched off on the server (`GRC_OCR=off`) or the OCR engine is not installed, the tab says so and the choice cannot be changed.
+- Saving the languages, and putting scans back in the queue, are kept in the audit log.
 
 ### Storage
 
@@ -325,7 +337,7 @@ To delete a notification, select the bin button at the end of its row. **Delete 
 
 Other parts of the application may add kinds of their own, and an administrator can add more under **Lists** (the list `notification_kind`). They appear in everyone's preferences.
 
-Besides the notifications each part of the application sends as things happen, these reminders are sent by themselves. How far ahead each one goes out is set by your administrator under **Administration** > **Reminders**.
+Besides the notifications each part of the application sends as things happen, these reminders are sent by themselves. How far ahead each one goes out is set by your administrator under **Administration** > **Reminders**, which lists only the reminders of the parts of the application that are switched on.
 
 | Reminder | Who is told | When |
 |---|---|---|

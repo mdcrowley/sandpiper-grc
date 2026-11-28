@@ -400,6 +400,12 @@ File formats are documented in [Installation](installation.md#5-load-data).
   the self-service portal at phone and desktop widths). Continuous integration runs it on the embedded
   database and runs the smoke, records and portal suites again on PostgreSQL 17 (`E2E_DATABASE_URL`).
   The accessibility audit (`tools/a11y`) runs axe-core on every route after it.
+- Continuous integration checks what a change needs (wave 27, `tools/ci`): an import graph of every
+  code file and an area map generated from the modules (their files, record types, pages and
+  imports) give the unit tests, browser suites and jobs a change affects; a change that reaches core
+  affects everything. The tours over every page then visit only the affected areas' pages. Unit test
+  databases start from a migrated template made once per run. Everything runs nightly and on a
+  version tag. See [Change-based CI](development.md#change-based-ci).
 - `server/src/core/route-sweep.test.ts` (E40-05) walks every registered route: signed out each
   non-public route answers 401, a person with no role is refused (403 or 404) on every route that
   names a permission and never meets a server error, and with every optional area switched off each

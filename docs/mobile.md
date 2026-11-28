@@ -408,10 +408,11 @@ An organization can build its own copy, for example with its name and icon, sign
 
 ## Continuous integration
 
-The `mobile` job in `.github/workflows/ci.yml` runs on every push and pull request (actions pinned by
-commit):
+The `mobile` job in `.github/workflows/ci.yml` runs when `mobile/`, `packages/api-client/` or `shared/`
+change, nightly and on a version tag (actions pinned by commit); the API client freshness check is
+its own job (`api-client`), run whenever server code changes:
 
-- **android** (Linux): the API client freshness check, `npm run typecheck`, `npm test`, `expo prebuild`
+- **android** (Linux): `npm run typecheck`, `npm test`, `expo prebuild`
   and `./gradlew assembleRelease`; the unsigned APK is kept as an artifact for 30 days.
 - **ios** (macOS): `expo prebuild`, `pod install`, and `xcodebuild` Release builds for the simulator
   and for devices, unsigned.

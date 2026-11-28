@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { Row } from '../../core/module.ts';
 import { dayInZone } from '../../core/timezone.ts';
 import { testApp } from '../../test/helpers.ts';
@@ -12,7 +12,9 @@ let t: Awaited<ReturnType<typeof testApp>>;
 type Client = Awaited<ReturnType<typeof t.as>>;
 let lead: Client;
 let pm: Client;
-const today = dayInZone();
+let today = dayInZone();
+// Worked out again before each test, so a run that crosses midnight compares with the day the server uses.
+beforeEach(() => { today = dayInZone(); });
 let vehicleId = '';
 let siteId = '';
 

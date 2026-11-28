@@ -2,10 +2,10 @@
 // `dashboards.view`, and the two "mine" endpoints (acknowledgments, training) need no
 // permission at all because they return the signed-in person's own records.
 import {
-  ApiError, Countdown, StatusChip, api, listQuery, lookupColor, relativeTime, useAuth, useFetch, useLookup,
+  ApiError, Countdown, StatusChip, api, formatDate, listQuery, lookupColor, relativeTime, useAuth, useFetch, useLookup,
 } from '../../core';
 import type { ListResult } from '../../core';
-import { useCallback, useContext } from 'react';
+import { useCallback, useContext, useEffect } from 'react';
 import { useApprovalInbox } from '../workflows/inbox';
 import { DueChip, WorkCard, WorkTally, type WorkItem } from './parts';
 import type { WidgetDef } from './types';
@@ -126,6 +126,44 @@ function MyTraining() {
   );
 }
 
+interface MineCertifications {
+  person: { id: string } | null;
+  rows: { id: string; ref: string | null; label: string; expires_on: string | null; days_left: number | null; state: string }[];
+}
+
+/** When a certification runs out: red once expired, amber within 30 days. */
+function ExpiryChip({ days, date }: { days: number | null; date: string | null }) {
+  if (days === null || !date) return <span className="muted">Does not expire</span>;
+  if (days < 0) return <StatusChip color="red" label={`Expired ${-days} ${days === -1 ? 'day' : 'days'} ago`} />;
+  if (days === 0) return <StatusChip color="amber" label="Expires today" />;
+  if (days <= 30) return <StatusChip color="amber" label={`Expires in ${days} ${days === 1 ? 'day' : 'days'}`} />;
+  return <StatusChip color="gray" label={`Expires ${formatDate(date)}`} />;
+}
+
+/**
+ * The person's own certifications and when each expires (E46-70), for everyone on the roster. Something to
+ * know, not work to do: renewals due are already counted in My due work, so this card is not counted as waiting.
+ */
+function MyCertifications() {
+  const { data, error, reload } = useFetch<MineCertifications>('/api/training/mine/certifications');
+  const parent = useContext(WorkTally);
+  const report = useCallback((id: string, n: number | null) => parent(id, n === null ? null : 0), [parent]);
+  // Not on the roster (or the training module is not there): no card, and nothing waiting from it.
+  const hidden = absent(error) || Boolean(data && !data.person);
+  useEffect(() => { if (hidden) parent('my-certifications', 0); }, [hidden, parent]);
+  if (hidden) return null;
+  const held = data?.rows.filter((r) => r.state !== 'renewed' && r.state !== 'inactive');
+  const items = held?.slice(0, ROWS).map((r): WorkItem => ({
+    key: r.id, to: '/training/mine', title: r.label, reference: r.ref, meta: <ExpiryChip days={r.days_left} date={r.expires_on} />,
+  }));
+  return (
+    <WorkTally.Provider value={report}>
+      <WorkCard id="my-certifications" title="My certifications" icon="star" to="/training/mine"
+        items={items} count={held?.length} error={error} reload={reload} emptyText="You have no certifications on record." />
+    </WorkTally.Provider>
+  );
+}
+
 interface MineNotifications {
   rows: { id: string; title: string; route: string | null; created_at: string }[];
   total: number;
@@ -201,6 +239,10 @@ export const MY_WORK_WIDGETS: WidgetDef[] = [
   {
     id: 'my-training', title: 'My training', group: 'mywork', description: 'Courses assigned to you that you have not completed.',
     visible: (ctx) => ctx.hasModule('training'), render: () => <MyTraining />,
+  },
+  {
+    id: 'my-certifications', title: 'My certifications', group: 'mywork', description: 'Your certifications and when each expires. Not counted as work waiting.',
+    visible: (ctx) => ctx.hasModule('training'), render: () => <MyCertifications />,
   },
   {
     id: 'my-notifications', title: 'My notifications', group: 'mywork', description: 'Your unread notifications. Not counted as work waiting.',

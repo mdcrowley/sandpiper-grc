@@ -10,8 +10,8 @@ export function useOffTypes(): Set<string> | undefined {
   return useMemo(() => (off.data ? new Set(off.data.types) : off.error ? new Set<string>() : undefined), [off.data, off.error]);
 }
 
-// A figure over time (E41-04) keeps the record type it counts beside its id.
-const widgetType = (w: Widget) => { const c = w.config as { spec?: { type?: unknown }; figureType?: unknown } | undefined; return c?.spec?.type ?? c?.figureType; };
+// A figure over time (E41-04) keeps the record type it counts beside its id; a measure widget (E46-60) its record type.
+const widgetType = (w: Widget) => { const c = w.config as { spec?: { type?: unknown }; figureType?: unknown; recordType?: unknown } | undefined; return c?.spec?.type ?? c?.figureType ?? c?.recordType; };
 
 /** A widget about a record type of a switched-off area. */
 export const widgetOff = (w: Widget, off: Set<string>) => { const t = widgetType(w); return typeof t === 'string' && off.has(t); };

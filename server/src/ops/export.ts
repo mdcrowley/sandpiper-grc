@@ -78,6 +78,8 @@ export const SECRET_COLUMNS: Record<string, Record<string, unknown>> = {
   scim_tokens: { token_hash: unusable },
   calendar_feeds: { token_hash: unusable },
   activation_callout_recipients: { token_hash: unusable },
+  // A vendor's certificate upload link (insurance, E46-65): unusable in the copy, and the sealed secret for reminders goes.
+  insurance_certificate_requests: { token_hash: unusable, token_sealed: null },
   // The work-tracker bridge (feeds module): its address and both secrets are sealed; a copy without secrets
   // keeps the connector switched off and empty, to be entered again.
   ticket_connectors: { url_sealed: '', secret_sealed: '', inbound_secret_sealed: '', active: false },

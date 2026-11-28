@@ -1,3 +1,4 @@
+// ci: every module (tools/ci/plan.mjs runs this for a change to any server module)
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ensureMail } from './mail/index.ts';
 import { startSmtpSink, type SmtpSink } from './mail/smtp-sink.ts';

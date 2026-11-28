@@ -51,3 +51,8 @@
 
 /* Wave 26: the buttons of the Retirement tab. */
 .fl-retire-actions { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+
+/* Planned maintenance (E46-71). */
+.fl-late { color: var(--c-red-fg); font-weight: 600; }
+.fl-sub { font-size: var(--fs-sm); }
+.table td.fl-wrap { white-space: normal; min-width: 12ch; max-width: 30ch; overflow-wrap: anywhere; }

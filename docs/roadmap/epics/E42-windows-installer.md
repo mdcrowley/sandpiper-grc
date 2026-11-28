@@ -104,7 +104,7 @@ run, nothing at sign-in.
 - [x] A workflow builds the installer on `windows-latest`, installs it silently, checks the service and `/api/ready`, signs in, upgrades to a version-bumped build checking the data survives, forces a failed upgrade and checks the rollback, refuses an older installer, and uninstalls checking the data is kept
 - [x] On a version tag the tested installer and `SHA256SUMS.txt` are attached to the GitHub release
 - [x] The same test script passed on a Windows 11 workstation (domain-joined, with endpoint protection), elevated by a person at the UAC prompt
-- [ ] The workflow has run green on GitHub (it needs a push)
+- [x] The workflow has run green on GitHub (on commits d81d5a2, 65af684 and later)
 - [ ] On a real Windows Server: install through the pages by hand, restart the machine and see the service come back, HTTPS with a real certificate reached from another computer through the firewall rule, an upgrade between two published releases
 
 ### E42-08 Installer hardening: folders made in advance, the program folder's permissions, service privileges, links

@@ -77,15 +77,19 @@ The pull request template repeats this as a checklist.
 .\grc.ps1 build          # npm run build: the production web build
 ```
 
-Run `.\grc.ps1 ci` (or `./grc.sh ci`: typecheck, tests, the tests again on UTC, the web
-build, and the dependency audit, which is skipped without a network) before every commit
-and push. GitHub Actions runs the same checks on Windows
-and Linux for every push and pull request, and also the tests on a PostgreSQL server,
-installation on Linux and macOS, the container image, the browser suite and the
-accessibility audit ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)); a pull
-request must pass them before it is merged. Locally, run only the browser suites your
-change touches (`npm run test:e2e -- --only <suites>`). Dependabot proposes dependency
-updates weekly ([`.github/dependabot.yml`](.github/dependabot.yml)).
+Run `.\grc.ps1 ci` (or `./grc.sh ci`) before every commit and push. It checks what your change
+needs, compared with the merge base with `main`: the typecheck, the unit tests the change needs
+(then again on UTC), the web build and the dependency audit when what they use changed, and it
+prints what it skipped and why. `.\grc.ps1 ci -Full` (`./grc.sh ci --full`) runs everything;
+`-Plan` (`--plan`) prints the plan only. GitHub Actions does the same for every push and pull
+request, and runs everything nightly ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)):
+the unit tests on Linux and Windows and on a PostgreSQL server, installation on Linux, macOS and
+Windows, the container image, the browser suites over the affected areas' pages, the
+accessibility audit and the mobile app, as the change needs; a pull request must pass the
+**CI result** check before it is merged. Locally, run the browser tests your change needs with
+`npm run test:e2e -- --affected`. Dependabot proposes dependency updates weekly
+([`.github/dependabot.yml`](.github/dependabot.yml)). See
+[Change-based CI](docs/development.md#change-based-ci).
 
 - Tests live beside the code as `*.test.ts` and use `testApp()` from
   `server/src/test/helpers.ts`: an in-memory application with a signed-in administrator,

@@ -26,9 +26,11 @@ beforeAll(async () => {
   approver = await t.as('approver');
   viewer = await t.as('po_viewer');
   const year = dayInZone().slice(0, 4);
-  budget = (await officer.post('/api/budgets', { name: 'Invented budget', fiscal_year: `FY ${year}`, starts_on: `${year}-01-01`, ends_on: `${year}-12-31`, status: 'adopted' })).body;
+  budget = (await officer.post('/api/budgets', { name: 'Invented budget', fiscal_year: `FY ${year}`, starts_on: `${year}-01-01`, ends_on: `${year}-12-31` })).body;
   parts = (await officer.post('/api/budget-lines', { budget_id: budget.id, title: 'Invented parts', kind: 'operating', account: '50-1000', amount: 10000 })).body;
   capital = (await officer.post('/api/budget-lines', { budget_id: budget.id, title: 'Invented depot lift', kind: 'capital', account: '70-1000', amount: 50000 })).body;
+  const adopted = await officer.post('/api/budget-versions', { budget_id: budget.id, kind: 'adopted', approved_on: dayInZone(0), decision: 'Invented board resolution' });
+  expect(adopted.status, JSON.stringify(adopted.body)).toBe(201);
 }, 60_000);
 afterAll(async () => { await t?.close(); });
 
@@ -90,12 +92,13 @@ describe('purchase orders', () => {
     expect(part.status).toBe(201);
     expect(part.body.status).toBe('partially_received');
     fig = (await viewer.get(`/api/budgets/${budget.id}/figures`)).body;
-    expect(fig.lines.find((l: Row) => l.id === parts.id)).toMatchObject({ committed: 1600, spent: 1500, remaining: 6900 });
+    // Received but not paid stays committed: spent is what paid invoices charged (E46-66).
+    expect(fig.lines.find((l: Row) => l.id === parts.id)).toMatchObject({ committed: 3100, spent: 0, remaining: 6900 });
     const rest = await officer.post(`/api/purchase-orders/${po.id}/receipts`, { lines: [{ line_id: lines[1].id, quantity: 4 }], received_on: dayInZone(-1) });
     expect(rest.body).toMatchObject({ status: 'received', received_on: dayInZone(-1) });
     expect((await viewer.get(`/api/purchase-orders/${po.id}/receipts`)).body).toHaveLength(2);
     fig = (await viewer.get(`/api/budgets/${budget.id}/figures`)).body;
-    expect(fig.totals).toMatchObject({ amount: 60000, committed: 0, spent: 3100, remaining: 56900 });
+    expect(fig.totals).toMatchObject({ amount: 60000, adopted: 60000, committed: 3100, spent: 0, remaining: 56900 });
     expect((await officer.post(`/api/purchase-orders/${po.id}/close`, {})).body.status).toBe('closed');
   });
 
@@ -112,7 +115,7 @@ describe('purchase orders', () => {
     await officer.post(`/api/purchase-orders/${po.id}/receipts`, { lines: [{ line_id: line.id, quantity: 4 }] });
     expect((await officer.post(`/api/purchase-orders/${po.id}/cancel`, { reason: 'x' })).status).toBe(409);
     const before = (await viewer.get(`/api/budget-lines/${parts.id}/figures`)).body;
-    expect(before.committed).toBe(300);
+    expect(before.committed).toBe(500);
     await officer.post(`/api/purchase-orders/${po.id}/close`, {});
     const after = (await viewer.get(`/api/budget-lines/${parts.id}/figures`)).body;
     expect(after.committed).toBe(0);
@@ -160,8 +163,21 @@ describe('purchase orders', () => {
       const line = await t.api.post('/api/purchase-order-lines', { purchase_order_id: po.body.id, description: 'Tire', quantity: 12, unit_price: 300, received_quantity: 12, budget_line_id: parts.id });
       expect(line.status, JSON.stringify(line.body)).toBe(201);
       expect(Number((await t.api.get(`/api/purchase-orders/${po.body.id}`)).body.total)).toBe(3600);
+      const before = (await viewer.get(`/api/budget-lines/${parts.id}/figures`)).body;
+      // A past invoice, loaded as paid with its approval and payment: the line's spent follows it.
+      const inv = await t.api.post('/api/purchase-invoices', {
+        purchase_order_id: po.body.id, invoice_number: 'IT-2018-77', invoice_date: '2018-05-03', status: 'paid', ref: 'INV-2018-0007',
+        approved_by_name: 'Olive Oldclerk', approved_at: '2018-05-10T10:00:00Z', paid_on: '2018-05-20', payment_reference: 'CHK 10442', payment_method: 'check',
+        created_at: '2018-05-04T09:00:00Z', on_behalf_of: 'oldclerk',
+      });
+      expect(inv.status, JSON.stringify(inv.body)).toBe(201);
+      expect(inv.body).toMatchObject({ ref: 'INV-2018-0007', status: 'paid', paid_on: '2018-05-20', entered_by_name: 'Olive Oldclerk' });
+      const il = await t.api.post('/api/purchase-invoice-lines', { invoice_id: inv.body.id, po_line_id: line.body.id, quantity: 12 });
+      expect(il.status, JSON.stringify(il.body)).toBe(201);
+      expect((await t.api.get(`/api/purchase-invoices/${inv.body.id}`)).body).toMatchObject({ amount: expect.anything(), match_status: 'matched' });
       const f = (await viewer.get(`/api/budget-lines/${parts.id}/figures`)).body;
-      expect(f.spent).toBeGreaterThanOrEqual(3600);
+      expect(f.spent - before.spent).toBe(3600);
+      expect(f.orders.find((o: Row) => o.id === po.body.id)).toMatchObject({ amount: 3600, received: 3600, paid: 3600 });
     } finally {
       await t.api.post('/api/admin/data-load', { on: false });
     }

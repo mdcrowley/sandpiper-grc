@@ -47,7 +47,7 @@ From the evidence record:
 2. Choose the **Kind of record** (only the kinds you may edit are offered) and the record.
 3. Choose **How it relates**, add a note if you like, and select **Link**.
 
-From another record, open its **Evidence** tab. Every record page of a kind evidence is linked to has one (controls, control tests, obligations, audits, audit evidence requests and findings, corrective action plans, actions, framework outcomes, documents, risks, vendor evidence items, funding awards and certifications), shown while the library is on and you may view it; parts of records (an obligation's periods, a funder review's areas and document requests, an audit's workpaper steps) have the same panel where they are shown. It offers:
+From another record, open its **Evidence** tab. Every record page of a kind evidence is linked to has one (controls, control tests, obligations, audits, audit evidence requests and findings, corrective action plans, actions, framework outcomes, documents, risks, vendor evidence items, funding awards and certifications, procurements, purchase orders and invoices, insurance policies, certificates and conditions), shown while the library is on and you may view it; parts of records (an obligation's periods, a funder review's areas and document requests, an audit's workpaper steps) have the same panel where they are shown. It offers:
 
 - **Use existing evidence**: pick an evidence record already in the library. Nothing is uploaded again.
 - **Upload a file**: the file is filed once as a new evidence record (with the title and **Valid until** you give, owned by you) and linked at once. This needs `evidence.create` as well.

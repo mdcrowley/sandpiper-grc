@@ -330,9 +330,27 @@ The safety hazard matrix can also be changed by a safety administrator under **S
 
 The risk appetite says, for each risk category, how much risk the organization is willing to accept. It is usually approved by the board or a risk committee, so the application keeps every version. Open **Risk and compliance > Risk register** and the **Appetite** tab (anyone with **View** on **Risks**), or **Risk appetite** on the **Administration** page. Each category has a card, named with the scale its risks are scored on, showing the appetite in force: the statement, the highest acceptable rating and score, who approved it, in which body and when, its version number, and who recorded it in the application and why.
 
-To change a category's appetite (needs **Administer** on **Risks**):
+A change can be approved in the application, through the **Risk appetite change** approval workflow, or approved elsewhere (at a board meeting, by a committee decision) and recorded here. Both need **Administer** on **Risks**.
 
-1. Select **Record a new version** (or **Set the appetite** for a category with none) on its card.
+### Sending a change for approval
+
+While a **Risk appetite change** workflow is active (a new installation has one: a single step decided by anyone with **Approve** on **Risks**, never the person who asked; change it under [Approval workflows](22-approval-workflows.md)), a category's card offers **Change the appetite**:
+
+1. Select **Change the appetite**, and keep **Send for approval** chosen at the top of the form.
+2. Give the **Appetite statement**, **Highest acceptable rating** and **Highest acceptable score** asked for, and **Why it is changing** (the approvers see it, and it is kept with the version once approved). There are no approval fields: the workflow supplies them.
+3. Select **Send for approval** (or **Ask to remove the appetite** to ask for the category's appetite to be removed).
+
+The appetite in force does not change yet. The card shows **Change waiting for approval** with the request's number (**RAC-** numbers), what was asked for, who asked and when, and **Withdraw the request** (for the person who asked, or anyone who administers risks). The approvers find it on their **Approvals** page and in their notifications; the request has its own page (select its number) with the approval panel. One request per category waits at a time, and what a request asks for cannot be changed: withdraw it and ask again.
+
+- **Approved**: the change is recorded as the category's next version, with the approver as **Approved by**, the day of the approval as **Approved on**, the workflow as the approving body (for example: Approval workflow "Risk appetite change") and the request's number as the reference; every risk is checked against it at once. If the category's scale no longer has the rating asked for, nothing is recorded and the workflow shows why.
+- **Rejected** or **Withdrawn**: the appetite stays as it was; the request keeps the reason.
+- **Superseded**: a version recorded directly for the category (below) while the request waited ends the request.
+
+**Changes sent for approval**, under the cards, lists the latest requests with their status, and **Risk appetite changes** (address `/risks/appetite/changes`) lists them all. In data load mode no workflow runs: a past request can be loaded with its outcome (approved, rejected, withdrawn or superseded) and dates, while the approved appetite itself is loaded as versions.
+
+### Recording an approval given elsewhere
+
+1. Select **Record a new version** (or **Set the appetite** for a category with none) on its card; while an approval workflow is active, select **Change the appetite** and choose **Record an approval given**.
 2. Change what the new version says:
 
    | Field | What to put in it |

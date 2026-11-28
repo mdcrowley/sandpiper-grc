@@ -5,7 +5,8 @@ import type { ModuleContext } from '../../core/module.ts';
 export const LISTS = [
   'insurance_line', 'insurer_kind', 'insurance_policy_status', 'insurance_renewal_status', 'insurance_condition_status',
   'insurance_certificate_status', 'insurance_certificate_check', 'insurance_requirement_state', 'insurance_claim_status',
-  'insurance_claim_kind', 'insurance_claim_direction',
+  'insurance_claim_kind', 'insurance_claim_direction', 'insurance_payment_kind', 'insurance_allocation_method', 'insurance_valuation_basis',
+  'insurance_request_status',
 ];
 
 export async function ensureInsuranceLists(ctx: ModuleContext) {
@@ -52,6 +53,7 @@ export async function ensureInsuranceLists(ctx: ModuleContext) {
   ], own);
   await ctx.lookups.ensure('insurance_certificate_status', [
     { value: 'requested', label: 'Requested', color: 'gray', sort: 10 },
+    { value: 'to_review', label: 'Sent by the vendor, to review', color: 'amber', sort: 15 },
     { value: 'received', label: 'Received', color: 'blue', sort: 20 },
     { value: 'accepted', label: 'Accepted', color: 'green', sort: 30 },
     { value: 'rejected', label: 'Rejected', color: 'red', sort: 40, meta: { closed: true } },
@@ -92,6 +94,42 @@ export async function ensureInsuranceLists(ctx: ModuleContext) {
     { value: 'against', label: 'Against the organization', sort: 10 },
     { value: 'first_party', label: 'By the organization under its own policy', sort: 20 },
     { value: 'subrogation', label: 'By the organization against another party', sort: 30 },
+  ], own);
+  // Wave 27 (E46-62): kinds of claim payment; `recovery` marks money coming back to the organization.
+  await ctx.lookups.ensure('insurance_payment_kind', [
+    { value: 'indemnity', label: 'Payment to the claimant', color: 'blue', sort: 10 },
+    { value: 'medical', label: 'Medical payment', color: 'blue', sort: 20 },
+    { value: 'repair', label: 'Repair or replacement', color: 'blue', sort: 30 },
+    { value: 'expense', label: 'Claim expense (legal, adjusting, experts)', color: 'gray', sort: 40 },
+    { value: 'deductible', label: 'Deductible or retention paid', color: 'amber', sort: 50 },
+    { value: 'other_payment', label: 'Other payment', color: 'gray', sort: 60 },
+    { value: 'insurer_recovery', label: 'Received from the insurer', color: 'green', sort: 110, meta: { recovery: 'yes' } },
+    { value: 'subrogation', label: 'Recovered from another party', color: 'green', sort: 120, meta: { recovery: 'yes' } },
+    { value: 'salvage', label: 'Salvage', color: 'green', sort: 130, meta: { recovery: 'yes' } },
+    { value: 'other_recovery', label: 'Other recovery', color: 'green', sort: 140, meta: { recovery: 'yes' } },
+    { value: 'opening_paid', label: 'Paid before payments were listed', color: 'gray', sort: 900 },
+    { value: 'opening_recovery', label: 'Recovered before payments were listed', color: 'gray', sort: 910, meta: { recovery: 'yes' } },
+  ], own);
+  // Wave 27 (E46-64): how a policy's premium is split, and how a scheduled property is valued.
+  await ctx.lookups.ensure('insurance_allocation_method', [
+    { value: 'equal', label: 'Equally', sort: 10 },
+    { value: 'measure', label: 'By a measure (payroll, floor area, units)', sort: 20 },
+    { value: 'insured_value', label: 'By insured value (schedule of values)', sort: 30 },
+    { value: 'manual', label: 'By hand (percentages)', sort: 40 },
+  ], own);
+  await ctx.lookups.ensure('insurance_valuation_basis', [
+    { value: 'replacement_cost', label: 'Replacement cost', sort: 10 },
+    { value: 'actual_cash_value', label: 'Actual cash value', sort: 20 },
+    { value: 'agreed_value', label: 'Agreed value', sort: 30 },
+    { value: 'appraised', label: 'Appraised value', sort: 40 },
+    { value: 'book_value', label: 'Book value', sort: 50 },
+  ], own);
+  // Wave 27 (E46-65): requests to vendors for certificates of insurance.
+  await ctx.lookups.ensure('insurance_request_status', [
+    { value: 'draft', label: 'Not sent yet', color: 'gray', sort: 10 },
+    { value: 'sent', label: 'Sent', color: 'blue', sort: 20 },
+    { value: 'received', label: 'Certificates received', color: 'green', sort: 30, meta: { closed: true } },
+    { value: 'canceled', label: 'Canceled', color: 'gray', sort: 40, meta: { closed: true } },
   ], own);
 }
 

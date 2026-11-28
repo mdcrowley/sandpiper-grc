@@ -1,5 +1,6 @@
 // The action-item matrix of a plan: each objective and its initiatives by quarter, with the status of
-// that quarter's update. An empty cell opens a new update for that quarter.
+// that quarter's update. An empty cell opens a new update for that quarter. Quarters and years follow the
+// organization's fiscal year (E46-58); on one that does not start in January each column says its months.
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { EmptyState, ErrorState, Loading, LookupChip, Select, TableWrap, useAuth, useFetch } from '../../core';
@@ -10,17 +11,19 @@ export function Matrix({ planId, start, end }: { planId: string; start?: string 
   const { can } = useAuth();
   const [year, setYear] = useState('');
   const [adding, setAdding] = useState<{ objective_id?: string; initiative_id?: string; label: string; period: string } | null>(null);
-  const query = year ? `?from=${year}-Q1&to=${year}-Q4` : '';
+  const query = year ? `?year=${encodeURIComponent(year)}` : '';
   const { data, error, reload } = useFetch<MatrixData>(`/api/strategy/plans/${planId}/matrix${query}`);
+  // The plan's years as the server works them out on the fiscal year; before it answers, the calendar years of the plan.
   const first = Number((start ?? '').slice(0, 4)) || new Date().getFullYear() - 2;
   const last = Number((end ?? '').slice(0, 4)) || new Date().getFullYear() + 1;
-  const years = Array.from({ length: Math.min(12, Math.max(1, last - first + 1)) }, (_, i) => String(first + i));
+  const years = data?.years?.map((y) => y.key) ?? Array.from({ length: Math.min(12, Math.max(1, last - first + 1)) }, (_, i) => String(first + i));
+  const fiscal = (data?.fiscal_year?.start_month ?? 1) > 1;
   const mayAdd = can('strategy.create');
   return (
     <div className="stack">
       <div className="stg-toolbar">
         <Select label="Quarters shown" value={year} onChange={setYear}
-          options={[{ value: '', label: 'The plan so far (latest 12)' }, ...years.map((y) => ({ value: y, label: y }))]} />
+          options={[{ value: '', label: 'The plan so far (latest 12)' }, ...years.slice(0, 20).map((y) => ({ value: y, label: fiscal ? `Fiscal year ${y}` : y }))]} />
       </div>
       {error ? <ErrorState error={error} onRetry={reload} />
         : !data ? <Loading lines={6} />
@@ -31,7 +34,11 @@ export function Matrix({ planId, start, end }: { planId: string; start?: string 
               <thead>
                 <tr>
                   <th scope="col" data-priority="1">Objective or initiative</th>
-                  {data.quarters.map((q, i) => <th key={q} scope="col" data-priority={i >= data.quarters.length - 4 ? 1 : 2}>{periodLabel(q)}</th>)}
+                  {data.quarters.map((q, i) => (
+                    <th key={q} scope="col" data-priority={i >= data.quarters.length - 4 ? 1 : 2} title={data.spans?.[q] ?? undefined}>
+                      {periodLabel(q)}{fiscal && data.spans?.[q] && <div className="muted stg-small stg-span">{data.spans[q]}</div>}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -44,7 +51,7 @@ export function Matrix({ planId, start, end }: { planId: string; start?: string 
                     {data.quarters.map((q, i) => {
                       const c = r.cells[q];
                       return (
-                        <td key={q} data-priority={i >= data.quarters.length - 4 ? 1 : 2} title={c?.narrative ?? undefined}>
+                        <td key={q} data-priority={i >= data.quarters.length - 4 ? 1 : 2} title={c ? [c.period && c.period !== q ? `Entered for ${periodLabel(c.period)}.` : '', c.narrative ?? ''].filter(Boolean).join(' ') || undefined : undefined}>
                           {c ? <LookupChip list="strategy_rag" value={c.status} />
                             : mayAdd ? (
                               <button type="button" className="stg-add" aria-label={`Add the ${periodLabel(q)} update of ${r.title}`}

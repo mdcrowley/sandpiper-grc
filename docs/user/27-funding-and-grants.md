@@ -187,7 +187,12 @@ The funder's reviewer can be given access to one review for a set period, on the
 
 ### Readiness and the evidence package
 
-The review's **Readiness** tab says how ready the review is. For each area it checks five things: an owner, a self-assessment, every question answered, evidence linked (not needed for an area marked not applicable) and no open deficiency; for each document request, that it is answered (evidence linked, or **Provided** or **Accepted**). The bar shows the share of checks met, and the table what each area still lacks. Evidence is counted for everyone, never named.
+The review's **Readiness** tab says how ready the review is. For each area it checks five things: an owner, a self-assessment, every question answered, evidence linked (not needed for an area marked not applicable) and no open deficiency; for each document request, that it is answered (evidence linked, or **Provided** or **Accepted**). It also looks back and at the awards:
+
+- **The previous review**: the review this one was carried forward from, or else the latest earlier review of the same funder. Each area gets a sixth check, that none of the previous review's deficiencies in that area is still open (the area then lists, for example, "1 deficiency from CRV-00003 still open"); the previous review's deficiencies in areas this review does not have are one check of their own. The card names the previous review, with a link, and how many of its deficiencies are still open.
+- **The awards under review**: every reporting and close-out obligation of the awards linked to the review is a check, unmet while it is overdue (its next due date has passed). The card says how many are overdue. This needs the obligations register (part of risks and compliance).
+
+The bar shows the share of checks met, and the table what each area still lacks. Evidence, deficiencies and obligations are counted for everyone, never named.
 
 **Download the evidence package** (needs `funding.export`) makes one ZIP for the funder: `index.pdf` (the review, each area with its self-assessment, questions and answers, the evidence of each area and request with the file names in the package, the requests and the readiness) and the files of the evidence records you may see, in `areas/<code>/` and `requests/<request>/`. Evidence you may not see is counted in the index, never named or included. Links are listed, not fetched; files the malware scanner found infected, and files beyond 200 MB in all, are listed under **Not included**. Every package downloaded is recorded in the review's history.
 
@@ -221,4 +226,3 @@ The `dev` sample data adds invented funders, four invented awards ("[Sample] Bus
 ## Not available yet
 
 - Drawdowns, budgets and expenditure by award: keep those in your finance system.
-- The readiness view does not yet count the open deficiencies of the previous review or overdue obligations of the awards under review.

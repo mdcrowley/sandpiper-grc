@@ -1,10 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { testApp } from '../../test/helpers.ts';
 import { refreshBoardSummary, seedStandard } from './seed.ts';
-import { BOARD_SUMMARY_BEFORE, STANDARD_DASHBOARDS } from './standard.ts';
+import { BOARD_SUMMARY_BEFORE, BOARD_SUMMARY_EARLIER, STANDARD_DASHBOARDS } from './standard.ts';
 
 // Wave 26: the Board summary is organization-wide, with safety and operations first; an unedited board
-// from an earlier version is brought up to it, an edited one is left alone.
+// from an earlier version is brought up to it, an edited one is left alone. Wave 27 (E46-68): the safety
+// performance indicators follow the safety events.
 
 let t: Awaited<ReturnType<typeof testApp>>;
 const before = process.env.GRC_MODULES;
@@ -23,7 +24,8 @@ describe('the Board summary', () => {
     const board = STANDARD_DASHBOARDS.find((d) => d.key === 'board_summary')!;
     const types = board.widgets.filter((w) => w.kind !== 'text').map((w) => (w.config as any).spec.type);
     expect(types.slice(0, 5)).toEqual(['safety_event', 'safety_event', 'hazard', 'safety_event', 'safety_event']);
-    expect(types.slice(5, 9)).toEqual(['vehicle', 'inspection', 'emergency_activation', 'continuity_plan']);
+    expect(types.slice(5, 7)).toEqual(['safety_indicator', 'safety_indicator']);
+    expect(types.slice(7, 11)).toEqual(['vehicle', 'inspection', 'emergency_activation', 'continuity_plan']);
     const intro = String((board.widgets[0].config as any).markdown);
     expect(intro).not.toMatch(/technology|security|safety/i);
   });
@@ -45,6 +47,11 @@ describe('the Board summary', () => {
     const now = await t.db.one<{ widgets: any[]; description: string }>('select widgets, description from dashboards where id = $1', [board!.id]);
     expect(now!.widgets.map((w) => w.id)).toContain('b1');
     expect(await refreshBoardSummary(t.ctx)).toBe(false);
+    // The wave 26 board, unedited, gets the safety indicators.
+    const wave26 = BOARD_SUMMARY_EARLIER()[1];
+    await t.db.query('update dashboards set description = $2, widgets = $3::jsonb where id = $1', [board!.id, wave26.description, JSON.stringify(wave26.widgets)]);
+    expect(await refreshBoardSummary(t.ctx)).toBe(true);
+    expect((await t.db.one<{ widgets: any[] }>('select widgets from dashboards where id = $1', [board!.id]))!.widgets.map((w) => w.id)).toContain('b7');
 
     const edited = [...BOARD_SUMMARY_BEFORE.widgets.slice(1)];
     await t.db.query('update dashboards set description = $2, widgets = $3::jsonb where id = $1', [board!.id, BOARD_SUMMARY_BEFORE.description, JSON.stringify(edited)]);

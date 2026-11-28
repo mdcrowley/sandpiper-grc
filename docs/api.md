@@ -46,6 +46,7 @@ invented.
 - [Changes in wave 23 (security review)](#changes-in-wave-23-security-review)
 - [Routes added in wave 25](#routes-added-in-wave-25)
 - [Routes added in wave 26](#routes-added-in-wave-26)
+- [Routes added in wave 27](#routes-added-in-wave-27)
 - [Data load mode](#data-load-mode)
 - [Examples of common integrations](#examples-of-common-integrations)
 
@@ -930,6 +931,71 @@ Record types at `/api/strategy/plans`, `/goals`, `/objectives`, `/measures`, `/m
 - `GET /api/admin/data-load/records` (rows a module lists one by one), `POST /api/admin/data-load/undo-one`.
   In a load, `POST /api/attachments/link` keeps `created_at` and the link is undone with the load;
   `PATCH /api/security-incidents/:id/checklist/:itemId` takes `done_at`.
+
+## Routes added in wave 27
+
+Every route below is also in the OpenAPI document (Help > API reference). A route of a switched-off
+area answers 404 `switched_off`.
+
+### Procurement: invoices and budget versions
+
+Record types `purchase_invoice` (`INV-`, `/api/purchase-invoices`; the status is set by the routes
+below), `purchase_invoice_line` (`/api/purchase-invoice-lines`) and `budget_version`
+(`/api/budget-versions`: the adoption, version 0, and each amendment); permission module `procurement`.
+
+- `GET`/`POST /api/purchase-orders/:id/invoices` (an order's invoices; enter one with its lines),
+  `GET /api/purchase-invoices/:id/lines | approval`, `POST /api/purchase-invoices/:id/submit | decision |
+  payment | void`. Approval is never by the person who entered the invoice, and an invoice that does not
+  match the order and receipts needs a reason. `GET`/`PUT /api/procurement/settings` takes
+  `invoice_tolerance_pct`.
+- `GET /api/budgets/:id/versions`, `GET /api/budget-versions/:id/lines`. Only the latest version can be
+  deleted (409 otherwise, outside a data load); deleting it puts the lines back.
+
+### Insurance
+
+Record types `insurance_claim_payment` (`/api/insurance/claim-payments`, restricted with its claim),
+`insurance_premium_share` (`/api/insurance/premium-shares`), `insurance_schedule_item` (`SOV-`,
+`/api/insurance/schedule`) and `insurance_certificate_request` (`CIR-`,
+`/api/insurance/certificate-requests`). A claim's `paid_to_date` and `recovered` are worked out from its
+payments (read-only).
+
+- `GET /api/insurance/policies/:id/allocation`, `POST .../allocation/from-covered`,
+  `GET /api/insurance/allocation` (`format=csv`), `GET /api/insurance/schedule/summary`,
+  `POST /api/insurance/policies/:id/schedule/from-covered`.
+- `POST /api/insurance/certificate-requests/:id/send | remind`,
+  `GET`/`PUT /api/insurance/certificate-requests/settings` (switching requests on needs a recent password).
+- The vendor's upload page (public; the link's secret is sent in the `X-Upload-Token` header, rate
+  limited): `GET /api/insurance/certificate-upload`, `POST .../files`, `DELETE .../files/:fid`,
+  `POST .../certificates`, `POST .../done`.
+- `GET /api/insurance/contracts/:id/check` also returns the contract's `requests`.
+
+### Civil rights
+
+- `GET`/`PUT /api/civil-rights/settings` take and return `ackWorking`, `investigationWorking` and
+  `appealWorking` (count that limit in working days) and return the `workingCalendar` and `holidays`
+  they count on. A complaint has `bases` (several values of `civil_rights_basis`); `basis` stays as the
+  first of them for older clients, and `f.bases=a,b` finds a complaint by any of them.
+
+### Risks, strategy, fleet, training, documents and files
+
+- Risk appetite changes: record type `risk_appetite_change` (`RAC-`, `/api/risks/appetite/changes`),
+  approved through the "Risk appetite change" workflow; `POST /api/risks/appetite/changes/:id/withdraw`.
+  `GET /api/risks/appetite` gives `workflow_available` and, per category, its waiting `request`.
+- Strategy: `GET`/`PUT /api/strategy/settings` take `fiscal_year_start_month` and `fiscal_year_named_for`
+  (refused while fiscal periods are in use); `GET .../matrix?year=`; a measure takes `series_id`,
+  `series_breakdown` and `series_aggregation`; `GET /api/strategy/measure-sources` lists `series`.
+- Fleet: record types `maintenance_interval` (`PMI-`, `/api/maintenance-intervals`), `vehicle_reading`
+  (`RDG-`, `/api/vehicle-readings`; never backwards) and `maintenance_record` (`PMR-`,
+  `/api/maintenance-records`); `GET /api/fleet/maintenance/due`, `GET /api/vehicles/:id/maintenance`.
+- Training: `GET /api/training/mine/certifications` (the caller's own, no permission);
+  `GET /api/training/certifications/expiring` takes `position` and `department`; a certification carries
+  `position_id` and `department_id` from the roster (read-only).
+- Documents: `GET /api/policies/:id/copies/:cid/pdf` (`policies.edit`, audited): an issued paper copy
+  printed with its copy number and holder; 409 `recalled` or `recall_due`.
+- Files: `GET`/`PUT /api/attachments/admin/ocr`: the languages scanned PDFs are read in.
+- Administration: `POST /api/admin/users`, `PATCH /api/admin/users/:id`, the sign-in provider routes and
+  `PUT /api/admin/scim/groups/:id/roles` answer `warnings` naming roles that give no access (switched off
+  under Roles, or of a switched-off area).
 
 ## Data load mode
 

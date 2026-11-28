@@ -5,7 +5,8 @@ import { metricsAvailable } from '../../core/metrics.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { todayInZone } from '../../core/timezone.ts';
 import { addDays } from '../../../../shared/dates.ts';
-import { normalizePeriod, periodRange, quartersBetween } from './periods.ts';
+import { frequencyOf, normalizePeriod, periodRange, periodSpan, quartersBetween, quartersOf, yearsBetween, type FiscalYear } from './periods.ts';
+import { readFiscalYear } from './settings.ts';
 
 const day = (v: unknown) => (v == null ? null : (v instanceof Date ? v.toISOString() : String(v)).slice(0, 10));
 const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
@@ -16,7 +17,7 @@ export async function refreshStatus(db: Queryable, kind: 'objective' | 'initiati
   const table = kind === 'objective' ? 'strategy_objectives' : 'strategy_initiatives';
   const latest = await db.one<Row>(
     `select status, period from strategy_updates where ${col} = $1 and deleted_at is null
-     order by period desc, reported_on desc nulls last, created_at desc limit 1`, [id]);
+     order by period_start desc nulls last, period desc, reported_on desc nulls last, created_at desc limit 1`, [id]);
   await db.query(`update ${table} set status = $2, status_period = $3 where id = $1`, [id, latest?.status ?? null, latest?.period ?? null]);
 }
 
@@ -31,12 +32,51 @@ export async function refreshMeasure(db: Queryable, id: string): Promise<void> {
 
 // ---------- automatic measures ----------
 
-/** The value of a metric or a figure over time for a period: its last month's value. null when none. */
-export async function sourceValue(ctx: ModuleContext, measure: Row, period: string): Promise<number | null> {
-  const range = periodRange(period);
+/** How the values of a statistics series within one of a measure's periods are combined. */
+export const AGGREGATIONS = ['sum', 'average', 'latest', 'min', 'max'] as const;
+
+/**
+ * A statistics series' figure for a period (E46-59): each of the series' periods that lies inside
+ * it gives one value (the chosen breakdown; or the total, which is the total row where one is
+ * entered and otherwise the breakdowns added up), and these are combined by the measure's
+ * aggregation. A period still running counts what has been entered so far. null when none.
+ */
+export async function seriesFigure(db: Queryable, measure: Row, range: { start: string; end: string }): Promise<number | null> {
+  const rows = await db.query<Row>(
+    `select v.period_start, v.breakdown, v.value from strategy_stat_values v
+     join strategy_stat_series s on s.id = v.series_id and s.deleted_at is null
+     where v.series_id = $1 and v.deleted_at is null and v.period_start >= $2::date and v.period_end <= $3::date
+     order by v.period_start`, [measure.series_id, range.start, range.end]);
+  const wanted = String(measure.series_breakdown ?? '').trim().toLowerCase();
+  const byPeriod = new Map<string, { total: number | null; parts: number; sum: number; picked: number | null }>();
+  for (const r of rows) {
+    const key = day(r.period_start)!;
+    const p = byPeriod.get(key) ?? { total: null, parts: 0, sum: 0, picked: null };
+    const b = String(r.breakdown ?? '');
+    const v = Number(r.value);
+    if (b === '') p.total = v; else { p.parts += 1; p.sum += v; }
+    if (wanted && b.toLowerCase() === wanted) p.picked = v;
+    byPeriod.set(key, p);
+  }
+  const values = [...byPeriod.values()].map((p) => (wanted ? p.picked : p.total ?? (p.parts ? p.sum : null))).filter((v): v is number => v !== null && Number.isFinite(v));
+  if (!values.length) return null;
+  const agg = String(measure.series_aggregation ?? 'sum');
+  const round = (n: number) => Math.round(n * 1e6) / 1e6;
+  if (agg === 'average') return round(values.reduce((a, b) => a + b, 0) / values.length);
+  if (agg === 'latest') return values[values.length - 1];
+  if (agg === 'min') return Math.min(...values);
+  if (agg === 'max') return Math.max(...values);
+  return round(values.reduce((a, b) => a + b, 0));
+}
+
+/** The value of a metric, a figure over time or a statistics series for a period; null when none. */
+export async function sourceValue(ctx: ModuleContext, measure: Row, period: string, fy?: FiscalYear): Promise<number | null> {
+  const range = periodRange(period, fy ?? await readFiscalYear(ctx));
   if (!range) return null;
   const today = todayInZone();
   if (range.start > today) return null;
+  if (measure.source === 'series') return measure.series_id ? seriesFigure(ctx.db, measure, range) : null;
+  // A metric or a figure over time: its value for the period's last month (so far).
   const lastMonth = `${(range.end < today ? range.end : today).slice(0, 7)}-01`;
   if (measure.source === 'metric') {
     const metric = metricsAvailable(ctx.app, ctx.resources).find((m) => m.key === measure.metric_key);
@@ -54,17 +94,34 @@ export async function sourceValue(ctx: ModuleContext, measure: Row, period: stri
   return null;
 }
 
+/** The measure's value row for a period: by its key, or one entered for the same days under the other kind of year. */
+export async function valueRowFor(db: Queryable, measureId: string, period: string, range: { start: string; end: string }, exceptId?: string | null): Promise<Row | undefined> {
+  return db.one<Row>(
+    `select * from strategy_measure_values where measure_id = $1 and deleted_at is null and id <> coalesce($5::uuid, gen_random_uuid())
+       and (period = $2 or (period_start = $3::date and period_end = $4::date)) order by (period = $2) desc limit 1`,
+    [measureId, period, range.start, range.end, exceptId ?? null]);
+}
+
+export const AUTOMATIC_SOURCES = ['metric', 'figure', 'series'];
+
 /**
  * Takes the actual of an automatic measure for a period from its source and stores it as the
  * period's value (system work: audited, no person). Answers the value, or null when there is none.
+ * A statistics series that no longer has values for the period clears the actual it gave.
  */
-export async function pullMeasure(ctx: ModuleContext, measure: Row, period: string): Promise<{ value: number | null; row: Row | null }> {
-  const p = normalizePeriod(measure.frequency ?? 'quarterly', period);
+export async function pullMeasure(ctx: ModuleContext, measure: Row, period: string, fy?: FiscalYear): Promise<{ value: number | null; row: Row | null }> {
+  const year = fy ?? await readFiscalYear(ctx);
+  const p = normalizePeriod(measure.frequency ?? 'quarterly', period, year);
   if (!p) ctx.fail(400, 'validation', 'Check the highlighted fields.', { period: 'Give a period that suits the measure\'s frequency.' });
-  const value = await sourceValue(ctx, measure, p!);
-  if (value === null) return { value: null, row: null };
-  const existing = await ctx.db.one<Row>('select id, actual from strategy_measure_values where measure_id = $1 and period = $2 and deleted_at is null', [measure.id, p]);
-  if (existing && Number(existing.actual) === value && existing.actual !== null) return { value, row: existing };
+  const value = await sourceValue(ctx, measure, p!, year);
+  const existing = await valueRowFor(ctx.db, String(measure.id), p!, periodRange(p!, year)!);
+  if (value === null) {
+    if (existing && measure.source === 'series' && existing.value_source === 'series' && existing.actual !== null) {
+      return { value: null, row: await ctx.resources.update('measure_value', String(existing.id), { actual: null, value_source: 'series' }) };
+    }
+    return { value: null, row: null };
+  }
+  if (existing && existing.actual !== null && Number(existing.actual) === value) return { value, row: existing };
   const row = existing
     ? await ctx.resources.update('measure_value', String(existing.id), { actual: value, value_source: measure.source })
     : await ctx.resources.create('measure_value', { measure_id: measure.id, period: p, actual: value, value_source: measure.source });
@@ -74,17 +131,35 @@ export async function pullMeasure(ctx: ModuleContext, measure: Row, period: stri
 /** The daily job: the current and the previous period of every automatic measure. */
 export async function pullAll(ctx: ModuleContext): Promise<{ measures: number; values: number }> {
   if (!ctx.resources.get('strategic_measure')) return { measures: 0, values: 0 };
-  const measures = await ctx.db.query<Row>(`select * from strategy_measures where deleted_at is null and source in ('metric', 'figure')`);
+  const measures = await ctx.db.query<Row>('select * from strategy_measures where deleted_at is null and source = any($1::text[])', [AUTOMATIC_SOURCES]);
   const today = todayInZone();
+  const fy = await readFiscalYear(ctx);
   let values = 0;
   for (const m of measures) {
-    const now = normalizePeriod(m.frequency ?? 'quarterly', today)!;
-    const before = normalizePeriod(m.frequency ?? 'quarterly', addDays(periodRange(now)!.start, -1))!;
+    const now = normalizePeriod(m.frequency ?? 'quarterly', today, fy)!;
+    const before = normalizePeriod(m.frequency ?? 'quarterly', addDays(periodRange(now, fy)!.start, -1), fy)!;
     for (const p of [before, now]) {
-      try { if ((await pullMeasure(ctx, m, p)).value !== null) values += 1; } catch (err) { console.error(`[strategy] measure ${m.ref} for ${p}:`, err); }
+      try { if ((await pullMeasure(ctx, m, p, fy)).value !== null) values += 1; } catch (err) { console.error(`[strategy] measure ${m.ref} for ${p}:`, err); }
     }
   }
   return { measures: measures.length, values };
+}
+
+/**
+ * A statistic value was entered, changed or removed: the measures that take their values from its
+ * series follow at once for the measure period it falls in (a period not started yet waits).
+ */
+export async function followSeries(ctx: ModuleContext, seriesId: string, periodStart: unknown): Promise<void> {
+  const start = day(periodStart);
+  if (!start) return;
+  const measures = await ctx.db.query<Row>(`select * from strategy_measures where deleted_at is null and source = 'series' and series_id = $1`, [seriesId]);
+  if (!measures.length) return;
+  const fy = await readFiscalYear(ctx);
+  for (const m of measures) {
+    const p = normalizePeriod(m.frequency ?? 'quarterly', start, fy);
+    if (!p) continue;
+    try { await pullMeasure(ctx, m, p, fy); } catch (err) { console.error(`[strategy] measure ${m.ref} from its series for ${p}:`, err); }
+  }
 }
 
 // ---------- figures: the same for every viewer ----------
@@ -146,7 +221,7 @@ export async function scorecard(ctx: ModuleContext, plan: Row, opts: { canSeePro
   const latest = await db.query<Row>(
     `select distinct on (coalesce(objective_id, initiative_id)) objective_id, initiative_id, period, status, narrative, reported_on, reported_by_name
      from strategy_updates where plan_id = $1 and deleted_at is null
-     order by coalesce(objective_id, initiative_id), period desc, reported_on desc nulls last, created_at desc`, [plan.id]);
+     order by coalesce(objective_id, initiative_id), period_start desc nulls last, period desc, reported_on desc nulls last, created_at desc`, [plan.id]);
   const latestOf = (col: string, id: string) => latest.find((u) => u[col] === id) ?? null;
   // Up to the last eight periods of each measure, oldest first, for the trend.
   const values = await db.query<Row>(
@@ -201,17 +276,31 @@ export async function scorecard(ctx: ModuleContext, plan: Row, opts: { canSeePro
 
 // ---------- the action-item matrix: objectives (and initiatives) by quarter ----------
 
-export async function matrix(ctx: ModuleContext, plan: Row, from?: string | null, to?: string | null) {
+export async function matrix(ctx: ModuleContext, plan: Row, opts: { from?: string | null; to?: string | null; year?: string | null } = {}) {
   const { db } = ctx;
+  const fy = await readFiscalYear(ctx);
   const today = todayInZone();
-  const start = from && /^\d{4}-Q[1-4]$/.test(from) ? periodRange(from)!.start : day(plan.period_start) ?? `${today.slice(0, 4)}-01-01`;
-  // By default up to today, or to the plan's end when that is earlier; a plan that has not started yet shows its whole period.
+  const isQuarter = (v?: string | null) => Boolean(v && frequencyOf(v) === 'quarterly' && periodRange(v, fy));
+  const yearOf = (v?: string | null) => (v && frequencyOf(v) === 'yearly' && periodRange(v, fy) ? v : null);
+  const planStart = day(plan.period_start);
   const planEnd = day(plan.period_end) ?? today;
-  let endDefault = planEnd < today ? planEnd : today;
-  if (endDefault < start) endDefault = planEnd;
-  const end = to && /^\d{4}-Q[1-4]$/.test(to) ? periodRange(to)!.end : endDefault;
-  let quarters = quartersBetween(start, end < start ? start : end);
-  if (quarters.length > 12) quarters = quarters.slice(-12);
+  // The plan's years on the organization's fiscal year, for choosing which to show.
+  const years = yearsBetween(planStart ?? today, planEnd < (planStart ?? today) ? (planStart ?? today) : planEnd, fy);
+  const chosenYear = yearOf(opts.year);
+  let quarters: string[];
+  if (chosenYear) {
+    const r = periodRange(chosenYear, fy)!;
+    quarters = quartersBetween(r.start, r.end, fy);
+  } else {
+    const start = isQuarter(opts.from) ? periodRange(opts.from!, fy)!.start : planStart ?? periodRange(normalizePeriod('yearly', today, fy)!, fy)!.start;
+    // By default up to today, or to the plan's end when that is earlier; a plan that has not started yet shows its whole period.
+    let endDefault = planEnd < today ? planEnd : today;
+    if (endDefault < start) endDefault = planEnd;
+    const end = isQuarter(opts.to) ? periodRange(opts.to!, fy)!.end : endDefault;
+    quarters = quartersBetween(start, end < start ? start : end, fy);
+    if (quarters.length > 12) quarters = quarters.slice(-12);
+  }
+  const ranges = quarters.map((q) => ({ q, ...periodRange(q, fy)! }));
   const rows = await db.query<Row>(
     `select o.id, o.ref, o.code, o.title, o.goal_id, g.title as goal_title, g.code as goal_code, 'objective' as kind, null::uuid as objective_id
      from strategy_objectives o join strategy_goals g on g.id = o.goal_id
@@ -222,21 +311,37 @@ export async function matrix(ctx: ModuleContext, plan: Row, from?: string | null
      where i.plan_id = $1 and i.deleted_at is null`, [plan.id]);
   const goalOrder = await db.query<Row>('select id from strategy_goals where plan_id = $1 and deleted_at is null order by sort, code nulls last, title', [plan.id]);
   const objOrder = await db.query<Row>('select id from strategy_objectives where plan_id = $1 and deleted_at is null order by sort, code nulls last, title', [plan.id]);
+  // Each update goes in the column of the quarter its own quarter ends in: an update entered on the
+  // calendar year before the fiscal year was set still shows (in the same column when the fiscal
+  // quarters line up with calendar ones). The latest update of a cell wins.
   const updates = await db.query<Row>(
-    `select distinct on (coalesce(objective_id, initiative_id), period) objective_id, initiative_id, period, status, narrative, reported_on, reported_by_name
-     from strategy_updates where plan_id = $1 and deleted_at is null and period = any($2::text[])
-     order by coalesce(objective_id, initiative_id), period, reported_on desc nulls last, created_at desc`, [plan.id, quarters]);
+    `select objective_id, initiative_id, period, period_start, period_end, status, narrative, reported_on, reported_by_name
+     from strategy_updates where plan_id = $1 and deleted_at is null and (period = any($2::text[]) or (period_end >= $3::date and period_end <= $4::date))
+     order by period_start desc nulls last, reported_on desc nulls last, created_at desc`, [plan.id, quarters, ranges[0].start, ranges[ranges.length - 1].end]);
+  const cellOf = new Map<string, Row>();
+  for (const u of updates) {
+    const end = day(u.period_end) ?? periodRange(String(u.period), fy)?.end;
+    const q = quarters.includes(u.period) ? u.period : ranges.find((r) => end && end >= r.start && end <= r.end)?.q;
+    const key = `${u.objective_id ?? u.initiative_id}|${q}`;
+    if (q && !cellOf.has(key)) cellOf.set(key, u);
+  }
   const idx = (list: Row[], id: string) => list.findIndex((x) => x.id === id);
   const ordered = rows.sort((a, b) => idx(goalOrder, a.goal_id) - idx(goalOrder, b.goal_id)
     || idx(objOrder, a.kind === 'objective' ? a.id : a.objective_id) - idx(objOrder, b.kind === 'objective' ? b.id : b.objective_id)
     || (a.kind === 'objective' ? -1 : 1) - (b.kind === 'objective' ? -1 : 1) || String(a.ref).localeCompare(String(b.ref)));
   return {
     quarters,
+    /** The months each quarter covers, in words. */
+    spans: Object.fromEntries(quarters.map((q) => [q, periodSpan(q, fy)])),
+    /** The plan's years (fiscal years when the organization keeps one) that can be chosen. */
+    years: years.map((y) => ({ key: y, quarters: quartersOf(y) })),
+    year: chosenYear,
+    fiscal_year: { start_month: fy.startMonth, named_for: fy.namedFor },
     rows: ordered.map((r) => ({
       kind: r.kind, id: r.id, ref: r.ref, code: r.code, title: r.title, goal: [r.goal_code, r.goal_title].filter(Boolean).join(' '),
       cells: Object.fromEntries(quarters.map((q) => {
-        const u = updates.find((x) => (r.kind === 'objective' ? x.objective_id : x.initiative_id) === r.id && x.period === q);
-        return [q, u ? { status: u.status, narrative: u.narrative ?? null, reported_on: day(u.reported_on), reported_by: u.reported_by_name ?? null } : null];
+        const u = cellOf.get(`${r.id}|${q}`);
+        return [q, u ? { status: u.status, narrative: u.narrative ?? null, reported_on: day(u.reported_on), reported_by: u.reported_by_name ?? null, period: u.period } : null];
       })),
     })),
   };

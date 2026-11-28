@@ -45,7 +45,7 @@ cmd="${1:-help}"
 [ $# -gt 0 ] && shift
 
 profile=pilot prune=0 label=manual at=02:00 lines=40 follow=0 no_secrets=0 out='' force=0 level=''
-skip_install=0 encrypt=0 key_file='' pass_file='' to='' from='' pull=0 no_rollback=0 include_key=0 folder=''
+skip_install=0 encrypt=0 key_file='' pass_file='' to='' from='' pull=0 no_rollback=0 include_key=0 folder='' full=0 plan=0 base=''
 rest=()
 if [ "$cmd" != npm ]; then
   while [ $# -gt 0 ]; do
@@ -81,6 +81,9 @@ if [ "$cmd" != npm ]; then
           pull) pull=1 ;;
           norollback) no_rollback=1 ;;
           includesecretkey) include_key=1 ;;
+          full) full=1 ;;
+          plan) plan=1 ;;
+          base) take "$@"; base="$value" ;;
           *) red "Unknown option $arg (./grc.sh help lists them)."; exit 1 ;;
         esac
         [ $shift_extra = 1 ] && shift
@@ -276,7 +279,9 @@ Usage: ./grc.sh <command> [options]
   Encrypted files use --key-file <file> or --passphrase-file <file>, or the environment variables
   GRC_BACKUP_KEY_FILE, GRC_BACKUP_PASSPHRASE_FILE or GRC_BACKUP_PASSPHRASE.
 
-  dev | build | test | typecheck | ci development (ci = typecheck + tests + tests on UTC + build + dependency audit)
+  dev | build | test | typecheck      development
+  ci [--full] [--plan] [--base ref]   local CI for what the changes need (typecheck, their tests, again on UTC, build and
+                                      audit when needed); --full everything; --plan the plan only, with the browser suites
   audit-deps [--level high]           known vulnerabilities in production packages; fails only when a fix exists
   audit-archive [--folder dir]        the audit archive as the database owner (least-privilege database role)
   npm <args>                          any npm command with this script's Node.js
@@ -737,22 +742,17 @@ case "$cmd" in
   test) npm test; exit $? ;;
   typecheck) npm run typecheck; exit $? ;;
   ci)
-    # Local continuous integration: the checks to run before every commit or push.
-    failed=''
-    cyan '== Typecheck'; npm run --silent typecheck || failed="$failed, Typecheck"
-    cyan '== Tests'; npm test || failed="$failed, Tests"
-    cyan '== Tests on UTC'; TZ=UTC npm test || failed="$failed, Tests on UTC"
-    cyan '== Web build'; npm run --silent build || failed="$failed, Web build"
-    cyan '== Dependency audit'
-    node "$tsx" server/src/cli.ts audit-deps
-    case $? in
-      0) ;;
-      3) yellow 'Dependency audit skipped: the npm registry could not be reached.' ;;
-      *) failed="$failed, Dependency audit" ;;
-    esac
-    if [ -n "$failed" ]; then red "CI FAILED: ${failed#, }"; exit 1; fi
-    green 'CI passed: typecheck, tests, web build and dependency audit.'
-    ;;
+    # Local continuous integration: the checks to run before every commit or push (tools/ci/run.mjs).
+    # By default only what the changes need (since the merge base with main, or the last commit on
+    # main, plus uncommitted files), saying what it skips and why; --full runs everything (typecheck,
+    # every test, every test again on UTC, web build, dependency audit); --plan prints the plan only.
+    ci_args=()
+    [ "$full" = 1 ] && ci_args+=(--full)
+    [ "$plan" = 1 ] && ci_args+=(--plan)
+    [ -n "$base" ] && ci_args+=(--base "$base")
+    [ "$plan" = 1 ] || install_packages || exit 1
+    node tools/ci/run.mjs ${ci_args[@]+"${ci_args[@]}"}
+    exit $? ;;
 
   status)
     server_pid >/dev/null   # clears a stale process file first

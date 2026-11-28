@@ -12,7 +12,7 @@ import { ensureLists, sharedValues } from './lists.ts';
 import { registerParticipation } from './participation.ts';
 import { registerPrograms } from './programs.ts';
 import { seedCivilRights } from './seed.ts';
-import { checkSettings, readSettings, SETTINGS } from './settings.ts';
+import { checkSettings, LIMITS, readSettings, SETTINGS, shownSettings } from './settings.ts';
 import { registerSummary, runReminders } from './summary.ts';
 
 const TAG = 'Civil rights';
@@ -25,11 +25,12 @@ async function register(ctx: ModuleContext) {
   await registerParticipation(ctx);
   registerSummary(ctx);
 
-  ctx.app.get('/api/civil-rights/settings', { preHandler: ctx.requirePerm('civilrights.view') }, async () => readSettings(ctx));
+  ctx.app.get('/api/civil-rights/settings', { preHandler: ctx.requirePerm('civilrights.view') }, async () => shownSettings(ctx));
   ctx.describeRoute({
     method: 'GET', path: '/api/civil-rights/settings', tag: TAG, permission: 'civilrights.view',
-    summary: 'Complaint time limits in days (acknowledgment, investigation, appeal) and how many days ahead reminders are sent; no jurisdiction\'s deadline is built in',
-    response: '{ ackDays, investigationDays, appealDays, reminderDays }',
+    summary: 'Complaint time limits in days (acknowledgment, investigation, appeal), whether each counts working days, and how many days ahead reminders are sent; no jurisdiction\'s deadline is built in',
+    description: 'Working days are those of the organization\'s working calendar (the business-hours calendar records requests also count on: its open weekdays less its holidays), named in `workingCalendar` with its number of `holidays`; Monday to Friday when there is none.',
+    response: '{ ackDays, investigationDays, appealDays, reminderDays, ackWorking, investigationWorking, appealWorking, workingCalendar, holidays }',
   });
 
   ctx.app.put('/api/civil-rights/settings', { preHandler: ctx.requirePerm('civilrights.administer') }, async (req) => {
@@ -40,6 +41,9 @@ async function register(ctx: ModuleContext) {
       investigationDays: b.investigationDays === undefined ? before.investigationDays : Number(b.investigationDays),
       appealDays: b.appealDays === undefined ? before.appealDays : Number(b.appealDays),
       reminderDays: b.reminderDays === undefined ? before.reminderDays : Number(b.reminderDays),
+      ackWorking: b.ackWorking === undefined ? before.ackWorking : b.ackWorking,
+      investigationWorking: b.investigationWorking === undefined ? before.investigationWorking : b.investigationWorking,
+      appealWorking: b.appealWorking === undefined ? before.appealWorking : b.appealWorking,
     };
     const errors = checkSettings(next);
     if (Object.keys(errors).length) ctx.fail(400, 'validation', 'Check the highlighted fields.', errors);
@@ -47,13 +51,14 @@ async function register(ctx: ModuleContext) {
     await ctx.settings.set(SETTINGS.investigationDays, next.investigationDays, req);
     await ctx.settings.set(SETTINGS.appealDays, next.appealDays, req);
     await ctx.settings.set(SETTINGS.reminderDays, next.reminderDays, req);
+    for (const l of LIMITS) if (next[l.working] !== before[l.working]) await ctx.settings.set(SETTINGS[l.working], next[l.working], req);
     await ctx.audit(req, { action: 'civilrights.settings', summary: 'Civil rights complaint time limits changed', before, after: next });
-    return next;
+    return shownSettings(ctx);
   });
   ctx.describeRoute({
     method: 'PUT', path: '/api/civil-rights/settings', tag: TAG, permission: 'civilrights.administer',
-    summary: 'Change the complaint time limits (they apply to complaints received from now on; dates already worked out stay)',
-    body: '{ ackDays?, investigationDays?, appealDays?, reminderDays? }',
+    summary: 'Change the complaint time limits and whether each counts working or calendar days (they apply to complaints received from now on; dates already worked out stay)',
+    body: '{ ackDays?, investigationDays?, appealDays?, reminderDays?, ackWorking?, investigationWorking?, appealWorking? }',
   });
 
   ctx.app.post('/api/civil-rights/reminders/run', { preHandler: ctx.requirePerm('civilrights.administer') }, async () => runReminders(ctx));

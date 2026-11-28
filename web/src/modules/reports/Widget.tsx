@@ -9,6 +9,7 @@ import { cellText, compact, usePost } from './data';
 import { ResultTable, ResultView, useDrill } from './ResultView';
 import type { Globals, GlobalKind, ReportResult, Widget, WidgetData } from './types';
 import { CalendarGrid, Gauge, Markdown } from './visuals';
+import { MeasureWidgetBody } from '../strategy/MeasureWidget';
 
 const GLOBAL_WORDS: Record<GlobalKind, string> = { date: 'dates', department: 'department', site: 'site', system: 'system', owner: 'owner' };
 export const activeGlobals = (g: Globals): GlobalKind[] => [
@@ -161,6 +162,7 @@ export function WidgetBody({ widget, dashboardId, globals, tick, height }: Widge
     case 'gauge': case 'progress': return <ShareBody widget={widget} data={data!} />;
     case 'countdown': return <CountdownBody widget={widget} data={data} />;
     case 'list': return result ? <ListBody result={result} /> : null;
+    case 'measure': return data!.measure ? <MeasureWidgetBody measure={data!.measure} result={result as never} height={height} /> : null;
     case 'table': return result ? (result.rows.length ? <ResultTable result={result} maxRows={50} /> : <Quiet icon="check-circle">Nothing to show.</Quiet>) : null;
     case 'calendar': {
       if (!result) return null;

@@ -7,6 +7,7 @@
 // What a page does wrong is listed in the step log; findings already raised as issues are in
 // KNOWN (by route pattern) and do not fail the run.
 import { sleep } from '../lib/browser.mjs';
+import { routeAllowed, typeAllowed } from '../lib/routes.mjs';
 
 /** Findings already raised, so they are reported but do not fail: { [pattern]: issue }. */
 const KNOWN = {};
@@ -174,8 +175,9 @@ function moduleTest(key) {
     async run(t) {
       const { page } = t;
       const api = t.api();
-      const types = (await plan(api)).get(key) ?? [];
-      if (!types.length) { t.log(`   (no record type of module ${key} is loaded; skipped)`); return; }
+      // With an area filter (run.mjs --affected), only the affected areas' record types.
+      const types = ((await plan(api)).get(key) ?? []).filter((r) => typeAllowed(r.type));
+      if (!types.length) { t.log(`   (no record type of module ${key} is loaded or affected; skipped)`); return; }
       for (const r of types) {
         const pages = [{ path: r.route, pattern: r.route, list: true }];
         const first = (await api.get(`${r.path}?pageSize=1`)).body?.rows?.[0];
@@ -201,6 +203,7 @@ export const tests = [
     name: 'keyboard tour: overview, relationship map, account, notifications, administration, help',
     async run(t) {
       for (const path of EXTRA) {
+        if (!(await routeAllowed(t.page, path))) continue; // an area filter: the affected areas' pages and the overview
         await t.step(`Tab through ${path}`, async () => {
           const problems = await tour(t, t.page, path, path);
           for (const msg of problems) {

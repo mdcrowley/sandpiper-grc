@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { calendarSources } from '../../core/calendar.ts';
 import { metricsAvailable } from '../../core/metrics.ts';
 import { dayInZone } from '../../core/timezone.ts';
@@ -12,8 +12,10 @@ import { addMonths, usefulLifeEnd } from './service.ts';
 let t: Awaited<ReturnType<typeof testApp>>;
 type Client = Awaited<ReturnType<typeof t.as>>;
 const ids: Record<string, string> = {};
-const today = dayInZone();
-const year = Number(today.slice(0, 4));
+let today = dayInZone();
+let year = Number(today.slice(0, 4));
+// Worked out again before each test, so a run that crosses midnight compares with the day the server uses.
+beforeEach(() => { today = dayInZone(); year = Number(today.slice(0, 4)); });
 
 async function withGrants(key: string, grants: string[]): Promise<Client> {
   const role = await t.db.one<{ id: string }>(`insert into roles (key, name, description, enabled) values ($1,$1,'test',true) returning id`, [key]);

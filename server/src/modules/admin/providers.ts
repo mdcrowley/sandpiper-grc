@@ -1,7 +1,7 @@
 // Administration > Sign-in providers, and the sign-in parts of a user's page: linked identities,
 // provider limits, "may link at next sign-in" permits and the break-glass account.
 import type { FastifyRequest } from 'fastify';
-import { featureState, rolesShown } from '../../core/features.ts';
+import { featureState, ownedOff, rolesShown } from '../../core/features.ts';
 import type { Row } from '../../core/module.ts';
 import type { ModuleContext } from '../../core/module.ts';
 import {
@@ -110,6 +110,7 @@ export function registerProviders(ctx: ModuleContext) {
   async function clean(req: FastifyRequest, existing: Row | null) {
     const b = body(req);
     const fields: Record<string, string> = {};
+    const warnings: string[] = [];
     const type = existing ? existing.type : String(b.type ?? 'oidc');
     const driver = DRIVERS[type];
     if (!driver) fields.type = 'Choose a kind of provider.';
@@ -130,9 +131,18 @@ export function registerProviders(ctx: ModuleContext) {
       const res = driver.cleanConfig((b.config ?? {}) as Record<string, unknown>, existing?.config ?? null);
       Object.assign(fields, Object.fromEntries(Object.entries(res.fields).map(([k, v]) => [`config.${k}`, v])));
       config = res.config;
-      const roleKeys = new Set((await db.query<{ key: string }>('select key from roles')).map((r) => r.key));
+      const roleRows = await db.query<{ key: string; name: string; enabled: boolean }>('select key, name, enabled from roles');
+      const roleKeys = new Set(roleRows.map((r) => r.key));
       const unknown = (config.mappings ?? []).find((m: { role: string }) => !roleKeys.has(m.role));
       if (unknown) fields['config.mappings'] = `There is no role "${unknown.role}".`;
+      // E46-69: a rule may name a role that gives no access (switched off under Roles, or of a switched-off
+      // area): saved, with a warning, so it works once the role or area is on again.
+      const mapped = new Set((config.mappings ?? []).map((m: { role: string }) => m.role));
+      const st = await featureState(db);
+      const off = roleRows.filter((r) => mapped.has(r.key) && !r.enabled && !ownedOff(st, 'role', r.key));
+      if (off.length) warnings.push(`${off.map((r) => r.name).join(', ')} ${off.length === 1 ? 'is' : 'are'} switched off under Roles: people given ${off.length === 1 ? 'it' : 'them'} through the role mapping get no access from ${off.length === 1 ? 'it' : 'them'} until switched on.`);
+      const areaOff = roleRows.filter((r) => mapped.has(r.key) && ownedOff(st, 'role', r.key));
+      if (areaOff.length) warnings.push(`${areaOff.map((r) => `"${r.key}"`).join(', ')} ${areaOff.length === 1 ? 'belongs' : 'belong'} to an area that is switched off: the mapping gives no access from ${areaOff.length === 1 ? 'it' : 'them'} until the area is switched on under Administration > Features.`);
     }
     let secret: string | null | undefined; // undefined = keep
     if (type === 'saml') {
@@ -151,7 +161,7 @@ export function registerProviders(ctx: ModuleContext) {
     }
     if (type === 'ldap' && !config.bindDn && secret === undefined && existing?.secret) secret = null; // no service account: nothing to keep
     if (Object.keys(fields).length) invalid(fields);
-    return { type, key: key!, name, enabled, isDefault: isDefault && enabled, sort, config, secret, newKey: type === 'saml' && (!existing || b.newServiceProviderKey === true) };
+    return { type, key: key!, name, enabled, isDefault: isDefault && enabled, sort, config, secret, newKey: type === 'saml' && (!existing || b.newServiceProviderKey === true), warnings };
   }
 
   /** SAML: a new key pair for this application's side (on adding the provider, or when asked). */
@@ -198,7 +208,7 @@ export function registerProviders(ctx: ModuleContext) {
       summary: `Sign-in provider "${v.name}" (${DRIVERS[v.type].label}) added${v.enabled ? ' and switched on' : ''}`, after: summaryOf(after),
     });
     reply.code(201);
-    return providerView(ctx, after, await baseOf(req));
+    return { ...(await providerView(ctx, after, await baseOf(req))), warnings: v.warnings };
   });
 
   adminRoute(ctx, 'PATCH', '/api/admin/identity-providers/:id', async (req) => {
@@ -238,7 +248,7 @@ export function registerProviders(ctx: ModuleContext) {
         before: Object.fromEntries(changed.map((k) => [k, b[k]])), after: Object.fromEntries(changed.map((k) => [k, a[k]])),
       });
     }
-    return providerView(ctx, after, await baseOf(req));
+    return { ...(await providerView(ctx, after, await baseOf(req))), warnings: v.warnings };
   });
 
   adminRoute(ctx, 'POST', '/api/admin/identity-providers/:id/test', async (req) => {

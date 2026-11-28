@@ -21,6 +21,10 @@ name: Windows installer
 # reach; a reinstallation over a data folder holding a junction is refused; and uninstalling with
 # /REMOVEDATA=1 deletes a junction in the data folder without deleting what it points to.
 
+# It runs only when what it installs changes (wave 27): the installer, the server and the code it
+# shares, the packages, the pinned Node.js; a change to the web pages alone does not run it. Also
+# nightly and on version tags. It is not a required check (branch protection requires "CI result"
+# of ci.yml only), so a run it skips never holds a pull request up.
 on:
   push:
     branches: [main]
@@ -32,7 +36,6 @@ on:
       - 'tools/install-node.ps1'
       - 'server/**'
       - 'shared/**'
-      - 'web/**'
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/windows-installer.yml'
@@ -40,7 +43,15 @@ on:
     paths:
       - 'deploy/windows/**'
       - 'tools/installer/**'
+      - 'tools/node-version.txt'
+      - 'tools/install-node.ps1'
+      - 'server/**'
+      - 'shared/**'
+      - 'package.json'
+      - 'package-lock.json'
       - '.github/workflows/windows-installer.yml'
+  schedule:
+    - cron: '47 3 * * *'
   workflow_dispatch:
 
 permissions:

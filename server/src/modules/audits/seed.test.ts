@@ -33,6 +33,10 @@ describe('sample data', () => {
     const audits = (await t.api.get('/api/audits?pageSize=10')).body.rows;
     expect(audits.map((a: any) => a.status).sort()).toEqual(['closed', 'fieldwork', 'planned']);
     expect((await t.api.get('/api/checklist-templates')).body.rows.every((r: any) => r.name.startsWith('[Sample]'))).toBe(true);
+    // The defects the failed sample inspections raised are marked as sample data too.
+    const defects = await t.db.query<{ title: string }>('select title from defects where deleted_at is null');
+    expect(defects.length).toBeGreaterThan(0);
+    expect(defects.every((d) => d.title.startsWith('[Sample] '))).toBe(true);
     expect(await seedAudits(t.ctx, { profile: 'dev', seedDir: 'unused' })).toMatch(/already loaded/);
     expect(await counts()).toEqual(first);
   });

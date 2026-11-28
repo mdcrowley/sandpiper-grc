@@ -14,7 +14,7 @@ const mark = (text: string) => `${SAMPLE} ${text}`;
 /** [vendor name, days ago of the last completed assessment, or null for never] */
 const ASSESSED: [string, number | null][] = [
   ['Northbank Software', 400],      // critical, 12 months: overdue
-  ['Harbour Signal Systems', 380],  // critical: overdue
+  ['Harbor Signal Systems', 380],  // critical: overdue
   ['Castle Peak Telecom', 420],     // high, 12 months: overdue
   ['Linden Payment Services', 100],
   ['Quillfeather Mapping', 200],    // low, 36 months
@@ -23,7 +23,7 @@ const ASSESSED: [string, number | null][] = [
 /** [vendor name, [days ago, result, reference, note]...]: two checks each, twelve in all. */
 const CHECKS: [string, [number, string, string, string | null][]][] = [
   ['Northbank Software', [[390, 'clear', 'SAMPLE-SEARCH-1041', null], [25, 'clear', 'SAMPLE-SEARCH-1187', null]]],
-  ['Harbour Signal Systems', [[400, 'clear', 'SAMPLE-SEARCH-1043', null], [40, 'clear', 'SAMPLE-SEARCH-1179', null]]],
+  ['Harbor Signal Systems', [[400, 'clear', 'SAMPLE-SEARCH-1043', null], [40, 'clear', 'SAMPLE-SEARCH-1179', null]]],
   ['Castle Peak Telecom', [[380, 'clear', 'SAMPLE-SEARCH-1050', null], [12, 'possible_match', 'SAMPLE-SEARCH-1201',
     '[Sample] A similar name appears on the list with a different address. Asked the vendor to confirm its registration number.']]],
   ['Linden Payment Services', [[360, 'clear', 'SAMPLE-SEARCH-1061', null], [60, 'clear', 'SAMPLE-SEARCH-1160', null]]],
@@ -40,7 +40,7 @@ const ISSUES: { vendor: string; title: string; category: string; severity: strin
     description: 'A security update for the fare card readers is three weeks later than the vendor promised.' },
   { vendor: 'Quillfeather Mapping', title: mark('Invoice billed at the old rate'), category: 'billing', severity: 'low', status: 'open', raised: 9,
     description: 'The renewal invoice used last year\'s list price instead of the agreed rate.' },
-  { vendor: 'Harbour Signal Systems', title: mark('Assurance report sent late'), category: 'compliance', severity: 'medium', status: 'closed', raised: 120,
+  { vendor: 'Harbor Signal Systems', title: mark('Assurance report sent late'), category: 'compliance', severity: 'medium', status: 'closed', raised: 120,
     description: 'The yearly independent assurance report arrived two months after the date in the contract.', resolution: 'Report received and reviewed; delivery date added to the contract calendar.' },
 ];
 

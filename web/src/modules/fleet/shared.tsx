@@ -5,6 +5,7 @@ import { Tabs, useAuth } from '../../core';
 const SECTIONS = [
   { key: 'vehicles', label: 'Vehicles', path: '/vehicles' },
   { key: 'models', label: 'Vehicle models', path: '/vehicle-models' },
+  { key: 'maintenance', label: 'Planned maintenance', path: '/fleet/maintenance' },
   { key: 'services', label: 'Services', path: '/services' },
   { key: 'coverage', label: 'Equipment coverage', path: '/fleet/coverage' },
   { key: 'impact', label: 'What is affected', path: '/fleet/impact' },

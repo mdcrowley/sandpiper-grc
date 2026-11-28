@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { dayInZone } from '../../core/timezone.ts';
 import { testApp } from '../../test/helpers.ts';
 import {
@@ -13,7 +13,9 @@ import {
 
 let t: Awaited<ReturnType<typeof testApp>>;
 type Api = typeof t.api;
-const today = dayInZone();
+let today = dayInZone();
+// Worked out again before each test, so a run that crosses midnight compares with the day the server uses.
+beforeEach(() => { today = dayInZone(); });
 
 const pkce = () => {
   const verifier = randomBytes(32).toString('base64url');

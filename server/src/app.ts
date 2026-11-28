@@ -16,6 +16,8 @@ import { ApiError, fail } from './core/errors.ts';
 import { addHsts, trustProxyFn } from './core/http.ts';
 import { registerMetrics } from './core/metrics.ts';
 import { migrate } from './core/migrate.ts';
+import { testTemplate } from './core/db-template.ts';
+import { migrationSources } from './ops/migrations.ts';
 import { registerBranding } from './core/organization.ts';
 import type { ModuleContext, ModuleDef, Row } from './core/module.ts';
 import { makeOpenApi } from './core/openapi.ts';
@@ -45,6 +47,12 @@ export interface BuildOptions {
   extraModules?: ModuleDef[];
   /** Serve HTTPS with this certificate and key (PEM). See `planListen` in core/http.ts. */
   https?: { cert: Buffer | string; key: Buffer | string };
+  /**
+   * Tests: start an in-memory database empty and run every migration, even when the test run
+   * made a migrated template (core/db-template.ts). Used by the test that proves migrations
+   * from empty still work.
+   */
+  freshDatabase?: boolean;
 }
 
 /**
@@ -110,7 +118,9 @@ export async function buildApp(opts: BuildOptions) {
     phases.push({ name, ms: Math.round(now - lap) });
     lap = now;
   };
-  const db = await openDb(opts.dataDir);
+  // Tests: an in-memory database starts from the run's migrated template when there is one.
+  const template = opts.dataDir === 'memory' && !opts.freshDatabase ? testTemplate(migrationSources()) : undefined;
+  const db = await openDb(opts.dataDir, { template });
   phase('opening the database');
 
   const modulesDir = join(here, 'modules');

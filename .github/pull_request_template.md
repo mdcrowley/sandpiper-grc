@@ -14,7 +14,7 @@ piece of work (see the hard rules in `docs/development.md`).
 **Code**
 
 - [ ] Every data change writes an audit event
-- [ ] Every new feature has a test; `.\grc.ps1 ci` (typecheck, tests and web build) passes
+- [ ] Every new feature has a test; `.\grc.ps1 ci` (what the change needs; `-Full` for everything) passes
 - [ ] Nothing organization-specific: no real organization, person, place, vendor or product names, no law or regulator of one jurisdiction as a built-in default, invented data only in samples and tests
 - [ ] Nothing from `seed/` is committed, logged or pasted anywhere
 - [ ] No calls to outside services from application code; no telemetry, no externally hosted fonts or scripts

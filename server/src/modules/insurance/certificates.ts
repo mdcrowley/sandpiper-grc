@@ -56,10 +56,12 @@ export function registerCertificates(ctx: ModuleContext) {
     let nc = 0;
     let nr = 0;
     for (const c of certs) {
-      let result = 'none';
+      let result: string | null = 'none';
       let notes: string | null = null;
       const mine = ON_FILE.includes(c.status) ? reqs.filter((r) => applies(c, r)) : [];
-      if (!ON_FILE.includes(c.status)) result = c.check_result ?? 'none';
+      // A certificate sent by the vendor is checked once staff accept it (E46-65).
+      if (c.status === 'to_review') result = null;
+      else if (!ON_FILE.includes(c.status)) result = c.check_result ?? 'none';
       else if (mine.length && !current(c)) { result = 'expired'; notes = `Expired on ${day(c.expires_on)}.`; }
       else if (mine.length) {
         const gaps = mine.flatMap((r) => gapsOf(c, r));
@@ -204,6 +206,7 @@ export function registerCertificates(ctx: ModuleContext) {
       check_result: { label: 'Against the contract', type: 'lookup', list: 'insurance_certificate_check', readOnly: true },
       check_notes: { label: 'Shortfall', type: 'text', readOnly: true, personal: false },
       owner_id: { label: 'Followed up by', type: 'user' },
+      request_id: { label: 'From request', type: 'ref', to: 'insurance_certificate_request', readOnly: true, help: 'The request the vendor sent it through.' },
       notes: { label: 'Notes', type: 'longtext' },
     },
     hooks: {
@@ -249,12 +252,18 @@ export function registerCertificates(ctx: ModuleContext) {
        from insurance_certificates c where c.deleted_at is null and ${ctx.resources.visibleWhere(CERTIFICATE, req.user, 'c')}
          and (c.contract_id = $1 or (c.contract_id is null and c.vendor_id = (select vendor_id from contracts where id = $1)))
        order by c.expires_on desc nulls last`, [id]);
-    return { requirements, certificates };
+    // Requests to the vendor for certificates (E46-65), newest first.
+    const requests = await db.query<Row>(
+      `select q.id, q.ref, q.title, q.status, q.email, q.needed_by::text as needed_by, q.sent_at, q.link_expires_at, q.submitted_at, q.certificates
+       from insurance_certificate_requests q where q.deleted_at is null and ${ctx.resources.visibleWhere('insurance_certificate_request', req.user, 'q')}
+         and (q.contract_id = $1 or (q.contract_id is null and q.vendor_id = (select vendor_id from contracts where id = $1)))
+       order by q.created_at desc limit 20`, [id]);
+    return { requirements, certificates, requests };
   });
   ctx.describeRoute({
     method: 'GET', path: '/api/insurance/contracts/:id/check', tag: 'Insurance', permission: 'insurance.view',
-    summary: 'The insurance one contract requires, each with its state against the certificates on file, and those certificates',
-    response: '{ requirements: [{ id, title, line, min_per_occurrence, min_aggregate, additional_insured, waiver_of_subrogation, state, state_notes }], certificates: [...] }',
+    summary: 'The insurance one contract requires, each with its state against the certificates on file, those certificates, and the requests to the vendor for certificates',
+    response: '{ requirements: [{ id, title, line, min_per_occurrence, min_aggregate, additional_insured, waiver_of_subrogation, state, state_notes }], certificates: [...], requests: [{ id, ref, title, status, email, needed_by, sent_at, link_expires_at, submitted_at, certificates }] }',
   });
 
   return { recheck };

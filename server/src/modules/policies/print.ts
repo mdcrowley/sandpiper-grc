@@ -9,6 +9,11 @@
 // Every print and download is audited. A version kept as a PDF prints as that PDF with the control block
 // stamped on every page (header, footer with page numbers, DRAFT/SUPERSEDED/OBSOLETE mark); a text
 // version printed by the builder carries the same word diagonally on every page (E43-16).
+//
+// An issued paper copy (E46-57, copies.ts) prints as the same PDF for its holder: "Controlled copy N" and
+// who holds it (and where) at the top of every page and in the control block, in place of "Uncontrolled
+// when printed", for the version the copy was issued of. A recalled copy, or one of a version no longer
+// in force, is not printed again.
 import type { FastifyRequest } from 'fastify';
 import { addAttachmentGuard } from '../../core/attachment-guards.ts';
 import { PDF_TYPE, PdfBuilder } from '../../core/export/pdf.ts';
@@ -100,8 +105,8 @@ export function registerPrintRoutes(ctx: ModuleContext, tables: AccessTables): v
     }
   }
 
-  app.get('/api/policies/:id/versions/:vid/pdf', async (req, reply) => {
-    const { policy, version } = await docAndVersion(req);
+  /** The controlled-copy PDF of a version; for an issued paper copy, with its number and holder. */
+  async function versionPdf(req: FastifyRequest, policy: Row, version: Row, copy: Row | null): Promise<{ file: Buffer; mark: string; vlabel: string; number: string | null }> {
     const appName = String(await ctx.settings.get('app.name', 'Sandpiper GRC'));
     const number = policy.doc_number ?? policy.ref;
     const restricted = policy.access === 'restricted';
@@ -113,15 +118,21 @@ export function registerPrintRoutes(ctx: ModuleContext, tables: AccessTables): v
       version.approved_on ? `approved ${shown(version.approved_on)}${version.approved_by_name ? ` by ${version.approved_by_name}` : ''}` : null,
       version.approval_body ? [version.approval_body, version.approval_reference].filter(Boolean).join(', ') : null,
     ].filter(Boolean).join(' · ');
+    const printed = `Printed ${displayDate(dayInZone())} by ${req.user!.displayName}`;
+    const holder = copy ? `${copy.holder_name}${copy.location ? ` (${copy.location})` : ''}` : '';
+    const copyLine = copy ? `Controlled copy ${copy.copy_number} · ${holder}` : null;
     const pdf = new PdfBuilder({
       title: policy.title, subtitle: [number, vlabel].filter(Boolean).join(' · '),
       meta: [
         mark,
         ...(dates ? [dates] : []),
         ...(restricted ? ['Restricted distribution: only for the people this document is issued to.'] : []),
-        `Printed ${displayDate(dayInZone())} by ${req.user!.displayName}. Uncontrolled when printed: the current version is in the document library.`,
+        copy
+          ? `Controlled copy ${copy.copy_number}, issued to ${holder} on ${shown(copy.issued_on)}. ${printed}. Return this copy when it is recalled; the current version is in the document library.`
+          : `${printed}. Uncontrolled when printed: the current version is in the document library.`,
       ],
       watermark: restricted ? `${number ?? ''} · Restricted distribution` : null,
+      pageLine: copyLine,
       // A printed text version carries its status diagonally, as a stamped PDF original does (E43-16).
       mark: diagonalMark(policy, version),
       appName, author: appName, branding: await printBranding(db),
@@ -130,8 +141,10 @@ export function registerPrintRoutes(ctx: ModuleContext, tables: AccessTables): v
     // (E43-08); a PDF that cannot be stamped (protected, too large) falls back to the cover sheet.
     const stamped = version.content_kind === 'file' && !String(version.body ?? '').trim()
       ? await stampedOriginal(policy, version, {
-        header: [number, policy.title, vlabel].filter(Boolean).join(' · '),
-        footer: `${mark.split(':')[0]} · Printed ${displayDate(dayInZone())} by ${req.user!.displayName} · Uncontrolled when printed · Page {page} of {pages}`,
+        header: [number, policy.title, vlabel, copyLine].filter(Boolean).join(' · '),
+        footer: copy
+          ? `${mark.split(':')[0]} · Controlled copy ${copy.copy_number} · ${printed} · Page {page} of {pages}`
+          : `${mark.split(':')[0]} · ${printed} · Uncontrolled when printed · Page {page} of {pages}`,
         watermark: diagonalMark(policy, version),
         restricted,
       })
@@ -145,7 +158,12 @@ export function registerPrintRoutes(ctx: ModuleContext, tables: AccessTables): v
       pdf.markdown(String(version.body ?? ''));
     }
     if (version.change_summary) { pdf.heading('Changes in this version', 2); pdf.paragraph(String(version.change_summary)); }
-    const file = stamped ?? await pdf.finish();
+    return { file: stamped ?? await pdf.finish(), mark, vlabel, number: number ?? null };
+  }
+
+  app.get('/api/policies/:id/versions/:vid/pdf', async (req, reply) => {
+    const { policy, version } = await docAndVersion(req);
+    const { file, mark, vlabel, number } = await versionPdf(req, policy, version, null);
     await ctx.audit(req, {
       action: 'policy.print', recordType: 'policy', recordId: policy.id,
       summary: `${[number, policy.title].filter(Boolean).join(' ')} ${vlabel.toLowerCase()} printed (${mark.split(':')[0].toLowerCase()})`,
@@ -160,6 +178,39 @@ export function registerPrintRoutes(ctx: ModuleContext, tables: AccessTables): v
     method: 'GET', path: '/api/policies/:id/versions/:vid/pdf', tag: T,
     summary: 'A version as a controlled-copy PDF (readers of the document; drafts only for people who write or approve documents). Audited.',
     description: 'Under the title: number, version, status line (EFFECTIVE, DRAFT, SUPERSEDED, OBSOLETE), dates, restricted distribution, who printed it and "Uncontrolled when printed".',
+  });
+
+  // An issued paper copy printed for its holder (E46-57): its number and holder on every page.
+  app.get('/api/policies/:id/copies/:cid/pdf', { preHandler: ctx.requirePerm('policies.edit') }, async (req, reply) => {
+    const { id, cid } = req.params as Row;
+    const policy = typeof id === 'string' && UUID.test(id)
+      ? await db.one<Row>(`select * from policies p where p.id = $1 and p.deleted_at is null and ${readableSql(req.user, 'p', tables)}`, [id]) : undefined;
+    if (!policy || !(await ctx.resources.find('policy', policy.id, req.user))) return ctx.fail(404, 'not_found', 'Document not found.');
+    const copy = typeof cid === 'string' && UUID.test(cid)
+      ? await db.one<Row>('select * from document_copies where id = $1 and policy_id = $2 and deleted_at is null', [cid, policy.id]) : undefined;
+    if (!copy) return ctx.fail(404, 'not_found', 'Copy not found.');
+    if (copy.recalled_on) return ctx.fail(409, 'recalled', `Copy ${copy.copy_number} was recalled, so it is not printed again.`);
+    const version = await db.one<Row>('select * from policy_versions where id = $1 and policy_id = $2', [copy.version_id, policy.id]);
+    if (!version) return ctx.fail(404, 'not_found', 'Version not found.');
+    if (policy.status === 'retired' || version.status !== 'published') {
+      return ctx.fail(409, 'recall_due', `Copy ${copy.copy_number} is of a version no longer in force: recall it and issue a copy of the version in force.`);
+    }
+    const { file, vlabel, number } = await versionPdf(req, policy, version, copy);
+    await ctx.audit(req, {
+      action: 'policy.copy_print', recordType: 'policy', recordId: policy.id,
+      summary: `Paper copy ${copy.copy_number} of ${[number, policy.title].filter(Boolean).join(' ')} ${vlabel.toLowerCase()} printed for ${copy.holder_name}`,
+      after: { copy_id: copy.id, copy_number: Number(copy.copy_number), version: Number(version.version) },
+    });
+    reply.header('content-type', PDF_TYPE);
+    reply.header('content-disposition', `attachment; filename="${String(number ?? 'document').replace(/[^A-Za-z0-9-]/g, '')}-v${version.version}-copy${copy.copy_number}.pdf"`);
+    reply.header('cache-control', 'no-store');
+    return reply.send(file);
+  });
+  ctx.describeRoute({
+    method: 'GET', path: '/api/policies/:id/copies/:cid/pdf', tag: T, permission: 'policies.edit',
+    summary: 'An issued paper copy as its controlled-copy PDF: "Controlled copy N" and its holder on every page (E46-57). Audited.',
+    description: 'The version the copy was issued of, printed as the version PDF is, with the copy number, holder and place in the control block and at the top of every page (a PDF original is stamped with them). 409 recalled for a recalled copy; 409 recall_due for a copy of a version no longer in force.',
+    response: 'application/pdf',
   });
 
   app.get('/api/policies/:id/versions/:vid/original', { preHandler: ctx.requirePerm('policies.edit') }, async (req, reply) => {

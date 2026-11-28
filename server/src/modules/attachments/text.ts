@@ -21,7 +21,7 @@ import { fileURLToPath } from 'node:url';
 import { ensureJobs, scheduleWork } from '../../core/jobs/index.ts';
 import type { ModuleContext, Row } from '../../core/module.ts';
 import { SEARCH_CONFIG } from '../../core/search.ts';
-import { OCR_MAX_MEMORY_MB, OCR_TIME_LIMIT_MS, ocrState, type OcrJob } from './ocr.ts';
+import { OCR_MAX_MEMORY_MB, OCR_TIME_LIMIT_MS, ocrState, readOcrLanguages, type OcrJob } from './ocr.ts';
 
 export const TEXT_JOB = 'attachments.text_index';
 /** The file types whose text is read. */
@@ -144,6 +144,7 @@ export async function indexFileTexts(ctx: ModuleContext, limit = BATCH, opts: { 
   const files = await ctx.db.query<Row>(
     `select a.id, a.extension, a.size_bytes, a.storage_driver, a.storage_key from attachments a where ${WAITING}
      order by a.created_at desc limit $3`, [readable(), NOT_READ_TYPES, limit]);
+  let chosen: string[] | null | undefined;
   const sum = { read: 0, indexed: 0, empty: 0, skipped: 0, failed: 0, waiting: 0 };
   for (const att of files) {
     sum.read += 1;
@@ -169,7 +170,9 @@ export async function indexFileTexts(ctx: ModuleContext, limit = BATCH, opts: { 
     // A scanned PDF (no text layer) is read again with OCR, with its own, larger limits (E43-15).
     let ocrNote: string | null = null;
     if (r.ok && r.scanned) {
-      const state = ocrState();
+      // The languages chosen under Administration > File settings (E46-56), read once per run.
+      if (chosen === undefined) chosen = await readOcrLanguages(ctx);
+      const state = ocrState(process.env, chosen);
       if (!state.ready) ocrNote = `scanned: no text layer; ${state.reason}`;
       else {
         const o = await extractText(bytes, att.extension, {

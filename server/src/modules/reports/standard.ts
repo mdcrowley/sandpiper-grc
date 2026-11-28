@@ -33,7 +33,9 @@ const ON_VEHICLE = ['onboard_computer', 'cad_avl_unit', 'farebox', 'validator', 
  * Each line is one fact; a line whose area is switched off is left out of the page by the dashboard itself.
  */
 const openSafetyEvents = all(c('status', 'nin', ['closed']));
-const BOARD_SUMMARY_WIDGETS: W[] = [
+const BOARD_SUMMARY_DESCRIPTION = 'One page in plain language for leadership: safety first, then operations, service, risk and projects, with arrows showing which way each figure is moving.';
+/** The Board summary as it shipped in wave 26, before the safety indicators (E46-68); an unedited one is upgraded. */
+const BOARD_SUMMARY_WAVE26: W[] = [
   text('t0', 0, 0, 12, 2, 'About this page', 'Each line below is one fact about the organization, written without jargon, most important first. The arrow compares the **last 30 days** with the 30 days before. Select any figure to see the records behind it.'),
   number('b1', 0, 2, 'Safety events', 'safety_event', all(c('occurred_at', 'last_days', 30)), { sentence: '{value} safety {event was|events were} recorded in the last 30 days.', trend: { field: 'occurred_at', days: 30, filters: null, upIsGood: false, noun: 'were recorded' } }, 6),
   number('b2', 6, 2, 'Serious safety events', 'safety_event', all(c('severity', 'in', ['serious', 'major']), c('occurred_at', 'last_days', 90)), { sentence: '{value} serious or major safety {event|events} in the last 90 days.', tone: 'bad', trend: null }, 6),
@@ -54,6 +56,36 @@ const BOARD_SUMMARY_WIDGETS: W[] = [
   { id: 'p1', kind: 'progress', title: 'Security framework: priority outcomes largely met or met', x: 6, y: 20, w: 6, h: 2, config: { spec: { type: 'framework_outcome', filters: all(c('priority', 'true'), c('status', 'in', ['largely_met', 'met'])) }, of: all(c('priority', 'true')) } },
   chart('c1', 0, 22, 6, 4, 'Projects by overall rating', 'donut', { type: 'project', filters: activeProjects, groupBy: [{ field: 'rag_overall' }] }),
   chart('c2', 6, 22, 6, 4, 'Requests and faults raised each month', 'bar', { type: 'ticket', groupBy: [{ field: 'opened_at', bucket: 'month' }], filters: all(c('opened_at', 'last_days', 365)) }, { dateField: 'opened_at' }),
+];
+
+/**
+ * Wave 27 (E46-68): where each safety performance indicator stands, under the safety events: how many
+ * missed their target in their latest complete month, and one line per indicator. The figures come from
+ * the safety module (widget-sources.ts); the widgets name `safety_indicator` as their type, so the page
+ * leaves them out while the safety area is off.
+ */
+const SAFETY_INDICATOR_WIDGETS: W[] = [
+  { id: 'b6', kind: 'number', title: 'Safety performance indicators', x: 0, y: 10, w: 12, h: 2, config: { source: 'safety_indicators', spec: { type: 'safety_indicator' }, sentence: '{value} safety performance {indicator|indicators} missed {its|their} target in the latest complete month.', tone: 'bad', trend: null } },
+  { id: 'b7', kind: 'table', title: 'Where each safety indicator stands', x: 0, y: 12, w: 12, h: 6, config: { source: 'safety_indicators', spec: { type: 'safety_indicator' } } },
+];
+const BOARD_SUMMARY_WIDGETS: W[] = [
+  ...BOARD_SUMMARY_WAVE26.filter((w) => w.y < 10),
+  ...SAFETY_INDICATOR_WIDGETS,
+  ...BOARD_SUMMARY_WAVE26.filter((w) => w.y >= 10).map((w) => ({ ...w, y: w.y + 8 })),
+];
+
+/**
+ * The change success rate of the IT leadership overview. Wave 27 (E46-54): the same figure as the home
+ * widget, from the changes module (widget-sources.ts), so a change that caused an incident counts as not
+ * successful. Before, it counted outcomes only (`CHANGE_SUCCESS_GAUGE_BEFORE`; an unedited one is upgraded).
+ */
+const CHANGE_SUCCESS_GAUGE: W = { id: 'g2', kind: 'gauge', title: 'Change success rate', x: 9, y: 14, w: 3, h: 4, config: { source: 'change_success', spec: { type: 'change' }, target: 95 } };
+export const CHANGE_SUCCESS_GAUGE_BEFORE: W = { id: 'g2', kind: 'gauge', title: 'Change success rate', x: 9, y: 14, w: 3, h: 4, config: { spec: { type: 'change', filters: all(c('outcome', 'in', ['successful', 'successful_with_issues'])) }, of: all(c('outcome', 'in', ['successful', 'successful_with_issues', 'failed', 'backed_out'])), target: 95, dateField: 'actual_end' } };
+
+/** Earlier standard Board summaries, oldest first: one still reading exactly like any of them is brought up to the current one. */
+export const BOARD_SUMMARY_EARLIER = (): { description: string; widgets: W[] }[] => [
+  BOARD_SUMMARY_BEFORE,
+  { description: BOARD_SUMMARY_DESCRIPTION, widgets: BOARD_SUMMARY_WAVE26 },
 ];
 
 /**
@@ -100,7 +132,7 @@ export const STANDARD_DASHBOARDS: StandardDashboard[] = [
       // Wave 25 (E45-45): vulnerability age, service levels and change success.
       chart('c6', 0, 14, 6, 4, 'Open vulnerabilities by age and severity', 'stacked', { type: 'vulnerability', filters: openVulns, groupBy: [{ field: 'first_seen', bucket: 'quarter' }, { field: 'severity' }] }),
       { id: 'g1', kind: 'gauge', title: 'Tickets resolved within target', x: 6, y: 14, w: 3, h: 4, config: { spec: { type: 'ticket', filters: all(c('resolved_at', 'nempty'), c('target_missed', 'false')) }, of: all(c('resolved_at', 'nempty')), target: 90, dateField: 'resolved_at' } },
-      { id: 'g2', kind: 'gauge', title: 'Change success rate', x: 9, y: 14, w: 3, h: 4, config: { spec: { type: 'change', filters: all(c('outcome', 'in', ['successful', 'successful_with_issues'])) }, of: all(c('outcome', 'in', ['successful', 'successful_with_issues', 'failed', 'backed_out'])), target: 95, dateField: 'actual_end' } },
+      CHANGE_SUCCESS_GAUGE,
     ],
   },
   {
@@ -192,7 +224,7 @@ export const STANDARD_DASHBOARDS: StandardDashboard[] = [
   },
   {
     key: 'board_summary', name: 'Board summary',
-    description: 'One page in plain language for leadership: safety first, then operations, service, risk and projects, with arrows showing which way each figure is moving.',
+    description: BOARD_SUMMARY_DESCRIPTION,
     filters: [],
     widgets: BOARD_SUMMARY_WIDGETS,
   },

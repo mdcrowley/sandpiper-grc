@@ -76,6 +76,8 @@ export function registerPolicies(ctx: ModuleContext) {
       renewal_status: { label: 'Renewal', type: 'lookup', list: 'insurance_renewal_status', default: 'not_started' },
       renewal_application_due: { label: 'Renewal application due', type: 'date' },
       replaces_id: { label: 'Renews', type: 'ref', to: POLICY, help: 'The policy of the term before.' },
+      allocation_method: { label: 'Premium split', type: 'lookup', list: 'insurance_allocation_method', help: 'How the premium is split across the shares on the Premium allocation tab: equally, by a measure, by insured value or by hand.' },
+      allocation_measure: { label: 'Measure counted', type: 'text', personal: false, help: 'When the premium is split by a measure, what it counts: "Payroll", "Floor area", "Units".' },
       notes: { label: 'Notes', type: 'longtext' },
     },
     hooks: {
@@ -257,7 +259,7 @@ export function registerPolicies(ctx: ModuleContext) {
       broker_name: p.broker_name, policy_number: b.policy_number ?? null, effective_on: from, expires_on: to, premium: b.premium ?? null,
       limit_per_occurrence: p.limit_per_occurrence, limit_aggregate: p.limit_aggregate, deductible: p.deductible, retention: p.retention,
       sublimits: p.sublimits, named_insureds: p.named_insureds, owner_id: p.owner_id, department_id: p.department_id,
-      status: 'draft', renewal_status: 'not_started', replaces_id: p.id,
+      status: 'draft', renewal_status: 'not_started', replaces_id: p.id, allocation_method: p.allocation_method ?? null, allocation_measure: p.allocation_measure ?? null,
     };
     const made = await ctx.resources.create(POLICY, copy, req);
     const conditions = await db.query<Row>('select title, description, control_id, owner_id from insurance_conditions where policy_id = $1 and deleted_at is null order by created_at', [p.id]);
@@ -265,6 +267,11 @@ export function registerPolicies(ctx: ModuleContext) {
     await db.query(
       `insert into insurance_covered (policy_id, record_type, record_id, note, created_by)
        select $1, record_type, record_id, note, $3 from insurance_covered where policy_id = $2 on conflict do nothing`, [made.id, p.id, actorOf(req).id]);
+    // The premium shares carry over too (E46-64), worked out again on the new premium.
+    const shares = await db.query<Row>(
+      `select title, department_id, site_id, asset_id, vehicle_id, percent, measure, note from insurance_premium_shares
+       where policy_id = $1 and deleted_at is null order by created_at`, [p.id]);
+    for (const s of shares) await ctx.resources.create('insurance_premium_share', { ...s, policy_id: made.id }, req);
     if (p.renewal_status === 'not_started' && OPEN_POLICY.includes(p.status)) await ctx.resources.update(POLICY, p.id, { renewal_status: 'gathering' }, req);
     reply.code(201);
     return made;
@@ -272,7 +279,7 @@ export function registerPolicies(ctx: ModuleContext) {
   ctx.describeRoute({
     method: 'POST', path: '/api/insurance/policies/:id/renew', tag: 'Insurance', permission: 'insurance.create',
     summary: 'Start the next term of a policy: a new policy being placed, with the same coverage, conditions and covered records',
-    description: 'The new term starts the day after the old one expires and lasts as long, unless dates are given. When the new term is set to In force, the old one becomes Renewed.',
+    description: 'The new term starts the day after the old one expires and lasts as long, unless dates are given. Conditions, covered records and premium shares are copied. When the new term is set to In force, the old one becomes Renewed.',
     body: '{ effective_on?, expires_on?, title?, policy_number?, premium? }', response: 'The new policy',
   });
 }

@@ -108,3 +108,45 @@ describe('library evidence for an outside reviewer (E45-59)', () => {
     expect(aws.evidence.map((e) => e.id)).toEqual([evidenceId]);
   });
 });
+
+describe('readiness counts the previous review and the awards (E46-55)', () => {
+  it('counts the previous review\'s open deficiencies by area, and the awards\' overdue obligations', async () => {
+    // The earlier review of the same invented funder, with two deficiencies: one in FM (still open) and one in an area the new review does not have.
+    const prior = (await t.api.post('/api/compliance-reviews', { title: 'Invented earlier review', funder_name: 'Invented readiness funder', site_visit_on: '2023-05-01' })).body;
+    await t.db.query(`insert into compliance_review_areas (review_id, area_code, title, sort) values ($1, 'FM', 'Invented financial management', 10), ($1, 'TV', 'Invented title six', 20)`, [prior.id]);
+    const fmGap = await t.api.post('/api/review-deficiencies', { title: 'Invented late drawdowns', review_id: prior.id, area_code: 'FM' });
+    const tvGap = await t.api.post('/api/review-deficiencies', { title: 'Invented notice missing', review_id: prior.id, area_code: 'TV' });
+    expect([fmGap.status, tvGap.status]).toEqual([201, 201]);
+
+    // The new review of the same funder (no carry-forward): the latest earlier review counts.
+    const next = (await t.api.post('/api/compliance-reviews', { title: 'Invented next review', funder_name: 'Invented readiness funder', site_visit_on: '2026-05-01' })).body;
+    expect(next.funder_id).toBe(prior.funder_id);
+    const adminId = (await t.db.one<{ id: string }>(`select id from users where username = 'admin'`))!.id;
+    await t.db.query(`insert into compliance_review_areas (review_id, area_code, title, self_assessment, owner_id, sort) values ($1, 'FM', 'Invented financial management', 'not_applicable', $2, 10)`, [next.id, adminId]);
+    let r = (await t.api.get(`/api/compliance-reviews/${next.id}/readiness`)).body;
+    expect(r.previous).toMatchObject({ id: prior.id, open_deficiencies: 2, elsewhere: 1 });
+    const fm = r.areas.find((a: Row) => a.area_code === 'FM');
+    expect(fm.ready).toBe(false);
+    expect(fm.gaps).toEqual([`1 deficiency from ${prior.ref} still open`]);
+    // Six checks for the area, one for the earlier deficiencies elsewhere: five met.
+    expect(r.checks).toMatchObject({ total: 7, met: 5 });
+
+    // Closing both makes the area ready and the earlier check met.
+    for (const d of [fmGap.body, tvGap.body]) expect((await t.api.patch(`/api/review-deficiencies/${d.id}`, { status: 'closed' })).status).toBe(200);
+    r = (await t.api.get(`/api/compliance-reviews/${next.id}/readiness`)).body;
+    expect(r.previous).toMatchObject({ open_deficiencies: 0, elsewhere: 0 });
+    expect(r.areas[0].ready).toBe(true);
+    expect(r.checks).toMatchObject({ total: 7, met: 7 });
+
+    // An award under review whose reporting is overdue: one check per obligation, unmet while overdue.
+    const award = (await t.api.post('/api/funding-awards', {
+      title: 'Invented readiness award', funder_name: 'Invented readiness funder', status: 'active', reporting_frequency: 'quarterly', next_report_due: '2024-01-15', closeout_due: '2099-12-31',
+    })).body;
+    expect((await t.api.put(`/api/compliance-reviews/${next.id}/awards`, { award_ids: [award.id] })).status).toBe(200);
+    r = (await t.api.get(`/api/compliance-reviews/${next.id}/readiness`)).body;
+    // The obligations register belongs to the risks module.
+    if (!t.ctx.resources.get('obligation')) { expect(r.obligations).toBeNull(); return; }
+    expect(r.obligations).toMatchObject({ awards: 1, total: 2, overdue: 1 });
+    expect(r.checks).toMatchObject({ total: 9, met: 8 });
+  });
+});

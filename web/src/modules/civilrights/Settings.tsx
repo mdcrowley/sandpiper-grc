@@ -2,11 +2,19 @@
 // is built in) and the people named to handle confidential complaints.
 import { useEffect, useState, type FormEvent } from 'react';
 import {
-  api, Button, Card, ErrorState, errorMessage, Loading, MultiSelect, NumberField, PageHeader, StatusChip, useAuth, useFetch, useToast, withReauth,
+  api, Button, Card, ErrorState, errorMessage, Loading, MultiSelect, NumberField, PageHeader, Select, StatusChip, useAuth, useFetch, useToast, withReauth,
 } from '../../core';
 import './civilrights.css';
 
-interface Limits { ackDays: number; investigationDays: number; appealDays: number; reminderDays: number }
+interface Limits {
+  ackDays: number; investigationDays: number; appealDays: number; reminderDays: number;
+  ackWorking: boolean; investigationWorking: boolean; appealWorking: boolean;
+  /** The working calendar working days are counted on, and its number of holidays (read only). */
+  workingCalendar?: string | null; holidays?: number;
+}
+type DaysKey = 'ackDays' | 'investigationDays' | 'appealDays' | 'reminderDays';
+type CountKey = 'ackWorking' | 'investigationWorking' | 'appealWorking';
+const COUNTING = [{ value: 'calendar', label: 'Calendar days' }, { value: 'working', label: 'Working days' }];
 interface Handlers {
   handlers: { id: string; label: string; eligible: boolean }[];
   named: boolean;
@@ -16,7 +24,7 @@ interface Handlers {
 
 function TimeLimits() {
   const toast = useToast();
-  const { can } = useAuth();
+  const { can, areaOn } = useAuth();
   const { data, error, reload } = useFetch<Limits>('/api/civil-rights/settings');
   const [form, setForm] = useState<Limits | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -29,23 +37,40 @@ function TimeLimits() {
   const save = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true); setErrors({});
-    try { await api.put('/api/civil-rights/settings', current); toast.success('Time limits saved. Complaints received from now on use them.'); setForm(null); reload(); }
-    catch (err) { setErrors((err as { fields?: Record<string, string> }).fields ?? {}); toast.error(errorMessage(err)); }
+    try {
+      const { workingCalendar: _c, holidays: _h, ...body } = current;
+      await api.put('/api/civil-rights/settings', body);
+      toast.success('Time limits saved. Complaints received from now on use them.'); setForm(null); reload();
+    } catch (err) { setErrors((err as { fields?: Record<string, string> }).fields ?? {}); toast.error(errorMessage(err)); }
     finally { setBusy(false); }
   };
-  const field = (key: keyof Limits, label: string, hint: string, max: number) => (
+  const field = (key: DaysKey, label: string, hint: string, max: number) => (
     <NumberField label={label} min={key === 'reminderDays' ? 0 : 1} max={max} value={current[key]} error={errors[key]} hint={hint} disabled={!admin}
       onChange={(v) => set({ [key]: v ?? 0 } as Partial<Limits>)} />
   );
+  const counting = (key: CountKey, label: string) => (
+    <Select label={label} required options={COUNTING} value={current[key] ? 'working' : 'calendar'} error={errors[key]} disabled={!admin}
+      onChange={(v) => set({ [key]: v === 'working' } as Partial<Limits>)} />
+  );
+  const calendar = `${current.workingCalendar ?? 'Monday to Friday'}${current.holidays ? `, ${current.holidays} holiday${current.holidays === 1 ? '' : 's'}` : ', no holidays'}`;
   return (
     <Card title="Complaint time limits">
       <form className="form" onSubmit={save} noValidate>
-        <p className="muted">Set the limits your own procedure gives, in calendar days. A change applies to complaints received from then on; dates already worked out stay.</p>
+        <p className="muted">
+          Set the limits your own procedure gives, each in calendar days or in working days. A change applies to complaints received from then on; dates already worked out stay.
+        </p>
+        <p className="muted">
+          Working days are the open weekdays of the organization&apos;s business-hours calendar, less its holidays ({calendar}){areaOn('records') ? ', the same calendar records requests are counted on' : ''}.
+          {areaOn('tickets') ? ' It is kept with the service desk settings, under Calendars.' : ''}
+        </p>
         <div className="form-grid">
-          {field('ackDays', 'Acknowledge within (days)', 'Counted from the day the complaint is received.', 365)}
-          {field('investigationDays', 'Finish the investigation within (days)', 'Counted from the day received.', 730)}
-          {field('appealDays', 'Decide an appeal within (days)', 'Counted from the day the appeal arrives.', 365)}
-          {field('reminderDays', 'Remind this many days before', 'The investigator (or the handlers) and report owners are reminded once.', 90)}
+          {field('ackDays', 'Acknowledge within', 'Counted from the day the complaint is received.', 365)}
+          {counting('ackWorking', 'Acknowledgment counted in')}
+          {field('investigationDays', 'Finish the investigation within', 'Counted from the day received.', 730)}
+          {counting('investigationWorking', 'Investigation counted in')}
+          {field('appealDays', 'Decide an appeal within', 'Counted from the day the appeal arrives.', 365)}
+          {counting('appealWorking', 'Appeal counted in')}
+          {field('reminderDays', 'Remind this many days before', 'Calendar days. The investigator (or the handlers) and report owners are reminded once.', 90)}
         </div>
         {admin && <div className="form-actions"><Button type="submit" variant="primary" loading={busy} disabled={form === null}>Save time limits</Button></div>}
       </form>
